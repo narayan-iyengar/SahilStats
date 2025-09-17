@@ -1,7 +1,10 @@
+// File: SahilStats/Views/GameListView.swift (Replace existing content)
+
 import SwiftUI
 
 struct GameListView: View {
     @StateObject private var firebaseService = FirebaseService.shared
+    @EnvironmentObject var authService: AuthService
     @State private var selectedGame: Game?
     
     var body: some View {
@@ -10,24 +13,44 @@ struct GameListView: View {
                 if firebaseService.isLoading {
                     VStack {
                         ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .orange))
                         Text("Loading games...")
                             .foregroundColor(.secondary)
                     }
                 } else if firebaseService.games.isEmpty {
-                    VStack {
-                        Text("🏀")
+                    VStack(spacing: 16) {
+                        Image(systemName: "basketball.fill")
                             .font(.system(size: 80))
+                            .foregroundColor(.orange)
+                        
                         Text("No games yet!")
                             .font(.title2)
                             .fontWeight(.bold)
+                        
                         Text("Start playing to see your stats here")
                             .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        if authService.canCreateGames {
+                            NavigationLink("Create Your First Game") {
+                                GameSetupView()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                        }
                     }
+                    .padding()
                 } else {
                     List {
                         // Career stats summary at top
-                        CareerStatsView(games: firebaseService.games)
+                        CareerStatsView(stats: firebaseService.getCareerStats())
                             .listRowBackground(Color.orange.opacity(0.1))
+                        
+                        // Live game indicator if present
+                        if firebaseService.hasLiveGame {
+                            LiveGameIndicatorView()
+                                .listRowBackground(Color.red.opacity(0.1))
+                        }
                         
                         // Games section
                         Section("Recent Games") {
@@ -36,12 +59,73 @@ struct GameListView: View {
                                     .onTapGesture {
                                         selectedGame = game
                                     }
+                                    .contextMenu {
+                                        if authService.canEditGames {
+                                            Button("Edit Game") {
+                                                // TODO: Navigate to edit
+                                            }
+                                        }
+                                        
+                                        if authService.canDeleteGames {
+                                            Button("Delete Game", role: .destructive) {
+                                                Task {
+                                                    try? await firebaseService.deleteGame(game.id ?? "")
+                                                }
+                                            }
+                                        }
+                                    }
                             }
                         }
                     }
                 }
             }
             .navigationTitle("Basketball Stats")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack {
+                        // Live game indicator in toolbar
+                        if firebaseService.hasLiveGame {
+                            NavigationLink(destination: LiveGameView()) {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 8, height: 8)
+                                        .opacity(0.8)
+                                        .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                                    
+                                    Text("LIVE")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
+                        
+                        // Add game button for admins
+                        if authService.canCreateGames {
+                            NavigationLink(destination: GameSetupView()) {
+                                Image(systemName: "plus")
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarLeading) {
+                    // User status indicator
+                    if authService.isSignedIn {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                            
+                            Text(authService.userRole.displayName)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
             .sheet(item: $selectedGame) { game in
                 GameDetailView(game: game)
             }
@@ -50,31 +134,17 @@ struct GameListView: View {
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
             }
         }
+        .onAppear {
+            firebaseService.startListening()
+        }
+        .onDisappear {
+            firebaseService.stopListening()
+        }
     }
 }
 
 struct CareerStatsView: View {
-    let games: [Game]
-    
-    private var totalPoints: Int {
-        games.reduce(0) { $0 + $1.points }
-    }
-    
-    private var totalGames: Int {
-        games.count
-    }
-    
-    private var averagePoints: Double {
-        totalGames > 0 ? Double(totalPoints) / Double(totalGames) : 0.0
-    }
-    
-    private var wins: Int {
-        games.filter { $0.outcome == .win }.count
-    }
-    
-    private var winPercentage: Double {
-        totalGames > 0 ? Double(wins) / Double(totalGames) : 0.0
-    }
+    let stats: CareerStats
     
     var body: some View {
         VStack(spacing: 12) {
@@ -86,13 +156,79 @@ struct CareerStatsView: View {
             }
             
             HStack(spacing: 20) {
-                StatBox(title: "Games", value: "\(totalGames)")
-                StatBox(title: "Points", value: "\(totalPoints)")
-                StatBox(title: "Avg", value: String(format: "%.1f", averagePoints))
-                StatBox(title: "Win %", value: String(format: "%.0f%%", winPercentage * 100))
+                StatBox(title: "Games", value: "\(stats.totalGames)")
+                StatBox(title: "Points", value: "\(stats.totalPoints)")
+                StatBox(title: "Avg", value: String(format: "%.1f", stats.averagePoints))
+                StatBox(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100))
+            }
+            
+            // Shooting percentages
+            HStack(spacing: 20) {
+                StatBox(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100))
+                StatBox(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100))
+                StatBox(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100))
+                StatBox(title: "A/T", value: String(format: "%.1f", stats.assistTurnoverRatio))
             }
         }
         .padding()
+    }
+}
+
+struct LiveGameIndicatorView: View {
+    @StateObject private var firebaseService = FirebaseService.shared
+    
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 12, height: 12)
+                .opacity(0.8)
+                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("🔴 Live Game in Progress")
+                    .font(.headline)
+                    .foregroundColor(.red)
+                
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Period \(liveGame.period) • \(formatTime(liveGame.clock))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            NavigationLink(destination: LiveGameView()) {
+                Text("Watch")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+        }
+        .padding()
+    }
+    
+    private func formatTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+        return String(format: "%d:%02d", minutes, remainingSeconds)
+    }
+}
+
+struct LiveGameView: View {
+    var body: some View {
+        Text("Live Game View")
+            .navigationTitle("Live Game")
+            .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -165,7 +301,7 @@ struct GameRowView: View {
                 // Achievements
                 if !game.achievements.isEmpty {
                     HStack {
-                        ForEach(Array(game.achievements.prefix(3)), id: \.self) { achievement in
+                        ForEach(Array(game.achievements.prefix(3)), id: \.id) { achievement in
                             Text(achievement.emoji)
                                 .font(.caption)
                         }
@@ -281,7 +417,7 @@ struct GameDetailView: View {
                                     .font(.headline)
                                 
                                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
-                                    ForEach(game.achievements, id: \.self) { achievement in
+                                    ForEach(game.achievements, id: \.id) { achievement in
                                         AchievementBadge(achievement: achievement)
                                     }
                                 }
@@ -385,4 +521,5 @@ struct AchievementBadge: View {
 
 #Preview {
     GameListView()
+        .environmentObject(AuthService())
 }
