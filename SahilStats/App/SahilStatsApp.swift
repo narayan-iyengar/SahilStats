@@ -1,14 +1,15 @@
-// File: SahilStats/SahilStatsApp.swift (Create this new file in the root)
+// File: SahilStats/App/SahilStatsApp.swift (Updated)
 
 import SwiftUI
 import FirebaseCore
+import FirebaseAuth
 
 @main
 struct SahilStatsApp: App {
     @StateObject private var authService = AuthService()
     
     init() {
-        // Configure Firebase
+        // Configure Firebase - moved from AppDelegate
         FirebaseApp.configure()
     }
     
@@ -108,16 +109,6 @@ struct MainTabView: View {
             }
         }
         .accentColor(.orange)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if !authService.isSignedIn || authService.userRole == .guest {
-                    Button("Sign In") {
-                        showingAuth = true
-                    }
-                    .foregroundColor(.orange)
-                }
-            }
-        }
         .sheet(isPresented: $showingAuth) {
             AuthView()
         }
@@ -141,74 +132,7 @@ struct GameSetupView: View {
                 .multilineTextAlignment(.center)
         }
         .navigationTitle("New Game")
-    }
-}
-
-struct SettingsView: View {
-    @EnvironmentObject var authService: AuthService
-    @State private var showingAuth = false
-    
-    var body: some View {
-        List {
-            Section("Account") {
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(authService.userRole.displayName)
-                        .foregroundColor(.secondary)
-                }
-                
-                if authService.isSignedIn && !authService.currentUser!.isAnonymous {
-                    if let email = authService.currentUser?.email {
-                        HStack {
-                            Text("Email")
-                            Spacer()
-                            Text(email)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Button("Sign Out") {
-                        Task {
-                            try? await authService.signOut()
-                        }
-                    }
-                    .foregroundColor(.red)
-                } else {
-                    Button("Sign In") {
-                        showingAuth = true
-                    }
-                    .foregroundColor(.orange)
-                }
-            }
-            
-            if authService.showAdminFeatures {
-                Section("Admin Features") {
-                    NavigationLink("Team Management") {
-                        Text("Team Management")
-                            .navigationTitle("Teams")
-                    }
-                    
-                    NavigationLink("Game Settings") {
-                        Text("Game Settings")
-                            .navigationTitle("Settings")
-                    }
-                }
-            }
-            
-            Section("App Info") {
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text("1.0.0")
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .navigationTitle("Settings")
-        .sheet(isPresented: $showingAuth) {
-            AuthView()
-        }
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 

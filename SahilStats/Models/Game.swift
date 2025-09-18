@@ -44,6 +44,133 @@ struct Game: Identifiable, Codable {
     var photos: [GamePhoto]?
     var achievements: [Achievement]
     
+    // Custom coding keys for date handling
+    enum CodingKeys: String, CodingKey {
+        case teamName, opponent, location, timestamp, gameFormat, periodLength, numPeriods, status
+        case myTeamScore, opponentScore, outcome
+        case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
+        case createdAt, adminName, editedAt, editedBy, photos, achievements
+    }
+    
+    // Custom decoder to handle different date formats
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Basic properties
+        teamName = try container.decode(String.self, forKey: .teamName)
+        opponent = try container.decode(String.self, forKey: .opponent)
+        location = try container.decodeIfPresent(String.self, forKey: .location)
+        
+        // Handle timestamp - try different formats
+        if let timestampData = try? container.decode(Timestamp.self, forKey: .timestamp) {
+            timestamp = timestampData.dateValue()
+        } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
+            let formatter = ISO8601DateFormatter()
+            timestamp = formatter.date(from: timestampString) ?? Date()
+        } else if let timestampDouble = try? container.decode(Double.self, forKey: .timestamp) {
+            timestamp = Date(timeIntervalSince1970: timestampDouble)
+        } else {
+            timestamp = Date() // fallback
+        }
+        
+        gameFormat = try container.decode(GameFormat.self, forKey: .gameFormat)
+        
+        // Handle periodLength - can be stored as string or int
+        if let periodLengthInt = try? container.decode(Int.self, forKey: .periodLength) {
+            periodLength = periodLengthInt
+        } else if let periodLengthString = try? container.decode(String.self, forKey: .periodLength) {
+            periodLength = Int(periodLengthString) ?? 20
+        } else {
+            periodLength = 20 // default fallback
+        }
+        
+        // Handle numPeriods - can be stored as string or int
+        if let numPeriodsInt = try? container.decode(Int.self, forKey: .numPeriods) {
+            numPeriods = numPeriodsInt
+        } else if let numPeriodsString = try? container.decode(String.self, forKey: .numPeriods) {
+            numPeriods = Int(numPeriodsString) ?? (gameFormat == .halves ? 2 : 4)
+        } else {
+            numPeriods = gameFormat == .halves ? 2 : 4 // calculate from format
+        }
+        
+        status = try container.decode(GameStatus.self, forKey: .status)
+        
+        // Handle scores - can be stored as string or int
+        if let myTeamScoreInt = try? container.decode(Int.self, forKey: .myTeamScore) {
+            myTeamScore = myTeamScoreInt
+        } else if let myTeamScoreString = try? container.decode(String.self, forKey: .myTeamScore) {
+            myTeamScore = Int(myTeamScoreString) ?? 0
+        } else {
+            myTeamScore = 0
+        }
+        
+        if let opponentScoreInt = try? container.decode(Int.self, forKey: .opponentScore) {
+            opponentScore = opponentScoreInt
+        } else if let opponentScoreString = try? container.decode(String.self, forKey: .opponentScore) {
+            opponentScore = Int(opponentScoreString) ?? 0
+        } else {
+            opponentScore = 0
+        }
+        
+        outcome = try container.decode(GameOutcome.self, forKey: .outcome)
+        
+        // Handle all stat fields - can be stored as string or int
+        // Helper function to decode Int from either String or Int
+        func decodeIntFromStringOrInt(key: CodingKeys) -> Int {
+            if let intValue = try? container.decode(Int.self, forKey: key) {
+                return intValue
+            } else if let stringValue = try? container.decode(String.self, forKey: key) {
+                return Int(stringValue) ?? 0
+            }
+            return 0
+        }
+        
+        points = decodeIntFromStringOrInt(key: .points)
+        fg2m = decodeIntFromStringOrInt(key: .fg2m)
+        fg2a = decodeIntFromStringOrInt(key: .fg2a)
+        fg3m = decodeIntFromStringOrInt(key: .fg3m)
+        fg3a = decodeIntFromStringOrInt(key: .fg3a)
+        ftm = decodeIntFromStringOrInt(key: .ftm)
+        fta = decodeIntFromStringOrInt(key: .fta)
+        rebounds = decodeIntFromStringOrInt(key: .rebounds)
+        assists = decodeIntFromStringOrInt(key: .assists)
+        steals = decodeIntFromStringOrInt(key: .steals)
+        blocks = decodeIntFromStringOrInt(key: .blocks)
+        fouls = decodeIntFromStringOrInt(key: .fouls)
+        turnovers = decodeIntFromStringOrInt(key: .turnovers)
+        
+        // Handle createdAt - try different formats
+        if let createdAtData = try? container.decode(Timestamp.self, forKey: .createdAt) {
+            createdAt = createdAtData.dateValue()
+        } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
+            let formatter = ISO8601DateFormatter()
+            createdAt = formatter.date(from: createdAtString) ?? Date()
+        } else if let createdAtDouble = try? container.decode(Double.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: createdAtDouble)
+        } else {
+            createdAt = Date() // fallback
+        }
+        
+        // Optional metadata
+        adminName = try container.decodeIfPresent(String.self, forKey: .adminName)
+        
+        // Handle editedAt - try different formats
+        if let editedAtData = try? container.decodeIfPresent(Timestamp.self, forKey: .editedAt) {
+            editedAt = editedAtData.dateValue()
+        } else if let editedAtString = try? container.decodeIfPresent(String.self, forKey: .editedAt) {
+            let formatter = ISO8601DateFormatter()
+            editedAt = formatter.date(from: editedAtString)
+        } else if let editedAtDouble = try? container.decodeIfPresent(Double.self, forKey: .editedAt) {
+            editedAt = Date(timeIntervalSince1970: editedAtDouble)
+        } else {
+            editedAt = nil
+        }
+        
+        editedBy = try container.decodeIfPresent(String.self, forKey: .editedBy)
+        photos = try container.decodeIfPresent([GamePhoto].self, forKey: .photos)
+        achievements = try container.decodeIfPresent([Achievement].self, forKey: .achievements) ?? []
+    }
+    
     // Computed properties
     var formattedDate: String {
         let formatter = DateFormatter()
@@ -116,6 +243,11 @@ struct Game: Identifiable, Codable {
         self.editedAt = nil
         self.editedBy = nil
         self.photos = nil
+        
+        // Initialize achievements as empty array first, then calculate after self is fully initialized
+        self.achievements = []
+        
+        // Now that self is fully initialized, calculate achievements
         self.achievements = Achievement.getEarnedAchievements(for: self)
     }
 }
@@ -146,7 +278,7 @@ struct LiveGame: Identifiable, Codable {
     var playerStats: PlayerStats
     
     // Metadata
-    var createdAt: Date
+    @ServerTimestamp var createdAt: Date?
     var createdBy: String?
     var sahilOnBench: Bool?
     
@@ -219,6 +351,31 @@ struct Team: Identifiable, Codable {
     @DocumentID var id: String?
     var name: String
     var createdAt: Date
+    
+    // Custom coding keys
+    enum CodingKeys: String, CodingKey {
+        case name, createdAt
+    }
+    
+    // Custom decoder to handle missing createdAt field
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        name = try container.decode(String.self, forKey: .name)
+        
+        // Handle missing createdAt field for older documents
+        if let createdAtData = try? container.decode(Timestamp.self, forKey: .createdAt) {
+            createdAt = createdAtData.dateValue()
+        } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
+            let formatter = ISO8601DateFormatter()
+            createdAt = formatter.date(from: createdAtString) ?? Date()
+        } else if let createdAtDouble = try? container.decode(Double.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: createdAtDouble)
+        } else {
+            // Fallback for older documents without createdAt
+            createdAt = Date()
+        }
+    }
     
     init(name: String) {
         self.name = name
@@ -297,6 +454,45 @@ struct GamePhoto: Codable, Identifiable {
     var description: String
     var timestamp: Date
     var isICloudLink: Bool
+    
+    // Custom coding keys
+    enum CodingKeys: String, CodingKey {
+        case id, url, description, timestamp, isICloudLink
+    }
+    
+    // Custom decoder to handle different id types
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Handle id as either String or Number
+        if let idString = try? container.decode(String.self, forKey: .id) {
+            self.id = idString
+        } else if let idNumber = try? container.decode(Int.self, forKey: .id) {
+            self.id = String(idNumber)
+        } else if let idDouble = try? container.decode(Double.self, forKey: .id) {
+            self.id = String(Int(idDouble))
+        } else {
+            // Fallback to generate new UUID
+            self.id = UUID().uuidString
+        }
+        
+        self.url = try container.decode(String.self, forKey: .url)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? "Game photo"
+        
+        // Handle timestamp - try different formats
+        if let timestampData = try? container.decode(Timestamp.self, forKey: .timestamp) {
+            self.timestamp = timestampData.dateValue()
+        } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
+            let formatter = ISO8601DateFormatter()
+            self.timestamp = formatter.date(from: timestampString) ?? Date()
+        } else if let timestampDouble = try? container.decode(Double.self, forKey: .timestamp) {
+            self.timestamp = Date(timeIntervalSince1970: timestampDouble)
+        } else {
+            self.timestamp = Date()
+        }
+        
+        self.isICloudLink = try container.decodeIfPresent(Bool.self, forKey: .isICloudLink) ?? false
+    }
     
     init(url: String, description: String = "Game photo") {
         self.id = UUID().uuidString
@@ -417,20 +613,27 @@ extension LiveGame {
             turnovers: playerStatsData["turnovers"] as? Int ?? 0
         )
         
-        // Parse clock start time
+        // Parse clock start time - handle missing field
         let clockStartTime: Date?
         if let timestamp = data["clockStartTime"] as? Double {
             clockStartTime = Date(timeIntervalSince1970: timestamp)
+        } else if let timestampData = data["clockStartTime"] as? Timestamp {
+            clockStartTime = timestampData.dateValue()
         } else {
             clockStartTime = nil
         }
         
-        // Parse created date
+        // Parse created date - handle multiple formats and missing field
         let createdAt: Date
-        if let createdAtString = data["createdAt"] as? String {
+        if let timestampData = data["createdAt"] as? Timestamp {
+            createdAt = timestampData.dateValue()
+        } else if let createdAtString = data["createdAt"] as? String {
             let formatter = ISO8601DateFormatter()
             createdAt = formatter.date(from: createdAtString) ?? Date()
+        } else if let createdAtDouble = data["createdAt"] as? Double {
+            createdAt = Date(timeIntervalSince1970: createdAtDouble)
         } else {
+            // Fallback for older documents
             createdAt = Date()
         }
         

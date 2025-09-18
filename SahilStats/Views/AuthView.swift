@@ -1,4 +1,4 @@
-// File: SahilStats/Views/AuthView.swift
+// File: SahilStats/Views/AuthView.swift (Fixed)
 
 import SwiftUI
 
@@ -191,18 +191,15 @@ struct AuthView: View {
         Task {
             do {
                 try await authService.signInWithEmail(email, password: password)
-                await MainActor.run {
-                    dismiss()
-                }
+                dismiss()
             } catch let error as AuthService.AuthError {
-                await handleAuthError(error)
+                handleAuthError(error)
             } catch {
-                await handleAuthError(.unknownError)
+                handleAuthError(.unknownError)
             }
             
-            await MainActor.run {
-                isSigningIn = false
-            }
+            // Reset loading state - no need for MainActor since we're already on main thread
+            isSigningIn = false
         }
     }
     
@@ -212,18 +209,15 @@ struct AuthView: View {
         Task {
             do {
                 try await authService.createAccount(email: email, password: password)
-                await MainActor.run {
-                    dismiss()
-                }
+                dismiss()
             } catch let error as AuthService.AuthError {
-                await handleAuthError(error)
+                handleAuthError(error)
             } catch {
-                await handleAuthError(.unknownError)
+                handleAuthError(.unknownError)
             }
             
-            await MainActor.run {
-                isCreatingAccount = false
-            }
+            // Reset loading state - no need for MainActor since we're already on main thread
+            isCreatingAccount = false
         }
     }
     
@@ -231,16 +225,13 @@ struct AuthView: View {
         Task {
             do {
                 try await authService.signInAnonymously()
-                await MainActor.run {
-                    dismiss()
-                }
+                dismiss()
             } catch {
-                await handleAuthError(.networkError)
+                handleAuthError(.networkError)
             }
         }
     }
     
-    @MainActor
     private func handleAuthError(_ error: AuthService.AuthError) {
         errorMessage = error.localizedDescription
         showError = true

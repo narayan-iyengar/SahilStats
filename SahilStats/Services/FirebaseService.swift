@@ -1,10 +1,10 @@
-// File: SahilStats/Services/FirebaseService.swift
+// File: SahilStats/Services/FirebaseService.swift (Fixed)
 
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
+import Combine
 
-@MainActor
 class FirebaseService: ObservableObject {
     static let shared = FirebaseService()
     
@@ -40,7 +40,7 @@ class FirebaseService: ObservableObject {
     func addGame(_ game: Game) async throws {
         var gameData = game
         gameData.createdAt = Date()
-        try await db.collection("games").addDocument(from: gameData)
+        let _ = try await db.collection("games").addDocument(from: gameData)
     }
     
     func updateGame(_ game: Game) async throws {
@@ -55,7 +55,7 @@ class FirebaseService: ObservableObject {
     // MARK: - Teams
     
     func addTeam(_ team: Team) async throws {
-        try await db.collection("teams").addDocument(from: team)
+        let _ = try await db.collection("teams").addDocument(from: team)
     }
     
     func deleteTeam(_ teamId: String) async throws {
@@ -94,13 +94,15 @@ class FirebaseService: ObservableObject {
                 guard let self = self else { return }
                 
                 if let error = error {
-                    self.error = error.localizedDescription
+                    Task { @MainActor in
+                        self.error = error.localizedDescription
+                    }
                     return
                 }
                 
                 guard let documents = snapshot?.documents else { return }
                 
-                self.games = documents.compactMap { document in
+                let newGames = documents.compactMap { document in
                     do {
                         var game = try document.data(as: Game.self)
                         game.id = document.documentID
@@ -109,6 +111,10 @@ class FirebaseService: ObservableObject {
                         print("Error decoding game: \(error)")
                         return nil
                     }
+                }
+                
+                Task { @MainActor [weak self] in
+                    self?.games = newGames
                 }
             }
     }
@@ -120,13 +126,15 @@ class FirebaseService: ObservableObject {
                 guard let self = self else { return }
                 
                 if let error = error {
-                    self.error = error.localizedDescription
+                    Task { @MainActor in
+                        self.error = error.localizedDescription
+                    }
                     return
                 }
                 
                 guard let documents = snapshot?.documents else { return }
                 
-                self.teams = documents.compactMap { document in
+                let newTeams = documents.compactMap { document in
                     do {
                         var team = try document.data(as: Team.self)
                         team.id = document.documentID
@@ -135,6 +143,10 @@ class FirebaseService: ObservableObject {
                         print("Error decoding team: \(error)")
                         return nil
                     }
+                }
+                
+                Task { @MainActor [weak self] in
+                    self?.teams = newTeams
                 }
             }
     }
@@ -145,13 +157,15 @@ class FirebaseService: ObservableObject {
                 guard let self = self else { return }
                 
                 if let error = error {
-                    self.error = error.localizedDescription
+                    Task { @MainActor in
+                        self.error = error.localizedDescription
+                    }
                     return
                 }
                 
                 guard let documents = snapshot?.documents else { return }
                 
-                self.liveGames = documents.compactMap { document in
+                let newLiveGames = documents.compactMap { document in
                     do {
                         var liveGame = try document.data(as: LiveGame.self)
                         liveGame.id = document.documentID
@@ -160,6 +174,10 @@ class FirebaseService: ObservableObject {
                         print("Error decoding live game: \(error)")
                         return nil
                     }
+                }
+                
+                Task { @MainActor [weak self] in
+                    self?.liveGames = newLiveGames
                 }
             }
     }

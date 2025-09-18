@@ -1,4 +1,4 @@
-// File: SahilStats/Services/AuthService.swift
+// File: SahilStats/Services/AuthService.swift (Fixed)
 
 import Foundation
 import FirebaseAuth
@@ -72,7 +72,7 @@ class AuthService: ObservableObject {
     init() {
         // Listen to Firebase auth state changes
         Auth.auth().addStateDidChangeListener { [weak self] _, user in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 self?.currentUser = user
                 self?.isSignedIn = user != nil && !user!.isAnonymous
                 self?.updateUserRole()
