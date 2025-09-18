@@ -115,27 +115,6 @@ struct MainTabView: View {
     }
 }
 
-// Placeholder views
-struct GameSetupView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.orange)
-            
-            Text("Game Setup")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("Create new games and manage live scoring")
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .navigationTitle("New Game")
-        .navigationBarTitleDisplayMode(.large)
-    }
-}
-
 #Preview {
     ContentView()
         .environmentObject(AuthService())
