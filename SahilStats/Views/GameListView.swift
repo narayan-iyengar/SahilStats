@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameListView.swift (Updated Navigation to LiveGameView)
+// File: SahilStats/Views/GameListView.swift (Updated for larger iPad modal)
 
 import SwiftUI
 import Charts
@@ -15,6 +15,12 @@ struct GameListView: View {
     @State private var currentPage = 1
     @State private var isViewingTrends = false
     @State private var showingLiveGame = false
+    
+    // iPad detection
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     // Computed property to ensure games are sorted latest first
     private var sortedGames: [Game] {
@@ -70,21 +76,10 @@ struct GameListView: View {
         .sheet(item: $selectedGame) { game in
             GameDetailView(game: game)
         }
-        .sheet(isPresented: $showingLiveGame) {
-            if #available(iOS 16.0, *) {
-                NavigationStack {
-                    LiveGameView()
-                        .environmentObject(authService)
-                }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            } else {
-                NavigationView {
-                    LiveGameView()
-                        .environmentObject(authService)
-                        .navigationViewStyle(StackNavigationViewStyle())
-                }
-            }
+        .fullScreenCover(isPresented: $showingLiveGame) {
+            // Full screen presentation for both iPad and iPhone
+            LiveGameFullScreenView()
+                .environmentObject(authService)
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
@@ -112,7 +107,70 @@ struct GameListView: View {
         }
     }
     
-    // MARK: - Subviews
+    // MARK: - Full Screen Live Game View
+    
+    @ViewBuilder
+    private func LiveGameFullScreenView() -> some View {
+        ZStack {
+            // Full screen background
+            Color(.systemBackground)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Custom navigation bar
+                FullScreenNavigationBar()
+                
+                // Content area - Use LiveGameView for both entry points
+                LiveGameView()
+                    .environmentObject(authService)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func FullScreenNavigationBar() -> some View {
+        HStack {
+            // Title
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 12, height: 12)
+                    .opacity(0.8)
+                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                
+                Text("Live Game")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+            
+            // Close button
+            Button(action: {
+                showingLiveGame = false
+            }) {
+                Text("Done")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(20)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+        )
+    }
+    
+    // MARK: - Existing Subviews (unchanged)
     
     private var emptyStateView: some View {
         VStack(spacing: 16) {
@@ -343,7 +401,7 @@ struct LiveGameIndicatorView: View {
     }
 }
 
-// MARK: - Game Row Component (Existing - keeping same implementation)
+// MARK: - Game Row Component (keeping same implementation)
 
 struct GameRowView: View {
     let game: Game
@@ -621,7 +679,7 @@ struct StatPill: View {
     }
 }
 
-// MARK: - Career Stats (Simplified)
+// MARK: - Career Stats (Simplified - keeping existing implementation)
 
 struct EnhancedCareerStatsView: View {
     let stats: CareerStats
@@ -661,6 +719,8 @@ struct EnhancedCareerStatsView: View {
         .padding()
     }
 }
+
+// MARK: - Career Stats Components
 
 struct CareerTrendsView: View {
     let games: [Game]
@@ -997,7 +1057,7 @@ struct StatBox: View {
     }
 }
 
-// MARK: - Game Detail View (Simplified)
+// MARK: - Game Detail View
 
 struct GameDetailView: View {
     let game: Game
