@@ -69,7 +69,10 @@ struct GameSetupView: View {
         }
         .fullScreenCover(isPresented: $showingLiveGameView) {
             // Use consistent full-screen presentation
-            LiveGameFullScreenView(createdLiveGame: createdLiveGame)
+            LiveGameFullScreenView {
+                        showingLiveGameView = false
+                        dismiss()
+                    }
                 .environmentObject(authService)
         }
     }
@@ -463,20 +466,23 @@ struct GameSetupView: View {
     }
     
     private func createLiveGame() async throws -> LiveGame {
-        var liveGame = LiveGame(
-            teamName: gameConfig.teamName,
-            opponent: gameConfig.opponent,
-            location: gameConfig.location.isEmpty ? nil : gameConfig.location,
-            gameFormat: gameConfig.gameFormat,
-            periodLength: gameConfig.periodLength,
-            createdBy: authService.currentUser?.email
-        )
-        
-        let createdGameId = try await firebaseService.createLiveGame(liveGame)
-        liveGame.id = createdGameId
-        
-        return liveGame
-    }
+            // Use the shared instance to get the device ID
+            let deviceId = DeviceControlManager.shared.deviceId
+            var liveGame = LiveGame(
+                teamName: gameConfig.teamName,
+                opponent: gameConfig.opponent,
+                location: gameConfig.location.isEmpty ? nil : gameConfig.location,
+                gameFormat: gameConfig.gameFormat,
+                periodLength: gameConfig.periodLength,
+                createdBy: authService.currentUser?.email,
+                deviceId: deviceId // Pass the deviceId here
+            )
+            
+            let createdGameId = try await firebaseService.createLiveGame(liveGame)
+            liveGame.id = createdGameId
+            
+            return liveGame
+        }
     
     private func addNewTeam() {
         guard !newTeamName.isEmpty else { return }

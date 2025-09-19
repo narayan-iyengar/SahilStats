@@ -11,6 +11,9 @@ import SwiftUI
 import FirebaseFirestore
 
 class DeviceControlManager: ObservableObject {
+    // 1. Create a shared static instance
+    static let shared = DeviceControlManager()
+
     @Published var deviceId: String
     @Published var hasControl: Bool = false
     @Published var controllingUser: String?
@@ -18,8 +21,8 @@ class DeviceControlManager: ObservableObject {
     
     private let firebaseService = FirebaseService.shared
     
-    init() {
-        // Generate unique device ID
+    // 2. Make the initializer private to prevent creating new instances
+    private init() {
         if let existingId = UserDefaults.standard.string(forKey: "deviceId") {
             self.deviceId = existingId
         } else {
@@ -69,8 +72,14 @@ class DeviceControlManager: ObservableObject {
     }
     
     func updateControlStatus(for liveGame: LiveGame, userEmail: String?) {
-        hasControl = (liveGame.controllingDeviceId == deviceId &&
+        let newHasControl = (liveGame.controllingDeviceId == deviceId &&
                      liveGame.controllingUserEmail == userEmail)
+        print("--- Updating Control Status ---")
+        print("Device ID: \(deviceId)")
+        print("Server Controlling Device ID: \(liveGame.controllingDeviceId ?? "None")")
+        print("Control Granted: \(newHasControl)")
+        
+        hasControl = newHasControl
         controllingUser = liveGame.controllingUserEmail
         canRequestControl = liveGame.controllingDeviceId == nil
     }

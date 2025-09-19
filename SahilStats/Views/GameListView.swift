@@ -77,9 +77,11 @@ struct GameListView: View {
             GameDetailView(game: game)
         }
         .fullScreenCover(isPresented: $showingLiveGame) {
-            // Full screen presentation for both iPad and iPhone
-            LiveGameFullScreenView()
-                .environmentObject(authService)
+            // Corrected this section
+            LiveGameFullScreenView {
+                showingLiveGame = false
+            }
+            .environmentObject(authService)
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
@@ -110,25 +112,19 @@ struct GameListView: View {
     // MARK: - Full Screen Live Game View
     
     @ViewBuilder
-    private func LiveGameFullScreenView() -> some View {
+    private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
         ZStack {
-            // Full screen background
-            Color(.systemBackground)
-                .ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Custom navigation bar
-                FullScreenNavigationBar()
-                
-                // Content area - Use LiveGameView for both entry points
-                LiveGameView()
-                    .environmentObject(authService)
+                FullScreenNavigationBar(onDismiss: onDismiss)
+                LiveGameView().environmentObject(authService)
             }
         }
     }
     
     @ViewBuilder
-    private func FullScreenNavigationBar() -> some View {
+    private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
         HStack {
             // Title
             HStack(spacing: 8) {
@@ -146,10 +142,8 @@ struct GameListView: View {
             
             Spacer()
             
-            // Close button
-            Button(action: {
-                showingLiveGame = false
-            }) {
+            // Close button - NOW ALWAYS A "DONE" BUTTON
+            Button(action: onDismiss) {
                 Text("Done")
                     .font(.headline)
                     .fontWeight(.semibold)
@@ -351,7 +345,7 @@ struct LiveGameIndicatorView: View {
                     .animation(.easeInOut(duration: 1).repeatForever(), value: true)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("🔴 Live Game in Progress")
+                    Text("Live Game in Progress")
                         .font(.headline)
                         .foregroundColor(.red)
                     
@@ -360,7 +354,7 @@ struct LiveGameIndicatorView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
-                        Text("Period \(liveGame.period) • \(formatClock(liveGame.clock))")
+                        Text("Period \(liveGame.period) - \(formatClock(liveGame.clock))")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -690,7 +684,7 @@ struct EnhancedCareerStatsView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("🏀 Sahil's Career Dashboard")
+                Text("Sahil's Career Dashboard")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
@@ -1113,7 +1107,7 @@ struct GameDetailView: View {
                 .foregroundColor(.secondary)
             
             if let location = game.location {
-                Text("📍 \(location)")
+                Text("\(location)")
                     .foregroundColor(.secondary)
             }
         }

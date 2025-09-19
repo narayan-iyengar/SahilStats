@@ -34,7 +34,7 @@ struct LiveGameView: View {
 struct LiveGameControllerView: View {
     let liveGame: LiveGame
     @StateObject private var firebaseService = FirebaseService.shared
-    @StateObject private var deviceControl = DeviceControlManager()
+    @ObservedObject private var deviceControl = DeviceControlManager.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -86,7 +86,6 @@ struct LiveGameControllerView: View {
                 DeviceControlStatusCard(
                     hasControl: deviceControl.hasControl,
                     controllingUser: deviceControl.controllingUser,
-                    canRequestControl: deviceControl.canRequestControl,
                     isIPad: isIPad,
                     onRequestControl: {
                         Task {
@@ -165,6 +164,10 @@ struct LiveGameControllerView: View {
         .onAppear {
             startClockSync()
             syncWithServer()
+            print("--- LiveGameView onAppear ---")
+            print("Current Device ID: \(deviceControl.deviceId)")
+            print("Controlling Device ID from Server: \(serverGameState.controllingDeviceId ?? "Not Set")")
+            print("Does this device have control? \(deviceControl.hasControl)")
         }
         .onDisappear {
             stopClockSync()
@@ -188,6 +191,10 @@ struct LiveGameControllerView: View {
                 userEmail: authService.currentUser?.email
             )
             syncWithServer()
+            print("--- LiveGameView serverGameState changed ---")
+            print("Current Device ID: \(deviceControl.deviceId)")
+            print("New Controlling Device ID: \(newGame.controllingDeviceId ?? "Not Set")")
+            print("Does this device have control now? \(deviceControl.hasControl)")
         }
     }
     
@@ -399,33 +406,40 @@ struct LiveGameControllerView: View {
     }
     
     private func updateLiveGameImmediately() {
-        guard hasUnsavedChanges && !isUpdating && deviceControl.hasControl else { return }
-        
-        isUpdating = true
-        hasUnsavedChanges = false
-        
-        Task {
-            do {
-                var updatedGame = serverGameState
-                updatedGame.playerStats = currentStats
-                updatedGame.homeScore = currentHomeScore
-                updatedGame.awayScore = currentAwayScore
-                updatedGame.sahilOnBench = sahilOnBench
+            // This is the key change: we now check the user's email as well.
+            guard hasUnsavedChanges && !isUpdating && deviceControl.hasControl &&
+                  authService.currentUser?.email == serverGameState.controllingUserEmail else {
                 
-                try await firebaseService.updateLiveGame(updatedGame)
-                
-                await MainActor.run {
-                    isUpdating = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.error = "Failed to update game: \(error.localizedDescription)"
-                    isUpdating = false
-                    hasUnsavedChanges = true
+                // Add a print statement to see why updates might be failing
+                print("Update blocked. Has Control: \(deviceControl.hasControl), User Email Matches: \(authService.currentUser?.email == serverGameState.controllingUserEmail)")
+                return
+            }
+
+            isUpdating = true
+            hasUnsavedChanges = false
+            
+            Task {
+                do {
+                    var updatedGame = serverGameState
+                    updatedGame.playerStats = currentStats
+                    updatedGame.homeScore = currentHomeScore
+                    updatedGame.awayScore = currentAwayScore
+                    updatedGame.sahilOnBench = sahilOnBench
+                    
+                    try await firebaseService.updateLiveGame(updatedGame)
+                    
+                    await MainActor.run {
+                        isUpdating = false
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.error = "Failed to update game: \(error.localizedDescription)"
+                        isUpdating = false
+                        hasUnsavedChanges = true
+                    }
                 }
             }
         }
-    }
     
     private func finishGame() {
         guard deviceControl.hasControl else { return }
@@ -501,7 +515,7 @@ struct LiveGameControllerView: View {
 struct DeviceControlStatusCard: View {
     let hasControl: Bool
     let controllingUser: String?
-    let canRequestControl: Bool
+    // 1. Remove canRequestControl from here
     let isIPad: Bool
     let onRequestControl: () -> Void
     
@@ -531,12 +545,12 @@ struct DeviceControlStatusCard: View {
                         .foregroundColor(.secondary)
                 }
                 
-                if canRequestControl {
-                    Button("Request Control") {
-                        onRequestControl()
-                    }
-                    .buttonStyle(SecondaryButtonStyle(isIPad: isIPad))
+                // 2. Remove the "if canRequestControl" check around the button
+                // This ensures the button is always available if you don't have control.
+                Button("Request Control") {
+                    onRequestControl()
                 }
+                .buttonStyle(SecondaryButtonStyle(isIPad: isIPad))
             }
         }
         .padding(isIPad ? 20 : 16)
@@ -544,6 +558,7 @@ struct DeviceControlStatusCard: View {
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
+
 
 struct SynchronizedClockCard: View {
     let liveGame: LiveGame

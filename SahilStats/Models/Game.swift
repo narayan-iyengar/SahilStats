@@ -324,30 +324,31 @@ struct LiveGame: Identifiable, Codable, Equatable {
         gameFormat == .halves ? "Half" : "Period"
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, periodLength: Int = 20, createdBy: String? = nil) {
-        self.teamName = teamName
-        self.opponent = opponent
-        self.location = location
-        self.gameFormat = gameFormat
-        self.periodLength = periodLength
-        self.numPeriods = gameFormat == .halves ? 2 : 4
-        self.isRunning = false
-        self.period = 1
-        self.clock = TimeInterval(periodLength * 60)
-        self.clockStartTime = nil
-        self.clockAtStart = TimeInterval(periodLength * 60)
-        self.controllingDeviceId = nil
-        self.controllingUserEmail = createdBy
-        self.controlRequestedBy = nil
-        self.lastClockUpdate = nil
-        self.homeScore = 0
-        self.awayScore = 0
-        self.playerStats = PlayerStats()
-        self.createdAt = Date()
-        self.createdBy = createdBy
-        self.sahilOnBench = false
-    }
-}
+    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, periodLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
+           self.teamName = teamName
+           self.opponent = opponent
+           self.location = location
+           self.gameFormat = gameFormat
+           self.periodLength = periodLength
+           self.numPeriods = gameFormat == .halves ? 2 : 4
+           self.isRunning = false
+           self.period = 1
+           self.clock = TimeInterval(periodLength * 60)
+           self.clockStartTime = nil
+           self.clockAtStart = TimeInterval(periodLength * 60)
+           self.controllingDeviceId = deviceId // Set the controlling device ID
+           self.controllingUserEmail = createdBy
+           self.controlRequestedBy = nil
+           self.lastClockUpdate = nil
+           self.homeScore = 0
+           self.awayScore = 0
+           self.playerStats = PlayerStats()
+           self.createdAt = Date()
+           self.createdBy = createdBy
+           self.sahilOnBench = false
+       }
+   }
+
 // MARK: - Player Stats
 struct PlayerStats: Codable, Equatable {
     var fg2m: Int = 0
