@@ -1,11 +1,7 @@
 //
-//  GameSetupView.swift
+//  GameSetupView.swift (Updated with Stat Entry Integration)
 //  SahilStats
 //
-//  Created by Narayan Iyengar on 9/18/25.
-//
-
-// File: SahilStats/Views/GameSetupView.swift
 
 import SwiftUI
 import AVFoundation
@@ -16,6 +12,8 @@ struct GameSetupView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var settingsManager = SettingsManager.shared
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    
     @State private var setupMode: SetupMode = .selection
     @State private var deviceRole: DeviceRole = .none
     @State private var gameConfig = GameConfig()
@@ -24,6 +22,9 @@ struct GameSetupView: View {
     @State private var isGettingLocation = false
     @State private var newTeamName = ""
     @State private var showAddTeamInput = false
+    @State private var navigateToPostGame = false
+    @State private var navigateToLiveGame = false
+    @State private var createdLiveGame: LiveGame?
     
     enum SetupMode {
         case selection      // Choose setup type
@@ -57,6 +58,14 @@ struct GameSetupView: View {
             firebaseService.startListening()
             loadDefaultSettings()
         }
+        .navigationDestination(isPresented: $navigateToPostGame) {
+            PostGameStatsView(gameConfig: gameConfig)
+        }
+        .navigationDestination(isPresented: $navigateToLiveGame) {
+            if let liveGame = createdLiveGame {
+                LiveGameStatsView(liveGame: liveGame)
+            }
+        }
     }
     
     // MARK: - Setup Mode Selection
@@ -88,107 +97,69 @@ struct GameSetupView: View {
             
             // Setup options
             VStack(spacing: 16) {
-                // Recording Setup Option
+                // Post-Game Stats Entry
                 SetupOptionCard(
-                    title: "Recording Setup",
-                    subtitle: "Multi-device recording with live score overlays",
-                    icon: "video.fill",
-                    color: .red,
-                    status: firebaseService.hasLiveGame ? "Ready to join live game" : "Requires existing live game",
-                    statusColor: firebaseService.hasLiveGame ? .green : .orange
-                ) {
-                    setupMode = .recording
-                }
-                
-                // Traditional Scoring Setup
-                SetupOptionCard(
-                    title: "Scoring & Stats",
-                    subtitle: "Live scoring or post-game stat entry",
+                    title: "Enter Final Stats",
+                    subtitle: "Game is over - enter final score and stats",
                     icon: "chart.bar.fill",
-                    color: .orange,
-                    status: "Start new live game or enter final stats",
+                    color: .green,
+                    status: "Quick stat entry after the game",
                     statusColor: .blue
                 ) {
                     setupMode = .gameForm
+                    deviceRole = .none
                 }
-            }
-            
-            Spacer()
-        }
-        .padding()
-    }
-    
-    // MARK: - Recording Role Selection
-    
-    private func RecordingRoleSelection() -> some View {
-        VStack(spacing: 30) {
-            // Header
-            VStack(spacing: 16) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.red)
                 
-                Text("Recording Setup")
-                    .font(.title)
-                    .fontWeight(.bold)
+                // Live Game Scoring
+                SetupOptionCard(
+                    title: "Live Game Tracking",
+                    subtitle: "Track stats and score during the game",
+                    icon: "stopwatch.fill",
+                    color: .orange,
+                    status: firebaseService.hasLiveGame ? "Join existing live game" : "Start new live game",
+                    statusColor: firebaseService.hasLiveGame ? .green : .blue
+                ) {
+                    if firebaseService.hasLiveGame {
+                        // Navigate directly to live game view
+                        if let currentLiveGame = firebaseService.getCurrentLiveGame() {
+                            createdLiveGame = currentLiveGame
+                            navigateToLiveGame = true
+                        }
+                    } else {
+                        setupMode = .gameForm
+                        deviceRole = .controller
+                    }
+                }
                 
-                Text("Choose this device's role")
-                    .foregroundColor(.secondary)
-            }
-            .padding(.top, 40)
-            
-            if !error.isEmpty {
-                ErrorCard(message: error)
-            }
-            
-            Spacer()
-            
-            VStack(spacing: 16) {
-                // Recording Device Option
-                DeviceRoleCard(
-                    title: "Recording Device",
-                    subtitle: "Record video with live score overlays",
-                    icon: "camera.fill",
+                // Recording Setup (Future feature)
+                SetupOptionCard(
+                    title: "Video Recording",
+                    subtitle: "Multi-device recording with live overlays",
+                    icon: "video.fill",
                     color: .red,
-                    status: firebaseService.hasLiveGame ? "Live game available" : "No live game - need scoring device first",
-                    statusColor: firebaseService.hasLiveGame ? .green : .orange
+                    status: "Coming Soon",
+                    statusColor: .gray
                 ) {
-                    handleDeviceRoleSelection(.recorder)
-                }
-                
-                // Scoring Device Option
-                DeviceRoleCard(
-                    title: "Scoring Device",
-                    subtitle: "Manage scoring and stats during the game",
-                    icon: "gamecontroller.fill",
-                    color: .green,
-                    status: "Creates new live game for recording devices",
-                    statusColor: .blue
-                ) {
-                    handleDeviceRoleSelection(.controller)
+                    // setupMode = .recording
+                    error = "Video recording feature coming soon!"
                 }
             }
-            
-            // Setup instructions
-            SetupInstructionsCard()
             
             Spacer()
-            
-            // Back button
-            Button("Back to setup options") {
-                setupMode = .selection
-                error = ""
-            }
-            .foregroundColor(.secondary)
         }
         .padding()
+        .alert("Feature Info", isPresented: .constant(!error.isEmpty)) {
+            Button("OK") { error = "" }
+        } message: {
+            Text(error)
+        }
     }
     
     // MARK: - Game Configuration Form
     
     private func GameConfigurationForm() -> some View {
         Form {
-            // Game ID display for recording controller
+            // Game ID display for live game controller
             if deviceRole == .controller && !gameId.isEmpty {
                 Section {
                     GameIdDisplayCard(gameId: gameId)
@@ -196,7 +167,7 @@ struct GameSetupView: View {
             }
             
             // Date and Time
-            Section {
+            Section("When") {
                 DatePicker("Date", selection: $gameConfig.date, displayedComponents: .date)
                 DatePicker("Time", selection: $gameConfig.date, displayedComponents: .hourAndMinute)
             }
@@ -218,9 +189,9 @@ struct GameSetupView: View {
             }
             
             // Location
-            Section("Location") {
+            Section("Where") {
                 HStack {
-                    TextField("Location", text: $gameConfig.location)
+                    TextField("Location (optional)", text: $gameConfig.location)
                     
                     Button(action: getAutoLocation) {
                         Image(systemName: isGettingLocation ? "location.fill" : "location")
@@ -232,31 +203,55 @@ struct GameSetupView: View {
                 LocationSuggestions()
             }
             
+            // Game Format (for live games only)
+            if deviceRole == .controller {
+                Section("Game Format") {
+                    Picker("Format", selection: $gameConfig.gameFormat) {
+                        ForEach(GameFormat.allCases, id: \.self) { format in
+                            Text(format.displayName).tag(format)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    HStack {
+                        Text("Period Length")
+                        Spacer()
+                        TextField("Minutes", value: $gameConfig.periodLength, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.numberPad)
+                            .frame(width: 80)
+                        Text("min")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
             // Game Actions
             Section {
                 if deviceRole == .controller {
-                    // Recording controller buttons
-                    Button("Start Live Game & Recording") {
-                        handleSubmit(mode: .liveRecording)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    
-                    Button("Enter Final Stats Only") {
-                        handleSubmit(mode: .postGame)
-                    }
-                    .foregroundColor(.secondary)
-                } else {
-                    // Standard buttons
+                    // Live game controller
                     Button("Start Live Game") {
                         handleSubmit(mode: .live)
                     }
                     .buttonStyle(.borderedProminent)
-                    
-                    Button("Enter Final Stats Only") {
+                    .controlSize(.large)
+                } else {
+                    // Post-game stats entry
+                    Button("Enter Game Stats") {
                         handleSubmit(mode: .postGame)
                     }
-                    .foregroundColor(.secondary)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
+                
+                Button("Cancel") {
+                    if setupMode == .gameForm {
+                        setupMode = .selection
+                    } else {
+                        dismiss()
+                    }
+                }
+                .foregroundColor(.secondary)
             }
         }
         .navigationBarBackButtonHidden()
@@ -264,6 +259,8 @@ struct GameSetupView: View {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button("Back") {
                     setupMode = .selection
+                    deviceRole = .none
+                    gameId = ""
                 }
             }
         }
@@ -274,7 +271,38 @@ struct GameSetupView: View {
         }
     }
     
-    // MARK: - Connect to Game View
+    // MARK: - Recording Role Selection (Future)
+    
+    private func RecordingRoleSelection() -> some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 16) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.red)
+                
+                Text("Recording Setup")
+                    .font(.title)
+                    .fontWeight(.bold)
+                
+                Text("Video recording with live overlays coming soon!")
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 40)
+            
+            Spacer()
+            
+            Button("Back to Setup Options") {
+                setupMode = .selection
+            }
+            .buttonStyle(.borderedProminent)
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    // MARK: - Connect to Game View (Future)
     
     private func ConnectToGameView() -> some View {
         VStack(spacing: 30) {
@@ -287,41 +315,20 @@ struct GameSetupView: View {
                     .font(.title)
                     .fontWeight(.bold)
                 
-                Text("Enter the game ID to join an existing live game")
+                Text("Multi-device connection coming soon!")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.top, 40)
             
-            VStack(spacing: 16) {
-                TextField("Game ID (e.g., game-123456)", text: $gameId)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.monospaced(.body)())
-                
-                Button("Connect to Game") {
-                    connectToExistingGame()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(gameId.isEmpty)
-            }
-            .padding()
-            
-            InstructionCard(
-                title: "When to use this:",
-                instructions: [
-                    "Someone else already started a live game",
-                    "You want to view live stats on this device",
-                    "Multiple people are tracking the same game",
-                    "You're setting up a recording device"
-                ]
-            )
-            
             Spacer()
             
-            Button("Back to setup options") {
+            Button("Back to Setup Options") {
                 setupMode = .selection
             }
-            .foregroundColor(.secondary)
+            .buttonStyle(.borderedProminent)
+            
+            Spacer()
         }
         .padding()
     }
@@ -349,41 +356,13 @@ struct GameSetupView: View {
         return "game-\(Int(timestamp).description.suffix(6))"
     }
     
-    private func handleDeviceRoleSelection(_ role: DeviceRole) {
-        deviceRole = role
-        
-        switch role {
-        case .recorder:
-            if firebaseService.hasLiveGame {
-                // Navigate to recording view
-                // TODO: Navigate to LiveGameRecordingView
-                print("Navigate to recording view")
-            } else {
-                error = "No live game in progress. Someone needs to start a live game first using 'Scoring Device' option."
-            }
-            
-        case .controller:
-            gameId = generateGameId()
-            setupMode = .gameForm
-            
-        case .none:
-            break
-        }
-    }
-    
     private func getAutoLocation() {
         isGettingLocation = true
         
-        LocationManager.shared.requestLocation { location in
-            DispatchQueue.main.async {
-                gameConfig.location = location
-                isGettingLocation = false
-            }
-        } onError: { error in
-            DispatchQueue.main.async {
-                self.error = "Unable to get location: \(error)"
-                isGettingLocation = false
-            }
+        // Simulate getting location for now
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            gameConfig.location = "Home Court" // Placeholder
+            isGettingLocation = false
         }
     }
     
@@ -397,67 +376,38 @@ struct GameSetupView: View {
             do {
                 switch mode {
                 case .live:
-                    try await createLiveGame()
-                case .liveRecording:
-                    try await createLiveGameWithRecording()
+                    let liveGame = try await createLiveGame()
+                    await MainActor.run {
+                        createdLiveGame = liveGame
+                        navigateToLiveGame = true
+                    }
                 case .postGame:
-                    try await createPostGameEntry()
+                    await MainActor.run {
+                        navigateToPostGame = true
+                    }
                 }
             } catch {
-                self.error = error.localizedDescription
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                }
             }
         }
     }
     
-    private func createLiveGame() async throws {
-        let liveGame = LiveGame(
+    private func createLiveGame() async throws -> LiveGame {
+        var liveGame = LiveGame(
             teamName: gameConfig.teamName,
             opponent: gameConfig.opponent,
-            location: gameConfig.location,
+            location: gameConfig.location.isEmpty ? nil : gameConfig.location,
             gameFormat: gameConfig.gameFormat,
             periodLength: gameConfig.periodLength,
             createdBy: authService.currentUser?.email
         )
         
         let createdGameId = try await firebaseService.createLiveGame(liveGame)
-        // TODO: Navigate to LiveGameAdminView with createdGameId
-        print("Created live game: \(createdGameId)")
-    }
-    
-    private func createLiveGameWithRecording() async throws {
-        let liveGame = LiveGame(
-            teamName: gameConfig.teamName,
-            opponent: gameConfig.opponent,
-            location: gameConfig.location,
-            gameFormat: gameConfig.gameFormat,
-            periodLength: gameConfig.periodLength,
-            createdBy: authService.currentUser?.email
-        )
+        liveGame.id = createdGameId
         
-        let createdGameId = try await firebaseService.createLiveGame(liveGame)
-        // TODO: Navigate to LiveGameRecordingView with createdGameId
-        print("Created live game with recording: \(createdGameId)")
-    }
-    
-    private func createPostGameEntry() async throws {
-        let game = Game(
-            teamName: gameConfig.teamName,
-            opponent: gameConfig.opponent,
-            location: gameConfig.location,
-            timestamp: gameConfig.date,
-            gameFormat: gameConfig.gameFormat,
-            periodLength: gameConfig.periodLength,
-            adminName: authService.currentUser?.email
-        )
-        
-        try await firebaseService.addGame(game)
-        // TODO: Navigate to PostGameStatsView
-        print("Created post-game entry")
-    }
-    
-    private func connectToExistingGame() {
-        // TODO: Connect to existing live game
-        print("Connecting to game: \(gameId)")
+        return liveGame
     }
     
     private func addNewTeam() {
@@ -467,245 +417,21 @@ struct GameSetupView: View {
             do {
                 let team = Team(name: newTeamName)
                 try await firebaseService.addTeam(team)
-                gameConfig.teamName = newTeamName
-                newTeamName = ""
-                showAddTeamInput = false
+                await MainActor.run {
+                    gameConfig.teamName = newTeamName
+                    newTeamName = ""
+                    showAddTeamInput = false
+                }
             } catch {
-                self.error = "Failed to add team: \(error.localizedDescription)"
-            }
-        }
-    }
-}
-
-// MARK: - Supporting Views
-
-struct GameConfig {
-    var teamName = ""
-    var opponent = ""
-    var location = ""
-    var date = Date()
-    var gameFormat = GameFormat.halves
-    var periodLength = 20
-}
-
-enum GameSubmissionMode {
-    case live, liveRecording, postGame
-}
-
-struct SetupOptionCard: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let color: Color
-    let status: String
-    let statusColor: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.title)
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(color)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(status)
-                        .font(.caption2)
-                        .foregroundColor(statusColor)
-                        .fontWeight(.medium)
-                }
-                
-                Spacer()
-            }
-            .padding()
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct DeviceRoleCard: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let color: Color
-    let status: String
-    let statusColor: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.title)
-                    .foregroundColor(color)
-                    .frame(width: 40, height: 40)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(status)
-                        .font(.caption2)
-                        .foregroundColor(statusColor)
-                        .fontWeight(.medium)
-                }
-                
-                Spacer()
-            }
-            .padding()
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(color.opacity(0.3), lineWidth: 2)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct LiveGameStatusCard: View {
-    var body: some View {
-        HStack {
-            Circle()
-                .fill(Color.green)
-                .frame(width: 12, height: 12)
-                .opacity(0.8)
-                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Live Game In Progress")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.green)
-                
-                Text("You can join as a recording device or create a new game")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding()
-        .background(Color.green.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-struct GameIdDisplayCard: View {
-    let gameId: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Scoring Device Setup")
-                .font(.headline)
-                .foregroundColor(.green)
-            
-            Text("Share this Game ID with the recording device:")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            HStack {
-                Text(gameId)
-                    .font(.monospaced(.body)())
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                
-                Button("Copy") {
-                    UIPasteboard.general.string = gameId
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .padding()
-        .background(Color.green.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-struct SetupInstructionsCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "iphone")
-                    .foregroundColor(.blue)
-                Text("Setup Order:")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.blue)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("1. First device: Choose 'Scoring Device' to create live game")
-                Text("2. Second device: Choose 'Recording Device' to join and record")
-                Text("3. Score updates appear on recording automatically")
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color.blue.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-struct ErrorCard: View {
-    let message: String
-    
-    var body: some View {
-        Text(message)
-            .font(.caption)
-            .foregroundColor(.red)
-            .padding()
-            .background(Color.red.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-struct InstructionCard: View {
-    let title: String
-    let instructions: [String]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.orange)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(instructions, id: \.self) { instruction in
-                    Text("• \(instruction)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                await MainActor.run {
+                    self.error = "Failed to add team: \(error.localizedDescription)"
                 }
             }
         }
-        .padding()
-        .background(Color.orange.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
-// MARK: - Form Helper Views
+// MARK: - Supporting Views and Extensions
 
 extension GameSetupView {
     private func TeamSelectionRow() -> some View {
@@ -813,23 +539,134 @@ extension GameSetupView {
     }
 }
 
-// MARK: - Location Manager
+// MARK: - Supporting Models and Views
 
-class LocationManager: NSObject, ObservableObject {
-    static let shared = LocationManager()
+struct GameConfig {
+    var teamName = ""
+    var opponent = ""
+    var location = ""
+    var date = Date()
+    var gameFormat = GameFormat.halves
+    var periodLength = 20
+}
+
+enum GameSubmissionMode {
+    case live, postGame
+}
+
+// Reuse the setup option card from the previous implementation
+struct SetupOptionCard: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let color: Color
+    let status: String
+    let statusColor: Color
+    let action: () -> Void
     
-    private override init() {
-        super.init()
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
+                    .background(color)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(status)
+                        .font(.caption2)
+                        .foregroundColor(statusColor)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
+}
+
+struct LiveGameStatusCard: View {
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(Color.green)
+                .frame(width: 12, height: 12)
+                .opacity(0.8)
+                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live Game In Progress")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.green)
+                
+                Text("You can join the current live game or create a new one")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.green.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct GameIdDisplayCard: View {
+    let gameId: String
     
-    func requestLocation(onSuccess: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
-        // TODO: Implement CoreLocation integration
-        onError("Location services not yet implemented")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Live Game Setup")
+                .font(.headline)
+                .foregroundColor(.orange)
+            
+            Text("This will create a live game that can be tracked in real-time:")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            HStack {
+                Text("Game ID: \(gameId)")
+                    .font(.monospaced(.caption)())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray5))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                
+                Button("Copy") {
+                    UIPasteboard.general.string = gameId
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding()
+        .background(Color.orange.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         GameSetupView()
             .environmentObject(AuthService())
     }

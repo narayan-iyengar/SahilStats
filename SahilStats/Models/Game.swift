@@ -325,8 +325,7 @@ struct LiveGame: Identifiable, Codable {
 }
 
 // MARK: - Player Stats
-
-struct PlayerStats: Codable {
+struct PlayerStats: Codable, Equatable {
     var fg2m: Int = 0
     var fg2a: Int = 0
     var fg3m: Int = 0
@@ -343,6 +342,8 @@ struct PlayerStats: Codable {
     var points: Int {
         return (fg2m * 2) + (fg3m * 3) + ftm
     }
+    
+    // Equatable conformance is automatically synthesized for structs with Equatable properties
 }
 
 // MARK: - Team Model

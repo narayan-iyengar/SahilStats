@@ -4,12 +4,13 @@ import SwiftUI
 import FirebaseCore
 import FirebaseAuth
 
+import SwiftUI
+
 @main
 struct SahilStatsApp: App {
     @StateObject private var authService = AuthService()
     
     init() {
-        // Configure Firebase - moved from AppDelegate
         FirebaseApp.configure()
     }
     
@@ -17,9 +18,13 @@ struct SahilStatsApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(authService)
+                .onAppear {
+                    AppDelegate.orientationLock = .portrait // 👈 lock to portrait
+                }
         }
     }
 }
+
 
 struct ContentView: View {
     @EnvironmentObject var authService: AuthService
