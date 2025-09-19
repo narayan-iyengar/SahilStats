@@ -1,7 +1,4 @@
-//
-//  GameSetupView.swift (Updated with Stat Entry Integration)
-//  SahilStats
-//
+// File: SahilStats/Views/GameSetupView.swift (Fixed Navigation)
 
 import SwiftUI
 import AVFoundation
@@ -22,8 +19,8 @@ struct GameSetupView: View {
     @State private var isGettingLocation = false
     @State private var newTeamName = ""
     @State private var showAddTeamInput = false
-    @State private var navigateToPostGame = false
-    @State private var navigateToLiveGame = false
+    @State private var showingPostGameView = false
+    @State private var showingLiveGameView = false
     @State private var createdLiveGame: LiveGame?
     
     enum SetupMode {
@@ -58,12 +55,30 @@ struct GameSetupView: View {
             firebaseService.startListening()
             loadDefaultSettings()
         }
-        .navigationDestination(isPresented: $navigateToPostGame) {
-            PostGameStatsView(gameConfig: gameConfig)
+        .sheet(isPresented: $showingPostGameView) {
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    PostGameStatsView(gameConfig: gameConfig)
+                }
+            } else {
+                NavigationView {
+                    PostGameStatsView(gameConfig: gameConfig)
+                        .navigationViewStyle(StackNavigationViewStyle())
+                }
+            }
         }
-        .navigationDestination(isPresented: $navigateToLiveGame) {
+        .sheet(isPresented: $showingLiveGameView) {
             if let liveGame = createdLiveGame {
-                LiveGameStatsView(liveGame: liveGame)
+                if #available(iOS 16.0, *) {
+                    NavigationStack {
+                        LiveGameStatsView(liveGame: liveGame)
+                    }
+                } else {
+                    NavigationView {
+                        LiveGameStatsView(liveGame: liveGame)
+                            .navigationViewStyle(StackNavigationViewStyle())
+                    }
+                }
             }
         }
     }
@@ -123,7 +138,7 @@ struct GameSetupView: View {
                         // Navigate directly to live game view
                         if let currentLiveGame = firebaseService.getCurrentLiveGame() {
                             createdLiveGame = currentLiveGame
-                            navigateToLiveGame = true
+                            showingLiveGameView = true
                         }
                     } else {
                         setupMode = .gameForm
@@ -379,11 +394,11 @@ struct GameSetupView: View {
                     let liveGame = try await createLiveGame()
                     await MainActor.run {
                         createdLiveGame = liveGame
-                        navigateToLiveGame = true
+                        showingLiveGameView = true
                     }
                 case .postGame:
                     await MainActor.run {
-                        navigateToPostGame = true
+                        showingPostGameView = true
                     }
                 }
             } catch {
@@ -666,8 +681,16 @@ struct GameIdDisplayCard: View {
 }
 
 #Preview {
-    NavigationStack {
-        GameSetupView()
-            .environmentObject(AuthService())
+    if #available(iOS 16.0, *) {
+        NavigationStack {
+            GameSetupView()
+                .environmentObject(AuthService())
+        }
+    } else {
+        NavigationView {
+            GameSetupView()
+                .environmentObject(AuthService())
+                .navigationViewStyle(StackNavigationViewStyle())
+        }
     }
 }
