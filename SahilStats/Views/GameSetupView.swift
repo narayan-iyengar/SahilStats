@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameSetupView.swift (Fixed Navigation)
+// File: SahilStats/Views/GameSetupView.swift (Updated for consistent full-screen live game)
 
 import SwiftUI
 import AVFoundation
@@ -67,20 +67,73 @@ struct GameSetupView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingLiveGameView) {
-            if let liveGame = createdLiveGame {
-                if #available(iOS 16.0, *) {
-                    NavigationStack {
-                        LiveGameStatsView(liveGame: liveGame)
-                    }
-                } else {
-                    NavigationView {
-                        LiveGameStatsView(liveGame: liveGame)
-                            .navigationViewStyle(StackNavigationViewStyle())
-                    }
-                }
+        .fullScreenCover(isPresented: $showingLiveGameView) {
+            // Use consistent full-screen presentation
+            LiveGameFullScreenView(createdLiveGame: createdLiveGame)
+                .environmentObject(authService)
+        }
+    }
+    
+    // MARK: - Full Screen Live Game View (same as GameListView)
+    
+    @ViewBuilder
+    private func LiveGameFullScreenView(createdLiveGame: LiveGame?) -> some View {
+        ZStack {
+            // Full screen background
+            Color(.systemBackground)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Custom navigation bar
+                FullScreenNavigationBar()
+                
+                // Content area - Use LiveGameView for consistency
+                LiveGameView()
+                    .environmentObject(authService)
             }
         }
+    }
+    
+    @ViewBuilder
+    private func FullScreenNavigationBar() -> some View {
+        HStack {
+            // Title
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 12, height: 12)
+                    .opacity(0.8)
+                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                
+                Text("Live Game")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+            
+            // Close button
+            Button(action: {
+                showingLiveGameView = false
+                // Also dismiss the setup view when closing live game
+                dismiss()
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+                    .background(Color(.systemBackground))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+        )
     }
     
     // MARK: - Setup Mode Selection

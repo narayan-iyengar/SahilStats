@@ -1,4 +1,4 @@
-// File: SahilStats/Views/LiveGameView.swift (Full Screen for iPad)
+// File: SahilStats/Views/LiveGameView.swift (Complete and Fixed)
 
 import SwiftUI
 import FirebaseAuth
@@ -25,19 +25,11 @@ struct LiveGameView: View {
                 NoLiveGameView()
             }
         }
-        .navigationTitle("Live Game")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Done") {
-                    dismiss()
-                }
-            }
-        }
+        // Remove navigation elements since we're using custom navigation
     }
 }
 
-// MARK: - Live Game Controller (Admin)
+// MARK: - Live Game Controller (Admin) - Fixed UI Issues
 
 struct LiveGameControllerView: View {
     let liveGame: LiveGame
@@ -83,28 +75,6 @@ struct LiveGameControllerView: View {
                 iPadLayout(geometry: geometry)
             } else {
                 iPhoneLayout()
-            }
-        }
-        .navigationTitle("Live Game")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("Done") {
-                    dismiss()
-                }
-            }
-            
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if hasUnsavedChanges {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .orange))
-                            .scaleEffect(0.8)
-                        Text("Saving...")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
             }
         }
         .alert("Finish Game", isPresented: $showingFinishAlert) {
@@ -154,8 +124,8 @@ struct LiveGameControllerView: View {
                     currentClock: $currentClock
                 )
                 
-                // Score Section
-                LiveScoreCard(
+                // Score Section - Fixed alignment
+                ImprovedLiveScoreCard(
                     homeScore: $currentHomeScore,
                     awayScore: $currentAwayScore,
                     teamName: liveGame.teamName,
@@ -169,13 +139,14 @@ struct LiveGameControllerView: View {
                     onStatusChange: scheduleUpdate
                 )
                 
-                // Game Controls (with Add Minute button)
-                GameControlsCard(
+                // Game Controls - Single line layout
+                SingleLineGameControlsCard(
                     isGameRunning: $isGameRunning,
                     currentPeriod: $currentPeriod,
                     currentClock: $currentClock,
                     maxPeriods: liveGame.numPeriods,
                     periodLength: liveGame.periodLength,
+                    gameFormat: liveGame.gameFormat,
                     onClockChange: scheduleUpdate,
                     onFinishGame: {
                         showingFinishAlert = true
@@ -188,18 +159,15 @@ struct LiveGameControllerView: View {
             .padding()
             .background(Color(.systemGroupedBackground))
             
-            // Right Column - Stats & Quick Actions
+            // Right Column - Stats Only
             ScrollView {
                 VStack(spacing: 20) {
                     if !sahilOnBench {
-                        // Current Stats Display
-                        LiveStatsDisplayCard(stats: currentStats)
-                        
-                        // Quick Action Buttons (Larger for iPad)
-                        iPadQuickActionsGrid()
-                        
                         // Detailed Stats Entry
                         iPadDetailedStatsGrid()
+                        
+                        // Live Stats Display moved below steppers
+                        LiveStatsDisplayCard(stats: currentStats)
                         
                         // Additional space at bottom
                         Spacer(minLength: 20)
@@ -234,16 +202,16 @@ struct LiveGameControllerView: View {
     private func iPhoneLayout() -> some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Game Status Header
-                LiveGameHeaderCard(
-                    liveGame: liveGame,
-                    isGameRunning: $isGameRunning,
+                // Clock Display
+                ClockDisplayCard(
                     currentPeriod: $currentPeriod,
-                    currentClock: $currentClock
+                    currentClock: $currentClock,
+                    isGameRunning: $isGameRunning,
+                    gameFormat: liveGame.gameFormat
                 )
                 
-                // Live Score Entry
-                LiveScoreCard(
+                // Live Score Entry - Fixed alignment
+                ImprovedLiveScoreCard(
                     homeScore: $currentHomeScore,
                     awayScore: $currentAwayScore,
                     teamName: liveGame.teamName,
@@ -257,26 +225,26 @@ struct LiveGameControllerView: View {
                     onStatusChange: scheduleUpdate
                 )
                 
-                // Game Controls
-                GameControlsCard(
+                // Game Controls - Single line layout
+                SingleLineGameControlsCard(
                     isGameRunning: $isGameRunning,
                     currentPeriod: $currentPeriod,
                     currentClock: $currentClock,
                     maxPeriods: liveGame.numPeriods,
                     periodLength: liveGame.periodLength,
+                    gameFormat: liveGame.gameFormat,
                     onClockChange: scheduleUpdate,
                     onFinishGame: {
                         showingFinishAlert = true
                     }
                 )
                 
-                // Live Stats Entry (only if Sahil is playing)
+                // Stats Entry (only if Sahil is playing)
                 if !sahilOnBench {
-                    LiveStatsDisplayCard(stats: currentStats)
-                    
-                    iPhoneQuickActionsGrid()
-                    
                     iPhoneDetailedStatsEntry()
+                    
+                    // Live Stats moved below steppers
+                    LiveStatsDisplayCard(stats: currentStats)
                 }
             }
             .padding()
@@ -573,7 +541,9 @@ struct LiveGameControllerView: View {
                 iPhoneStatControl(title: "Turnovers", value: $currentStats.turnovers)
             }
         }
-        .padding()
+        .frame(maxWidth: .infinity) // Ensure full width
+        .padding(.horizontal, 16) // Consistent horizontal padding
+        .padding(.vertical, 16)
         .background(Color(.systemGray6))
         .cornerRadius(12)
     }
@@ -582,7 +552,8 @@ struct LiveGameControllerView: View {
         VStack(spacing: 6) {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black)
+                .fontWeight(.bold)
             
             HStack(spacing: 8) {
                 Button("-") {
@@ -836,8 +807,6 @@ struct LiveGameWatchView: View {
             }
             .padding()
         }
-        .navigationTitle("Watching Live")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -872,7 +841,7 @@ struct NoLiveGameView: View {
     }
 }
 
-// MARK: - Supporting Card Views
+// MARK: - Improved Supporting Card Views
 
 struct LiveGameHeaderCard: View {
     let liveGame: LiveGame
@@ -950,7 +919,45 @@ struct LiveGameHeaderCard: View {
     }
 }
 
-struct LiveScoreCard: View {
+// MARK: - Improved Score Card (Fixed Alignment)
+
+// MARK: - Clock Display Card
+
+struct ClockDisplayCard: View {
+    @Binding var currentPeriod: Int
+    @Binding var currentClock: TimeInterval
+    @Binding var isGameRunning: Bool
+    let gameFormat: GameFormat
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Period \(currentPeriod)")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text(formatClock(currentClock))
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(isGameRunning ? .red : .primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+    }
+    
+    private func formatClock(_ time: TimeInterval) -> String {
+        if time <= 59 {
+            return String(format: "%.1f", time)
+        } else {
+            let minutes = Int(time) / 60
+            let seconds = Int(time) % 60
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+}
+
+struct ImprovedLiveScoreCard: View {
     @Binding var homeScore: Int
     @Binding var awayScore: Int
     let teamName: String
@@ -962,36 +969,74 @@ struct LiveScoreCard: View {
             Text("Live Score")
                 .font(.headline)
             
-            HStack(spacing: 30) {
+            HStack(spacing: 20) {
+                // Home team (left side)
                 VStack(spacing: 8) {
                     Text(teamName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
                     
-                    LiveScoreControl(
-                        score: $homeScore,
-                        onScoreChange: onScoreChange
-                    )
-                    .foregroundColor(.blue)
+                    HStack(spacing: 12) {
+                        Button("-") {
+                            if homeScore > 0 {
+                                homeScore -= 1
+                                onScoreChange()
+                            }
+                        }
+                        .buttonStyle(ImprovedScoreButtonStyle())
+                        
+                        Text("\(homeScore)")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                            .frame(minWidth: 60)
+                        
+                        Button("+") {
+                            homeScore += 1
+                            onScoreChange()
+                        }
+                        .buttonStyle(ImprovedScoreButtonStyle())
+                    }
                 }
                 
+                // Separator
                 Text("–")
                     .font(.title)
                     .foregroundColor(.secondary)
                 
+                // Away team (right side)
                 VStack(spacing: 8) {
                     Text(opponent)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
                     
-                    LiveScoreControl(
-                        score: $awayScore,
-                        onScoreChange: onScoreChange
-                    )
-                    .foregroundColor(.red)
+                    HStack(spacing: 12) {
+                        Button("-") {
+                            if awayScore > 0 {
+                                awayScore -= 1
+                                onScoreChange()
+                            }
+                        }
+                        .buttonStyle(ImprovedScoreButtonStyle())
+                        
+                        Text("\(awayScore)")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.red)
+                            .frame(minWidth: 60)
+                        
+                        Button("+") {
+                            awayScore += 1
+                            onScoreChange()
+                        }
+                        .buttonStyle(ImprovedScoreButtonStyle())
+                    }
                 }
             }
         }
+        .frame(maxWidth: .infinity) // Force full width
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(12)
@@ -1045,44 +1090,16 @@ struct LiveScoreDisplayCard: View {
     }
 }
 
-struct LiveScoreControl: View {
-    @Binding var score: Int
-    let onScoreChange: () -> Void
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Button("-") {
-                if score > 0 {
-                    score -= 1
-                    onScoreChange()
-                }
-            }
-            .buttonStyle(LiveScoreButtonStyle())
-            
-            Text("\(score)")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .frame(minWidth: 60)
-            
-            Button("+") {
-                score += 1
-                onScoreChange()
-            }
-            .buttonStyle(LiveScoreButtonStyle())
-        }
-    }
-}
-
 struct PlayerStatusCard: View {
     @Binding var sahilOnBench: Bool
     let onStatusChange: () -> Void
     
     var body: some View {
         VStack(spacing: 12) {
-            Text("Player Status")
+            Text("Sahil's Status")
                 .font(.headline)
             
-            HStack {
+            HStack(spacing: 8) {
                 Button("On Court") {
                     sahilOnBench = false
                     onStatusChange()
@@ -1096,13 +1113,91 @@ struct PlayerStatusCard: View {
                 .buttonStyle(StatusButtonStyle(isSelected: sahilOnBench))
             }
         }
+        .frame(maxWidth: .infinity) // Force full width
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(12)
     }
 }
 
-struct GameControlsCard: View {
+// MARK: - Single Line Game Controls (Cleaner Layout)
+
+struct SingleLineGameControlsCard: View {
+    @Binding var isGameRunning: Bool
+    @Binding var currentPeriod: Int
+    @Binding var currentClock: TimeInterval
+    let maxPeriods: Int
+    let periodLength: Int
+    let gameFormat: GameFormat
+    let onClockChange: () -> Void
+    let onFinishGame: () -> Void
+    
+    private var endGameButtonText: String {
+        if currentPeriod < maxPeriods {
+            return gameFormat == .halves ? "End Half" : "End Period"
+        } else {
+            return "End Game"
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Game Controls")
+                .font(.headline)
+            
+            // All controls on one line
+            HStack(spacing: 12) {
+                Button(isGameRunning ? "Pause" : "Start") {
+                    isGameRunning.toggle()
+                }
+                .buttonStyle(LargerControlButtonStyle(color: isGameRunning ? .orange : .green))
+                
+                Button("+1 Min") {
+                    currentClock += 60
+                    onClockChange()
+                }
+                .buttonStyle(LargerControlButtonStyle(color: .purple))
+                
+                if currentPeriod < maxPeriods {
+                    Button("Next") {
+                        currentPeriod += 1
+                        currentClock = TimeInterval(periodLength * 60)
+                        onClockChange()
+                    }
+                    .buttonStyle(LargerControlButtonStyle(color: .blue))
+                }
+                
+                Button(endGameButtonText) {
+                    onFinishGame()
+                }
+                .buttonStyle(LargerControlButtonStyle(color: .red))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+    }
+}
+
+struct LargerControlButtonStyle: ButtonStyle {
+    let color: Color
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.vertical, 18)
+            .padding(.horizontal, 20)
+            .background(color)
+            .cornerRadius(12)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct ImprovedGameControlsCard: View {
     @Binding var isGameRunning: Bool
     @Binding var currentPeriod: Int
     @Binding var currentClock: TimeInterval
@@ -1112,45 +1207,46 @@ struct GameControlsCard: View {
     let onFinishGame: () -> Void
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Text("Game Controls")
                 .font(.headline)
             
-            HStack(spacing: 16) {
+            // Single row layout for better spacing
+            HStack(spacing: 12) {
                 Button(isGameRunning ? "⏸️ Pause" : "▶️ Start") {
                     isGameRunning.toggle()
                 }
-                .buttonStyle(GameControlButtonStyle(color: isGameRunning ? .orange : .green))
+                .buttonStyle(CompactGameControlButtonStyle(color: isGameRunning ? .orange : .green))
                 
+                Button("Reset") {
+                    currentClock = TimeInterval(periodLength * 60)
+                    onClockChange()
+                }
+                .buttonStyle(CompactGameControlButtonStyle(color: .gray))
+                
+                Button("+1 Min") {
+                    currentClock += 60
+                    onClockChange()
+                }
+                .buttonStyle(CompactGameControlButtonStyle(color: .purple))
+            }
+            
+            // Second row for period control and finish
+            HStack(spacing: 12) {
                 if currentPeriod < maxPeriods {
                     Button("Next Period") {
                         currentPeriod += 1
                         currentClock = TimeInterval(periodLength * 60)
                         onClockChange()
                     }
-                    .buttonStyle(GameControlButtonStyle(color: .blue))
+                    .buttonStyle(CompactGameControlButtonStyle(color: .blue))
                 }
-            }
-            
-            HStack(spacing: 16) {
-                Button("Reset Clock") {
-                    currentClock = TimeInterval(periodLength * 60)
-                    onClockChange()
-                }
-                .buttonStyle(GameControlButtonStyle(color: .gray))
                 
-                Button("Add Minute") {
-                    currentClock += 60
-                    onClockChange()
+                Button("🏁 Finish Game") {
+                    onFinishGame()
                 }
-                .buttonStyle(GameControlButtonStyle(color: .purple))
+                .buttonStyle(CompactGameControlButtonStyle(color: .red))
             }
-            
-            // Finish Game button
-            Button("🏁 Finish Game") {
-                onFinishGame()
-            }
-            .buttonStyle(GameControlButtonStyle(color: .red))
         }
         .padding()
         .background(Color(.systemBackground))
@@ -1272,9 +1368,9 @@ struct ShootingStatCard: View {
     }
 }
 
-// MARK: - Button Styles
+// MARK: - Improved Button Styles
 
-struct LiveScoreButtonStyle: ButtonStyle {
+struct ImprovedScoreButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.title2)
@@ -1308,15 +1404,16 @@ struct StatusButtonStyle: ButtonStyle {
     }
 }
 
-struct GameControlButtonStyle: ButtonStyle {
+struct CompactGameControlButtonStyle: ButtonStyle {
     let color: Color
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .font(.caption)
             .fontWeight(.semibold)
             .foregroundColor(.white)
             .padding(.vertical, 8)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .background(color)
             .cornerRadius(8)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
