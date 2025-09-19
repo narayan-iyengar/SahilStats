@@ -909,33 +909,6 @@ struct LiveScoreSection: View {
     }
 }
 
-struct LiveScoreControl: View {
-    @Binding var score: Int
-    let onScoreChange: () -> Void
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Button("-") {
-                if score > 0 {
-                    score -= 1
-                    onScoreChange()
-                }
-            }
-            .buttonStyle(ScoreButtonStyle())
-            
-            Text("\(score)")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .frame(minWidth: 60)
-            
-            Button("+") {
-                score += 1
-                onScoreChange()
-            }
-            .buttonStyle(ScoreButtonStyle())
-        }
-    }
-}
 
 struct PlayerStatusSection: View {
     @Binding var sahilOnBench: Bool
@@ -1223,22 +1196,4 @@ struct StatButtonStyle: ButtonStyle {
     }
 }
 
-struct StatusButtonStyle: ButtonStyle {
-    let isSelected: Bool
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .fontWeight(.semibold)
-            .foregroundColor(isSelected ? .white : .orange)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(isSelected ? Color.orange : Color.orange.opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.orange.opacity(0.3), lineWidth: isSelected ? 0 : 1)
-            )
-            .cornerRadius(8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
+

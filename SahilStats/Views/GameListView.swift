@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameListView.swift (Clean Working Version)
+// File: SahilStats/Views/GameListView.swift (Updated Navigation to LiveGameView)
 
 import SwiftUI
 import Charts
@@ -14,6 +14,7 @@ struct GameListView: View {
     @State private var gamesPerPage = 10
     @State private var currentPage = 1
     @State private var isViewingTrends = false
+    @State private var showingLiveGame = false
     
     // Computed property to ensure games are sorted latest first
     private var sortedGames: [Game] {
@@ -68,6 +69,22 @@ struct GameListView: View {
         }
         .sheet(item: $selectedGame) { game in
             GameDetailView(game: game)
+        }
+        .sheet(isPresented: $showingLiveGame) {
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    LiveGameView()
+                        .environmentObject(authService)
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            } else {
+                NavigationView {
+                    LiveGameView()
+                        .environmentObject(authService)
+                        .navigationViewStyle(StackNavigationViewStyle())
+                }
+            }
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
@@ -137,8 +154,10 @@ struct GameListView: View {
             if !isViewingTrends {
                 // Live game indicator if present
                 if firebaseService.hasLiveGame {
-                    LiveGameIndicatorView()
-                        .listRowBackground(Color.red.opacity(0.1))
+                    LiveGameIndicatorView(onTap: {
+                        showingLiveGame = true
+                    })
+                    .listRowBackground(Color.red.opacity(0.1))
                 }
                 
                 // Games section with pagination
@@ -191,7 +210,9 @@ struct GameListView: View {
     }
     
     private var liveGameButton: some View {
-        NavigationLink(destination: LiveGameView()) {
+        Button(action: {
+            showingLiveGame = true
+        }) {
             HStack(spacing: 4) {
                 Circle()
                     .fill(Color.red)
@@ -256,7 +277,73 @@ struct GameListView: View {
     }
 }
 
-// MARK: - Game Row Component
+// MARK: - Live Game Components (Updated)
+
+struct LiveGameIndicatorView: View {
+    @StateObject private var firebaseService = FirebaseService.shared
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 12, height: 12)
+                    .opacity(0.8)
+                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("🔴 Live Game in Progress")
+                        .font(.headline)
+                        .foregroundColor(.red)
+                    
+                    if let liveGame = firebaseService.getCurrentLiveGame() {
+                        Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Text("Period \(liveGame.period) • \(formatClock(liveGame.clock))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                VStack(spacing: 4) {
+                    Text("Watch/Control")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.red)
+                .cornerRadius(8)
+            }
+            .padding()
+            .background(Color.red.opacity(0.1))
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func formatClock(_ time: TimeInterval) -> String {
+        if time <= 59 {
+            return String(format: "%.1f", time)
+        } else {
+            let minutes = Int(time) / 60
+            let seconds = Int(time) % 60
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+}
+
+// MARK: - Game Row Component (Existing - keeping same implementation)
 
 struct GameRowView: View {
     let game: Game
@@ -881,234 +968,6 @@ struct OverviewStatsView: View {
     }
 }
 
-struct TrendsView: View {
-    let games: [Game]
-    @State private var selectedStat: StatType = .points
-    
-    enum StatType: String, CaseIterable {
-        case points = "Points"
-        case rebounds = "Rebounds"
-        case assists = "Assists"
-        case steals = "Steals"
-        case blocks = "Blocks"
-        case fouls = "Fouls"
-        case turnovers = "Turnovers"
-        case fg2m = "2PT Made"
-        case fg2a = "2PT Att"
-        case fg3m = "3PT Made"
-        case fg3a = "3PT Att"
-        case ftm = "FT Made"
-        case fta = "FT Att"
-        case fieldGoalPct = "FG%"
-        case threePointPct = "3P%"
-        case freeThrowPct = "FT%"
-        case assistTurnoverRatio = "A/T Ratio"
-        
-        var color: Color {
-            switch self {
-            case .points: return .purple
-            case .rebounds: return .mint
-            case .assists: return .cyan
-            case .steals: return .yellow
-            case .blocks: return .red
-            case .fouls: return .pink
-            case .turnovers: return .red.opacity(0.8)
-            case .fg2m, .fg2a: return .blue
-            case .fg3m, .fg3a: return .green
-            case .ftm, .fta: return .orange
-            case .fieldGoalPct: return .blue
-            case .threePointPct: return .green
-            case .freeThrowPct: return .orange
-            case .assistTurnoverRatio: return .indigo
-            }
-        }
-        
-        func getValue(from game: Game) -> Double {
-            switch self {
-            case .points: return Double(game.points)
-            case .rebounds: return Double(game.rebounds)
-            case .assists: return Double(game.assists)
-            case .steals: return Double(game.steals)
-            case .blocks: return Double(game.blocks)
-            case .fouls: return Double(game.fouls)
-            case .turnovers: return Double(game.turnovers)
-            case .fg2m: return Double(game.fg2m)
-            case .fg2a: return Double(game.fg2a)
-            case .fg3m: return Double(game.fg3m)
-            case .fg3a: return Double(game.fg3a)
-            case .ftm: return Double(game.ftm)
-            case .fta: return Double(game.fta)
-            case .fieldGoalPct: return game.fieldGoalPercentage * 100
-            case .threePointPct: return game.threePointPercentage * 100
-            case .freeThrowPct: return game.freeThrowPercentage * 100
-            case .assistTurnoverRatio: return game.assistTurnoverRatio
-            }
-        }
-        
-        var unit: String {
-            switch self {
-            case .fieldGoalPct, .threePointPct, .freeThrowPct:
-                return "%"
-            default:
-                return ""
-            }
-        }
-        
-        var isPercentage: Bool {
-            switch self {
-            case .fieldGoalPct, .threePointPct, .freeThrowPct:
-                return true
-            default:
-                return false
-            }
-        }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header with stat selector
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Performance Trends")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                Text("Tap a stat to see its trend")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                // Clickable stat grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
-                    ForEach(StatType.allCases, id: \.self) { stat in
-                        TrendStatButton(
-                            stat: stat,
-                            games: games,
-                            isSelected: selectedStat == stat
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                selectedStat = stat
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Chart for selected stat
-            if !games.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("\(selectedStat.rawValue) Trend")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(selectedStat.color)
-                        
-                        Spacer()
-                        
-                        // Show average
-                        let average = games.map { selectedStat.getValue(from: $0) }.reduce(0, +) / Double(games.count)
-                        Text("Avg: \(String(format: selectedStat.isPercentage ? "%.1f" : "%.1f", average))\(selectedStat.unit)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Chart {
-                        ForEach(Array(games.enumerated()), id: \.offset) { index, game in
-                            LineMark(
-                                x: .value("Game", index + 1),
-                                y: .value(selectedStat.rawValue, selectedStat.getValue(from: game))
-                            )
-                            .foregroundStyle(selectedStat.color)
-                            .interpolationMethod(.catmullRom)
-                            
-                            PointMark(
-                                x: .value("Game", index + 1),
-                                y: .value(selectedStat.rawValue, selectedStat.getValue(from: game))
-                            )
-                            .foregroundStyle(selectedStat.color)
-                            .symbolSize(40)
-                        }
-                    }
-                    .frame(height: 150)
-                    .chartYAxis {
-                        AxisMarks(position: .leading) { value in
-                            AxisGridLine()
-                            AxisValueLabel {
-                                if let doubleValue = value.as(Double.self) {
-                                    Text("\(String(format: selectedStat.isPercentage ? "%.0f" : "%.0f", doubleValue))\(selectedStat.unit)")
-                                }
-                            }
-                        }
-                    }
-                    .chartXAxis {
-                        AxisMarks { value in
-                            AxisGridLine()
-                            AxisValueLabel {
-                                if let intValue = value.as(Int.self) {
-                                    Text("G\(intValue)")
-                                }
-                            }
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.5), value: selectedStat)
-                }
-                .padding()
-                .background(selectedStat.color.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(selectedStat.color.opacity(0.2), lineWidth: 1)
-                )
-                .cornerRadius(12)
-            } else {
-                Text("Not enough games for trends")
-                    .foregroundColor(.secondary)
-                    .frame(height: 120)
-            }
-        }
-    }
-}
-
-struct TrendStatButton: View {
-    let stat: TrendsView.StatType
-    let games: [Game]
-    let isSelected: Bool
-    let action: () -> Void
-    
-    private var latestValue: Double {
-        guard let latestGame = games.first else { return 0 }
-        return stat.getValue(from: latestGame)
-    }
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(stat.rawValue)
-                    .font(.caption2)
-                    .foregroundColor(isSelected ? stat.color : .secondary)
-                    .fontWeight(isSelected ? .semibold : .medium)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                
-                Text("\(String(format: stat.isPercentage ? "%.0f" : "%.0f", latestValue))\(stat.unit)")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(isSelected ? stat.color : .primary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? stat.color.opacity(0.15) : Color.gray.opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: 2)
-            )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isSelected)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 struct StatBox: View {
     let title: String
     let value: String
@@ -1135,60 +994,6 @@ struct StatBox: View {
                 .stroke(color.opacity(0.2), lineWidth: 1)
         )
         .cornerRadius(8)
-    }
-}
-
-// MARK: - Live Game Components
-
-struct LiveGameIndicatorView: View {
-    @StateObject private var firebaseService = FirebaseService.shared
-    
-    var body: some View {
-        HStack {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 12, height: 12)
-                .opacity(0.8)
-                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("🔴 Live Game in Progress")
-                    .font(.headline)
-                    .foregroundColor(.red)
-                
-                if let liveGame = firebaseService.getCurrentLiveGame() {
-                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("Period \(liveGame.period) • \(liveGame.currentClockDisplay)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
-            
-            NavigationLink(destination: LiveGameView()) {
-                Text("Watch")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.red)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-            }
-        }
-        .padding()
-    }
-}
-
-struct LiveGameView: View {
-    var body: some View {
-        Text("Live Game View")
-            .navigationTitle("Live Game")
-            .navigationBarTitleDisplayMode(.inline)
     }
 }
 

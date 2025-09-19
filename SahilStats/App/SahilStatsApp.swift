@@ -1,17 +1,19 @@
-// File: SahilStats/App/SahilStatsApp.swift (Updated)
+// File: SahilStats/App/SahilStatsApp.swift (Fixed for iPad)
 
 import SwiftUI
 import FirebaseCore
 import FirebaseAuth
 
-import SwiftUI
 
 @main
 struct SahilStatsApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var authService = AuthService()
     
     init() {
+        // Configure Firebase
         FirebaseApp.configure()
+        
     }
     
     var body: some Scene {
@@ -19,12 +21,12 @@ struct SahilStatsApp: App {
             ContentView()
                 .environmentObject(authService)
                 .onAppear {
-                    AppDelegate.orientationLock = .portrait // 👈 lock to portrait
+                    AppDelegate.orientationLock = .portrait
                 }
         }
     }
+    
 }
-
 
 struct ContentView: View {
     @EnvironmentObject var authService: AuthService
@@ -43,12 +45,16 @@ struct ContentView: View {
         }
         .onChange(of: authService.isSignedIn) { oldValue, newValue in
             // Handle auth state changes if needed
+            if !newValue && !authService.isLoading {
+                // User signed out, you might want to show a message or take other actions
+            }
         }
     }
 }
 
 struct SplashView: View {
     @State private var rotation: Double = 0
+    @State private var scale: Double = 1.0
     
     var body: some View {
         ZStack {
@@ -60,9 +66,13 @@ struct SplashView: View {
                     .font(.system(size: 60))
                     .foregroundColor(.orange)
                     .rotationEffect(.degrees(rotation))
+                    .scaleEffect(scale)
                     .onAppear {
                         withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
                             rotation = 360
+                        }
+                        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                            scale = 1.1
                         }
                     }
                 
@@ -73,6 +83,10 @@ struct SplashView: View {
                 
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                
+                Text("Loading...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
     }
@@ -85,32 +99,66 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             // Dashboard tab - Always available
-            NavigationView {
-                GameListView()
-            }
-            .tabItem {
-                Image(systemName: "chart.bar.fill")
-                Text("Games")
+            // Use NavigationStack instead of NavigationView for iOS 16+
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    GameListView()
+                }
+                .tabItem {
+                    Image(systemName: "chart.bar.fill")
+                    Text("Games")
+                }
+            } else {
+                NavigationView {
+                    GameListView()
+                        .navigationViewStyle(StackNavigationViewStyle()) // Force stack style on iPad
+                }
+                .tabItem {
+                    Image(systemName: "chart.bar.fill")
+                    Text("Games")
+                }
             }
             
             // Game Setup tab - Admin only
             if authService.showAdminFeatures {
-                NavigationView {
-                    GameSetupView()
-                }
-                .tabItem {
-                    Image(systemName: "plus.circle.fill")
-                    Text("New Game")
+                if #available(iOS 16.0, *) {
+                    NavigationStack {
+                        GameSetupView()
+                    }
+                    .tabItem {
+                        Image(systemName: "plus.circle.fill")
+                        Text("New Game")
+                    }
+                } else {
+                    NavigationView {
+                        GameSetupView()
+                            .navigationViewStyle(StackNavigationViewStyle()) // Force stack style on iPad
+                    }
+                    .tabItem {
+                        Image(systemName: "plus.circle.fill")
+                        Text("New Game")
+                    }
                 }
             }
             
             // Settings tab - Always available
-            NavigationView {
-                SettingsView()
-            }
-            .tabItem {
-                Image(systemName: "gearshape.fill")
-                Text("Settings")
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    SettingsView()
+                }
+                .tabItem {
+                    Image(systemName: "gearshape.fill")
+                    Text("Settings")
+                }
+            } else {
+                NavigationView {
+                    SettingsView()
+                        .navigationViewStyle(StackNavigationViewStyle()) // Force stack style on iPad
+                }
+                .tabItem {
+                    Image(systemName: "gearshape.fill")
+                    Text("Settings")
+                }
             }
         }
         .accentColor(.orange)
@@ -119,6 +167,7 @@ struct MainTabView: View {
         }
     }
 }
+
 
 #Preview {
     ContentView()
