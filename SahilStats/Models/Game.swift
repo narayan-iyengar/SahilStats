@@ -254,7 +254,7 @@ struct Game: Identifiable, Codable {
 
 // MARK: - Live Game Model
 
-struct LiveGame: Identifiable, Codable {
+struct LiveGame: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var teamName: String
     var opponent: String
@@ -266,9 +266,15 @@ struct LiveGame: Identifiable, Codable {
     // Live game state
     var isRunning: Bool
     var period: Int
-    var clock: TimeInterval // Changed from Int to TimeInterval for better precision
-    var clockStartTime: Date?
-    var clockAtStart: TimeInterval?
+    var clock: TimeInterval
+    var clockStartTime: Date? // When the clock was last started
+    var clockAtStart: TimeInterval? // Clock value when started
+    
+    // Device Control System
+    var controllingDeviceId: String? // Which device has control
+    var controllingUserEmail: String? // Which user has control
+    var controlRequestedBy: String? // User requesting control
+    var lastClockUpdate: Date? // Server timestamp of last clock update
     
     // Current scores
     var homeScore: Int
@@ -287,14 +293,29 @@ struct LiveGame: Identifiable, Codable {
         period >= numPeriods && clock <= 0 && !isRunning
     }
     
+    // Calculate current clock based on server time (prevents drift)
+    func getCurrentClock() -> TimeInterval {
+        guard isRunning,
+              let startTime = clockStartTime,
+              let clockAtStart = clockAtStart,
+              let lastUpdate = lastClockUpdate else {
+            return clock
+        }
+        
+        let elapsedTime = Date().timeIntervalSince(startTime)
+        let currentClock = max(0, clockAtStart - elapsedTime)
+        
+        // If clock should be at 0, return 0
+        return currentClock
+    }
+    
     var currentClockDisplay: String {
-        if clock <= 59 {
-            // Show tenths for under 1 minute
-            return String(format: "%.1f", clock)
+        let currentTime = getCurrentClock()
+        if currentTime <= 59 {
+            return String(format: "%.1f", currentTime)
         } else {
-            // Show MM:SS for over 1 minute
-            let minutes = Int(clock) / 60
-            let seconds = Int(clock) % 60
+            let minutes = Int(currentTime) / 60
+            let seconds = Int(currentTime) % 60
             return String(format: "%02d:%02d", minutes, seconds)
         }
     }
@@ -315,6 +336,10 @@ struct LiveGame: Identifiable, Codable {
         self.clock = TimeInterval(periodLength * 60)
         self.clockStartTime = nil
         self.clockAtStart = TimeInterval(periodLength * 60)
+        self.controllingDeviceId = nil
+        self.controllingUserEmail = createdBy
+        self.controlRequestedBy = nil
+        self.lastClockUpdate = nil
         self.homeScore = 0
         self.awayScore = 0
         self.playerStats = PlayerStats()
@@ -323,7 +348,6 @@ struct LiveGame: Identifiable, Codable {
         self.sahilOnBench = false
     }
 }
-
 // MARK: - Player Stats
 struct PlayerStats: Codable, Equatable {
     var fg2m: Int = 0

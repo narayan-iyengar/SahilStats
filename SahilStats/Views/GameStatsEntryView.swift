@@ -1,9 +1,4 @@
-//
-//  GameStatsEntryView.swift
-//  SahilStats
-//
-//  Enhanced stat entry system for post-game and live game scenarios
-//
+// File: SahilStats/Views/GameStatsEntryView.swift (Fixed for iPad Detection)
 
 import SwiftUI
 import FirebaseAuth
@@ -16,11 +11,17 @@ struct PostGameStatsView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     @State private var gameStats = GameStatsData()
     @State private var showingSubmitAlert = false
     @State private var isSubmitting = false
     @State private var error = ""
+    
+    // iPad detection
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     var body: some View {
         ScrollView {
@@ -33,14 +34,15 @@ struct PostGameStatsView: View {
                     myTeamScore: $gameStats.myTeamScore,
                     opponentScore: $gameStats.opponentScore,
                     teamName: gameConfig.teamName,
-                    opponent: gameConfig.opponent
+                    opponent: gameConfig.opponent,
+                    isIPad: isIPad
                 )
                 
                 // Stats Entry
-                PlayerStatsEntrySection(stats: $gameStats.playerStats)
+                PlayerStatsEntrySection(stats: $gameStats.playerStats, isIPad: isIPad)
                 
                 // Quick Actions
-                QuickStatsButtons(stats: $gameStats.playerStats)
+                QuickStatsButtons(stats: $gameStats.playerStats, isIPad: isIPad)
                 
                 // Achievements Preview
                 AchievementsPreview(stats: gameStats)
@@ -50,7 +52,7 @@ struct PostGameStatsView: View {
                     Button("Save Game") {
                         showingSubmitAlert = true
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle(isIPad: isIPad))
                     .disabled(isSubmitting || !gameStats.isValid)
                     
                     Button("Cancel") {
@@ -60,7 +62,7 @@ struct PostGameStatsView: View {
                 }
                 .padding(.top)
             }
-            .padding()
+            .padding(isIPad ? 24 : 16)
         }
         .navigationTitle("Enter Stats")
         .navigationBarTitleDisplayMode(.inline)
@@ -139,6 +141,7 @@ struct LiveGameStatsView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     @State private var currentStats: PlayerStats
     @State private var currentHomeScore: Int
@@ -154,6 +157,11 @@ struct LiveGameStatsView: View {
     @State private var hasUnsavedChanges = false
     @State private var clockTimer: Timer?
     
+    // iPad detection
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
         _currentStats = State(initialValue: liveGame.playerStats)
@@ -167,14 +175,15 @@ struct LiveGameStatsView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: isIPad ? 24 : 20) {
                 // Game Status Header
                 LiveGameHeader(
                     liveGame: liveGame,
                     isGameRunning: $isGameRunning,
                     currentPeriod: $currentPeriod,
                     currentClock: $currentClock,
-                    sahilOnBench: $sahilOnBench
+                    sahilOnBench: $sahilOnBench,
+                    isIPad: isIPad
                 )
                 
                 // Live Score Entry
@@ -183,12 +192,14 @@ struct LiveGameStatsView: View {
                     awayScore: $currentAwayScore,
                     teamName: liveGame.teamName,
                     opponent: liveGame.opponent,
+                    isIPad: isIPad,
                     onScoreChange: scheduleUpdate
                 )
                 
                 // Player Status
                 PlayerStatusSection(
                     sahilOnBench: $sahilOnBench,
+                    isIPad: isIPad,
                     onStatusChange: scheduleUpdate
                 )
                 
@@ -196,12 +207,14 @@ struct LiveGameStatsView: View {
                 if !sahilOnBench {
                     LivePlayerStatsSection(
                         stats: $currentStats,
+                        isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
                     
                     // Quick Action Buttons
                     LiveQuickActions(
                         stats: $currentStats,
+                        isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
                 }
@@ -209,6 +222,7 @@ struct LiveGameStatsView: View {
                 // Game Controls
                 LiveGameControls(
                     isGameRunning: $isGameRunning,
+                    isIPad: isIPad,
                     onFinishGame: finishGame
                 )
                 
@@ -217,7 +231,7 @@ struct LiveGameStatsView: View {
                     UpdateStatusIndicator(isUpdating: isUpdating)
                 }
             }
-            .padding()
+            .padding(isIPad ? 24 : 16)
         }
         .navigationTitle("Live Game")
         .navigationBarTitleDisplayMode(.inline)
@@ -403,7 +417,7 @@ struct GameStatsData {
     }
 }
 
-// MARK: - UI Components
+// MARK: - UI Components (Updated with iPad Support)
 
 struct GameInfoHeader: View {
     let config: GameConfig
@@ -434,116 +448,120 @@ struct ScoreEntrySection: View {
     @Binding var opponentScore: Int
     let teamName: String
     let opponent: String
+    let isIPad: Bool
     
     var body: some View {
         VStack(spacing: 16) {
             Text("Final Score")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
-            HStack(spacing: 30) {
+            HStack(spacing: isIPad ? 40 : 30) {
                 // My team score
-                VStack(spacing: 8) {
+                VStack(spacing: isIPad ? 12 : 8) {
                     Text(teamName)
-                        .font(.caption)
+                        .font(isIPad ? .body : .caption)
                         .foregroundColor(.secondary)
                     
-                    ScoreInputField(score: $myTeamScore)
+                    ScoreInputField(score: $myTeamScore, isIPad: isIPad)
                         .foregroundColor(.blue)
                 }
                 
                 Text("–")
-                    .font(.title)
+                    .font(isIPad ? .largeTitle : .title)
                     .foregroundColor(.secondary)
                 
                 // Opponent score
-                VStack(spacing: 8) {
+                VStack(spacing: isIPad ? 12 : 8) {
                     Text(opponent)
-                        .font(.caption)
+                        .font(isIPad ? .body : .caption)
                         .foregroundColor(.secondary)
                     
-                    ScoreInputField(score: $opponentScore)
+                    ScoreInputField(score: $opponentScore, isIPad: isIPad)
                         .foregroundColor(.red)
                 }
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
 struct ScoreInputField: View {
     @Binding var score: Int
+    let isIPad: Bool
     
     var body: some View {
         HStack {
             Button("-") {
                 if score > 0 { score -= 1 }
             }
-            .buttonStyle(ScoreButtonStyle())
+            .buttonStyle(ScoreButtonStyle(isIPad: isIPad))
             
             Text("\(score)")
-                .font(.title)
+                .font(isIPad ? .largeTitle : .title)
                 .fontWeight(.bold)
-                .frame(minWidth: 50)
+                .frame(minWidth: isIPad ? 60 : 50)
             
             Button("+") {
                 score += 1
             }
-            .buttonStyle(ScoreButtonStyle())
+            .buttonStyle(ScoreButtonStyle(isIPad: isIPad))
         }
     }
 }
 
 struct PlayerStatsEntrySection: View {
     @Binding var stats: PlayerStats
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: isIPad ? 20 : 16) {
             Text("Sahil's Stats")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
             // Shooting Stats
-            StatCategorySection(title: "Shooting") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                    StatInputRow(label: "2PT Made", value: $stats.fg2m, max: stats.fg2a)
-                    StatInputRow(label: "2PT Att", value: $stats.fg2a, min: stats.fg2m)
-                    StatInputRow(label: "3PT Made", value: $stats.fg3m, max: stats.fg3a)
-                    StatInputRow(label: "3PT Att", value: $stats.fg3a, min: stats.fg3m)
-                    StatInputRow(label: "FT Made", value: $stats.ftm, max: stats.fta)
-                    StatInputRow(label: "FT Att", value: $stats.fta, min: stats.ftm)
+            StatCategorySection(title: "Shooting", isIPad: isIPad) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                    StatInputRow(label: "2PT Made", value: $stats.fg2m, max: stats.fg2a, isIPad: isIPad)
+                    StatInputRow(label: "2PT Att", value: $stats.fg2a, min: stats.fg2m, isIPad: isIPad)
+                    StatInputRow(label: "3PT Made", value: $stats.fg3m, max: stats.fg3a, isIPad: isIPad)
+                    StatInputRow(label: "3PT Att", value: $stats.fg3a, min: stats.fg3m, isIPad: isIPad)
+                    StatInputRow(label: "FT Made", value: $stats.ftm, max: stats.fta, isIPad: isIPad)
+                    StatInputRow(label: "FT Att", value: $stats.fta, min: stats.ftm, isIPad: isIPad)
                 }
             }
             
             // Other Stats
-            StatCategorySection(title: "Other Stats") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                    StatInputRow(label: "Rebounds", value: $stats.rebounds)
-                    StatInputRow(label: "Assists", value: $stats.assists)
-                    StatInputRow(label: "Steals", value: $stats.steals)
-                    StatInputRow(label: "Blocks", value: $stats.blocks)
-                    StatInputRow(label: "Fouls", value: $stats.fouls)
-                    StatInputRow(label: "Turnovers", value: $stats.turnovers)
+            StatCategorySection(title: "Other Stats", isIPad: isIPad) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                    StatInputRow(label: "Rebounds", value: $stats.rebounds, isIPad: isIPad)
+                    StatInputRow(label: "Assists", value: $stats.assists, isIPad: isIPad)
+                    StatInputRow(label: "Steals", value: $stats.steals, isIPad: isIPad)
+                    StatInputRow(label: "Blocks", value: $stats.blocks, isIPad: isIPad)
+                    StatInputRow(label: "Fouls", value: $stats.fouls, isIPad: isIPad)
+                    StatInputRow(label: "Turnovers", value: $stats.turnovers, isIPad: isIPad)
                 }
             }
             
             // Calculated Stats
-            CalculatedStatsDisplay(stats: stats)
+            CalculatedStatsDisplay(stats: stats, isIPad: isIPad)
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
 struct StatCategorySection<Content: View>: View {
     let title: String
+    let isIPad: Bool
     @ViewBuilder let content: Content
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
             Text(title)
-                .font(.subheadline)
+                .font(isIPad ? .title3 : .subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.orange)
             
@@ -557,33 +575,35 @@ struct StatInputRow: View {
     @Binding var value: Int
     let min: Int
     let max: Int?
+    let isIPad: Bool
     
-    init(label: String, value: Binding<Int>, min: Int = 0, max: Int? = nil) {
+    init(label: String, value: Binding<Int>, min: Int = 0, max: Int? = nil, isIPad: Bool) {
         self.label = label
         self._value = value
         self.min = min
         self.max = max
+        self.isIPad = isIPad
     }
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: isIPad ? 8 : 6) {
             Text(label)
-                .font(.caption)
+                .font(isIPad ? .body : .caption)
                 .foregroundColor(.secondary)
             
-            HStack(spacing: 8) {
+            HStack(spacing: isIPad ? 12 : 8) {
                 Button("-") {
                     if value > min {
                         value -= 1
                     }
                 }
-                .buttonStyle(StatButtonStyle())
+                .buttonStyle(StatButtonStyle(isIPad: isIPad))
                 .disabled(value <= min)
                 
                 Text("\(value)")
-                    .font(.headline)
+                    .font(isIPad ? .title3 : .headline)
                     .fontWeight(.semibold)
-                    .frame(minWidth: 30)
+                    .frame(minWidth: isIPad ? 35 : 30)
                 
                 Button("+") {
                     if let max = max, value >= max {
@@ -592,32 +612,33 @@ struct StatInputRow: View {
                         value += 1
                     }
                 }
-                .buttonStyle(StatButtonStyle())
+                .buttonStyle(StatButtonStyle(isIPad: isIPad))
                 .disabled(max != nil && value >= max!)
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(.vertical, isIPad ? 12 : 8)
+        .padding(.horizontal, isIPad ? 16 : 12)
         .background(Color(.systemBackground))
-        .cornerRadius(8)
+        .cornerRadius(isIPad ? 12 : 8)
     }
 }
 
 struct CalculatedStatsDisplay: View {
     let stats: PlayerStats
+    let isIPad: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {
             Text("Calculated Stats")
-                .font(.subheadline)
+                .font(isIPad ? .title3 : .subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.purple)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
-                CalculatedStatCard(title: "Points", value: "\(stats.points)")
-                CalculatedStatCard(title: "FG%", value: fieldGoalPercentage)
-                CalculatedStatCard(title: "3P%", value: threePointPercentage)
-                CalculatedStatCard(title: "FT%", value: freeThrowPercentage)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 12 : 8) {
+                CalculatedStatCard(title: "Points", value: "\(stats.points)", isIPad: isIPad)
+                CalculatedStatCard(title: "FG%", value: fieldGoalPercentage, isIPad: isIPad)
+                CalculatedStatCard(title: "3P%", value: threePointPercentage, isIPad: isIPad)
+                CalculatedStatCard(title: "FT%", value: freeThrowPercentage, isIPad: isIPad)
             }
         }
     }
@@ -649,83 +670,86 @@ struct CalculatedStatsDisplay: View {
 struct CalculatedStatCard: View {
     let title: String
     let value: String
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: isIPad ? 6 : 4) {
             Text(value)
-                .font(.headline)
+                .font(isIPad ? .title3 : .headline)
                 .fontWeight(.bold)
                 .foregroundColor(.purple)
             
             Text(title)
-                .font(.caption2)
+                .font(isIPad ? .caption : .caption2)
                 .foregroundColor(.secondary)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, isIPad ? 8 : 6)
         .frame(maxWidth: .infinity)
         .background(Color.purple.opacity(0.1))
-        .cornerRadius(6)
+        .cornerRadius(isIPad ? 8 : 6)
     }
 }
 
 struct QuickStatsButtons: View {
     @Binding var stats: PlayerStats
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: isIPad ? 16 : 12) {
             Text("Quick Actions")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                QuickActionButton(title: "2PT Made", color: .blue) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: isIPad ? 12 : 8) {
+                QuickActionButton(title: "2PT Made", color: .blue, isIPad: isIPad) {
                     stats.fg2m += 1
                     stats.fg2a += 1
                 }
                 
-                QuickActionButton(title: "3PT Made", color: .green) {
+                QuickActionButton(title: "3PT Made", color: .green, isIPad: isIPad) {
                     stats.fg3m += 1
                     stats.fg3a += 1
                 }
                 
-                QuickActionButton(title: "FT Made", color: .orange) {
+                QuickActionButton(title: "FT Made", color: .orange, isIPad: isIPad) {
                     stats.ftm += 1
                     stats.fta += 1
                 }
                 
-                QuickActionButton(title: "Rebound", color: .mint) {
+                QuickActionButton(title: "Rebound", color: .mint, isIPad: isIPad) {
                     stats.rebounds += 1
                 }
                 
-                QuickActionButton(title: "Assist", color: .cyan) {
+                QuickActionButton(title: "Assist", color: .cyan, isIPad: isIPad) {
                     stats.assists += 1
                 }
                 
-                QuickActionButton(title: "Steal", color: .yellow) {
+                QuickActionButton(title: "Steal", color: .yellow, isIPad: isIPad) {
                     stats.steals += 1
                 }
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
 struct QuickActionButton: View {
     let title: String
     let color: Color
+    let isIPad: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.caption)
+                .font(isIPad ? .body : .caption)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
-                .padding(.vertical, 12)
+                .padding(.vertical, isIPad ? 16 : 12)
                 .frame(maxWidth: .infinity)
                 .background(color)
-                .cornerRadius(8)
+                .cornerRadius(isIPad ? 12 : 8)
         }
     }
 }
@@ -804,7 +828,7 @@ struct AchievementsPreview: View {
     }
 }
 
-// MARK: - Live Game Components
+// MARK: - Live Game Components (Updated with iPad Support)
 
 struct LiveGameHeader: View {
     let liveGame: LiveGame
@@ -812,18 +836,19 @@ struct LiveGameHeader: View {
     @Binding var currentPeriod: Int
     @Binding var currentClock: TimeInterval
     @Binding var sahilOnBench: Bool
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: isIPad ? 12 : 8) {
             HStack {
                 Circle()
                     .fill(Color.red)
-                    .frame(width: 12, height: 12)
+                    .frame(width: isIPad ? 16 : 12, height: isIPad ? 16 : 12)
                     .opacity(0.8)
                     .animation(.easeInOut(duration: 1).repeatForever(), value: true)
                 
                 Text("LIVE GAME")
-                    .font(.headline)
+                    .font(isIPad ? .title2 : .headline)
                     .fontWeight(.bold)
                     .foregroundColor(.red)
                 
@@ -831,23 +856,23 @@ struct LiveGameHeader: View {
             }
             
             Text("\(liveGame.teamName) vs \(liveGame.opponent)")
-                .font(.title2)
+                .font(isIPad ? .title : .title2)
                 .fontWeight(.semibold)
             
-            HStack(spacing: 20) {
+            HStack(spacing: isIPad ? 24 : 20) {
                 Text("Period \(currentPeriod)")
-                    .font(.subheadline)
+                    .font(isIPad ? .title3 : .subheadline)
                     .foregroundColor(.secondary)
                 
                 Text(formatClock(currentClock))
-                    .font(.title3)
+                    .font(isIPad ? .title2 : .title3)
                     .fontWeight(.semibold)
                     .foregroundColor(isGameRunning ? .red : .secondary)
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color.red.opacity(0.1))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
     
     private func formatClock(_ time: TimeInterval) -> String {
@@ -866,140 +891,133 @@ struct LiveScoreSection: View {
     @Binding var awayScore: Int
     let teamName: String
     let opponent: String
+    let isIPad: Bool
     let onScoreChange: () -> Void
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: isIPad ? 20 : 16) {
             Text("Live Score")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
-            HStack(spacing: 30) {
-                VStack(spacing: 8) {
+            HStack(spacing: isIPad ? 40 : 30) {
+                VStack(spacing: isIPad ? 12 : 8) {
                     Text(teamName)
-                        .font(.caption)
+                        .font(isIPad ? .body : .caption)
                         .foregroundColor(.secondary)
                     
                     LiveScoreControl(
                         score: $homeScore,
+                        isIPad: isIPad,
                         onScoreChange: onScoreChange
                     )
                     .foregroundColor(.blue)
                 }
                 
                 Text("–")
-                    .font(.title)
+                    .font(isIPad ? .largeTitle : .title)
                     .foregroundColor(.secondary)
                 
-                VStack(spacing: 8) {
+                VStack(spacing: isIPad ? 12 : 8) {
                     Text(opponent)
-                        .font(.caption)
+                        .font(isIPad ? .body : .caption)
                         .foregroundColor(.secondary)
                     
                     LiveScoreControl(
                         score: $awayScore,
+                        isIPad: isIPad,
                         onScoreChange: onScoreChange
                     )
                     .foregroundColor(.red)
                 }
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
 struct LiveScoreControl: View {
     @Binding var score: Int
+    let isIPad: Bool
     let onScoreChange: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: isIPad ? 16 : 12) {
             Button("-") {
                 if score > 0 {
                     score -= 1
                     onScoreChange()
                 }
             }
-            .buttonStyle(LiveScoreButtonStyle())
+            .buttonStyle(LiveScoreButtonStyle(isIPad: isIPad))
             
             Text("\(score)")
-                .font(.largeTitle)
+                .font(isIPad ? .system(size: 36, weight: .bold) : .largeTitle)
                 .fontWeight(.bold)
-                .frame(minWidth: 60)
+                .frame(minWidth: isIPad ? 70 : 60)
             
             Button("+") {
                 score += 1
                 onScoreChange()
             }
-            .buttonStyle(LiveScoreButtonStyle())
+            .buttonStyle(LiveScoreButtonStyle(isIPad: isIPad))
         }
-    }
-}
-struct LiveScoreButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.title2)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
-            .frame(width: 44, height: 44)
-            .background(Color.orange)
-            .clipShape(Circle())
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
 struct PlayerStatusSection: View {
     @Binding var sahilOnBench: Bool
+    let isIPad: Bool
     let onStatusChange: () -> Void
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: isIPad ? 16 : 12) {
             Text("Player Status")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
             HStack {
                 Button("On Court") {
                     sahilOnBench = false
                     onStatusChange()
                 }
-                .buttonStyle(StatusButtonStyle(isSelected: !sahilOnBench))
+                .buttonStyle(StatusButtonStyle(isSelected: !sahilOnBench, isIPad: isIPad))
                 
                 Button("On Bench") {
                     sahilOnBench = true
                     onStatusChange()
                 }
-                .buttonStyle(StatusButtonStyle(isSelected: sahilOnBench))
+                .buttonStyle(StatusButtonStyle(isSelected: sahilOnBench, isIPad: isIPad))
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
 struct LivePlayerStatsSection: View {
     @Binding var stats: PlayerStats
+    let isIPad: Bool
     let onStatChange: () -> Void
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: isIPad ? 20 : 16) {
             Text("Live Stats")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
-                LiveStatCard(title: "PTS", value: stats.points, color: .purple)
-                LiveStatCard(title: "REB", value: stats.rebounds, color: .mint)
-                LiveStatCard(title: "AST", value: stats.assists, color: .cyan)
-                LiveStatCard(title: "STL", value: stats.steals, color: .yellow)
-                LiveStatCard(title: "BLK", value: stats.blocks, color: .red)
-                LiveStatCard(title: "TO", value: stats.turnovers, color: .pink)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: isIPad ? 16 : 12) {
+                LiveStatCard(title: "PTS", value: stats.points, color: .purple, isIPad: isIPad)
+                LiveStatCard(title: "REB", value: stats.rebounds, color: .mint, isIPad: isIPad)
+                LiveStatCard(title: "AST", value: stats.assists, color: .cyan, isIPad: isIPad)
+                LiveStatCard(title: "STL", value: stats.steals, color: .yellow, isIPad: isIPad)
+                LiveStatCard(title: "BLK", value: stats.blocks, color: .red, isIPad: isIPad)
+                LiveStatCard(title: "TO", value: stats.turnovers, color: .pink, isIPad: isIPad)
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
@@ -1007,131 +1025,135 @@ struct LiveStatCard: View {
     let title: String
     let value: Int
     let color: Color
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: isIPad ? 8 : 6) {
             Text("\(value)")
-                .font(.title2)
+                .font(isIPad ? .title : .title2)
                 .fontWeight(.bold)
                 .foregroundColor(color)
             
             Text(title)
-                .font(.caption)
+                .font(isIPad ? .body : .caption)
                 .foregroundColor(.secondary)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, isIPad ? 16 : 12)
         .frame(maxWidth: .infinity)
         .background(color.opacity(0.1))
-        .cornerRadius(8)
+        .cornerRadius(isIPad ? 12 : 8)
     }
 }
 
 struct LiveQuickActions: View {
     @Binding var stats: PlayerStats
+    let isIPad: Bool
     let onStatChange: () -> Void
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: isIPad ? 16 : 12) {
             Text("Quick Actions")
-                .font(.headline)
+                .font(isIPad ? .title2 : .headline)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
-                LiveActionButton(title: "2PT", color: .blue) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: isIPad ? 12 : 8) {
+                LiveActionButton(title: "2PT", color: .blue, isIPad: isIPad) {
                     stats.fg2m += 1
                     stats.fg2a += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "3PT", color: .green) {
+                LiveActionButton(title: "3PT", color: .green, isIPad: isIPad) {
                     stats.fg3m += 1
                     stats.fg3a += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "FT", color: .orange) {
+                LiveActionButton(title: "FT", color: .orange, isIPad: isIPad) {
                     stats.ftm += 1
                     stats.fta += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "REB", color: .mint) {
+                LiveActionButton(title: "REB", color: .mint, isIPad: isIPad) {
                     stats.rebounds += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "AST", color: .cyan) {
+                LiveActionButton(title: "AST", color: .cyan, isIPad: isIPad) {
                     stats.assists += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "STL", color: .yellow) {
+                LiveActionButton(title: "STL", color: .yellow, isIPad: isIPad) {
                     stats.steals += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "BLK", color: .red) {
+                LiveActionButton(title: "BLK", color: .red, isIPad: isIPad) {
                     stats.blocks += 1
                     onStatChange()
                 }
                 
-                LiveActionButton(title: "TO", color: .pink) {
+                LiveActionButton(title: "TO", color: .pink, isIPad: isIPad) {
                     stats.turnovers += 1
                     onStatChange()
                 }
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
 struct LiveActionButton: View {
     let title: String
     let color: Color
+    let isIPad: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.caption)
+                .font(isIPad ? .body : .caption)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
-                .padding(.vertical, 8)
+                .padding(.vertical, isIPad ? 12 : 8)
                 .frame(maxWidth: .infinity)
                 .background(color)
-                .cornerRadius(6)
+                .cornerRadius(isIPad ? 8 : 6)
         }
     }
 }
 
 struct LiveGameControls: View {
     @Binding var isGameRunning: Bool
+    let isIPad: Bool
     let onFinishGame: () -> Void
     
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 16) {
+        VStack(spacing: isIPad ? 16 : 12) {
+            HStack(spacing: isIPad ? 20 : 16) {
                 Button(isGameRunning ? "⏸️ Pause Game" : "▶️ Start Game") {
                     isGameRunning.toggle()
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(SecondaryButtonStyle(isIPad: isIPad))
                 
                 Button("🏁 Finish Game") {
                     onFinishGame()
                 }
-                .buttonStyle(DestructiveButtonStyle())
+                .buttonStyle(DestructiveButtonStyle(isIPad: isIPad))
             }
             
             if !isGameRunning {
                 Text("Game is paused")
-                    .font(.caption)
+                    .font(isIPad ? .body : .caption)
                     .foregroundColor(.secondary)
             }
         }
-        .padding()
+        .padding(isIPad ? 20 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
@@ -1159,81 +1181,3 @@ struct UpdateStatusIndicator: View {
         .cornerRadius(8)
     }
 }
-
-// MARK: - Button Styles
-
-struct PrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity)
-            .background(Color.orange)
-            .cornerRadius(12)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-struct SecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .fontWeight(.semibold)
-            .foregroundColor(.orange)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(Color.orange.opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-            )
-            .cornerRadius(8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-struct DestructiveButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(Color.red)
-            .cornerRadius(8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-struct ScoreButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.title2)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
-            .frame(width: 44, height: 44)
-            .background(Color.orange)
-            .clipShape(Circle())
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-struct StatButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .frame(width: 32, height: 32)
-            .background(Color.orange)
-            .clipShape(Circle())
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-
