@@ -74,7 +74,61 @@ struct ImprovedScoreButtonStyle: ButtonStyle {
     }
 }
 
+// Compact status button style (smaller for player status)
+struct CompactStatusButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    let isIPad: Bool
+    
+    init(isSelected: Bool, isIPad: Bool = false) {
+        self.isSelected = isSelected
+        self.isIPad = isIPad
+    }
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .caption : .caption2)
+            .fontWeight(.medium)
+            .foregroundColor(isSelected ? .white : .orange)
+            .padding(.vertical, isIPad ? 8 : 6) // Smaller padding
+            .padding(.horizontal, isIPad ? 12 : 10)
+            .background(isSelected ? Color.orange : Color.orange.opacity(0.1))
+            .overlay(
+                RoundedRectangle(cornerRadius: isIPad ? 8 : 6)
+                    .stroke(Color.orange.opacity(0.3), lineWidth: isSelected ? 0 : 1)
+            )
+            .cornerRadius(isIPad ? 8 : 6)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
 
+
+
+// BIGGER game control button style
+struct BiggerCompactControlButtonStyle: ButtonStyle {
+    let color: Color
+    let isIPad: Bool
+    
+    init(color: Color, isIPad: Bool = false) {
+        self.color = color
+        self.isIPad = isIPad
+    }
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .subheadline) // BIGGER: Increased font size
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.vertical, isIPad ? 14 : 12) // BIGGER: Increased vertical padding
+            .padding(.horizontal, isIPad ? 16 : 12) // BIGGER: Increased horizontal padding
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: isIPad ? 48 : 40) // BIGGER: Set minimum height
+            .background(color)
+            .cornerRadius(isIPad ? 10 : 8) // BIGGER: Slightly larger corner radius
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
 
 struct LargerControlButtonStyle: ButtonStyle {
     let color: Color

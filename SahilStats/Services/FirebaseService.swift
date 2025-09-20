@@ -241,6 +241,9 @@ class FirebaseService: ObservableObject {
     }
 }
 
+
+
+
 // MARK: - Career Stats Model
 
 struct CareerStats {

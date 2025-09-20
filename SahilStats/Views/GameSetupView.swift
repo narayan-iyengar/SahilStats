@@ -67,16 +67,107 @@ struct GameSetupView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingLiveGameView) {
-            // FIXED: Use consistent full-screen presentation with correct dismiss action
-            LiveGameFullScreenView(onDismiss: {
-                showingLiveGameView = false
-                dismiss() // This dismisses the GameSetupView entirely
-            })
+        .fullScreenCover(isPresented: $showingPostGameView) {
+            PostGameFullScreenWrapper(gameConfig: gameConfig) {
+                showingPostGameView = false
+            }
             .environmentObject(authService)
         }
     }
+
+    struct PostGameFullScreenWrapper: View {
+        let gameConfig: GameConfig
+        let onDismiss: () -> Void
+        @Environment(\.horizontalSizeClass) var horizontalSizeClass
+        
+        private var isIPad: Bool {
+            horizontalSizeClass == .regular
+        }
+        
+        var body: some View {
+            ZStack {
+                // FORCE: Full background coverage
+                Color(.systemBackground)
+                    .ignoresSafeArea(.all) // IMPORTANT: Ignore ALL safe areas
+                
+                VStack(spacing: 0) {
+                    // Custom navigation bar (replaces system nav)
+                    PostGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
+                    
+                    // Main content
+                    PostGameStatsView(gameConfig: gameConfig)
+                        .navigationBarHidden(true) // FORCE: Hide any system nav
+                }
+            }
+            .navigationBarHidden(true) // DOUBLE FORCE: Ensure nav is hidden
+            .navigationViewStyle(StackNavigationViewStyle()) // FORCE: Stack style on iPad
+        }
+    }
+
+    // MARK: - Enhanced Navigation Bar for iPad
+
+    struct PostGameNavigationBar: View {
+        let onDismiss: () -> Void
+        let isIPad: Bool
+        
+        var body: some View {
+            HStack {
+                // Title section
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(isIPad ? .title2 : .title3)
+                        .foregroundColor(.orange)
+                    
+                    Text("Enter Game Stats")
+                        .font(isIPad ? .largeTitle : .title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+                
+                // Done button - ALWAYS visible and prominent
+                Button(action: onDismiss) {
+                    Text("Done")
+                        .font(isIPad ? .title3 : .headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, isIPad ? 20 : 16)
+                        .padding(.vertical, isIPad ? 12 : 8)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(isIPad ? 24 : 20)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, isIPad ? 28 : 24)
+            .padding(.top, isIPad ? 24 : 20)
+            .padding(.bottom, isIPad ? 20 : 16)
+            .background(
+                Color(.systemBackground)
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 2)
+                    .ignoresSafeArea(.container, edges: .top) // EXTEND: To top edge
+            )
+        }
+    }
     
+    
+struct PostGameFullScreenView: View {
+        let gameConfig: GameConfig
+        let onDismiss: () -> Void
+        
+        var body: some View {
+            ZStack {
+                Color(.systemBackground).ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    PostGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
+                    PostGameStatsView(gameConfig: gameConfig)
+                }
+            }
+        }
+}
+
+
     // MARK: - Full Screen Live Game View (FIXED)
     
     @ViewBuilder
@@ -278,7 +369,8 @@ struct GameSetupView: View {
                     .pickerStyle(.segmented)
                     
                     HStack {
-                        Text("Period Length")
+                        // DYNAMIC: Label changes based on format
+                        Text("\(gameConfig.gameFormat.periodName) Length")
                         Spacer()
                         TextField("Minutes", value: $gameConfig.periodLength, format: .number)
                             .textFieldStyle(.roundedBorder)
@@ -287,6 +379,11 @@ struct GameSetupView: View {
                         Text("min")
                             .foregroundColor(.secondary)
                     }
+                    
+                    // OPTIONAL: Add helpful context
+                    Text("Each \(gameConfig.gameFormat.periodName.lowercased()) will be \(gameConfig.periodLength) minutes long")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             

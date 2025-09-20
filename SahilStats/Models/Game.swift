@@ -61,16 +61,62 @@ struct Game: Identifiable, Codable {
         opponent = try container.decode(String.self, forKey: .opponent)
         location = try container.decodeIfPresent(String.self, forKey: .location)
         
-        // Handle timestamp - try different formats
+        // FIXED: Better timestamp handling with detailed logging
         if let timestampData = try? container.decode(Timestamp.self, forKey: .timestamp) {
             timestamp = timestampData.dateValue()
-        } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
-            let formatter = ISO8601DateFormatter()
-            timestamp = formatter.date(from: timestampString) ?? Date()
+            print("✅ Decoded Firestore Timestamp: \(timestamp)")
         } else if let timestampDouble = try? container.decode(Double.self, forKey: .timestamp) {
             timestamp = Date(timeIntervalSince1970: timestampDouble)
+            print("✅ Decoded Double timestamp: \(timestamp)")
+        } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
+            print("🔍 Attempting to parse timestamp string: \(timestampString)")
+            
+            // FIXED: Proper ISO8601 formatter with fractional seconds
+            let iso8601Formatter = ISO8601DateFormatter()
+            iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            if let parsedDate = iso8601Formatter.date(from: timestampString) {
+                timestamp = parsedDate
+                print("✅ Decoded ISO8601 with fractional seconds: \(timestamp)")
+            } else {
+                // Fallback: ISO8601 without fractional seconds
+                let iso8601FormatterNoFraction = ISO8601DateFormatter()
+                iso8601FormatterNoFraction.formatOptions = [.withInternetDateTime]
+                
+                if let parsedDate = iso8601FormatterNoFraction.date(from: timestampString) {
+                    timestamp = parsedDate
+                    print("✅ Decoded ISO8601 without fractional seconds: \(timestamp)")
+                } else {
+                    // Final fallback: Custom date formatter
+                    let customFormatter = DateFormatter()
+                    customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+                    customFormatter.locale = Locale(identifier: "en_US_POSIX")
+                    customFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                    
+                    if let parsedDate = customFormatter.date(from: timestampString) {
+                        timestamp = parsedDate
+                        print("✅ Decoded with custom formatter: \(timestamp)")
+                    } else {
+                        // Try without milliseconds
+                        let customFormatterNoMs = DateFormatter()
+                        customFormatterNoMs.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+                        customFormatterNoMs.locale = Locale(identifier: "en_US_POSIX")
+                        customFormatterNoMs.timeZone = TimeZone(secondsFromGMT: 0)
+                        
+                        if let parsedDate = customFormatterNoMs.date(from: timestampString) {
+                            timestamp = parsedDate
+                            print("✅ Decoded with custom formatter (no ms): \(timestamp)")
+                        } else {
+                            print("❌ Failed to parse timestamp string: \(timestampString)")
+                            print("❌ Using current date as fallback - THIS SHOULD BE FIXED!")
+                            timestamp = Date() // Last resort fallback
+                        }
+                    }
+                }
+            }
         } else {
-            timestamp = Date() // fallback
+            print("❌ No valid timestamp found, using current date as fallback")
+            timestamp = Date() // Last resort fallback
         }
         
         gameFormat = try container.decode(GameFormat.self, forKey: .gameFormat)
@@ -139,16 +185,48 @@ struct Game: Identifiable, Codable {
         fouls = decodeIntFromStringOrInt(key: .fouls)
         turnovers = decodeIntFromStringOrInt(key: .turnovers)
         
-        // Handle createdAt - try different formats
+        // FIXED: Better createdAt handling with detailed logging
         if let createdAtData = try? container.decode(Timestamp.self, forKey: .createdAt) {
             createdAt = createdAtData.dateValue()
-        } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
-            let formatter = ISO8601DateFormatter()
-            createdAt = formatter.date(from: createdAtString) ?? Date()
+            print("✅ Decoded createdAt Firestore Timestamp: \(createdAt)")
         } else if let createdAtDouble = try? container.decode(Double.self, forKey: .createdAt) {
             createdAt = Date(timeIntervalSince1970: createdAtDouble)
+            print("✅ Decoded createdAt Double: \(createdAt)")
+        } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
+            print("🔍 Attempting to parse createdAt string: \(createdAtString)")
+            
+            // FIXED: Same improved ISO8601 parsing for createdAt
+            let iso8601Formatter = ISO8601DateFormatter()
+            iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            if let parsedDate = iso8601Formatter.date(from: createdAtString) {
+                createdAt = parsedDate
+                print("✅ Decoded createdAt ISO8601 with fractional seconds: \(createdAt)")
+            } else {
+                let iso8601FormatterNoFraction = ISO8601DateFormatter()
+                iso8601FormatterNoFraction.formatOptions = [.withInternetDateTime]
+                
+                if let parsedDate = iso8601FormatterNoFraction.date(from: createdAtString) {
+                    createdAt = parsedDate
+                    print("✅ Decoded createdAt ISO8601 without fractional seconds: \(createdAt)")
+                } else {
+                    let customFormatter = DateFormatter()
+                    customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+                    customFormatter.locale = Locale(identifier: "en_US_POSIX")
+                    customFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                    
+                    if let parsedDate = customFormatter.date(from: createdAtString) {
+                        createdAt = parsedDate
+                        print("✅ Decoded createdAt with custom formatter: \(createdAt)")
+                    } else {
+                        print("❌ Failed to parse createdAt string: \(createdAtString), using current date")
+                        createdAt = Date() // Fallback for createdAt is acceptable
+                    }
+                }
+            }
         } else {
-            createdAt = Date() // fallback
+            print("❌ No createdAt found, using current date")
+            createdAt = Date() // Fallback for createdAt is acceptable
         }
         
         // Optional metadata
@@ -169,6 +247,94 @@ struct Game: Identifiable, Codable {
         editedBy = try container.decodeIfPresent(String.self, forKey: .editedBy)
         photos = try container.decodeIfPresent([GamePhoto].self, forKey: .photos)
         achievements = try container.decodeIfPresent([Achievement].self, forKey: .achievements) ?? []
+    }
+
+    // MARK: - Helper Function for Date Parsing (Add this to your Game struct)
+
+    private static func parseISODateString(_ dateString: String) -> Date? {
+        // Method 1: ISO8601 with fractional seconds
+        let iso8601Formatter = ISO8601DateFormatter()
+        iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        if let date = iso8601Formatter.date(from: dateString) {
+            return date
+        }
+        
+        // Method 2: ISO8601 without fractional seconds
+        let iso8601FormatterNoFraction = ISO8601DateFormatter()
+        iso8601FormatterNoFraction.formatOptions = [.withInternetDateTime]
+        
+        if let date = iso8601FormatterNoFraction.date(from: dateString) {
+            return date
+        }
+        
+        // Method 3: Custom formatter with milliseconds
+        let customFormatter = DateFormatter()
+        customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+        customFormatter.locale = Locale(identifier: "en_US_POSIX")
+        customFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        if let date = customFormatter.date(from: dateString) {
+            return date
+        }
+        
+        // Method 4: Custom formatter without milliseconds
+        let customFormatterNoMs = DateFormatter()
+        customFormatterNoMs.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+        customFormatterNoMs.locale = Locale(identifier: "en_US_POSIX")
+        customFormatterNoMs.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        return customFormatterNoMs.date(from: dateString)
+    }
+    // MARK: - ALSO: Add better encoding to preserve dates correctly
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        // Encode basic properties
+        try container.encode(teamName, forKey: .teamName)
+        try container.encode(opponent, forKey: .opponent)
+        try container.encodeIfPresent(location, forKey: .location)
+        
+        // IMPORTANT: Encode timestamp as Firestore Timestamp for proper storage
+        try container.encode(Timestamp(date: timestamp), forKey: .timestamp)
+        
+        try container.encode(gameFormat, forKey: .gameFormat)
+        try container.encode(periodLength, forKey: .periodLength)
+        try container.encode(numPeriods, forKey: .numPeriods)
+        try container.encode(status, forKey: .status)
+        
+        // Encode scores
+        try container.encode(myTeamScore, forKey: .myTeamScore)
+        try container.encode(opponentScore, forKey: .opponentScore)
+        try container.encode(outcome, forKey: .outcome)
+        
+        // Encode stats
+        try container.encode(points, forKey: .points)
+        try container.encode(fg2m, forKey: .fg2m)
+        try container.encode(fg2a, forKey: .fg2a)
+        try container.encode(fg3m, forKey: .fg3m)
+        try container.encode(fg3a, forKey: .fg3a)
+        try container.encode(ftm, forKey: .ftm)
+        try container.encode(fta, forKey: .fta)
+        try container.encode(rebounds, forKey: .rebounds)
+        try container.encode(assists, forKey: .assists)
+        try container.encode(steals, forKey: .steals)
+        try container.encode(blocks, forKey: .blocks)
+        try container.encode(fouls, forKey: .fouls)
+        try container.encode(turnovers, forKey: .turnovers)
+        
+        // IMPORTANT: Encode createdAt as Firestore Timestamp
+        try container.encode(Timestamp(date: createdAt), forKey: .createdAt)
+        
+        // Optional metadata
+        try container.encodeIfPresent(adminName, forKey: .adminName)
+        if let editedAt = editedAt {
+            try container.encode(Timestamp(date: editedAt), forKey: .editedAt)
+        }
+        try container.encodeIfPresent(editedBy, forKey: .editedBy)
+        try container.encodeIfPresent(photos, forKey: .photos)
+        try container.encode(achievements, forKey: .achievements)
     }
     
     // Computed properties

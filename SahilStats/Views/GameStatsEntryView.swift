@@ -24,45 +24,33 @@ struct PostGameStatsView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Game Info Header
-                GameInfoHeader(config: gameConfig)
+        // FORCE: Full-screen container
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // STICKY HEADER: Always visible at top
+                postGameStickyHeader()
                 
-                // Score Entry
-                ScoreEntrySection(
-                    myTeamScore: $gameStats.myTeamScore,
-                    opponentScore: $gameStats.opponentScore,
-                    teamName: gameConfig.teamName,
-                    opponent: gameConfig.opponent,
-                    isIPad: isIPad
-                )
-                
-                // Stats Entry
-                PlayerStatsEntrySection(stats: $gameStats.playerStats, isIPad: isIPad)
-                
-                // Achievements Preview
-                AchievementsPreview(stats: gameStats)
-                
-                // Submit Button
-                VStack(spacing: 12) {
-                    Button("Save Game") {
-                        showingSubmitAlert = true
+                // SCROLLABLE CONTENT: Stats entry
+                ScrollView {
+                    VStack(spacing: isIPad ? 32 : 24) {
+                        // Player status
+                        PostGamePlayerStatusCard(isIPad: isIPad)
+                        
+                        // Detailed stats entry
+                        postGameDetailedStatsEntry()
+                        
+                        // Achievements preview
+                        AchievementsPreview(stats: gameStats)
+                        
+                        // Bottom padding for iPad
+                        Spacer(minLength: isIPad ? 120 : 100)
                     }
-                    .buttonStyle(PrimaryButtonStyle(isIPad: isIPad))
-                    .disabled(isSubmitting || !gameStats.isValid)
-                    
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(.secondary)
+                    .padding(.horizontal, isIPad ? 32 : 24) // MORE padding on iPad
+                    .padding(.top, isIPad ? 24 : 20)
                 }
-                .padding(.top)
             }
-            .padding(isIPad ? 24 : 16)
         }
-        .navigationTitle("Enter Stats")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarHidden(true) // FORCE: No system nav
         .alert("Save Game", isPresented: $showingSubmitAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Save") {
@@ -86,12 +74,181 @@ struct PostGameStatsView: View {
         }
     }
     
+    // MARK: - ENHANCED STICKY HEADER for iPad
+    
+    @ViewBuilder
+    private func postGameStickyHeader() -> some View {
+        VStack(spacing: isIPad ? 20 : 16) {
+            // Game info header (more prominent on iPad)
+            PostGameInfoHeader(config: gameConfig, isIPad: isIPad)
+            
+            // Score entry (bigger on iPad)
+            PostGameScoreCard(
+                myTeamScore: $gameStats.myTeamScore,
+                opponentScore: $gameStats.opponentScore,
+                teamName: gameConfig.teamName,
+                opponent: gameConfig.opponent,
+                isIPad: isIPad
+            )
+            
+            // Action buttons (more prominent on iPad)
+            PostGameActionButtons(
+                isSubmitting: isSubmitting,
+                isValid: gameStats.isValid,
+                isIPad: isIPad,
+                onSave: {
+                    showingSubmitAlert = true
+                },
+                onCancel: {
+                    dismiss()
+                }
+            )
+        }
+        .padding(.horizontal, isIPad ? 32 : 24) // MORE padding on iPad
+        .padding(.vertical, isIPad ? 24 : 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+                .ignoresSafeArea(.container, edges: .horizontal) // EXTEND: To edges
+        )
+    }
+    
+    // MARK: - ENHANCED DETAILED STATS for iPad
+    
+    private func postGameDetailedStatsEntry() -> some View {
+        VStack(spacing: isIPad ? 32 : 24) {
+            HStack {
+                Text("Sahil's Stats")
+                    .font(isIPad ? .largeTitle : .title2) // BIGGER on iPad
+                    .fontWeight(.bold)
+                Spacer()
+                Text("Tap +/- to adjust")
+                    .font(isIPad ? .body : .caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            // Shooting Stats (better iPad spacing)
+            VStack(spacing: isIPad ? 28 : 20) {
+                HStack {
+                    Text("Shooting")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 3 : 2), spacing: isIPad ? 20 : 16) {
+                    CleanStatCard(
+                        title: "2PT Made",
+                        value: $gameStats.playerStats.fg2m,
+                        max: gameStats.playerStats.fg2a,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "2PT Att",
+                        value: $gameStats.playerStats.fg2a,
+                        min: gameStats.playerStats.fg2m,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "3PT Made",
+                        value: $gameStats.playerStats.fg3m,
+                        max: gameStats.playerStats.fg3a,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "3PT Att",
+                        value: $gameStats.playerStats.fg3a,
+                        min: gameStats.playerStats.fg3m,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "FT Made",
+                        value: $gameStats.playerStats.ftm,
+                        max: gameStats.playerStats.fta,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "FT Att",
+                        value: $gameStats.playerStats.fta,
+                        min: gameStats.playerStats.ftm,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                }
+            }
+            
+            // Other Stats (better iPad layout)
+            VStack(spacing: isIPad ? 28 : 20) {
+                HStack {
+                    Text("Other Stats")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.purple)
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 3 : 2), spacing: isIPad ? 20 : 16) {
+                    CleanStatCard(
+                        title: "Rebounds",
+                        value: $gameStats.playerStats.rebounds,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Assists",
+                        value: $gameStats.playerStats.assists,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Steals",
+                        value: $gameStats.playerStats.steals,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Blocks",
+                        value: $gameStats.playerStats.blocks,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Fouls",
+                        value: $gameStats.playerStats.fouls,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Turnovers",
+                        value: $gameStats.playerStats.turnovers,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                }
+            }
+            
+            // Current stats display (enhanced for iPad)
+            LiveStatsDisplayCard(stats: gameStats.playerStats, isIPad: isIPad, isReadOnly: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 32 : 24)
+        .padding(.horizontal, isIPad ? 32 : 24)
+        .background(Color(.systemBackground))
+        .cornerRadius(isIPad ? 20 : 16)
+        .shadow(color: .black.opacity(0.05), radius: isIPad ? 8 : 4, x: 0, y: 2)
+    }
+    
     private func submitGame() {
         isSubmitting = true
         
         Task {
             do {
-                // Create game with all stats (outcome is calculated automatically)
                 let game = Game(
                     teamName: gameConfig.teamName,
                     opponent: gameConfig.opponent,
@@ -130,6 +287,48 @@ struct PostGameStatsView: View {
         }
     }
 }
+
+// MARK: - ENHANCED iPad Components
+
+// Update PostGameInfoHeader for better iPad layout
+struct PostGameInfoHeader: View {
+    let config: GameConfig
+    let isIPad: Bool
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: isIPad ? 8 : 4) {
+                Text("Enter Game Stats")
+                    .font(isIPad ? .title : .title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text("\(config.teamName) vs \(config.opponent)")
+                    .font(isIPad ? .title3 : .body)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: isIPad ? 6 : 4) {
+                Text(config.date, style: .date)
+                    .font(isIPad ? .title3 : .body)
+                    .foregroundColor(.secondary)
+                
+                if !config.location.isEmpty {
+                    Text(config.location)
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, isIPad ? 24 : 16)
+        .padding(.vertical, isIPad ? 20 : 12)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
 
 // MARK: - Live Game Stats Entry View
 
