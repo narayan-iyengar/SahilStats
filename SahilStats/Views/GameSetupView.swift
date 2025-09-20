@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameSetupView.swift (Fixed Done/X button issue)
+// File: SahilStats/Views/GameSetupView.swift (Fixed isIPad scope issue)
 
 import SwiftUI
 import AVFoundation
@@ -150,10 +150,15 @@ struct GameSetupView: View {
         }
     }
     
-    
-struct PostGameFullScreenView: View {
+    // MARK: - Alternative PostGameFullScreenView (FIXED)
+    struct PostGameFullScreenView: View {
         let gameConfig: GameConfig
         let onDismiss: () -> Void
+        @Environment(\.horizontalSizeClass) var horizontalSizeClass
+        
+        private var isIPad: Bool {
+            horizontalSizeClass == .regular
+        }
         
         var body: some View {
             ZStack {
@@ -165,8 +170,7 @@ struct PostGameFullScreenView: View {
                 }
             }
         }
-}
-
+    }
 
     // MARK: - Full Screen Live Game View (FIXED)
     
