@@ -601,6 +601,441 @@ struct LiveGameStatsView: View {
     }
 }
 
+
+struct PostGamePlayerStatusCard: View {
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 16 : 12) {
+            HStack {
+                Image(systemName: "person.fill")
+                    .font(isIPad ? .title2 : .title3)
+                    .foregroundColor(.blue)
+                
+                Text("Player Status")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("Ready to play")
+                    .font(isIPad ? .body : .caption)
+                    .foregroundColor(.green)
+                    .padding(.horizontal, isIPad ? 12 : 8)
+                    .padding(.vertical, isIPad ? 6 : 4)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(isIPad ? 8 : 6)
+            }
+            
+            Text("Enter Sahil's final game statistics below")
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(isIPad ? 20 : 16)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+struct PostGameScoreCard: View {
+    @Binding var myTeamScore: Int
+    @Binding var opponentScore: Int
+    let teamName: String
+    let opponent: String
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 16) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .font(isIPad ? .title2 : .title3)
+                    .foregroundColor(.orange)
+                
+                Text("Final Score")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+            }
+            
+            HStack(spacing: isIPad ? 40 : 30) {
+                // My team score
+                VStack(spacing: isIPad ? 12 : 8) {
+                    Text(teamName)
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    PostGameScoreControl(score: $myTeamScore, isIPad: isIPad)
+                        .foregroundColor(.blue)
+                }
+                
+                Text("–")
+                    .font(isIPad ? .largeTitle : .title)
+                    .foregroundColor(.secondary)
+                
+                // Opponent score
+                VStack(spacing: isIPad ? 12 : 8) {
+                    Text(opponent)
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    PostGameScoreControl(score: $opponentScore, isIPad: isIPad)
+                        .foregroundColor(.red)
+                }
+            }
+        }
+        .padding(isIPad ? 20 : 16)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+struct PostGameScoreControl: View {
+    @Binding var score: Int
+    let isIPad: Bool
+    
+    var body: some View {
+        HStack(spacing: isIPad ? 16 : 12) {
+            Button("-") {
+                if score > 0 { score -= 1 }
+            }
+            .buttonStyle(PostGameScoreButtonStyle(isIPad: isIPad))
+            
+            Text("\(score)")
+                .font(isIPad ? .system(size: 32, weight: .bold) : .largeTitle)
+                .fontWeight(.bold)
+                .frame(minWidth: isIPad ? 60 : 50)
+            
+            Button("+") {
+                score += 1
+            }
+            .buttonStyle(PostGameScoreButtonStyle(isIPad: isIPad))
+        }
+    }
+}
+
+struct PostGameActionButtons: View {
+    let isSubmitting: Bool
+    let isValid: Bool
+    let isIPad: Bool
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    
+    var body: some View {
+        HStack(spacing: isIPad ? 20 : 16) {
+            Button("Cancel") {
+                onCancel()
+            }
+            .buttonStyle(PostGameSecondaryButtonStyle(isIPad: isIPad))
+            
+            Button("Save Game") {
+                onSave()
+            }
+            .buttonStyle(PostGamePrimaryButtonStyle(isIPad: isIPad))
+            .disabled(!isValid || isSubmitting)
+        }
+    }
+}
+
+struct CleanStatCard: View {
+    let title: String
+    @Binding var value: Int
+    let min: Int
+    let max: Int?
+    let isIPad: Bool
+    let onStatChange: () -> Void
+    
+    init(title: String, value: Binding<Int>, min: Int = 0, max: Int? = nil, isIPad: Bool, onStatChange: @escaping () -> Void) {
+        self.title = title
+        self._value = value
+        self.min = min
+        self.max = max
+        self.isIPad = isIPad
+        self.onStatChange = onStatChange
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 12 : 8) {
+            Text(title)
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+            
+            HStack(spacing: isIPad ? 12 : 8) {
+                Button("-") {
+                    if value > min {
+                        value -= 1
+                        onStatChange()
+                    }
+                }
+                .buttonStyle(CleanStatButtonStyle(isIPad: isIPad))
+                .disabled(value <= min)
+                
+                Text("\(value)")
+                    .font(isIPad ? .title2 : .title3)
+                    .fontWeight(.bold)
+                    .frame(minWidth: isIPad ? 40 : 35)
+                
+                Button("+") {
+                    if let max = max, value >= max {
+                        // Don't increment if at max
+                    } else {
+                        value += 1
+                        onStatChange()
+                    }
+                }
+                .buttonStyle(CleanStatButtonStyle(isIPad: isIPad))
+                .disabled(max != nil && value >= max!)
+            }
+        }
+        .padding(isIPad ? 16 : 12)
+        .background(Color(.systemBackground))
+        .cornerRadius(isIPad ? 12 : 10)
+        .shadow(color: .black.opacity(0.05), radius: isIPad ? 4 : 2, x: 0, y: 1)
+    }
+}
+
+struct LiveStatsDisplayCard: View {
+    let stats: PlayerStats
+    let isIPad: Bool
+    let isReadOnly: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 16) {
+            HStack {
+                Text("Current Stats Summary")
+                    .font(isIPad ? .title3 : .headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.purple)
+                
+                Spacer()
+                
+                if isReadOnly {
+                    Image(systemName: "eye.fill")
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.purple)
+                }
+            }
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 4 : 3), spacing: isIPad ? 16 : 12) {
+                LiveStatSummaryCard(title: "PTS", value: stats.points, color: .purple, isIPad: isIPad)
+                LiveStatSummaryCard(title: "REB", value: stats.rebounds, color: .mint, isIPad: isIPad)
+                LiveStatSummaryCard(title: "AST", value: stats.assists, color: .cyan, isIPad: isIPad)
+                LiveStatSummaryCard(title: "FG%", value: fieldGoalPercentage, color: .blue, isIPad: isIPad)
+                
+                if isIPad {
+                    LiveStatSummaryCard(title: "STL", value: stats.steals, color: .yellow, isIPad: isIPad)
+                    LiveStatSummaryCard(title: "BLK", value: stats.blocks, color: .red, isIPad: isIPad)
+                }
+            }
+        }
+        .padding(isIPad ? 20 : 16)
+        .background(Color.purple.opacity(0.05))
+        .cornerRadius(isIPad ? 16 : 12)
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+        )
+    }
+    
+    private var fieldGoalPercentage: String {
+        let totalMade = stats.fg2m + stats.fg3m
+        let totalAttempted = stats.fg2a + stats.fg3a
+        if totalAttempted > 0 {
+            return String(format: "%.0f%%", Double(totalMade) / Double(totalAttempted) * 100)
+        }
+        return "0%"
+    }
+}
+
+struct LiveStatSummaryCard: View {
+    let title: String
+    let value: Any
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 8 : 6) {
+            Text("\(value)")
+                .font(isIPad ? .title3 : .headline)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(title)
+                .font(isIPad ? .caption : .caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, isIPad ? 12 : 8)
+        .frame(maxWidth: .infinity)
+        .background(color.opacity(0.1))
+        .cornerRadius(isIPad ? 10 : 8)
+    }
+}
+
+// MARK: - Button Styles
+
+struct PostGameScoreButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .title2 : .title3)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: isIPad ? 50 : 40, height: isIPad ? 50 : 40)
+            .background(Color.blue)
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
+}
+
+struct PostGamePrimaryButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .title3 : .headline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, isIPad ? 32 : 24)
+            .padding(.vertical, isIPad ? 16 : 12)
+            .background(Color.orange)
+            .cornerRadius(isIPad ? 16 : 12)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
+}
+
+struct PostGameSecondaryButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .title3 : .headline)
+            .fontWeight(.medium)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, isIPad ? 32 : 24)
+            .padding(.vertical, isIPad ? 16 : 12)
+            .background(Color(.systemGray5))
+            .cornerRadius(isIPad ? 16 : 12)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
+}
+
+struct CleanStatButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .caption)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: isIPad ? 36 : 30, height: isIPad ? 36 : 30)
+            .background(Color.blue)
+            .cornerRadius(isIPad ? 8 : 6)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
+}
+
+struct ScoreButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .title2 : .title3)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: isIPad ? 50 : 40, height: isIPad ? 50 : 40)
+            .background(Color.blue)
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+    }
+}
+
+struct StatButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .caption)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: isIPad ? 32 : 28, height: isIPad ? 32 : 28)
+            .background(Color.blue)
+            .cornerRadius(isIPad ? 8 : 6)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+    }
+}
+
+struct LiveScoreButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .title2 : .title3)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: isIPad ? 50 : 44, height: isIPad ? 50 : 44)
+            .background(Color.blue)
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+    }
+}
+
+struct StatusButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .caption)
+            .fontWeight(.semibold)
+            .foregroundColor(isSelected ? .white : .primary)
+            .padding(.horizontal, isIPad ? 24 : 20)
+            .padding(.vertical, isIPad ? 12 : 10)
+            .background(isSelected ? Color.blue : Color(.systemGray5))
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+    }
+}
+
+struct SecondaryButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .caption)
+            .fontWeight(.semibold)
+            .foregroundColor(.primary)
+            .padding(.horizontal, isIPad ? 20 : 16)
+            .padding(.vertical, isIPad ? 12 : 10)
+            .background(Color(.systemGray5))
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+    }
+}
+
+struct DestructiveButtonStyle: ButtonStyle {
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .caption)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, isIPad ? 20 : 16)
+            .padding(.vertical, isIPad ? 12 : 10)
+            .background(Color.red)
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+    }
+}
 // MARK: - Supporting Data Models
 
 struct GameStatsData {
