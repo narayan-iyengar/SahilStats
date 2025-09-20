@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameSetupView.swift (Updated for consistent full-screen live game)
+// File: SahilStats/Views/GameSetupView.swift (Fixed Done/X button issue)
 
 import SwiftUI
 import AVFoundation
@@ -68,37 +68,31 @@ struct GameSetupView: View {
             }
         }
         .fullScreenCover(isPresented: $showingLiveGameView) {
-            // Use consistent full-screen presentation
-            LiveGameFullScreenView {
-                        showingLiveGameView = false
-                        dismiss()
-                    }
-                .environmentObject(authService)
+            // FIXED: Use consistent full-screen presentation with correct dismiss action
+            LiveGameFullScreenView(onDismiss: {
+                showingLiveGameView = false
+                dismiss() // This dismisses the GameSetupView entirely
+            })
+            .environmentObject(authService)
         }
     }
     
-    // MARK: - Full Screen Live Game View (same as GameListView)
+    // MARK: - Full Screen Live Game View (FIXED)
     
     @ViewBuilder
-    private func LiveGameFullScreenView(createdLiveGame: LiveGame?) -> some View {
+    private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
         ZStack {
-            // Full screen background
-            Color(.systemBackground)
-                .ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Custom navigation bar
-                FullScreenNavigationBar()
-                
-                // Content area - Use LiveGameView for consistency
-                LiveGameView()
-                    .environmentObject(authService)
+                FullScreenNavigationBar(onDismiss: onDismiss)
+                LiveGameView().environmentObject(authService)
             }
         }
     }
     
     @ViewBuilder
-    private func FullScreenNavigationBar() -> some View {
+    private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
         HStack {
             // Title
             HStack(spacing: 8) {
@@ -116,17 +110,16 @@ struct GameSetupView: View {
             
             Spacer()
             
-            // Close button
-            Button(action: {
-                showingLiveGameView = false
-                // Also dismiss the setup view when closing live game
-                dismiss()
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
-                    .background(Color(.systemBackground))
-                    .clipShape(Circle())
+            // FIXED: Always show "Done" button, never "X"
+            Button(action: onDismiss) {
+                Text("Done")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(20)
             }
             .buttonStyle(.plain)
         }
@@ -466,23 +459,23 @@ struct GameSetupView: View {
     }
     
     private func createLiveGame() async throws -> LiveGame {
-            // Use the shared instance to get the device ID
-            let deviceId = DeviceControlManager.shared.deviceId
-            var liveGame = LiveGame(
-                teamName: gameConfig.teamName,
-                opponent: gameConfig.opponent,
-                location: gameConfig.location.isEmpty ? nil : gameConfig.location,
-                gameFormat: gameConfig.gameFormat,
-                periodLength: gameConfig.periodLength,
-                createdBy: authService.currentUser?.email,
-                deviceId: deviceId // Pass the deviceId here
-            )
-            
-            let createdGameId = try await firebaseService.createLiveGame(liveGame)
-            liveGame.id = createdGameId
-            
-            return liveGame
-        }
+        // Use the shared instance to get the device ID
+        let deviceId = DeviceControlManager.shared.deviceId
+        var liveGame = LiveGame(
+            teamName: gameConfig.teamName,
+            opponent: gameConfig.opponent,
+            location: gameConfig.location.isEmpty ? nil : gameConfig.location,
+            gameFormat: gameConfig.gameFormat,
+            periodLength: gameConfig.periodLength,
+            createdBy: authService.currentUser?.email,
+            deviceId: deviceId // Pass the deviceId here
+        )
+        
+        let createdGameId = try await firebaseService.createLiveGame(liveGame)
+        liveGame.id = createdGameId
+        
+        return liveGame
+    }
     
     private func addNewTeam() {
         guard !newTeamName.isEmpty else { return }
