@@ -105,7 +105,6 @@ struct MainTabView: View {
             NavigationView {
                 GameListView()
             }
-            // This modifier is the key to fixing the layout on iPad.
             .navigationViewStyle(.stack)
             .tabItem {
                 Image(systemName: "chart.bar.fill")
@@ -117,7 +116,7 @@ struct MainTabView: View {
                 NavigationView {
                     GameSetupView()
                 }
-                .navigationViewStyle(.stack) // Apply to every tab
+                .navigationViewStyle(.stack)
                 .tabItem {
                     Image(systemName: "plus.circle.fill")
                     Text("New Game")
@@ -128,12 +127,13 @@ struct MainTabView: View {
             NavigationView {
                 SettingsView()
             }
-            .navigationViewStyle(.stack) // And apply here for consistency
+            .navigationViewStyle(.stack)
             .tabItem {
                 Image(systemName: "gearshape.fill")
                 Text("Settings")
             }
         }
+        .environment(\.horizontalSizeClass, .compact) // Force compact size class for bottom tabs
         .accentColor(.orange)
         .sheet(isPresented: $showingAuth) {
             AuthView()

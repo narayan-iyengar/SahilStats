@@ -16,25 +16,150 @@ struct GameListView: View {
     @State private var isViewingTrends = false
     @State private var showingLiveGame = false
     
+    // MARK: - NEW: Search and Filter States
+    @State private var searchText = ""
+    @State private var showingFilters = false
+    @State private var selectedTeamFilter = "All Teams"
+    @State private var selectedOpponentFilter = "All Opponents"
+    @State private var selectedOutcomeFilter: GameOutcome? = nil
+    @State private var selectedDateRange: DateRange = .all
+    @State private var showingDatePicker = false
+    @State private var customStartDate = Date().addingTimeInterval(-30*24*60*60) // 30 days ago
+    @State private var customEndDate = Date()
+    
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
         horizontalSizeClass == .regular
     }
     
-    // Computed property to ensure games are sorted latest first
+    // MARK: - Date Range Filter
+    enum DateRange: String, CaseIterable {
+        case all = "All Time"
+        case week = "Last Week"
+        case month = "Last Month"
+        case quarter = "Last 3 Months"
+        case year = "Last Year"
+        case custom = "Custom Range"
+        
+        func dateFilter(from startDate: Date, to endDate: Date) -> (Date, Date)? {
+            let now = Date()
+            switch self {
+            case .all:
+                return nil
+            case .week:
+                return (Calendar.current.date(byAdding: .weekOfYear, value: -1, to: now) ?? now, now)
+            case .month:
+                return (Calendar.current.date(byAdding: .month, value: -1, to: now) ?? now, now)
+            case .quarter:
+                return (Calendar.current.date(byAdding: .month, value: -3, to: now) ?? now, now)
+            case .year:
+                return (Calendar.current.date(byAdding: .year, value: -1, to: now) ?? now, now)
+            case .custom:
+                return (startDate, endDate)
+            }
+        }
+    }
+    
+    // MARK: - Computed Properties
+    
+    // Base games (sorted)
     private var sortedGames: [Game] {
         firebaseService.games.sorted { $0.timestamp > $1.timestamp }
     }
     
+    // Available teams and opponents for filters
+    private var availableTeams: [String] {
+        let teamSet = Set(sortedGames.map(\.teamName))
+        let sortedTeams = Array(teamSet).sorted()
+        return ["All Teams"] + sortedTeams
+    }
+    
+    private var availableOpponents: [String] {
+        let opponentSet = Set(sortedGames.map(\.opponent))
+        let sortedOpponents = Array(opponentSet).sorted()
+        return ["All Opponents"] + sortedOpponents
+    }
+    
+    // FIXED: Broken-up filtering logic to prevent compilation timeout
+    private var filteredGames: [Game] {
+        var games = sortedGames
+        
+        // Apply text search filter
+        games = applySearchFilter(to: games)
+        
+        // Apply team filter
+        games = applyTeamFilter(to: games)
+        
+        // Apply opponent filter
+        games = applyOpponentFilter(to: games)
+        
+        // Apply outcome filter
+        games = applyOutcomeFilter(to: games)
+        
+        // Apply date range filter
+        games = applyDateRangeFilter(to: games)
+        
+        return games
+    }
+    
+    // FIXED: Individual filter methods to simplify compilation
+    private func applySearchFilter(to games: [Game]) -> [Game] {
+        guard !searchText.isEmpty else { return games }
+        
+        return games.filter { game in
+            let teamMatches = game.teamName.localizedCaseInsensitiveContains(searchText)
+            let opponentMatches = game.opponent.localizedCaseInsensitiveContains(searchText)
+            let locationMatches = game.location?.localizedCaseInsensitiveContains(searchText) ?? false
+            
+            return teamMatches || opponentMatches || locationMatches
+        }
+    }
+    
+    private func applyTeamFilter(to games: [Game]) -> [Game] {
+        guard selectedTeamFilter != "All Teams" else { return games }
+        return games.filter { $0.teamName == selectedTeamFilter }
+    }
+    
+    private func applyOpponentFilter(to games: [Game]) -> [Game] {
+        guard selectedOpponentFilter != "All Opponents" else { return games }
+        return games.filter { $0.opponent == selectedOpponentFilter }
+    }
+    
+    private func applyOutcomeFilter(to games: [Game]) -> [Game] {
+        guard let outcome = selectedOutcomeFilter else { return games }
+        return games.filter { $0.outcome == outcome }
+    }
+    
+    private func applyDateRangeFilter(to games: [Game]) -> [Game] {
+        guard let dateFilter = selectedDateRange.dateFilter(from: customStartDate, to: customEndDate) else {
+            return games
+        }
+        
+        let (startDate, endDate) = dateFilter
+        return games.filter { game in
+            game.timestamp >= startDate && game.timestamp <= endDate
+        }
+    }
+    
     // Paginated games
     private var displayedGames: [Game] {
-        let endIndex = min(currentPage * gamesPerPage, sortedGames.count)
-        return Array(sortedGames.prefix(endIndex))
+        let endIndex = min(currentPage * gamesPerPage, filteredGames.count)
+        return Array(filteredGames.prefix(endIndex))
     }
     
     private var hasMoreGames: Bool {
-        displayedGames.count < sortedGames.count
+        displayedGames.count < filteredGames.count
+    }
+    
+    // Active filters count
+    private var activeFiltersCount: Int {
+        var count = 0
+        if selectedTeamFilter != "All Teams" { count += 1 }
+        if selectedOpponentFilter != "All Opponents" { count += 1 }
+        if selectedOutcomeFilter != nil { count += 1 }
+        if selectedDateRange != .all { count += 1 }
+        return count
     }
     
     var body: some View {
@@ -57,6 +182,34 @@ struct GameListView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 12) {
+                    // Filter button with badge
+                    Button(action: {
+                        showingFilters = true
+                    }) {
+                        ZStack {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .font(.title3)
+                                .foregroundColor(.orange)
+                            
+                            if activeFiltersCount > 0 {
+                                VStack {
+                                    HStack {
+                                        Spacer()
+                                        Text("\(activeFiltersCount)")
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                            .padding(2)
+                                            .background(Color.red)
+                                            .clipShape(Circle())
+                                            .offset(x: 8, y: -8)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                    
                     if firebaseService.hasLiveGame {
                         liveGameButton
                     }
@@ -76,8 +229,21 @@ struct GameListView: View {
         .sheet(item: $selectedGame) { game in
             GameDetailView(game: game)
         }
+        .sheet(isPresented: $showingFilters) {
+            FilterView(
+                selectedTeamFilter: $selectedTeamFilter,
+                selectedOpponentFilter: $selectedOpponentFilter,
+                selectedOutcomeFilter: $selectedOutcomeFilter,
+                selectedDateRange: $selectedDateRange,
+                customStartDate: $customStartDate,
+                customEndDate: $customEndDate,
+                availableTeams: availableTeams,
+                availableOpponents: availableOpponents,
+                onClearAll: clearAllFilters,
+                isIPad: isIPad
+            )
+        }
         .fullScreenCover(isPresented: $showingLiveGame) {
-            // Corrected this section
             LiveGameFullScreenView {
                 showingLiveGame = false
             }
@@ -107,64 +273,24 @@ struct GameListView: View {
         .onDisappear {
             firebaseService.stopListening()
         }
-    }
-    
-    // MARK: - Full Screen Live Game View
-    
-    @ViewBuilder
-    private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
-        ZStack {
-            Color(.systemBackground).ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                FullScreenNavigationBar(onDismiss: onDismiss)
-                LiveGameView().environmentObject(authService)
-            }
+        .onChange(of: searchText) { _, _ in
+            resetPagination()
+        }
+        .onChange(of: selectedTeamFilter) { _, _ in
+            resetPagination()
+        }
+        .onChange(of: selectedOpponentFilter) { _, _ in
+            resetPagination()
+        }
+        .onChange(of: selectedOutcomeFilter) { _, _ in
+            resetPagination()
+        }
+        .onChange(of: selectedDateRange) { _, _ in
+            resetPagination()
         }
     }
     
-    @ViewBuilder
-    private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
-        HStack {
-            // Title
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 12, height: 12)
-                    .opacity(0.8)
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
-                Text("Live Game")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-            }
-            
-            Spacer()
-            
-            // Close button - NOW ALWAYS A "DONE" BUTTON
-            Button(action: onDismiss) {
-                Text("Done")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(20)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-        )
-    }
-    
-    // MARK: - Existing Subviews (unchanged)
+    // MARK: - Views
     
     private var emptyStateView: some View {
         VStack(spacing: 16) {
@@ -193,17 +319,35 @@ struct GameListView: View {
     
     private var gamesList: some View {
         List {
-            // Career stats section
-            EnhancedCareerStatsView(
-                stats: firebaseService.getCareerStats(),
-                games: Array(sortedGames.prefix(10)),
-                isViewingTrends: $isViewingTrends
-            )
-            .listRowBackground(Color.blue.opacity(0.08))
-            .listRowSeparator(.hidden)
+            // Career stats section (only if not heavily filtered)
+            if activeFiltersCount <= 1 && searchText.isEmpty {
+                EnhancedCareerStatsView(
+                    stats: firebaseService.getCareerStats(),
+                    games: Array(sortedGames.prefix(10)),
+                    isViewingTrends: $isViewingTrends
+                )
+                .listRowBackground(Color.blue.opacity(0.08))
+                .listRowSeparator(.hidden)
+            }
             
             // Only show games section when not viewing trends
             if !isViewingTrends {
+                // Active filters display
+                if activeFiltersCount > 0 || !searchText.isEmpty {
+                    ActiveFiltersView(
+                        searchText: searchText,
+                        selectedTeamFilter: selectedTeamFilter,
+                        selectedOpponentFilter: selectedOpponentFilter,
+                        selectedOutcomeFilter: selectedOutcomeFilter,
+                        selectedDateRange: selectedDateRange,
+                        filteredCount: filteredGames.count,
+                        totalCount: sortedGames.count,
+                        onClearAll: clearAllFilters
+                    )
+                    .listRowBackground(Color.orange.opacity(0.05))
+                    .listRowSeparator(.hidden)
+                }
+                
                 // Live game indicator if present
                 if firebaseService.hasLiveGame {
                     LiveGameIndicatorView(onTap: {
@@ -238,7 +382,7 @@ struct GameListView: View {
                     if hasMoreGames {
                         LoadMoreButton(
                             isLoading: isLoadingMore,
-                            totalGames: sortedGames.count,
+                            totalGames: filteredGames.count,
                             displayedGames: displayedGames.count,
                             onLoadMore: loadMoreGames
                         )
@@ -247,10 +391,10 @@ struct GameListView: View {
                     
                 } header: {
                     HStack {
-                        Text("Recent Games")
+                        Text(filteredGames.count == sortedGames.count ? "Recent Games" : "Filtered Games")
                         Spacer()
-                        if displayedGames.count < sortedGames.count {
-                            Text("Showing \(displayedGames.count) of \(sortedGames.count)")
+                        if displayedGames.count < filteredGames.count {
+                            Text("Showing \(displayedGames.count) of \(filteredGames.count)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -261,6 +405,45 @@ struct GameListView: View {
         .listStyle(PlainListStyle())
     }
     
+    // ... (keep all existing helper methods: liveGameButton, addGameButton, etc.)
+    
+    // MARK: - New Helper Methods
+    
+    private func clearAllFilters() {
+        searchText = ""
+        selectedTeamFilter = "All Teams"
+        selectedOpponentFilter = "All Opponents"
+        selectedOutcomeFilter = nil
+        selectedDateRange = .all
+        resetPagination()
+    }
+    
+    private func resetPagination() {
+        currentPage = 1
+    }
+    
+    private func loadMoreGames() {
+        guard !isLoadingMore && hasMoreGames else { return }
+        
+        isLoadingMore = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            currentPage += 1
+            isLoadingMore = false
+        }
+    }
+    
+    private func deleteGame(_ game: Game) {
+        Task {
+            do {
+                try await firebaseService.deleteGame(game.id ?? "")
+            } catch {
+                print("Failed to delete game: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Existing helper methods (keep these unchanged)
     private var liveGameButton: some View {
         Button(action: {
             showingLiveGame = true
@@ -304,30 +487,59 @@ struct GameListView: View {
         .clipShape(Circle())
     }
     
-    // MARK: - Helper Methods
-    
-    private func loadMoreGames() {
-        guard !isLoadingMore && hasMoreGames else { return }
-        
-        isLoadingMore = true
-        
-        // Simulate loading delay for better UX
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            currentPage += 1
-            isLoadingMore = false
-        }
-    }
-    
-    private func deleteGame(_ game: Game) {
-        Task {
-            do {
-                try await firebaseService.deleteGame(game.id ?? "")
-            } catch {
-                print("Failed to delete game: \(error)")
+    @ViewBuilder
+    private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                FullScreenNavigationBar(onDismiss: onDismiss)
+                LiveGameView().environmentObject(authService)
             }
         }
     }
+    
+    @ViewBuilder
+    private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
+        HStack {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 12, height: 12)
+                    .opacity(0.8)
+                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                
+                Text("Live Game")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+            
+            Button(action: onDismiss) {
+                Text("Done")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(20)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+        )
+    }
 }
+
+// Keep all existing structs: LiveGameIndicatorView, GameRowView, LoadMoreButton, etc.
 
 // MARK: - Live Game Components (Updated)
 
@@ -680,21 +892,30 @@ struct EnhancedCareerStatsView: View {
     let games: [Game]
     @State private var selectedTab = 0
     @Binding var isViewingTrends: Bool
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: isIPad ? 24 : 16) {
             HStack {
                 Text("Sahil's Career Dashboard")
-                    .font(.title2)
+                    .font(isIPad ? .largeTitle : .title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 Spacer()
             }
             
-            // Tab selector
+            // Tab selector with larger fonts on iPad
             Picker("View", selection: $selectedTab) {
-                Text("Overview").tag(0)
-                Text("Trends").tag(1)
+                Text("Overview")
+                    .font(isIPad ? .title2 : .body)
+                    .tag(0)
+                Text("Trends")
+                    .font(isIPad ? .title2 : .body)
+                    .tag(1)
             }
             .pickerStyle(SegmentedPickerStyle())
             .onChange(of: selectedTab) { oldValue, newValue in
@@ -705,22 +926,22 @@ struct EnhancedCareerStatsView: View {
             
             // Content based on selected tab
             if selectedTab == 0 {
-                OverviewStatsView(stats: stats)
+                OverviewStatsView(stats: stats, isIPad: isIPad)
             } else {
-                CareerTrendsView(games: games)
+                CareerTrendsView(games: games, isIPad: isIPad)
             }
         }
-        .padding()
+        .padding(isIPad ? 24 : 16)
     }
 }
 
+
 // MARK: - Career Stats Components
-
-
 // Replace your existing CareerTrendsView with this smart version:
 
 struct CareerTrendsView: View {
     let games: [Game]
+    let isIPad: Bool
     @State private var selectedStat: CareerStatType = .avgPoints
     @State private var selectedTimeframe: TrendTimeframe = .auto
     
@@ -794,7 +1015,6 @@ struct CareerTrendsView: View {
             return selectedTimeframe
         }
         
-        // Smart timeframe selection based on data
         let gameCount = games.count
         let dateRange = getDateRange()
         
@@ -825,37 +1045,38 @@ struct CareerTrendsView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header with smart timeframe info
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: isIPad ? 24 : 16) {
+            // Header with larger fonts
+            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
                 Text("Sahil's Progress Over Time")
-                    .font(.headline)
+                    .font(isIPad ? .title : .headline)
                     .foregroundColor(.primary)
                 
                 HStack {
                     Text(getSmartDescription())
-                        .font(.caption)
+                        .font(isIPad ? .body : .caption)
                         .foregroundColor(.secondary)
                     
                     Spacer()
                     
-                    // Timeframe picker
+                    // Timeframe picker with larger font
                     Picker("Timeframe", selection: $selectedTimeframe) {
                         ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
                             Text(timeframe.displayName).tag(timeframe)
                         }
                     }
                     .pickerStyle(.menu)
-                    .font(.caption)
+                    .font(isIPad ? .body : .caption)
                 }
             }
             
-            // Stat selector grid (more compact)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 6) {
+            // Stat selector grid with better iPad layout
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 6 : 4), spacing: isIPad ? 10 : 6) {
                 ForEach(CareerStatType.allCases, id: \.self) { stat in
                     CareerTrendStatButton(
                         stat: stat,
-                        isSelected: selectedStat == stat
+                        isSelected: selectedStat == stat,
+                        isIPad: isIPad
                     ) {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             selectedStat = stat
@@ -869,17 +1090,17 @@ struct CareerTrendsView: View {
                 let trendData = getSmartTrendData()
                 
                 if trendData.count >= 2 {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {
                         HStack {
                             Text("\(selectedStat.rawValue) - \(smartTimeframe.displayName)")
-                                .font(.subheadline)
+                                .font(isIPad ? .title3 : .subheadline)
                                 .fontWeight(.semibold)
                                 .foregroundColor(selectedStat.color)
                             
                             Spacer()
                             
                             Text(getCurrentValueText(trendData))
-                                .font(.caption)
+                                .font(isIPad ? .body : .caption)
                                 .foregroundColor(.secondary)
                         }
                         
@@ -891,22 +1112,24 @@ struct CareerTrendsView: View {
                                 )
                                 .foregroundStyle(selectedStat.color)
                                 .interpolationMethod(.catmullRom)
+                                .lineStyle(StrokeStyle(lineWidth: isIPad ? 4 : 3))
                                 
                                 PointMark(
                                     x: .value("Period", dataPoint.label),
                                     y: .value(selectedStat.rawValue, dataPoint.value)
                                 )
                                 .foregroundStyle(selectedStat.color)
-                                .symbolSize(60)
+                                .symbolSize(isIPad ? 100 : 60)
                             }
                         }
-                        .frame(height: 150)
+                        .frame(height: isIPad ? 200 : 150)
                         .chartYAxis {
                             AxisMarks(position: .leading) { value in
                                 AxisGridLine()
                                 AxisValueLabel {
                                     if let doubleValue = value.as(Double.self) {
                                         Text(formatYAxisValue(doubleValue))
+                                            .font(isIPad ? .body : .caption2)
                                     }
                                 }
                             }
@@ -917,7 +1140,7 @@ struct CareerTrendsView: View {
                                 AxisValueLabel {
                                     if let stringValue = value.as(String.self) {
                                         Text(stringValue)
-                                            .font(.caption2)
+                                            .font(isIPad ? .body : .caption2)
                                     }
                                 }
                             }
@@ -925,38 +1148,45 @@ struct CareerTrendsView: View {
                         .animation(.easeInOut(duration: 0.5), value: selectedStat)
                         .animation(.easeInOut(duration: 0.5), value: selectedTimeframe)
                     }
-                    .padding()
+                    .padding(isIPad ? 24 : 16)
                     .background(selectedStat.color.opacity(0.05))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
                             .stroke(selectedStat.color.opacity(0.2), lineWidth: 1)
                     )
-                    .cornerRadius(12)
+                    .cornerRadius(isIPad ? 16 : 12)
                 } else {
-                    // Not enough data for trends yet
-                    VStack(spacing: 12) {
+                    // Not enough data message with larger fonts
+                    VStack(spacing: isIPad ? 16 : 12) {
                         Image(systemName: "chart.line.uptrend.xyaxis")
-                            .font(.system(size: 40))
+                            .font(.system(size: isIPad ? 60 : 40))
                             .foregroundColor(.secondary)
                         
                         Text("Keep Playing!")
-                            .font(.headline)
+                            .font(isIPad ? .title : .headline)
                             .fontWeight(.semibold)
                         
                         Text("Play a few more games to see trends over time")
-                            .font(.subheadline)
+                            .font(isIPad ? .title3 : .subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                     }
-                    .frame(height: 150)
+                    .frame(height: isIPad ? 200 : 150)
                     .frame(maxWidth: .infinity)
-                    .padding()
+                    .padding(isIPad ? 32 : 24)
                     .background(Color(.systemGray6))
-                    .cornerRadius(12)
+                    .cornerRadius(isIPad ? 16 : 12)
                 }
             }
         }
     }
+    
+    // Keep all the existing helper methods unchanged:
+    // - getSmartDescription()
+    // - getCurrentValueText()
+    // - formatYAxisValue()
+    // - getSmartTrendData()
+    // - etc.
     
     private func getSmartDescription() -> String {
         let gameCount = games.count
@@ -1000,7 +1230,7 @@ struct CareerTrendsView: View {
         
         switch timeframe {
         case .auto:
-            return getSmartTrendData() // This won't recurse because smartTimeframe resolves .auto
+            return getSmartTrendData()
             
         case .weekly:
             return getWeeklyTrendData(calendar: calendar)
@@ -1015,6 +1245,9 @@ struct CareerTrendsView: View {
             return getYearlyTrendData(calendar: calendar)
         }
     }
+    
+    // Include all the existing trend data methods (getWeeklyTrendData, etc.)
+    // and calculateStatValue method - keep them exactly the same
     
     private func getWeeklyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
         let gamesByWeek = Dictionary(grouping: games) { game in
@@ -1136,13 +1369,14 @@ struct CareerTrendsView: View {
 struct CareerTrendStatButton: View {
     let stat: CareerTrendsView.CareerStatType
     let isSelected: Bool
+    let isIPad: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 2) {
+            VStack(spacing: isIPad ? 4 : 2) {
                 Text(stat.rawValue)
-                    .font(.caption2)
+                    .font(isIPad ? .body : .caption2)
                     .foregroundColor(isSelected ? stat.color : .secondary)
                     .fontWeight(isSelected ? .semibold : .medium)
                     .lineLimit(2)
@@ -1150,13 +1384,13 @@ struct CareerTrendStatButton: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 35)
+            .frame(height: isIPad ? 50 : 35)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: isIPad ? 10 : 6)
                     .fill(isSelected ? stat.color.opacity(0.15) : Color.gray.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: isIPad ? 10 : 6)
                     .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: 1.5)
             )
             .scaleEffect(isSelected ? 1.02 : 1.0)
@@ -1167,31 +1401,32 @@ struct CareerTrendStatButton: View {
 }
 struct OverviewStatsView: View {
     let stats: CareerStats
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: isIPad ? 20 : 12) {
             // First row: Main stats
-            HStack(spacing: 20) {
-                StatBox(title: "Games", value: "\(stats.totalGames)", color: .blue)
-                StatBox(title: "Points", value: "\(stats.totalPoints)", color: .purple)
-                StatBox(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo)
-                StatBox(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: stats.winPercentage > 0.5 ? .green : .red)
+            HStack(spacing: isIPad ? 24 : 20) {
+                StatBox(title: "Games", value: "\(stats.totalGames)", color: .blue, isIPad: isIPad)
+                StatBox(title: "Points", value: "\(stats.totalPoints)", color: .purple, isIPad: isIPad)
+                StatBox(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo, isIPad: isIPad)
+                StatBox(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: stats.winPercentage > 0.5 ? .green : .red, isIPad: isIPad)
             }
             
             // Second row: Other key stats
-            HStack(spacing: 20) {
-                StatBox(title: "Rebounds", value: "\(stats.totalRebounds)", color: .mint)
-                StatBox(title: "Assists", value: "\(stats.totalAssists)", color: .cyan)
-                StatBox(title: "Steals", value: "\(stats.totalSteals)", color: .yellow)
-                StatBox(title: "Fouls", value: "\(stats.totalFouls)", color: .pink)
+            HStack(spacing: isIPad ? 24 : 20) {
+                StatBox(title: "Rebounds", value: "\(stats.totalRebounds)", color: .mint, isIPad: isIPad)
+                StatBox(title: "Assists", value: "\(stats.totalAssists)", color: .cyan, isIPad: isIPad)
+                StatBox(title: "Steals", value: "\(stats.totalSteals)", color: .yellow, isIPad: isIPad)
+                StatBox(title: "Fouls", value: "\(stats.totalFouls)", color: .pink, isIPad: isIPad)
             }
             
             // Third row: Shooting percentages
-            HStack(spacing: 20) {
-                StatBox(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue)
-                StatBox(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green)
-                StatBox(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange)
-                StatBox(title: "A/T", value: String(format: "%.1f", stats.assistTurnoverRatio), color: .indigo)
+            HStack(spacing: isIPad ? 24 : 20) {
+                StatBox(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
+                StatBox(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
+                StatBox(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
+                StatBox(title: "A/T", value: String(format: "%.1f", stats.assistTurnoverRatio), color: .indigo, isIPad: isIPad)
             }
         }
     }
@@ -1201,28 +1436,29 @@ struct StatBox: View {
     let title: String
     let value: String
     let color: Color
+    let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: isIPad ? 10 : 6) {
             Text(value)
-                .font(.title3)
+                .font(isIPad ? .largeTitle : .title3)
                 .fontWeight(.bold)
                 .foregroundColor(color)
             
             Text(title)
-                .font(.caption2)
+                .font(isIPad ? .body : .caption2)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, isIPad ? 16 : 8)
         .background(color.opacity(0.08))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: isIPad ? 12 : 8)
                 .stroke(color.opacity(0.2), lineWidth: 1)
         )
-        .cornerRadius(8)
+        .cornerRadius(isIPad ? 12 : 8)
     }
 }
 
