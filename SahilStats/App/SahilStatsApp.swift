@@ -13,7 +13,7 @@ struct SahilStatsApp: App {
     init() {
         // Configure Firebase
         FirebaseApp.configure()
-        
+        UITabBar.appearance().itemPositioning = .centered
     }
     
     var body: some Scene {
@@ -92,73 +92,46 @@ struct SplashView: View {
     }
 }
 
+// Fixed MainTabView with consistent icons for both iPhone and iPad
+
+
 struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showingAuth = false
     
     var body: some View {
         TabView {
-            // Dashboard tab - Always available
-            // Use NavigationStack instead of NavigationView for iOS 16+
-            if #available(iOS 16.0, *) {
-                NavigationStack {
-                    GameListView()
-                }
-                .tabItem {
-                    Image(systemName: "chart.bar.fill")
-                    Text("Games")
-                }
-            } else {
-                NavigationView {
-                    GameListView()
-                        .navigationViewStyle(StackNavigationViewStyle()) // Force stack style on iPad
-                }
-                .tabItem {
-                    Image(systemName: "chart.bar.fill")
-                    Text("Games")
-                }
+            // MARK: - Games Tab
+            NavigationView {
+                GameListView()
+            }
+            // This modifier is the key to fixing the layout on iPad.
+            .navigationViewStyle(.stack)
+            .tabItem {
+                Image(systemName: "chart.bar.fill")
+                Text("Games")
             }
             
-            // Game Setup tab - Admin only
+            // MARK: - New Game Tab (Admin Only)
             if authService.showAdminFeatures {
-                if #available(iOS 16.0, *) {
-                    NavigationStack {
-                        GameSetupView()
-                    }
-                    .tabItem {
-                        Image(systemName: "plus.circle.fill")
-                        Text("New Game")
-                    }
-                } else {
-                    NavigationView {
-                        GameSetupView()
-                            .navigationViewStyle(StackNavigationViewStyle()) // Force stack style on iPad
-                    }
-                    .tabItem {
-                        Image(systemName: "plus.circle.fill")
-                        Text("New Game")
-                    }
+                NavigationView {
+                    GameSetupView()
+                }
+                .navigationViewStyle(.stack) // Apply to every tab
+                .tabItem {
+                    Image(systemName: "plus.circle.fill")
+                    Text("New Game")
                 }
             }
             
-            // Settings tab - Always available
-            if #available(iOS 16.0, *) {
-                NavigationStack {
-                    SettingsView()
-                }
-                .tabItem {
-                    Image(systemName: "gearshape.fill")
-                    Text("Settings")
-                }
-            } else {
-                NavigationView {
-                    SettingsView()
-                        .navigationViewStyle(StackNavigationViewStyle()) // Force stack style on iPad
-                }
-                .tabItem {
-                    Image(systemName: "gearshape.fill")
-                    Text("Settings")
-                }
+            // MARK: - Settings Tab
+            NavigationView {
+                SettingsView()
+            }
+            .navigationViewStyle(.stack) // And apply here for consistency
+            .tabItem {
+                Image(systemName: "gearshape.fill")
+                Text("Settings")
             }
         }
         .accentColor(.orange)
@@ -167,6 +140,8 @@ struct MainTabView: View {
         }
     }
 }
+
+
 
 
 #Preview {
