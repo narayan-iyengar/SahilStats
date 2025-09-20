@@ -36,6 +36,596 @@ struct LiveGameView: View {
     }
 }
 
+
+// MARK: - Live Points Summary Card (Add this to LiveGameView.swift)
+
+struct LivePointsSummaryCard: View {
+    let stats: PlayerStats
+    let isIPad: Bool
+    
+    private var totalPoints: Int {
+        return (stats.fg2m * 2) + (stats.fg3m * 3) + stats.ftm
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 16 : 12) {
+            HStack {
+                Text("Points Breakdown")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.purple)
+                Spacer()
+                Text("\(totalPoints) Total")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.purple)
+            }
+            
+            HStack(spacing: isIPad ? 24 : 20) {
+                LivePointBreakdownItem(
+                    title: "2PT",
+                    made: stats.fg2m,
+                    points: stats.fg2m * 2,
+                    color: .blue,
+                    isIPad: isIPad
+                )
+                
+                LivePointBreakdownItem(
+                    title: "3PT",
+                    made: stats.fg3m,
+                    points: stats.fg3m * 3,
+                    color: .green,
+                    isIPad: isIPad
+                )
+                
+                LivePointBreakdownItem(
+                    title: "FT",
+                    made: stats.ftm,
+                    points: stats.ftm,
+                    color: .orange,
+                    isIPad: isIPad
+                )
+            }
+        }
+        .padding(isIPad ? 24 : 16)
+        .background(Color.purple.opacity(0.1))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+
+// MARK: - Collapsing Live Game Header Component
+
+struct CollapsingLiveGameHeader: View {
+    let deviceControl: DeviceControlManager
+    let serverGameState: LiveGame
+    @Binding var currentHomeScore: Int
+    @Binding var currentAwayScore: Int
+    let localClockTime: TimeInterval
+    let currentPeriod: Int
+    @Binding var sahilOnBench: Bool
+    let isHeaderCollapsed: Bool
+    let isIPad: Bool
+    
+    let onRequestControl: () -> Void
+    let onStartPause: () -> Void
+    let onAddMinute: () -> Void
+    let onAdvancePeriod: () -> Void
+    let onFinishGame: () -> Void
+    let onScoreChange: () -> Void
+    let onStatusChange: () -> Void
+    
+    var body: some View {
+        VStack(spacing: isHeaderCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 16 : 12)) {
+            // Always show device control status (but make it smaller when collapsed)
+            CompactDeviceControlStatusCard(
+                hasControl: deviceControl.hasControl,
+                controllingUser: deviceControl.controllingUser,
+                canRequestControl: deviceControl.canRequestControl,
+                pendingRequest: deviceControl.pendingControlRequest,
+                isIPad: isIPad,
+                onRequestControl: onRequestControl
+            )
+            .scaleEffect(isHeaderCollapsed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.25), value: isHeaderCollapsed)
+            
+            if !isHeaderCollapsed {
+                // Expanded: Show clock
+                CompactClockCard(
+                    period: currentPeriod,
+                    clockTime: localClockTime,
+                    isGameRunning: serverGameState.isRunning,
+                    gameFormat: serverGameState.gameFormat,
+                    isIPad: isIPad
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .move(edge: .top))
+                ))
+            }
+            
+            // Score (always visible but smaller when collapsed)
+            Group {
+                if deviceControl.hasControl {
+                    CollapsibleLiveScoreCard(
+                        homeScore: $currentHomeScore,
+                        awayScore: $currentAwayScore,
+                        teamName: serverGameState.teamName,
+                        opponent: serverGameState.opponent,
+                        isCollapsed: isHeaderCollapsed,
+                        isIPad: isIPad,
+                        onScoreChange: onScoreChange
+                    )
+                } else {
+                    CollapsibleLiveScoreDisplayCard(
+                        homeScore: serverGameState.homeScore,
+                        awayScore: serverGameState.awayScore,
+                        teamName: serverGameState.teamName,
+                        opponent: serverGameState.opponent,
+                        isCollapsed: isHeaderCollapsed,
+                        isIPad: isIPad
+                    )
+                }
+            }
+            
+            if !isHeaderCollapsed {
+                // Expanded: Show player status and game controls
+                VStack(spacing: isIPad ? 12 : 8) {
+                    PlayerStatusCard(
+                        sahilOnBench: $sahilOnBench,
+                        isIPad: isIPad,
+                        hasControl: deviceControl.hasControl,
+                        onStatusChange: onStatusChange
+                    )
+                    
+                    if deviceControl.hasControl {
+                        CompactGameControlsCard(
+                            currentPeriod: currentPeriod,
+                            maxPeriods: serverGameState.numPeriods,
+                            gameFormat: serverGameState.gameFormat,
+                            isGameRunning: serverGameState.isRunning,
+                            isIPad: isIPad,
+                            onStartPause: onStartPause,
+                            onAddMinute: onAddMinute,
+                            onAdvancePeriod: onAdvancePeriod,
+                            onFinishGame: onFinishGame
+                        )
+                    }
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .bottom)),
+                    removal: .opacity.combined(with: .move(edge: .bottom))
+                ))
+            }
+        }
+        .padding(.horizontal, isIPad ? 24 : 16)
+        .padding(.vertical, isHeaderCollapsed ? (isIPad ? 16 : 12) : (isIPad ? 16 : 12))
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
+        .animation(.easeInOut(duration: 0.25), value: isHeaderCollapsed)
+    }
+}
+
+// MARK: - Collapsible Live Score Cards
+
+struct CollapsibleLiveScoreCard: View {
+    @Binding var homeScore: Int
+    @Binding var awayScore: Int
+    let teamName: String
+    let opponent: String
+    let isCollapsed: Bool
+    let isIPad: Bool
+    let onScoreChange: () -> Void
+    
+    var body: some View {
+        VStack(spacing: isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16)) {
+            if !isCollapsed {
+                Text("Live Score")
+                    .font(isIPad ? .title2 : .title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                    .transition(.opacity)
+            }
+            
+            HStack(spacing: isCollapsed ? (isIPad ? 24 : 20) : (isIPad ? 32 : 24)) {
+                // Home team
+                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
+                    if !isCollapsed {
+                        Text(teamName)
+                            .font(isIPad ? .body : .caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .transition(.opacity)
+                    }
+                    
+                    VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
+                        Text("\(homeScore)")
+                            .font(isCollapsed ?
+                                  (isIPad ? .system(size: 40, weight: .heavy) : .system(size: 36, weight: .heavy)) :
+                                  (isIPad ? .system(size: 64, weight: .heavy) : .system(size: 56, weight: .heavy))
+                            )
+                            .foregroundColor(.blue)
+                            .frame(minWidth: isCollapsed ? (isIPad ? 60 : 50) : (isIPad ? 80 : 70))
+                            .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+                        
+                        if !isCollapsed {
+                            HStack(spacing: isIPad ? 20 : 16) {
+                                Button("-") {
+                                    if homeScore > 0 {
+                                        homeScore -= 1
+                                        onScoreChange()
+                                    }
+                                }
+                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
+                                
+                                Button("+") {
+                                    homeScore += 1
+                                    onScoreChange()
+                                }
+                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+                    }
+                }
+                
+                Text("–")
+                    .font(isCollapsed ?
+                          (isIPad ? .system(size: 24, weight: .medium) : .system(size: 20, weight: .medium)) :
+                          (isIPad ? .system(size: 40, weight: .medium) : .system(size: 36, weight: .medium))
+                    )
+                    .foregroundColor(.secondary)
+                    .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+                
+                // Away team
+                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
+                    if !isCollapsed {
+                        Text(opponent)
+                            .font(isIPad ? .body : .caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .transition(.opacity)
+                    }
+                    
+                    VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
+                        Text("\(awayScore)")
+                            .font(isCollapsed ?
+                                  (isIPad ? .system(size: 40, weight: .heavy) : .system(size: 36, weight: .heavy)) :
+                                  (isIPad ? .system(size: 64, weight: .heavy) : .system(size: 56, weight: .heavy))
+                            )
+                            .foregroundColor(.red)
+                            .frame(minWidth: isCollapsed ? (isIPad ? 60 : 50) : (isIPad ? 80 : 70))
+                            .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+                        
+                        if !isCollapsed {
+                            HStack(spacing: isIPad ? 20 : 16) {
+                                Button("-") {
+                                    if awayScore > 0 {
+                                        awayScore -= 1
+                                        onScoreChange()
+                                    }
+                                }
+                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
+                                
+                                Button("+") {
+                                    awayScore += 1
+                                    onScoreChange()
+                                }
+                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, isCollapsed ? (isIPad ? 20 : 16) : (isIPad ? 28 : 24))
+        .padding(.vertical, isCollapsed ? (isIPad ? 16 : 12) : (isIPad ? 28 : 24))
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16))
+                .stroke(Color.orange.opacity(0.4), lineWidth: 2)
+        )
+        .cornerRadius(isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16))
+        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+    }
+}
+
+struct CollapsibleLiveScoreDisplayCard: View {
+    let homeScore: Int
+    let awayScore: Int
+    let teamName: String
+    let opponent: String
+    let isCollapsed: Bool
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16)) {
+            if !isCollapsed {
+                Text("Live Score")
+                    .font(isIPad ? .title2 : .title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                    .transition(.opacity)
+            }
+            
+            HStack(spacing: isCollapsed ? (isIPad ? 32 : 24) : (isIPad ? 40 : 32)) {
+                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
+                    if !isCollapsed {
+                        Text(teamName)
+                            .font(isIPad ? .body : .caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .transition(.opacity)
+                    }
+                    
+                    Text("\(homeScore)")
+                        .font(isCollapsed ?
+                              (isIPad ? .system(size: 48, weight: .heavy) : .system(size: 40, weight: .heavy)) :
+                              (isIPad ? .system(size: 72, weight: .heavy) : .system(size: 64, weight: .heavy))
+                        )
+                        .foregroundColor(.blue)
+                        .frame(minWidth: isCollapsed ? (isIPad ? 70 : 60) : (isIPad ? 90 : 80))
+                        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+                }
+                
+                Text("–")
+                    .font(isCollapsed ?
+                          (isIPad ? .system(size: 28, weight: .medium) : .system(size: 24, weight: .medium)) :
+                          (isIPad ? .system(size: 44, weight: .medium) : .system(size: 40, weight: .medium))
+                    )
+                    .foregroundColor(.secondary)
+                    .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+                
+                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
+                    if !isCollapsed {
+                        Text(opponent)
+                            .font(isIPad ? .body : .caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .transition(.opacity)
+                    }
+                    
+                    Text("\(awayScore)")
+                        .font(isCollapsed ?
+                              (isIPad ? .system(size: 48, weight: .heavy) : .system(size: 40, weight: .heavy)) :
+                              (isIPad ? .system(size: 72, weight: .heavy) : .system(size: 64, weight: .heavy))
+                        )
+                        .foregroundColor(.red)
+                        .frame(minWidth: isCollapsed ? (isIPad ? 70 : 60) : (isIPad ? 90 : 80))
+                        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+                }
+            }
+        }
+        .padding(.horizontal, isCollapsed ? (isIPad ? 20 : 16) : (isIPad ? 28 : 24))
+        .padding(.vertical, isCollapsed ? (isIPad ? 16 : 12) : (isIPad ? 28 : 24))
+        .background(Color(.systemGray6))
+        .cornerRadius(isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16))
+        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+    }
+}
+
+// MARK: - Button Style for Collapsible Score
+
+struct CollapsibleScoreButtonStyle: ButtonStyle {
+    let isCollapsed: Bool
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isCollapsed ?
+                  (isIPad ? .system(size: 18, weight: .bold) : .body) :
+                  (isIPad ? .system(size: 28, weight: .bold) : .system(size: 24, weight: .bold))
+            )
+            .foregroundColor(.white)
+            .frame(
+                width: isCollapsed ? (isIPad ? 36 : 32) : (isIPad ? 56 : 48),
+                height: isCollapsed ? (isIPad ? 36 : 32) : (isIPad ? 56 : 48)
+            )
+            .background(
+                Circle()
+                    .fill(Color.orange)
+                    .shadow(color: .orange.opacity(0.3), radius: configuration.isPressed ? 2 : 4, x: 0, y: configuration.isPressed ? 1 : 2)
+            )
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+    }
+}
+
+// MARK: - ScrollView with Offset Tracking (Keep this from previous artifact)
+
+struct ScrollViewWithOffset<Content: View>: View {
+    let axes: Axis.Set
+    let showsIndicators: Bool
+    let onOffsetChange: (CGFloat) -> Void
+    let content: Content
+    
+    init(
+        axes: Axis.Set = .vertical,
+        showsIndicators: Bool = true,
+        onOffsetChange: @escaping (CGFloat) -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.axes = axes
+        self.showsIndicators = showsIndicators
+        self.onOffsetChange = onOffsetChange
+        self.content = content()
+    }
+    
+    var body: some View {
+        ScrollView(axes, showsIndicators: showsIndicators) {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: ScrollOffsetPreferenceKey.self,
+                    value: geometry.frame(in: .named("scroll")).origin.y
+                )
+            }
+            .frame(height: 0)
+            
+            content
+        }
+        .coordinateSpace(name: "scroll")
+        .onPreferenceChange(ScrollOffsetPreferenceKey.self, perform: onOffsetChange)
+    }
+}
+
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+struct LivePointBreakdownItem: View {
+    let title: String
+    let made: Int
+    let points: Int
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 8 : 6) {
+            Text(title)
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(color)
+                .fontWeight(.medium)
+            
+            Text("\(made) × \(title == "3PT" ? 3 : (title == "2PT" ? 2 : 1))")
+                .font(isIPad ? .caption : .caption2)
+                .foregroundColor(.secondary)
+            
+            Text("\(points)")
+                .font(isIPad ? .title2 : .title3)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 12 : 8)
+        .background(color.opacity(0.1))
+        .cornerRadius(isIPad ? 12 : 8)
+    }
+}
+
+struct LiveSmartShootingStatCard: View {
+    let title: String
+    let shotType: SmartShootingStatCard.ShotType
+    @Binding var made: Int
+    @Binding var attempted: Int
+    let currentPoints: Int // Read-only points for display
+    let isIPad: Bool
+    let onStatChange: () -> Void
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 12) {
+            // Made shots section
+            VStack(spacing: isIPad ? 12 : 8) {
+                Text(shotType.madeTitle)
+                    .font(isIPad ? .title3 : .subheadline)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: isIPad ? 16 : 12) {
+                    Button("-") {
+                        decrementMade()
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .red, isIPad: isIPad))
+                    .disabled(made <= 0)
+                    
+                    Text("\(made)")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.bold)
+                        .frame(minWidth: isIPad ? 40 : 35)
+                        .foregroundColor(.primary)
+                    
+                    Button("+") {
+                        incrementMade()
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .green, isIPad: isIPad))
+                }
+            }
+            
+            // Attempted shots section
+            VStack(spacing: isIPad ? 12 : 8) {
+                Text(shotType.attemptedTitle)
+                    .font(isIPad ? .title3 : .subheadline)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: isIPad ? 16 : 12) {
+                    Button("-") {
+                        decrementAttempted()
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .red, isIPad: isIPad))
+                    .disabled(attempted <= made)
+                    
+                    Text("\(attempted)")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.bold)
+                        .frame(minWidth: isIPad ? 40 : 35)
+                        .foregroundColor(.primary)
+                    
+                    Button("+") {
+                        incrementAttempted()
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .orange, isIPad: isIPad))
+                }
+            }
+            
+            // Shooting percentage display
+            if attempted > 0 {
+                let percentage = Double(made) / Double(attempted) * 100
+                Text("\(Int(percentage))%")
+                    .font(isIPad ? .body : .caption)
+                    .foregroundColor(.secondary)
+                    .fontWeight(.medium)
+            }
+        }
+        .padding(.vertical, isIPad ? 20 : 16)
+        .padding(.horizontal, isIPad ? 20 : 16)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+    
+    // MARK: - Smart Logic Methods (same as before)
+    
+    private func incrementMade() {
+        made += 1
+        attempted += 1
+        onStatChange()
+    }
+    
+    private func decrementMade() {
+        if made > 0 {
+            made -= 1
+            onStatChange()
+        }
+    }
+    
+    private func incrementAttempted() {
+        attempted += 1
+        onStatChange()
+    }
+    
+    private func decrementAttempted() {
+        if attempted > made {
+            attempted -= 1
+            onStatChange()
+        }
+    }
+}
+
 // MARK: - Enhanced Live Game Controller with STICKY HEADER
 
 struct LiveGameControllerView: View {
@@ -66,6 +656,10 @@ struct LiveGameControllerView: View {
     @State private var requestingUser = ""
     @State private var requestingDeviceId = ""
     
+    // Scroll tracking state
+    @State private var scrollOffset: CGFloat = 0
+    @State private var isHeaderCollapsed = false
+    
     // ADDED: Force UI refresh capability
     @StateObject private var refreshTrigger = RefreshTrigger()
     
@@ -86,6 +680,14 @@ struct LiveGameControllerView: View {
     private var isGameRunning: Bool {
         serverGameState.isRunning
     }
+    // Add these computed properties to your LiveGameControllerView:
+    private var expandedHeaderHeight: CGFloat {
+        isIPad ? 380 : 340
+    }
+
+    private var compactHeaderHeight: CGFloat {
+        isIPad ? 180 : 160
+    }
     
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
@@ -99,41 +701,80 @@ struct LiveGameControllerView: View {
     }
     
     var body: some View {
-        // NEW: Use VStack with sticky header instead of ScrollView
-        VStack(spacing: 0) {
-            // STICKY HEADER: Always visible at top
-            stickyHeader()
-            
-            // SCROLLABLE CONTENT: Stats and other details
-            ScrollView {
-                VStack(spacing: isIPad ? 24 : 20) {
-                    // REMOVED: Player Status (now in sticky header)
-                    // PlayerStatusCard moved to sticky header
-                    
-                    // Detailed stats (only if playing AND has control)
-                    if !sahilOnBench && deviceControl.hasControl {
-                        cleanDetailedStatsEntry()
-                        LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
-                    } else if !sahilOnBench {
-                        // Viewer stats (read-only)
-                        LiveStatsDisplayCard(
-                            stats: serverGameState.playerStats,
-                            isIPad: isIPad,
-                            isReadOnly: true
-                        )
-                    } else {
-                        // On bench message
-                        onBenchMessage()
+        ZStack(alignment: .top) {
+            // Main content with scroll tracking
+            ScrollViewReader { proxy in
+                ScrollViewWithOffset(
+                    axes: .vertical,
+                    showsIndicators: true,
+                    onOffsetChange: { offset in
+                        let newOffset = -offset
+                        
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            scrollOffset = newOffset
+                            isHeaderCollapsed = newOffset > (isIPad ? 120 : 100)
+                        }
                     }
-                    
-                    // Add some bottom padding for better scrolling
-                    Spacer(minLength: 100)
+                ) {
+                    VStack(spacing: 0) {
+                        // Spacer to account for sticky header
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: isHeaderCollapsed ? compactHeaderHeight : expandedHeaderHeight)
+                            .id("header_spacer")
+                        
+                        // Main content
+                        VStack(spacing: isIPad ? 24 : 20) {
+                            // Only show stats if playing AND has control OR is viewer
+                            if !sahilOnBench && deviceControl.hasControl {
+                                cleanDetailedStatsEntry()
+                                LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
+                            } else if !sahilOnBench {
+                                // Viewer stats (read-only)
+                                LiveStatsDisplayCard(
+                                    stats: serverGameState.playerStats,
+                                    isIPad: isIPad,
+                                    isReadOnly: true
+                                )
+                            } else {
+                                // On bench message
+                                onBenchMessage()
+                            }
+                            
+                            // Add bottom padding
+                            Spacer(minLength: 100)
+                        }
+                        .padding(.horizontal, isIPad ? 24 : 16)
+                        .padding(.top, isIPad ? 20 : 16)
+                    }
                 }
-                .padding(.horizontal, isIPad ? 24 : 16)
-                .padding(.top, isIPad ? 20 : 16)
+            }
+            
+            // Sticky collapsing header
+            VStack(spacing: 0) {
+                CollapsingLiveGameHeader(
+                    deviceControl: deviceControl,
+                    serverGameState: serverGameState,
+                    currentHomeScore: $currentHomeScore,
+                    currentAwayScore: $currentAwayScore,
+                    localClockTime: localClockTime,
+                    currentPeriod: currentPeriod,
+                    sahilOnBench: $sahilOnBench,
+                    isHeaderCollapsed: isHeaderCollapsed,
+                    isIPad: isIPad,
+                    onRequestControl: requestControl,
+                    onStartPause: toggleGameClock,
+                    onAddMinute: addMinuteToClock,
+                    onAdvancePeriod: nextPeriod,
+                    onFinishGame: { showingFinishAlert = true },
+                    onScoreChange: scheduleUpdate,
+                    onStatusChange: scheduleUpdate
+                )
+                
+                Spacer()
             }
         }
-        // All the same alerts and onChange handlers as before
+        // Keep all your existing alerts and onChange handlers
         .alert("Control Request", isPresented: $showingControlRequestAlert) {
             Button("Grant Control", role: .none) {
                 grantControlToRequester()
@@ -158,6 +799,7 @@ struct LiveGameControllerView: View {
         } message: {
             Text(error)
         }
+        // Keep all your existing onAppear, onDisappear, onChange handlers
         .onAppear {
             startFixedClockSync()
             syncWithServer()
@@ -200,17 +842,16 @@ struct LiveGameControllerView: View {
                 userEmail: authService.currentUser?.email
             )
             
-            // FIXED: Only sync non-clock data, let local clock continue
             syncNonClockDataWithServer(newGame)
-            
-            // Force UI update
             refreshTrigger.trigger()
-            
-            // Check for control requests
             checkForControlRequests(newGame)
         }
     }
     
+    
+    private func calculateCurrentPoints() -> Int {
+        return (currentStats.fg2m * 2) + (currentStats.fg3m * 3) + currentStats.ftm
+    }
     // MARK: - NEW STICKY HEADER
 
 
@@ -707,13 +1348,9 @@ struct LiveGameControllerView: View {
                 Text("Detailed Stats")
                     .font(isIPad ? .title2 : .headline)
                     .fontWeight(.bold)
-                Spacer()
-                Text("Tap +/- to adjust")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
             
-            // Shooting Stats
+            // Shooting Stats with Smart Logic
             VStack(spacing: isIPad ? 20 : 16) {
                 HStack {
                     Text("Shooting")
@@ -723,53 +1360,40 @@ struct LiveGameControllerView: View {
                     Spacer()
                 }
                 
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
-                    CleanStatCard(
-                        title: "2PT Made",
-                        value: $currentStats.fg2m,
-                        max: currentStats.fg2a,
+                VStack(spacing: isIPad ? 16 : 12) {
+                    SmartShootingStatCard(
+                        title: "2-Point Shots",
+                        shotType: .twoPoint,
+                        made: $currentStats.fg2m,
+                        attempted: $currentStats.fg2a,
+                        liveScore: $currentHomeScore,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
-                        title: "2PT Att",
-                        value: $currentStats.fg2a,
-                        min: currentStats.fg2m,
+                    
+                    SmartShootingStatCard(
+                        title: "3-Point Shots",
+                        shotType: .threePoint,
+                        made: $currentStats.fg3m,
+                        attempted: $currentStats.fg3a,
+                        liveScore: $currentHomeScore,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
-                        title: "3PT Made",
-                        value: $currentStats.fg3m,
-                        max: currentStats.fg3a,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    CleanStatCard(
-                        title: "3PT Att",
-                        value: $currentStats.fg3a,
-                        min: currentStats.fg3m,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    CleanStatCard(
-                        title: "FT Made",
-                        value: $currentStats.ftm,
-                        max: currentStats.fta,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    CleanStatCard(
-                        title: "FT Att",
-                        value: $currentStats.fta,
-                        min: currentStats.ftm,
+                    
+                    SmartShootingStatCard(
+                        title: "Free Throws",
+                        shotType: .freeThrow,
+                        made: $currentStats.ftm,
+                        attempted: $currentStats.fta,
+                        liveScore: $currentHomeScore,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
                 }
             }
             
-            // Other Stats
+            // Other Stats Section - ALL THE MISSING STATS!
             VStack(spacing: isIPad ? 20 : 16) {
                 HStack {
                     Text("Other Stats")
@@ -780,37 +1404,37 @@ struct LiveGameControllerView: View {
                 }
                 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
-                    CleanStatCard(
+                    RegularStatCard(
                         title: "Rebounds",
                         value: $currentStats.rebounds,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
+                    RegularStatCard(
                         title: "Assists",
                         value: $currentStats.assists,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
+                    RegularStatCard(
                         title: "Steals",
                         value: $currentStats.steals,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
+                    RegularStatCard(
                         title: "Blocks",
                         value: $currentStats.blocks,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
+                    RegularStatCard(
                         title: "Fouls",
                         value: $currentStats.fouls,
                         isIPad: isIPad,
                         onStatChange: scheduleUpdate
                     )
-                    CleanStatCard(
+                    RegularStatCard(
                         title: "Turnovers",
                         value: $currentStats.turnovers,
                         isIPad: isIPad,
@@ -818,6 +1442,9 @@ struct LiveGameControllerView: View {
                     )
                 }
             }
+            
+            // Points summary for live game
+            LivePointsSummaryCard(stats: currentStats, isIPad: isIPad)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, isIPad ? 24 : 20)

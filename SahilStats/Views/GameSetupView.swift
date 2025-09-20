@@ -55,7 +55,7 @@ struct GameSetupView: View {
             firebaseService.startListening()
             loadDefaultSettings()
         }
-        .sheet(isPresented: $showingPostGameView) {
+        .fullScreenCover(isPresented: $showingPostGameView) {
             if #available(iOS 16.0, *) {
                 NavigationStack {
                     PostGameStatsView(gameConfig: gameConfig)

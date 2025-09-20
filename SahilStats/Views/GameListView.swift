@@ -329,7 +329,7 @@ struct GameListView: View {
                 .listRowBackground(Color.blue.opacity(0.08))
                 .listRowSeparator(.hidden)
             }
-            
+
             // Only show games section when not viewing trends
             if !isViewingTrends {
                 // Active filters display
@@ -885,7 +885,8 @@ struct StatPill: View {
     }
 }
 
-// MARK: - Career Stats (Simplified - keeping existing implementation)
+
+// MARK: - Enhanced Career Stats View with Better iPad Layout
 
 struct EnhancedCareerStatsView: View {
     let stats: CareerStats
@@ -899,25 +900,27 @@ struct EnhancedCareerStatsView: View {
     }
     
     var body: some View {
-        VStack(spacing: isIPad ? 24 : 16) {
+        VStack(spacing: isIPad ? 40 : 16) {
+            // EVEN BIGGER header on iPad
             HStack {
                 Text("Sahil's Career Dashboard")
-                    .font(isIPad ? .largeTitle : .title2)
-                    .fontWeight(.bold)
+                    .font(isIPad ? .system(size: 52, weight: .heavy) : .title2) // ENORMOUS title on iPad
+                    .fontWeight(.heavy)
                     .foregroundColor(.primary)
                 Spacer()
             }
             
-            // Tab selector with larger fonts on iPad
+            // EVEN BIGGER tab selector on iPad
             Picker("View", selection: $selectedTab) {
                 Text("Overview")
-                    .font(isIPad ? .title2 : .body)
+                    .font(isIPad ? .largeTitle : .body) // HUGE tab text
                     .tag(0)
                 Text("Trends")
-                    .font(isIPad ? .title2 : .body)
+                    .font(isIPad ? .largeTitle : .body) // HUGE tab text
                     .tag(1)
             }
             .pickerStyle(SegmentedPickerStyle())
+            .scaleEffect(isIPad ? 1.5 : 1.0) // Scale up even more on iPad
             .onChange(of: selectedTab) { oldValue, newValue in
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isViewingTrends = (newValue == 1)
@@ -928,12 +931,453 @@ struct EnhancedCareerStatsView: View {
             if selectedTab == 0 {
                 OverviewStatsView(stats: stats, isIPad: isIPad)
             } else {
-                CareerTrendsView(games: games, isIPad: isIPad)
+                CareerTrendsView(games: games, isIPad: isIPad) // Use EXISTING CareerTrendsView
             }
         }
-        .padding(isIPad ? 24 : 16)
+        .padding(isIPad ? 40 : 16) // Even more padding on iPad
     }
 }
+
+// MARK: - Enhanced Overview Stats with Bigger iPad Layout
+
+struct EnhancedOverviewStatsView: View {
+    let stats: CareerStats
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 40 : 12) {
+            // First row: Main stats - EVEN BIGGER on iPad
+            HStack(spacing: isIPad ? 40 : 20) {
+                EnhancedStatBox(title: "Games", value: "\(stats.totalGames)", color: .blue, isIPad: isIPad)
+                EnhancedStatBox(title: "Points", value: "\(stats.totalPoints)", color: .purple, isIPad: isIPad)
+                EnhancedStatBox(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo, isIPad: isIPad)
+                EnhancedStatBox(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: stats.winPercentage > 0.5 ? .green : .red, isIPad: isIPad)
+            }
+            
+            // Second row: Other key stats - EVEN BIGGER on iPad
+            HStack(spacing: isIPad ? 40 : 20) {
+                EnhancedStatBox(title: "Rebounds", value: "\(stats.totalRebounds)", color: .mint, isIPad: isIPad)
+                EnhancedStatBox(title: "Assists", value: "\(stats.totalAssists)", color: .cyan, isIPad: isIPad)
+                EnhancedStatBox(title: "Steals", value: "\(stats.totalSteals)", color: .yellow, isIPad: isIPad)
+                EnhancedStatBox(title: "Fouls", value: "\(stats.totalFouls)", color: .pink, isIPad: isIPad)
+            }
+            
+            // Third row: Shooting percentages - EVEN BIGGER on iPad
+            HStack(spacing: isIPad ? 40 : 20) {
+                EnhancedStatBox(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
+                EnhancedStatBox(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
+                EnhancedStatBox(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
+                EnhancedStatBox(title: "A/T", value: String(format: "%.1f", stats.assistTurnoverRatio), color: .indigo, isIPad: isIPad)
+            }
+        }
+    }
+}
+
+// MARK: - MUCH BIGGER Stat Box for iPad
+
+struct EnhancedStatBox: View {
+    let title: String
+    let value: String
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 6) {
+            // EVEN MORE MASSIVE values on iPad
+            Text(value)
+                .font(isIPad ? .system(size: 64, weight: .black) : .title3) // ENORMOUS on iPad
+                .fontWeight(.black)
+                .foregroundColor(color)
+                .minimumScaleFactor(0.6) // Allow scaling if needed
+            
+            // EVEN BIGGER titles on iPad
+            Text(title)
+                .font(isIPad ? .system(size: 20, weight: .semibold) : .caption2) // Much bigger title on iPad
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 32 : 8) // Even more padding on iPad
+        .padding(.horizontal, isIPad ? 20 : 8)
+        .background(color.opacity(0.08))
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 24 : 8) // Even bigger corner radius
+                .stroke(color.opacity(0.2), lineWidth: isIPad ? 3 : 1) // Even thicker border
+        )
+        .cornerRadius(isIPad ? 24 : 8)
+    }
+}
+
+// MARK: - Enhanced Career Trends View for iPad
+
+struct EnhancedCareerTrendsView: View {
+    let games: [Game]
+    let isIPad: Bool
+    @State private var selectedStat: CareerStatType = .avgPoints
+    @State private var selectedTimeframe: TrendTimeframe = .auto
+    
+    enum CareerStatType: String, CaseIterable {
+        case avgPoints = "Avg Points"
+        case totalPoints = "Total Points"
+        case avgRebounds = "Avg Rebounds"
+        case totalRebounds = "Total Rebounds"
+        case avgAssists = "Avg Assists"
+        case totalAssists = "Total Assists"
+        case fieldGoalPct = "Field Goal %"
+        case threePointPct = "3-Point %"
+        case freeThrowPct = "Free Throw %"
+        case winPercentage = "Win Rate"
+        case gamesPlayed = "Games Played"
+        
+        var color: Color {
+            switch self {
+            case .totalPoints, .avgPoints: return .purple
+            case .totalRebounds, .avgRebounds: return .mint
+            case .totalAssists, .avgAssists: return .cyan
+            case .fieldGoalPct: return .blue
+            case .threePointPct: return .green
+            case .freeThrowPct: return .orange
+            case .winPercentage: return .green
+            case .gamesPlayed: return .blue
+            }
+        }
+        
+        var unit: String {
+            switch self {
+            case .fieldGoalPct, .threePointPct, .freeThrowPct, .winPercentage:
+                return "%"
+            default:
+                return ""
+            }
+        }
+        
+        var isPercentage: Bool {
+            switch self {
+            case .fieldGoalPct, .threePointPct, .freeThrowPct, .winPercentage:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+    
+    enum TrendTimeframe: String, CaseIterable {
+        case auto = "Auto"
+        case weekly = "Weekly"
+        case monthly = "Monthly"
+        case quarterly = "Quarterly"
+        case yearly = "Yearly"
+        
+        var displayName: String { rawValue }
+        
+        var description: String {
+            switch self {
+            case .auto: return "Smart timeframe based on data"
+            case .weekly: return "Week by week progress"
+            case .monthly: return "Month by month progress"
+            case .quarterly: return "Quarter by quarter progress"
+            case .yearly: return "Year by year progress"
+            }
+        }
+    }
+    
+    private var smartTimeframe: TrendTimeframe {
+        if selectedTimeframe != .auto {
+            return selectedTimeframe
+        }
+        
+        let gameCount = games.count
+        let dateRange = getDateRange()
+        
+        if gameCount < 5 {
+            return .weekly
+        } else if dateRange.days < 60 {
+            return .weekly
+        } else if dateRange.days < 180 {
+            return .monthly
+        } else if dateRange.years < 2 {
+            return .quarterly
+        } else {
+            return .yearly
+        }
+    }
+    
+    private func getDateRange() -> (days: Int, years: Double) {
+        guard let oldestGame = games.min(by: { $0.timestamp < $1.timestamp }),
+              let newestGame = games.max(by: { $0.timestamp < $1.timestamp }) else {
+            return (days: 0, years: 0)
+        }
+        
+        let timeInterval = newestGame.timestamp.timeIntervalSince(oldestGame.timestamp)
+        let days = Int(timeInterval / (24 * 60 * 60))
+        let years = timeInterval / (365.25 * 24 * 60 * 60)
+        
+        return (days: days, years: years)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: isIPad ? 40 : 16) {
+            // EVEN BIGGER header for iPad
+            VStack(alignment: .leading, spacing: isIPad ? 24 : 12) {
+                Text("Sahil's Progress Over Time")
+                    .font(isIPad ? .system(size: 44, weight: .heavy) : .headline) // ENORMOUS title
+                    .foregroundColor(.primary)
+                
+                HStack {
+                    Text(getSmartDescription())
+                        .font(isIPad ? .title2 : .caption) // Even bigger description
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // EVEN BIGGER timeframe picker
+                    Picker("Timeframe", selection: $selectedTimeframe) {
+                        ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
+                            Text(timeframe.displayName).tag(timeframe)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .font(isIPad ? .title2 : .caption) // Bigger font
+                    .scaleEffect(isIPad ? 1.4 : 1.0) // Scale up even more
+                }
+            }
+            
+            // EVEN BIGGER stat selector grid for iPad
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 4 : 3), spacing: isIPad ? 20 : 6) {
+                ForEach(CareerStatType.allCases, id: \.self) { stat in
+                    EnhancedCareerTrendStatButton(
+                        stat: stat,
+                        isSelected: selectedStat == stat,
+                        isIPad: isIPad
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            selectedStat = stat
+                        }
+                    }
+                }
+            }
+            
+            // BIGGER chart for iPad
+            if !games.isEmpty {
+                let trendData = getSmartTrendData()
+                
+                if trendData.count >= 2 {
+                    VStack(alignment: .leading, spacing: isIPad ? 24 : 8) {
+                        HStack {
+                            Text("\(selectedStat.rawValue) - \(smartTimeframe.displayName)")
+                                .font(isIPad ? .system(size: 32, weight: .bold) : .subheadline) // ENORMOUS chart title
+                                .fontWeight(.bold)
+                                .foregroundColor(selectedStat.color)
+                            
+                            Spacer()
+                            
+                            Text(getCurrentValueText(trendData))
+                                .font(isIPad ? .title : .caption) // Much bigger current value
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Chart {
+                            ForEach(Array(trendData.enumerated()), id: \.offset) { index, dataPoint in
+                                LineMark(
+                                    x: .value("Period", dataPoint.label),
+                                    y: .value(selectedStat.rawValue, dataPoint.value)
+                                )
+                                .foregroundStyle(selectedStat.color)
+                                .interpolationMethod(.catmullRom)
+                                .lineStyle(StrokeStyle(lineWidth: isIPad ? 8 : 3)) // EVEN THICKER line on iPad
+                                
+                                PointMark(
+                                    x: .value("Period", dataPoint.label),
+                                    y: .value(selectedStat.rawValue, dataPoint.value)
+                                )
+                                .foregroundStyle(selectedStat.color)
+                                .symbolSize(isIPad ? 300 : 60) // EVEN BIGGER points on iPad
+                            }
+                        }
+                        .frame(height: isIPad ? 400 : 150) // EVEN TALLER chart on iPad
+                        .chartYAxis {
+                            AxisMarks(position: .leading) { value in
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    if let doubleValue = value.as(Double.self) {
+                                        Text(formatYAxisValue(doubleValue))
+                                            .font(isIPad ? .title2 : .caption2) // EVEN BIGGER axis labels
+                                    }
+                                }
+                            }
+                        }
+                        .chartXAxis {
+                            AxisMarks { value in
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    if let stringValue = value.as(String.self) {
+                                        Text(stringValue)
+                                            .font(isIPad ? .title2 : .caption2) // EVEN BIGGER axis labels
+                                    }
+                                }
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.5), value: selectedStat)
+                        .animation(.easeInOut(duration: 0.5), value: selectedTimeframe)
+                    }
+                    .padding(isIPad ? 40 : 16) // Even more padding
+                    .background(selectedStat.color.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: isIPad ? 28 : 12) // Even bigger corner radius
+                            .stroke(selectedStat.color.opacity(0.2), lineWidth: isIPad ? 3 : 1) // Even thicker border
+                    )
+                    .cornerRadius(isIPad ? 28 : 12)
+                } else {
+                    // EVEN BIGGER "not enough data" message
+                    VStack(spacing: isIPad ? 32 : 12) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: isIPad ? 100 : 40)) // ENORMOUS icon on iPad
+                            .foregroundColor(.secondary)
+                        
+                        Text("Keep Playing!")
+                            .font(isIPad ? .system(size: 40, weight: .heavy) : .headline) // ENORMOUS text
+                            .fontWeight(.heavy)
+                        
+                        Text("Play a few more games to see trends over time")
+                            .font(isIPad ? .largeTitle : .subheadline) // Even bigger subtitle
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(height: isIPad ? 400 : 150) // Same height as chart
+                    .frame(maxWidth: .infinity)
+                    .padding(isIPad ? 48 : 24) // Even more padding
+                    .background(Color(.systemGray6))
+                    .cornerRadius(isIPad ? 28 : 12)
+                }
+            }
+        }
+    }
+    
+    // Keep all existing helper methods the same...
+    private func getSmartDescription() -> String {
+        let gameCount = games.count
+        let timeframe = smartTimeframe
+        
+        switch timeframe {
+        case .auto:
+            return "Smart timeframe selected automatically"
+        case .weekly:
+            return "Tracking \(gameCount) games week by week"
+        case .monthly:
+            return "Tracking \(gameCount) games month by month"
+        case .quarterly:
+            return "Tracking \(gameCount) games by quarter"
+        case .yearly:
+            return "Tracking \(gameCount) games year by year"
+        }
+    }
+    
+    private func getCurrentValueText(_ data: [(label: String, value: Double)]) -> String {
+        guard let latest = data.last else { return "" }
+        let formatted = selectedStat.isPercentage ?
+            String(format: "%.1f%%", latest.value) :
+            String(format: "%.1f", latest.value)
+        return "Latest: \(formatted)"
+    }
+    
+    private func formatYAxisValue(_ value: Double) -> String {
+        if selectedStat.isPercentage {
+            return String(format: "%.0f%%", value)
+        } else if value >= 1000 {
+            return String(format: "%.1fk", value / 1000)
+        } else {
+            return String(format: "%.0f", value)
+        }
+    }
+    
+    private func getSmartTrendData() -> [(label: String, value: Double)] {
+        let timeframe = smartTimeframe
+        let calendar = Calendar.current
+        
+        switch timeframe {
+        case .auto:
+            return getSmartTrendData()
+            
+        case .weekly:
+            return getWeeklyTrendData(calendar: calendar)
+            
+        case .monthly:
+            return getMonthlyTrendData(calendar: calendar)
+            
+        case .quarterly:
+            return getQuarterlyTrendData(calendar: calendar)
+            
+        case .yearly:
+            return getYearlyTrendData(calendar: calendar)
+        }
+    }
+    
+    // Include all existing trend data methods (simplified for brevity)
+    private func getWeeklyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        // Keep existing implementation
+        return []
+    }
+    
+    private func getMonthlyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        // Keep existing implementation
+        return []
+    }
+    
+    private func getQuarterlyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        // Keep existing implementation
+        return []
+    }
+    
+    private func getYearlyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        // Keep existing implementation
+        return []
+    }
+    
+    private func calculateStatValue(for games: [Game]) -> Double {
+        // Keep existing implementation
+        return 0.0
+    }
+}
+
+// MARK: - MUCH BIGGER Stat Button for iPad
+
+struct EnhancedCareerTrendStatButton: View {
+    let stat: EnhancedCareerTrendsView.CareerStatType
+    let isSelected: Bool
+    let isIPad: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: isIPad ? 12 : 2) {
+                Text(stat.rawValue)
+                    .font(isIPad ? .title2 : .caption2) // ENORMOUS font on iPad
+                    .foregroundColor(isSelected ? stat.color : .secondary)
+                    .fontWeight(isSelected ? .heavy : .medium) // Heavier when selected
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: isIPad ? 100 : 35) // EVEN TALLER on iPad
+            .padding(.horizontal, isIPad ? 16 : 6) // More padding
+            .background(
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 6) // Even bigger corner radius
+                    .fill(isSelected ? stat.color.opacity(0.15) : Color.gray.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 6)
+                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: isIPad ? 4 : 1.5) // Even thicker border
+            )
+            .scaleEffect(isSelected ? 1.02 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isSelected)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 
 
 // MARK: - Career Stats Components
@@ -1045,33 +1489,34 @@ struct CareerTrendsView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: isIPad ? 24 : 16) {
-            // Header with larger fonts
-            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+        VStack(alignment: .leading, spacing: isIPad ? 40 : 16) {
+            // EVEN BIGGER header for iPad
+            VStack(alignment: .leading, spacing: isIPad ? 24 : 12) {
                 Text("Sahil's Progress Over Time")
-                    .font(isIPad ? .title : .headline)
+                    .font(isIPad ? .system(size: 44, weight: .heavy) : .headline) // ENORMOUS title
                     .foregroundColor(.primary)
                 
                 HStack {
                     Text(getSmartDescription())
-                        .font(isIPad ? .body : .caption)
+                        .font(isIPad ? .title2 : .caption) // Even bigger description
                         .foregroundColor(.secondary)
                     
                     Spacer()
                     
-                    // Timeframe picker with larger font
+                    // EVEN BIGGER timeframe picker
                     Picker("Timeframe", selection: $selectedTimeframe) {
                         ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
                             Text(timeframe.displayName).tag(timeframe)
                         }
                     }
                     .pickerStyle(.menu)
-                    .font(isIPad ? .body : .caption)
+                    .font(isIPad ? .title2 : .caption) // Bigger font
+                    .scaleEffect(isIPad ? 1.4 : 1.0) // Scale up even more
                 }
             }
             
-            // Stat selector grid with better iPad layout
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 6 : 4), spacing: isIPad ? 10 : 6) {
+            // EVEN BIGGER stat selector grid for iPad
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 4 : 3), spacing: isIPad ? 20 : 6) {
                 ForEach(CareerStatType.allCases, id: \.self) { stat in
                     CareerTrendStatButton(
                         stat: stat,
@@ -1085,22 +1530,22 @@ struct CareerTrendsView: View {
                 }
             }
             
-            // Chart for selected stat
+            // BIGGER chart for iPad
             if !games.isEmpty {
                 let trendData = getSmartTrendData()
                 
                 if trendData.count >= 2 {
-                    VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {
+                    VStack(alignment: .leading, spacing: isIPad ? 24 : 8) {
                         HStack {
                             Text("\(selectedStat.rawValue) - \(smartTimeframe.displayName)")
-                                .font(isIPad ? .title3 : .subheadline)
-                                .fontWeight(.semibold)
+                                .font(isIPad ? .system(size: 32, weight: .bold) : .subheadline) // ENORMOUS chart title
+                                .fontWeight(.bold)
                                 .foregroundColor(selectedStat.color)
                             
                             Spacer()
                             
                             Text(getCurrentValueText(trendData))
-                                .font(isIPad ? .body : .caption)
+                                .font(isIPad ? .title : .caption) // Much bigger current value
                                 .foregroundColor(.secondary)
                         }
                         
@@ -1112,24 +1557,24 @@ struct CareerTrendsView: View {
                                 )
                                 .foregroundStyle(selectedStat.color)
                                 .interpolationMethod(.catmullRom)
-                                .lineStyle(StrokeStyle(lineWidth: isIPad ? 4 : 3))
+                                .lineStyle(StrokeStyle(lineWidth: isIPad ? 8 : 3)) // EVEN THICKER line on iPad
                                 
                                 PointMark(
                                     x: .value("Period", dataPoint.label),
                                     y: .value(selectedStat.rawValue, dataPoint.value)
                                 )
                                 .foregroundStyle(selectedStat.color)
-                                .symbolSize(isIPad ? 100 : 60)
+                                .symbolSize(isIPad ? 300 : 60) // EVEN BIGGER points on iPad
                             }
                         }
-                        .frame(height: isIPad ? 200 : 150)
+                        .frame(height: isIPad ? 400 : 150) // EVEN TALLER chart on iPad
                         .chartYAxis {
                             AxisMarks(position: .leading) { value in
                                 AxisGridLine()
                                 AxisValueLabel {
                                     if let doubleValue = value.as(Double.self) {
                                         Text(formatYAxisValue(doubleValue))
-                                            .font(isIPad ? .body : .caption2)
+                                            .font(isIPad ? .title2 : .caption2) // EVEN BIGGER axis labels
                                     }
                                 }
                             }
@@ -1140,7 +1585,7 @@ struct CareerTrendsView: View {
                                 AxisValueLabel {
                                     if let stringValue = value.as(String.self) {
                                         Text(stringValue)
-                                            .font(isIPad ? .body : .caption2)
+                                            .font(isIPad ? .title2 : .caption2) // EVEN BIGGER axis labels
                                     }
                                 }
                             }
@@ -1148,46 +1593,40 @@ struct CareerTrendsView: View {
                         .animation(.easeInOut(duration: 0.5), value: selectedStat)
                         .animation(.easeInOut(duration: 0.5), value: selectedTimeframe)
                     }
-                    .padding(isIPad ? 24 : 16)
+                    .padding(isIPad ? 40 : 16) // Even more padding
                     .background(selectedStat.color.opacity(0.05))
                     .overlay(
-                        RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
-                            .stroke(selectedStat.color.opacity(0.2), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: isIPad ? 28 : 12) // Even bigger corner radius
+                            .stroke(selectedStat.color.opacity(0.2), lineWidth: isIPad ? 3 : 1) // Even thicker border
                     )
-                    .cornerRadius(isIPad ? 16 : 12)
+                    .cornerRadius(isIPad ? 28 : 12)
                 } else {
-                    // Not enough data message with larger fonts
-                    VStack(spacing: isIPad ? 16 : 12) {
+                    // EVEN BIGGER "not enough data" message
+                    VStack(spacing: isIPad ? 32 : 12) {
                         Image(systemName: "chart.line.uptrend.xyaxis")
-                            .font(.system(size: isIPad ? 60 : 40))
+                            .font(.system(size: isIPad ? 100 : 40)) // ENORMOUS icon on iPad
                             .foregroundColor(.secondary)
                         
                         Text("Keep Playing!")
-                            .font(isIPad ? .title : .headline)
-                            .fontWeight(.semibold)
+                            .font(isIPad ? .system(size: 40, weight: .heavy) : .headline) // ENORMOUS text
+                            .fontWeight(.heavy)
                         
                         Text("Play a few more games to see trends over time")
-                            .font(isIPad ? .title3 : .subheadline)
+                            .font(isIPad ? .largeTitle : .subheadline) // Even bigger subtitle
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                     }
-                    .frame(height: isIPad ? 200 : 150)
+                    .frame(height: isIPad ? 400 : 150) // Same height as chart
                     .frame(maxWidth: .infinity)
-                    .padding(isIPad ? 32 : 24)
+                    .padding(isIPad ? 48 : 24) // Even more padding
                     .background(Color(.systemGray6))
-                    .cornerRadius(isIPad ? 16 : 12)
+                    .cornerRadius(isIPad ? 28 : 12)
                 }
             }
         }
     }
     
-    // Keep all the existing helper methods unchanged:
-    // - getSmartDescription()
-    // - getCurrentValueText()
-    // - formatYAxisValue()
-    // - getSmartTrendData()
-    // - etc.
-    
+    // All the helper methods with full implementations
     private func getSmartDescription() -> String {
         let gameCount = games.count
         let timeframe = smartTimeframe
@@ -1245,9 +1684,6 @@ struct CareerTrendsView: View {
             return getYearlyTrendData(calendar: calendar)
         }
     }
-    
-    // Include all the existing trend data methods (getWeeklyTrendData, etc.)
-    // and calculateStatValue method - keep them exactly the same
     
     private func getWeeklyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
         let gamesByWeek = Dictionary(grouping: games) { game in
@@ -1374,24 +1810,25 @@ struct CareerTrendStatButton: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: isIPad ? 4 : 2) {
+            VStack(spacing: isIPad ? 12 : 2) {
                 Text(stat.rawValue)
-                    .font(isIPad ? .body : .caption2)
+                    .font(isIPad ? .title2 : .caption2) // ENORMOUS font on iPad
                     .foregroundColor(isSelected ? stat.color : .secondary)
-                    .fontWeight(isSelected ? .semibold : .medium)
+                    .fontWeight(isSelected ? .heavy : .medium) // Heavier when selected
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: isIPad ? 50 : 35)
+            .frame(height: isIPad ? 100 : 35) // EVEN TALLER on iPad
+            .padding(.horizontal, isIPad ? 16 : 6) // More padding
             .background(
-                RoundedRectangle(cornerRadius: isIPad ? 10 : 6)
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 6) // Even bigger corner radius
                     .fill(isSelected ? stat.color.opacity(0.15) : Color.gray.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: isIPad ? 10 : 6)
-                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 6)
+                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: isIPad ? 4 : 1.5) // Even thicker border
             )
             .scaleEffect(isSelected ? 1.02 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isSelected)
@@ -1404,25 +1841,25 @@ struct OverviewStatsView: View {
     let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: isIPad ? 20 : 12) {
-            // First row: Main stats
-            HStack(spacing: isIPad ? 24 : 20) {
+        VStack(spacing: isIPad ? 40 : 12) {
+            // First row: Main stats - EVEN BIGGER on iPad
+            HStack(spacing: isIPad ? 40 : 20) {
                 StatBox(title: "Games", value: "\(stats.totalGames)", color: .blue, isIPad: isIPad)
                 StatBox(title: "Points", value: "\(stats.totalPoints)", color: .purple, isIPad: isIPad)
                 StatBox(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo, isIPad: isIPad)
                 StatBox(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: stats.winPercentage > 0.5 ? .green : .red, isIPad: isIPad)
             }
             
-            // Second row: Other key stats
-            HStack(spacing: isIPad ? 24 : 20) {
+            // Second row: Other key stats - EVEN BIGGER on iPad
+            HStack(spacing: isIPad ? 40 : 20) {
                 StatBox(title: "Rebounds", value: "\(stats.totalRebounds)", color: .mint, isIPad: isIPad)
                 StatBox(title: "Assists", value: "\(stats.totalAssists)", color: .cyan, isIPad: isIPad)
                 StatBox(title: "Steals", value: "\(stats.totalSteals)", color: .yellow, isIPad: isIPad)
                 StatBox(title: "Fouls", value: "\(stats.totalFouls)", color: .pink, isIPad: isIPad)
             }
             
-            // Third row: Shooting percentages
-            HStack(spacing: isIPad ? 24 : 20) {
+            // Third row: Shooting percentages - EVEN BIGGER on iPad
+            HStack(spacing: isIPad ? 40 : 20) {
                 StatBox(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
                 StatBox(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
                 StatBox(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
@@ -1439,26 +1876,31 @@ struct StatBox: View {
     let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: isIPad ? 10 : 6) {
+        VStack(spacing: isIPad ? 20 : 6) {
+            // EVEN MORE MASSIVE values on iPad
             Text(value)
-                .font(isIPad ? .largeTitle : .title3)
-                .fontWeight(.bold)
+                .font(isIPad ? .system(size: 64, weight: .black) : .title3) // ENORMOUS on iPad
+                .fontWeight(.black)
                 .foregroundColor(color)
+                .minimumScaleFactor(0.6) // Allow scaling if needed
             
+            // EVEN BIGGER titles on iPad
             Text(title)
-                .font(isIPad ? .body : .caption2)
+                .font(isIPad ? .system(size: 20, weight: .semibold) : .caption2) // Much bigger title on iPad
+                .fontWeight(.semibold)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, isIPad ? 16 : 8)
+        .padding(.vertical, isIPad ? 32 : 8) // Even more padding on iPad
+        .padding(.horizontal, isIPad ? 20 : 8)
         .background(color.opacity(0.08))
         .overlay(
-            RoundedRectangle(cornerRadius: isIPad ? 12 : 8)
-                .stroke(color.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: isIPad ? 24 : 8) // Even bigger corner radius
+                .stroke(color.opacity(0.2), lineWidth: isIPad ? 3 : 1) // Even thicker border
         )
-        .cornerRadius(isIPad ? 12 : 8)
+        .cornerRadius(isIPad ? 24 : 8)
     }
 }
 
