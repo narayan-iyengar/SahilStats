@@ -67,11 +67,11 @@ struct GameSetupView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingPostGameView) {
-            PostGameFullScreenWrapper(gameConfig: gameConfig) {
-                showingPostGameView = false
+        .fullScreenCover(isPresented: $showingLiveGameView) {
+            if let liveGame = createdLiveGame {
+                LiveGameView()
+                    .environmentObject(authService)
             }
-            .environmentObject(authService)
         }
     }
 

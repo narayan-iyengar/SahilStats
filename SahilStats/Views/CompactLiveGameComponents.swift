@@ -562,30 +562,59 @@ struct LiveGameWatchView: View {
 
 struct NoLiveGameView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "basketball.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.gray)
+        VStack(spacing: isIPad ? 32 : 24) {
+            Spacer()
             
-            Text("No Live Game")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("There's no live game currently in progress.")
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            
-            if authService.showAdminFeatures {
-                NavigationLink("Start New Live Game") {
-                    GameSetupView()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            // Icon and message
+            VStack(spacing: isIPad ? 24 : 20) {
+                Image(systemName: "basketball.fill")
+                    .font(.system(size: isIPad ? 100 : 80))
+                    .foregroundColor(.orange.opacity(0.6))
+                
+                Text("No Live Game")
+                    .font(isIPad ? .largeTitle : .title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text("There's no live game currently in progress.")
+                    .font(isIPad ? .title3 : .body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
+            
+            Spacer()
+            
+            // Action buttons
+            VStack(spacing: isIPad ? 20 : 16) {
+                if authService.showAdminFeatures {
+                    NavigationLink("Start New Live Game") {
+                        GameSetupView()
+                    }
+                    .buttonStyle(CustomPrimaryButtonStyle(isIPad: isIPad))
+                }
+                
+                // Back to Dashboard button
+                Button("Back to Dashboard") {
+                    dismiss()
+                }
+                .buttonStyle(CustomSecondaryButtonStyle(isIPad: isIPad))
+            }
+            .padding(.horizontal, isIPad ? 40 : 24)
+            
+            Spacer()
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
     }
 }
 
