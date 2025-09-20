@@ -186,12 +186,12 @@ struct PostGameScoreButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(isIPad ? .title2 : .title3)
+            .font(isIPad ? .system(size: 24, weight: .bold) : .title3) // BIGGER on iPad
             .fontWeight(.bold)
             .foregroundColor(.white)
-            .frame(width: isIPad ? 50 : 40, height: isIPad ? 50 : 40)
+            .frame(width: isIPad ? 56 : 40, height: isIPad ? 56 : 40) // BIGGER on iPad
             .background(Color.blue)
-            .cornerRadius(isIPad ? 12 : 10)
+            .cornerRadius(isIPad ? 16 : 10) // BIGGER corner radius on iPad
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
     }
@@ -202,35 +202,58 @@ struct PostGamePrimaryButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(isIPad ? .title3 : .headline)
+            .font(isIPad ? .system(size: 20, weight: .semibold) : .headline) // BIGGER on iPad
             .fontWeight(.semibold)
             .foregroundColor(.white)
-            .padding(.horizontal, isIPad ? 32 : 24)
-            .padding(.vertical, isIPad ? 16 : 12)
+            .padding(.horizontal, isIPad ? 40 : 24) // MORE padding on iPad
+            .padding(.vertical, isIPad ? 20 : 12) // MORE padding on iPad
             .background(Color.orange)
-            .cornerRadius(isIPad ? 16 : 12)
+            .cornerRadius(isIPad ? 20 : 12) // BIGGER corner radius on iPad
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
     }
 }
+
+
+struct LiveStatButtonStyle: ButtonStyle {
+    let color: Color
+    let isIPad: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .title3 : .headline)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: isIPad ? 44 : 36, height: isIPad ? 44 : 36)
+            .background(color)
+            .overlay(
+                RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+            .cornerRadius(isIPad ? 12 : 10)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .shadow(color: color.opacity(0.3), radius: configuration.isPressed ? 2 : 4, x: 0, y: configuration.isPressed ? 1 : 2)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 
 struct PostGameSecondaryButtonStyle: ButtonStyle {
     let isIPad: Bool
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(isIPad ? .title3 : .headline)
+            .font(isIPad ? .system(size: 18, weight: .medium) : .headline) // BIGGER on iPad
             .fontWeight(.medium)
             .foregroundColor(.secondary)
-            .padding(.horizontal, isIPad ? 32 : 24)
-            .padding(.vertical, isIPad ? 16 : 12)
+            .padding(.horizontal, isIPad ? 40 : 24) // MORE padding on iPad
+            .padding(.vertical, isIPad ? 20 : 12) // MORE padding on iPad
             .background(Color(.systemGray5))
-            .cornerRadius(isIPad ? 16 : 12)
+            .cornerRadius(isIPad ? 20 : 12) // BIGGER corner radius on iPad
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
     }
 }
-
 
 
 

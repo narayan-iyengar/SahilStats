@@ -918,6 +918,435 @@ struct ShootingStatCard: View {
     }
 }
 
+// MARK: - Enhanced Points Summary for Live Games
+struct EnhancedLivePointsSummaryCard: View {
+    let stats: PlayerStats
+    let teamScore: Int
+    let isIPad: Bool
+    
+    private var sahilPoints: Int {
+        return (stats.fg2m * 2) + (stats.fg3m * 3) + stats.ftm
+    }
+    
+    private var sahilContribution: Double {
+        return teamScore > 0 ? Double(sahilPoints) / Double(teamScore) * 100 : 0
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 16 : 12) {
+            // Header with live indicators
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 8, height: 8)
+                        .opacity(0.8)
+                        .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                    
+                    Text("Live Points")
+                        .font(isIPad ? .title2 : .headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.red)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(sahilPoints) / \(teamScore)")
+                        .font(isIPad ? .title2 : .headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.purple)
+                    
+                    if sahilContribution > 0 {
+                        Text("\(Int(sahilContribution))% of team")
+                            .font(isIPad ? .caption : .caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // Points breakdown
+            HStack(spacing: isIPad ? 24 : 20) {
+                LivePointBreakdownItem(
+                    title: "2PT",
+                    made: stats.fg2m,
+                    points: stats.fg2m * 2,
+                    color: .blue,
+                    isIPad: isIPad
+                )
+                
+                LivePointBreakdownItem(
+                    title: "3PT",
+                    made: stats.fg3m,
+                    points: stats.fg3m * 3,
+                    color: .green,
+                    isIPad: isIPad
+                )
+                
+                LivePointBreakdownItem(
+                    title: "FT",
+                    made: stats.ftm,
+                    points: stats.ftm,
+                    color: .orange,
+                    isIPad: isIPad
+                )
+            }
+        }
+        .padding(isIPad ? 24 : 16)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.purple.opacity(0.1), Color.red.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                .stroke(Color.purple.opacity(0.3), lineWidth: 2)
+        )
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+// MARK: SmartShootingStatCard
+
+struct SmartShootingStatCard: View {
+    let title: String
+    let shotType: ShotType
+    @Binding var made: Int
+    @Binding var attempted: Int
+    var liveScore: Binding<Int>? = nil // Optional live score binding for live games
+    let isIPad: Bool
+    let onStatChange: () -> Void
+    
+    enum ShotType {
+        case twoPoint
+        case threePoint
+        case freeThrow
+        
+        var pointValue: Int {
+            switch self {
+            case .twoPoint: return 2
+            case .threePoint: return 3
+            case .freeThrow: return 1
+            }
+        }
+        
+        var madeTitle: String {
+            switch self {
+            case .twoPoint: return "2PT Made"
+            case .threePoint: return "3PT Made"
+            case .freeThrow: return "FT Made"
+            }
+        }
+        
+        var attemptedTitle: String {
+            switch self {
+            case .twoPoint: return "2PT Att"
+            case .threePoint: return "3PT Att"
+            case .freeThrow: return "FT Att"
+            }
+        }
+        
+        var shotEmoji: String {
+            switch self {
+            case .twoPoint: return "🏀"
+            case .threePoint: return "🎯"
+            case .freeThrow: return "🎪"
+            }
+        }
+    }
+    
+    // Computed property to check if this is a live game
+    private var isLiveGame: Bool {
+        liveScore != nil
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 12) {
+            // Clean header - just the title
+            Text(title)
+                .font(isIPad ? .title3 : .subheadline)
+                .foregroundColor(.primary)
+                .fontWeight(.semibold)
+            
+            // Made shots section
+            VStack(spacing: isIPad ? 12 : 8) {
+                Text(shotType.madeTitle)
+                    .font(isIPad ? .body : .subheadline)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: isIPad ? 16 : 12) {
+                    Button("-") {
+                        decrementMade()
+                    }
+                    .buttonStyle(LiveStatButtonStyle(color: .red, isIPad: isIPad))
+                    .disabled(made <= 0)
+                    
+                    Text("\(made)")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.bold)
+                        .frame(minWidth: isIPad ? 40 : 35)
+                        .foregroundColor(.primary)
+                    
+                    Button("+") {
+                        incrementMade()
+                    }
+                    .buttonStyle(LiveStatButtonStyle(color: .green, isIPad: isIPad))
+                }
+            }
+            
+            // Attempted shots section
+            VStack(spacing: isIPad ? 12 : 8) {
+                Text(shotType.attemptedTitle)
+                    .font(isIPad ? .body : .subheadline)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: isIPad ? 16 : 12) {
+                    Button("-") {
+                        decrementAttempted()
+                    }
+                    .buttonStyle(LiveStatButtonStyle(color: .red, isIPad: isIPad))
+                    .disabled(attempted <= made)
+                    
+                    Text("\(attempted)")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.bold)
+                        .frame(minWidth: isIPad ? 40 : 35)
+                        .foregroundColor(.primary)
+                    
+                    Button("+") {
+                        incrementAttempted()
+                    }
+                    .buttonStyle(LiveStatButtonStyle(color: .orange, isIPad: isIPad))
+                }
+            }
+            
+            // Clean bottom section - just percentage and points
+            HStack {
+                if attempted > 0 {
+                    let percentage = Double(made) / Double(attempted) * 100
+                    Text("\(Int(percentage))%")
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                if made > 0 {
+                    let totalPoints = made * shotType.pointValue
+                    Text("\(totalPoints) pts")
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(shotType == .twoPoint ? .blue : (shotType == .threePoint ? .green : .orange))
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .padding(.vertical, isIPad ? 20 : 16)
+        .padding(.horizontal, isIPad ? 20 : 16)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+    
+    // MARK: - Enhanced Smart Logic Methods with Live Score Integration
+    
+    private func incrementMade() {
+        // When making a shot in a live game:
+        // 1. Increment both made and attempted
+        // 2. Add points to live score
+        made += 1
+        attempted += 1
+        
+        // Add points to live score if this is a live game
+        if let liveScoreBinding = liveScore {
+            liveScoreBinding.wrappedValue += shotType.pointValue
+        }
+        
+        onStatChange()
+    }
+    
+    private func decrementMade() {
+        // When removing a made shot:
+        // 1. Decrement made
+        // 2. Subtract points from live score (if live game)
+        if made > 0 {
+            made -= 1
+            
+            // Subtract points from live score if this is a live game
+            if let liveScoreBinding = liveScore {
+                liveScoreBinding.wrappedValue = max(0, liveScoreBinding.wrappedValue - shotType.pointValue)
+            }
+            
+            onStatChange()
+        }
+    }
+    
+    private func incrementAttempted() {
+        // When adding a missed shot: increment only attempted
+        // No score change since it's a miss
+        attempted += 1
+        onStatChange()
+    }
+    
+    private func decrementAttempted() {
+        // When removing an attempt: decrement attempted (but not below made)
+        // No score change since we're just removing a miss
+        if attempted > made {
+            attempted -= 1
+            onStatChange()
+        }
+    }
+}
+
+
+// MARK: - Points Summary Card
+
+struct PointsSummaryCard: View {
+    let gameStats: GameStatsData
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 16 : 12) {
+            HStack {
+                Text("Points Breakdown")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.purple)
+                Spacer()
+                // Use calculated points instead of binding
+                Text("\(gameStats.calculatedPoints) Total")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.purple)
+            }
+            
+            HStack(spacing: isIPad ? 24 : 20) {
+                PointBreakdownItem(
+                    title: "2PT",
+                    made: gameStats.playerStats.fg2m,
+                    points: gameStats.playerStats.fg2m * 2,
+                    color: .blue,
+                    isIPad: isIPad
+                )
+                
+                PointBreakdownItem(
+                    title: "3PT",
+                    made: gameStats.playerStats.fg3m,
+                    points: gameStats.playerStats.fg3m * 3,
+                    color: .green,
+                    isIPad: isIPad
+                )
+                
+                PointBreakdownItem(
+                    title: "FT",
+                    made: gameStats.playerStats.ftm,
+                    points: gameStats.playerStats.ftm,
+                    color: .orange,
+                    isIPad: isIPad
+                )
+            }
+        }
+        .padding(isIPad ? 24 : 16)
+        .background(Color.purple.opacity(0.1))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+struct PointBreakdownItem: View {
+    let title: String
+    let made: Int
+    let points: Int
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 8 : 6) {
+            Text(title)
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(color)
+                .fontWeight(.medium)
+            
+            Text("\(made) × \(title == "3PT" ? 3 : (title == "2PT" ? 2 : 1))")
+                .font(isIPad ? .caption : .caption2)
+                .foregroundColor(.secondary)
+            
+            Text("\(points)")
+                .font(isIPad ? .title2 : .title3)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 12 : 8)
+        .background(color.opacity(0.1))
+        .cornerRadius(isIPad ? 12 : 8)
+    }
+}
+
+// MARK: Regular Stat Card
+struct RegularStatCard: View {
+    let title: String
+    @Binding var value: Int
+    let min: Int
+    let max: Int?
+    let isIPad: Bool
+    let onStatChange: () -> Void
+    
+    init(title: String, value: Binding<Int>, min: Int = 0, max: Int? = nil, isIPad: Bool, onStatChange: @escaping () -> Void) {
+        self.title = title
+        self._value = value
+        self.min = min
+        self.max = max
+        self.isIPad = isIPad
+        self.onStatChange = onStatChange
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 12 : 10) {
+            Text(title)
+                .font(isIPad ? .title3 : .subheadline)
+                .foregroundColor(.primary)
+                .fontWeight(.medium)
+            
+            HStack(spacing: isIPad ? 16 : 12) {
+                Button("-") {
+                    if value > min {
+                        value -= 1
+                        onStatChange()
+                    }
+                }
+                .buttonStyle(CleanStatButtonStyle(color: .red, isIPad: isIPad))
+                .disabled(value <= min)
+                
+                Text("\(value)")
+                    .font(isIPad ? .title2 : .title3)
+                    .fontWeight(.bold)
+                    .frame(minWidth: isIPad ? 40 : 35)
+                    .foregroundColor(.primary)
+                
+                Button("+") {
+                    if let max = max, value >= max {
+                        // Don't increment if at max
+                    } else {
+                        value += 1
+                        onStatChange()
+                    }
+                }
+                .buttonStyle(CleanStatButtonStyle(color: .green, isIPad: isIPad))
+                .disabled(max != nil && value >= max!)
+            }
+        }
+        .padding(.vertical, isIPad ? 20 : 16)
+        .padding(.horizontal, isIPad ? 20 : 16)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
 // MARK: - Clean Stat Card for Detailed Stats Entry
 
 struct CleanStatCard: View {
