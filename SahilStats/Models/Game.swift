@@ -252,102 +252,8 @@ struct Game: Identifiable, Codable {
     }
 }
 
-// MARK: - Live Game Model
 
-struct LiveGame: Identifiable, Codable, Equatable {
-    @DocumentID var id: String?
-    var teamName: String
-    var opponent: String
-    var location: String?
-    var gameFormat: GameFormat
-    var periodLength: Int
-    var numPeriods: Int
-    
-    // Live game state
-    var isRunning: Bool
-    var period: Int
-    var clock: TimeInterval
-    var clockStartTime: Date? // When the clock was last started
-    var clockAtStart: TimeInterval? // Clock value when started
-    
-    // Device Control System
-    var controllingDeviceId: String? // Which device has control
-    var controllingUserEmail: String? // Which user has control
-    var controlRequestedBy: String? // User requesting control
-    var lastClockUpdate: Date? // Server timestamp of last clock update
-    
-    // Current scores
-    var homeScore: Int
-    var awayScore: Int
-    
-    // Player stats
-    var playerStats: PlayerStats
-    
-    // Metadata
-    @ServerTimestamp var createdAt: Date?
-    var createdBy: String?
-    var sahilOnBench: Bool?
-    
-    // Computed properties
-    var isGameOver: Bool {
-        period >= numPeriods && clock <= 0 && !isRunning
-    }
-    
-    // Calculate current clock based on server time (prevents drift)
-    func getCurrentClock() -> TimeInterval {
-        guard isRunning,
-              let startTime = clockStartTime,
-              let clockAtStart = clockAtStart,
-              let lastUpdate = lastClockUpdate else {
-            return clock
-        }
-        
-        let elapsedTime = Date().timeIntervalSince(startTime)
-        let currentClock = max(0, clockAtStart - elapsedTime)
-        
-        // If clock should be at 0, return 0
-        return currentClock
-    }
-    
-    var currentClockDisplay: String {
-        let currentTime = getCurrentClock()
-        if currentTime <= 59 {
-            return String(format: "%.1f", currentTime)
-        } else {
-            let minutes = Int(currentTime) / 60
-            let seconds = Int(currentTime) % 60
-            return String(format: "%02d:%02d", minutes, seconds)
-        }
-    }
-    
-    var periodName: String {
-        gameFormat == .halves ? "Half" : "Period"
-    }
-    
-    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, periodLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
-           self.teamName = teamName
-           self.opponent = opponent
-           self.location = location
-           self.gameFormat = gameFormat
-           self.periodLength = periodLength
-           self.numPeriods = gameFormat == .halves ? 2 : 4
-           self.isRunning = false
-           self.period = 1
-           self.clock = TimeInterval(periodLength * 60)
-           self.clockStartTime = nil
-           self.clockAtStart = TimeInterval(periodLength * 60)
-           self.controllingDeviceId = deviceId // Set the controlling device ID
-           self.controllingUserEmail = createdBy
-           self.controlRequestedBy = nil
-           self.lastClockUpdate = nil
-           self.homeScore = 0
-           self.awayScore = 0
-           self.playerStats = PlayerStats()
-           self.createdAt = Date()
-           self.createdBy = createdBy
-           self.sahilOnBench = false
-       }
-   }
+
 
 // MARK: - Player Stats
 struct PlayerStats: Codable, Equatable {
@@ -617,7 +523,117 @@ struct Achievement: Codable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Extensions for Firebase Compatibility
+// MARK: - Live Game Model (Enhanced with Control Request Tracking)
+
+struct LiveGame: Identifiable, Codable, Equatable {
+    @DocumentID var id: String?
+    var teamName: String
+    var opponent: String
+    var location: String?
+    var gameFormat: GameFormat
+    var periodLength: Int
+    var numPeriods: Int
+    
+    // Live game state
+    var isRunning: Bool
+    var period: Int
+    var clock: TimeInterval
+    var clockStartTime: Date? // When the clock was last started
+    var clockAtStart: TimeInterval? // Clock value when started
+    
+    // Enhanced Device Control System
+    var controllingDeviceId: String? // Which device has control
+    var controllingUserEmail: String? // Which user has control
+    var controlRequestedBy: String? // User requesting control
+    var controlRequestingDeviceId: String? // Device requesting control
+    var controlRequestTimestamp: Date? // NEW: When the control request was made
+    var lastClockUpdate: Date? // Server timestamp of last clock update
+    
+    // Current scores
+    var homeScore: Int
+    var awayScore: Int
+    
+    // Player stats
+    var playerStats: PlayerStats
+    
+    // Metadata
+    @ServerTimestamp var createdAt: Date?
+    var createdBy: String?
+    var sahilOnBench: Bool?
+    
+    // Computed properties
+    var isGameOver: Bool {
+        period >= numPeriods && clock <= 0 && !isRunning
+    }
+    
+    // Calculate current clock based on server time (prevents drift)
+    func getCurrentClock() -> TimeInterval {
+        // If game is not running, return the static clock value
+        guard isRunning else {
+            return clock
+        }
+        
+        // If game is running but we don't have proper timing data, return static clock
+        guard let startTime = clockStartTime,
+              let clockAtStart = clockAtStart else {
+            return clock
+        }
+        
+        // Calculate how much time has elapsed since the clock started
+        let elapsedTime = Date().timeIntervalSince(startTime)
+        
+        // Calculate current clock value
+        let currentClock = max(0, clockAtStart - elapsedTime)
+        
+        return currentClock
+    }
+    
+    var currentClockDisplay: String {
+        let currentTime = getCurrentClock()
+        if currentTime <= 59 {
+            return String(format: "%.1f", currentTime)
+        } else {
+            let minutes = Int(currentTime) / 60
+            let seconds = Int(currentTime) % 60
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+    
+    var periodName: String {
+        gameFormat == .halves ? "Half" : "Period"
+    }
+    
+    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, periodLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
+           self.teamName = teamName
+           self.opponent = opponent
+           self.location = location
+           self.gameFormat = gameFormat
+           self.periodLength = periodLength
+           self.numPeriods = gameFormat == .halves ? 2 : 4
+           self.isRunning = false
+           self.period = 1
+           self.clock = TimeInterval(periodLength * 60)
+           self.clockStartTime = nil
+           self.clockAtStart = TimeInterval(periodLength * 60)
+           
+           // AUTO-GRANT CONTROL: Set the creating device as the controller
+           self.controllingDeviceId = deviceId
+           self.controllingUserEmail = createdBy
+           self.controlRequestedBy = nil
+           self.controlRequestingDeviceId = nil
+           self.controlRequestTimestamp = nil
+           self.lastClockUpdate = nil
+           
+           self.homeScore = 0
+           self.awayScore = 0
+           self.playerStats = PlayerStats()
+           self.createdAt = Date()
+           self.createdBy = createdBy
+           self.sahilOnBench = false
+       }
+   }
+
+// MARK: - Extensions for Firebase Compatibility (Updated)
 extension LiveGame {
     init(from document: QueryDocumentSnapshot) throws {
         let data = document.data()
@@ -675,6 +691,31 @@ extension LiveGame {
         self.clock = data["clock"] as? TimeInterval ?? TimeInterval(self.periodLength * 60)
         self.clockStartTime = clockStartTime
         self.clockAtStart = data["clockAtStart"] as? TimeInterval ?? TimeInterval(self.periodLength * 60)
+        
+        // Enhanced control fields
+        self.controllingDeviceId = data["controllingDeviceId"] as? String
+        self.controllingUserEmail = data["controllingUserEmail"] as? String
+        self.controlRequestedBy = data["controlRequestedBy"] as? String
+        self.controlRequestingDeviceId = data["controlRequestingDeviceId"] as? String
+        
+        // Parse controlRequestTimestamp
+        if let timestampData = data["controlRequestTimestamp"] as? Timestamp {
+            self.controlRequestTimestamp = timestampData.dateValue()
+        } else if let timestampDouble = data["controlRequestTimestamp"] as? Double {
+            self.controlRequestTimestamp = Date(timeIntervalSince1970: timestampDouble)
+        } else {
+            self.controlRequestTimestamp = nil
+        }
+        
+        // Parse lastClockUpdate
+        if let lastUpdateData = data["lastClockUpdate"] as? Timestamp {
+            self.lastClockUpdate = lastUpdateData.dateValue()
+        } else if let lastUpdateDouble = data["lastClockUpdate"] as? Double {
+            self.lastClockUpdate = Date(timeIntervalSince1970: lastUpdateDouble)
+        } else {
+            self.lastClockUpdate = nil
+        }
+        
         self.homeScore = data["homeScore"] as? Int ?? 0
         self.awayScore = data["awayScore"] as? Int ?? 0
         self.playerStats = playerStats

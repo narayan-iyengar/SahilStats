@@ -41,9 +41,6 @@ struct PostGameStatsView: View {
                 // Stats Entry
                 PlayerStatsEntrySection(stats: $gameStats.playerStats, isIPad: isIPad)
                 
-                // Quick Actions
-                QuickStatsButtons(stats: $gameStats.playerStats, isIPad: isIPad)
-                
                 // Achievements Preview
                 AchievementsPreview(stats: gameStats)
                 
@@ -690,69 +687,8 @@ struct CalculatedStatCard: View {
     }
 }
 
-struct QuickStatsButtons: View {
-    @Binding var stats: PlayerStats
-    let isIPad: Bool
-    
-    var body: some View {
-        VStack(spacing: isIPad ? 16 : 12) {
-            Text("Quick Actions")
-                .font(isIPad ? .title2 : .headline)
-            
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: isIPad ? 12 : 8) {
-                QuickActionButton(title: "2PT Made", color: .blue, isIPad: isIPad) {
-                    stats.fg2m += 1
-                    stats.fg2a += 1
-                }
-                
-                QuickActionButton(title: "3PT Made", color: .green, isIPad: isIPad) {
-                    stats.fg3m += 1
-                    stats.fg3a += 1
-                }
-                
-                QuickActionButton(title: "FT Made", color: .orange, isIPad: isIPad) {
-                    stats.ftm += 1
-                    stats.fta += 1
-                }
-                
-                QuickActionButton(title: "Rebound", color: .mint, isIPad: isIPad) {
-                    stats.rebounds += 1
-                }
-                
-                QuickActionButton(title: "Assist", color: .cyan, isIPad: isIPad) {
-                    stats.assists += 1
-                }
-                
-                QuickActionButton(title: "Steal", color: .yellow, isIPad: isIPad) {
-                    stats.steals += 1
-                }
-            }
-        }
-        .padding(isIPad ? 20 : 16)
-        .background(Color(.systemGray6))
-        .cornerRadius(isIPad ? 16 : 12)
-    }
-}
 
-struct QuickActionButton: View {
-    let title: String
-    let color: Color
-    let isIPad: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(isIPad ? .body : .caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .padding(.vertical, isIPad ? 16 : 12)
-                .frame(maxWidth: .infinity)
-                .background(color)
-                .cornerRadius(isIPad ? 12 : 8)
-        }
-    }
-}
+
 
 struct AchievementsPreview: View {
     let stats: GameStatsData
