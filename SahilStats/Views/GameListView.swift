@@ -716,9 +716,13 @@ struct EnhancedCareerStatsView: View {
 
 // MARK: - Career Stats Components
 
+
+// Replace your existing CareerTrendsView with this smart version:
+
 struct CareerTrendsView: View {
     let games: [Game]
     @State private var selectedStat: CareerStatType = .avgPoints
+    @State private var selectedTimeframe: TrendTimeframe = .auto
     
     enum CareerStatType: String, CaseIterable {
         case avgPoints = "Avg Points"
@@ -727,28 +731,22 @@ struct CareerTrendsView: View {
         case totalRebounds = "Total Rebounds"
         case avgAssists = "Avg Assists"
         case totalAssists = "Total Assists"
-        case totalSteals = "Total Steals"
-        case totalBlocks = "Total Blocks"
         case fieldGoalPct = "Field Goal %"
         case threePointPct = "3-Point %"
         case freeThrowPct = "Free Throw %"
         case winPercentage = "Win Rate"
-        case assistTurnoverRatio = "A/T Ratio"
-        case gamesPerYear = "Games Played"
+        case gamesPlayed = "Games Played"
         
         var color: Color {
             switch self {
             case .totalPoints, .avgPoints: return .purple
             case .totalRebounds, .avgRebounds: return .mint
             case .totalAssists, .avgAssists: return .cyan
-            case .totalSteals: return .yellow
-            case .totalBlocks: return .red
             case .fieldGoalPct: return .blue
             case .threePointPct: return .green
             case .freeThrowPct: return .orange
             case .winPercentage: return .green
-            case .assistTurnoverRatio: return .indigo
-            case .gamesPerYear: return .blue
+            case .gamesPlayed: return .blue
             }
         }
         
@@ -771,110 +769,96 @@ struct CareerTrendsView: View {
         }
     }
     
-    // Calculate Sahil's age at the time of each game
-    private func calculateAgeAtGame(_ game: Game) -> Double {
-        let birthday = Calendar.current.date(from: DateComponents(year: 2016, month: 11, day: 1))!
-        let ageInSeconds = game.timestamp.timeIntervalSince(birthday)
-        let ageInYears = ageInSeconds / (365.25 * 24 * 60 * 60) // Account for leap years
-        return ageInYears
+    enum TrendTimeframe: String, CaseIterable {
+        case auto = "Auto"
+        case weekly = "Weekly"
+        case monthly = "Monthly"
+        case quarterly = "Quarterly"
+        case yearly = "Yearly"
+        
+        var displayName: String { rawValue }
+        
+        var description: String {
+            switch self {
+            case .auto: return "Smart timeframe based on data"
+            case .weekly: return "Week by week progress"
+            case .monthly: return "Month by month progress"
+            case .quarterly: return "Quarter by quarter progress"
+            case .yearly: return "Year by year progress"
+            }
+        }
     }
     
-    // Group games by year and calculate yearly stats
-    private func getYearlyProgressionData() -> [(age: Double, value: Double)] {
-        let calendar = Calendar.current
-        
-        // Group games by calendar year
-        let gamesByYear = Dictionary(grouping: games) { game in
-            calendar.component(.year, from: game.timestamp)
+    private var smartTimeframe: TrendTimeframe {
+        if selectedTimeframe != .auto {
+            return selectedTimeframe
         }
         
-        var yearlyData: [(age: Double, value: Double)] = []
+        // Smart timeframe selection based on data
+        let gameCount = games.count
+        let dateRange = getDateRange()
         
-        for year in gamesByYear.keys.sorted() {
-            guard let gamesInYear = gamesByYear[year] else { continue }
-            
-            // Calculate Sahil's average age during this year
-            let avgAge = gamesInYear.map { calculateAgeAtGame($0) }.reduce(0, +) / Double(gamesInYear.count)
-            
-            // Calculate the stat value for this year
-            let value = calculateYearlyStatValue(for: gamesInYear, upToYear: year, allGamesByYear: gamesByYear)
-            
-            yearlyData.append((age: avgAge, value: value))
+        if gameCount < 5 {
+            return .weekly
+        } else if dateRange.days < 60 {
+            return .weekly
+        } else if dateRange.days < 180 {
+            return .monthly
+        } else if dateRange.years < 2 {
+            return .quarterly
+        } else {
+            return .yearly
         }
-        
-        return yearlyData.sorted { $0.age < $1.age }
     }
     
-    private func calculateYearlyStatValue(for yearGames: [Game], upToYear: Int, allGamesByYear: [Int: [Game]]) -> Double {
-        let gameCount = Double(yearGames.count)
-        
-        switch selectedStat {
-        case .avgPoints:
-            return gameCount > 0 ? Double(yearGames.reduce(0) { $0 + $1.points }) / gameCount : 0
-        case .totalPoints:
-            // Cumulative total up to this year
-            let allGamesUpToYear = allGamesByYear.filter { $0.key <= upToYear }.values.flatMap { $0 }
-            return Double(allGamesUpToYear.reduce(0) { $0 + $1.points })
-        case .avgRebounds:
-            return gameCount > 0 ? Double(yearGames.reduce(0) { $0 + $1.rebounds }) / gameCount : 0
-        case .totalRebounds:
-            let allGamesUpToYear = allGamesByYear.filter { $0.key <= upToYear }.values.flatMap { $0 }
-            return Double(allGamesUpToYear.reduce(0) { $0 + $1.rebounds })
-        case .avgAssists:
-            return gameCount > 0 ? Double(yearGames.reduce(0) { $0 + $1.assists }) / gameCount : 0
-        case .totalAssists:
-            let allGamesUpToYear = allGamesByYear.filter { $0.key <= upToYear }.values.flatMap { $0 }
-            return Double(allGamesUpToYear.reduce(0) { $0 + $1.assists })
-        case .totalSteals:
-            return Double(yearGames.reduce(0) { $0 + $1.steals })
-        case .totalBlocks:
-            return Double(yearGames.reduce(0) { $0 + $1.blocks })
-        case .fieldGoalPct:
-            let totalMade = yearGames.reduce(0) { $0 + $1.fg2m + $1.fg3m }
-            let totalAttempted = yearGames.reduce(0) { $0 + $1.fg2a + $1.fg3a }
-            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
-        case .threePointPct:
-            let totalMade = yearGames.reduce(0) { $0 + $1.fg3m }
-            let totalAttempted = yearGames.reduce(0) { $0 + $1.fg3a }
-            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
-        case .freeThrowPct:
-            let totalMade = yearGames.reduce(0) { $0 + $1.ftm }
-            let totalAttempted = yearGames.reduce(0) { $0 + $1.fta }
-            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
-        case .winPercentage:
-            let wins = yearGames.filter { $0.outcome == .win }.count
-            return gameCount > 0 ? Double(wins) / gameCount * 100 : 0
-        case .assistTurnoverRatio:
-            let totalAssists = yearGames.reduce(0) { $0 + $1.assists }
-            let totalTurnovers = yearGames.reduce(0) { $0 + $1.turnovers }
-            return totalTurnovers > 0 ? Double(totalAssists) / Double(totalTurnovers) : Double(totalAssists)
-        case .gamesPerYear:
-            return gameCount
+    private func getDateRange() -> (days: Int, years: Double) {
+        guard let oldestGame = games.min(by: { $0.timestamp < $1.timestamp }),
+              let newestGame = games.max(by: { $0.timestamp < $1.timestamp }) else {
+            return (days: 0, years: 0)
         }
+        
+        let timeInterval = newestGame.timestamp.timeIntervalSince(oldestGame.timestamp)
+        let days = Int(timeInterval / (24 * 60 * 60))
+        let years = timeInterval / (365.25 * 24 * 60 * 60)
+        
+        return (days: days, years: years)
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header with stat selector
+            // Header with smart timeframe info
             VStack(alignment: .leading, spacing: 12) {
-                Text("Sahil's Development Over Time")
+                Text("Sahil's Progress Over Time")
                     .font(.headline)
                     .foregroundColor(.primary)
                 
-                Text("Track how Sahil's skills have grown as he gets older")
+                HStack {
+                    Text(getSmartDescription())
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // Timeframe picker
+                    Picker("Timeframe", selection: $selectedTimeframe) {
+                        ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
+                            Text(timeframe.displayName).tag(timeframe)
+                        }
+                    }
+                    .pickerStyle(.menu)
                     .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                // Clickable stat grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                    ForEach(CareerStatType.allCases, id: \.self) { stat in
-                        CareerTrendStatButton(
-                            stat: stat,
-                            isSelected: selectedStat == stat
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                selectedStat = stat
-                            }
+                }
+            }
+            
+            // Stat selector grid (more compact)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 6) {
+                ForEach(CareerStatType.allCases, id: \.self) { stat in
+                    CareerTrendStatButton(
+                        stat: stat,
+                        isSelected: selectedStat == stat
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            selectedStat = stat
                         }
                     }
                 }
@@ -882,80 +866,272 @@ struct CareerTrendsView: View {
             
             // Chart for selected stat
             if !games.isEmpty {
-                let yearlyData = getYearlyProgressionData()
+                let trendData = getSmartTrendData()
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("\(selectedStat.rawValue) by Age")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(selectedStat.color)
-                        
-                        Spacer()
-                        
-                        // Show current age and value
-                        let currentAge = calculateAgeAtGame(games.first ?? Game(teamName: "", opponent: ""))
-                        let currentValue = yearlyData.last?.value ?? 0
-                        Text("Age \(String(format: "%.1f", currentAge)): \(String(format: selectedStat.isPercentage ? "%.1f" : "%.1f", currentValue))\(selectedStat.unit)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Chart {
-                        ForEach(yearlyData, id: \.age) { dataPoint in
-                            LineMark(
-                                x: .value("Age", dataPoint.age),
-                                y: .value(selectedStat.rawValue, dataPoint.value)
-                            )
-                            .foregroundStyle(selectedStat.color)
-                            .interpolationMethod(.catmullRom)
+                if trendData.count >= 2 {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("\(selectedStat.rawValue) - \(smartTimeframe.displayName)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(selectedStat.color)
                             
-                            PointMark(
-                                x: .value("Age", dataPoint.age),
-                                y: .value(selectedStat.rawValue, dataPoint.value)
-                            )
-                            .foregroundStyle(selectedStat.color)
-                            .symbolSize(40)
+                            Spacer()
+                            
+                            Text(getCurrentValueText(trendData))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
+                        
+                        Chart {
+                            ForEach(Array(trendData.enumerated()), id: \.offset) { index, dataPoint in
+                                LineMark(
+                                    x: .value("Period", dataPoint.label),
+                                    y: .value(selectedStat.rawValue, dataPoint.value)
+                                )
+                                .foregroundStyle(selectedStat.color)
+                                .interpolationMethod(.catmullRom)
+                                
+                                PointMark(
+                                    x: .value("Period", dataPoint.label),
+                                    y: .value(selectedStat.rawValue, dataPoint.value)
+                                )
+                                .foregroundStyle(selectedStat.color)
+                                .symbolSize(60)
+                            }
+                        }
+                        .frame(height: 150)
+                        .chartYAxis {
+                            AxisMarks(position: .leading) { value in
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    if let doubleValue = value.as(Double.self) {
+                                        Text(formatYAxisValue(doubleValue))
+                                    }
+                                }
+                            }
+                        }
+                        .chartXAxis {
+                            AxisMarks { value in
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    if let stringValue = value.as(String.self) {
+                                        Text(stringValue)
+                                            .font(.caption2)
+                                    }
+                                }
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.5), value: selectedStat)
+                        .animation(.easeInOut(duration: 0.5), value: selectedTimeframe)
+                    }
+                    .padding()
+                    .background(selectedStat.color.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(selectedStat.color.opacity(0.2), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                } else {
+                    // Not enough data for trends yet
+                    VStack(spacing: 12) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 40))
+                            .foregroundColor(.secondary)
+                        
+                        Text("Keep Playing!")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        Text("Play a few more games to see trends over time")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(height: 150)
-                    .chartYAxis {
-                        AxisMarks(position: .leading) { value in
-                            AxisGridLine()
-                            AxisValueLabel {
-                                if let doubleValue = value.as(Double.self) {
-                                    Text("\(String(format: selectedStat.isPercentage ? "%.0f" : "%.0f", doubleValue))\(selectedStat.unit)")
-                                }
-                            }
-                        }
-                    }
-                    .chartXAxis {
-                        AxisMarks { value in
-                            AxisGridLine()
-                            AxisValueLabel {
-                                if let doubleValue = value.as(Double.self) {
-                                    Text("\(String(format: "%.1f", doubleValue))")
-                                }
-                            }
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.5), value: selectedStat)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
                 }
-                .padding()
-                .background(selectedStat.color.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(selectedStat.color.opacity(0.2), lineWidth: 1)
-                )
-                .cornerRadius(12)
-            } else {
-                Text("Not enough games to show Sahil's development over time")
-                    .foregroundColor(.secondary)
-                    .frame(height: 120)
             }
         }
     }
+    
+    private func getSmartDescription() -> String {
+        let gameCount = games.count
+        let timeframe = smartTimeframe
+        
+        switch timeframe {
+        case .auto:
+            return "Smart timeframe selected automatically"
+        case .weekly:
+            return "Tracking \(gameCount) games week by week"
+        case .monthly:
+            return "Tracking \(gameCount) games month by month"
+        case .quarterly:
+            return "Tracking \(gameCount) games by quarter"
+        case .yearly:
+            return "Tracking \(gameCount) games year by year"
+        }
+    }
+    
+    private func getCurrentValueText(_ data: [(label: String, value: Double)]) -> String {
+        guard let latest = data.last else { return "" }
+        let formatted = selectedStat.isPercentage ?
+            String(format: "%.1f%%", latest.value) :
+            String(format: "%.1f", latest.value)
+        return "Latest: \(formatted)"
+    }
+    
+    private func formatYAxisValue(_ value: Double) -> String {
+        if selectedStat.isPercentage {
+            return String(format: "%.0f%%", value)
+        } else if value >= 1000 {
+            return String(format: "%.1fk", value / 1000)
+        } else {
+            return String(format: "%.0f", value)
+        }
+    }
+    
+    private func getSmartTrendData() -> [(label: String, value: Double)] {
+        let timeframe = smartTimeframe
+        let calendar = Calendar.current
+        
+        switch timeframe {
+        case .auto:
+            return getSmartTrendData() // This won't recurse because smartTimeframe resolves .auto
+            
+        case .weekly:
+            return getWeeklyTrendData(calendar: calendar)
+            
+        case .monthly:
+            return getMonthlyTrendData(calendar: calendar)
+            
+        case .quarterly:
+            return getQuarterlyTrendData(calendar: calendar)
+            
+        case .yearly:
+            return getYearlyTrendData(calendar: calendar)
+        }
+    }
+    
+    private func getWeeklyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        let gamesByWeek = Dictionary(grouping: games) { game in
+            calendar.dateInterval(of: .weekOfYear, for: game.timestamp)?.start ?? game.timestamp
+        }
+        
+        let sortedWeeks = gamesByWeek.keys.sorted()
+        
+        return sortedWeeks.compactMap { weekStart in
+            guard let gamesInWeek = gamesByWeek[weekStart] else { return nil }
+            
+            let weekFormatter = DateFormatter()
+            weekFormatter.dateFormat = "MMM d"
+            let label = weekFormatter.string(from: weekStart)
+            
+            let value = calculateStatValue(for: gamesInWeek)
+            return (label: label, value: value)
+        }
+    }
+    
+    private func getMonthlyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        let gamesByMonth = Dictionary(grouping: games) { game in
+            let components = calendar.dateComponents([.year, .month], from: game.timestamp)
+            return calendar.date(from: components) ?? game.timestamp
+        }
+        
+        let sortedMonths = gamesByMonth.keys.sorted()
+        
+        return sortedMonths.compactMap { monthStart in
+            guard let gamesInMonth = gamesByMonth[monthStart] else { return nil }
+            
+            let monthFormatter = DateFormatter()
+            monthFormatter.dateFormat = "MMM"
+            let label = monthFormatter.string(from: monthStart)
+            
+            let value = calculateStatValue(for: gamesInMonth)
+            return (label: label, value: value)
+        }
+    }
+    
+    private func getQuarterlyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        let gamesByQuarter = Dictionary(grouping: games) { game in
+            let components = calendar.dateComponents([.year, .month], from: game.timestamp)
+            let quarter = ((components.month ?? 1) - 1) / 3 + 1
+            let quarterStart = DateComponents(year: components.year, month: (quarter - 1) * 3 + 1)
+            return calendar.date(from: quarterStart) ?? game.timestamp
+        }
+        
+        let sortedQuarters = gamesByQuarter.keys.sorted()
+        
+        return sortedQuarters.compactMap { quarterStart in
+            guard let gamesInQuarter = gamesByQuarter[quarterStart] else { return nil }
+            
+            let components = calendar.dateComponents([.year, .month], from: quarterStart)
+            let quarter = ((components.month ?? 1) - 1) / 3 + 1
+            let label = "Q\(quarter) '\(String(components.year ?? 0).suffix(2))"
+            
+            let value = calculateStatValue(for: gamesInQuarter)
+            return (label: label, value: value)
+        }
+    }
+    
+    private func getYearlyTrendData(calendar: Calendar) -> [(label: String, value: Double)] {
+        let gamesByYear = Dictionary(grouping: games) { game in
+            calendar.component(.year, from: game.timestamp)
+        }
+        
+        let sortedYears = gamesByYear.keys.sorted()
+        
+        return sortedYears.compactMap { year in
+            guard let gamesInYear = gamesByYear[year] else { return nil }
+            
+            let label = String(year)
+            let value = calculateStatValue(for: gamesInYear)
+            return (label: label, value: value)
+        }
+    }
+    
+    private func calculateStatValue(for games: [Game]) -> Double {
+        let gameCount = Double(games.count)
+        guard gameCount > 0 else { return 0 }
+        
+        switch selectedStat {
+        case .avgPoints:
+            return Double(games.reduce(0) { $0 + $1.points }) / gameCount
+        case .totalPoints:
+            return Double(games.reduce(0) { $0 + $1.points })
+        case .avgRebounds:
+            return Double(games.reduce(0) { $0 + $1.rebounds }) / gameCount
+        case .totalRebounds:
+            return Double(games.reduce(0) { $0 + $1.rebounds })
+        case .avgAssists:
+            return Double(games.reduce(0) { $0 + $1.assists }) / gameCount
+        case .totalAssists:
+            return Double(games.reduce(0) { $0 + $1.assists })
+        case .fieldGoalPct:
+            let totalMade = games.reduce(0) { $0 + $1.fg2m + $1.fg3m }
+            let totalAttempted = games.reduce(0) { $0 + $1.fg2a + $1.fg3a }
+            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
+        case .threePointPct:
+            let totalMade = games.reduce(0) { $0 + $1.fg3m }
+            let totalAttempted = games.reduce(0) { $0 + $1.fg3a }
+            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
+        case .freeThrowPct:
+            let totalMade = games.reduce(0) { $0 + $1.ftm }
+            let totalAttempted = games.reduce(0) { $0 + $1.fta }
+            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
+        case .winPercentage:
+            let wins = games.filter { $0.outcome == .win }.count
+            return gameCount > 0 ? Double(wins) / gameCount * 100 : 0
+        case .gamesPlayed:
+            return gameCount
+        }
+    }
 }
+
+// MARK: - Updated Stat Button (More Compact)
 
 struct CareerTrendStatButton: View {
     let stat: CareerTrendsView.CareerStatType
@@ -964,32 +1140,31 @@ struct CareerTrendStatButton: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Text(stat.rawValue)
                     .font(.caption2)
                     .foregroundColor(isSelected ? stat.color : .secondary)
                     .fontWeight(isSelected ? .semibold : .medium)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.6)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 45)
+            .frame(height: 35)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(isSelected ? stat.color.opacity(0.15) : Color.gray.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: 1.5)
             )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
+            .scaleEffect(isSelected ? 1.02 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isSelected)
         }
         .buttonStyle(.plain)
     }
 }
-
 struct OverviewStatsView: View {
     let stats: CareerStats
     
