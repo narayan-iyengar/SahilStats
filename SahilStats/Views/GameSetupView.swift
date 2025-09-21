@@ -1,9 +1,11 @@
-// File: SahilStats/Views/GameSetupView.swift (Fixed isIPad scope issue)
+// File: SahilStats/Views/GameSetupView.swift (Fixed Form closure issue)
 
 import SwiftUI
 import AVFoundation
 import Combine
 import FirebaseAuth
+import CoreLocation
+
 
 struct GameSetupView: View {
     @StateObject private var firebaseService = FirebaseService.shared
@@ -22,6 +24,8 @@ struct GameSetupView: View {
     @State private var showingPostGameView = false
     @State private var showingLiveGameView = false
     @State private var createdLiveGame: LiveGame?
+    
+    @StateObject private var locationManager = LocationManager.shared
     
     enum SetupMode {
         case selection      // Choose setup type
@@ -71,6 +75,16 @@ struct GameSetupView: View {
             if let liveGame = createdLiveGame {
                 LiveGameView()
                     .environmentObject(authService)
+            }
+        }
+        .onChange(of: locationManager.locationName) { _, newLocation in
+            if !newLocation.isEmpty {
+                gameConfig.location = newLocation
+            }
+        }
+        .onChange(of: locationManager.error) { _, error in
+            if let error = error {
+                self.error = error.localizedDescription
             }
         }
     }
@@ -317,7 +331,7 @@ struct GameSetupView: View {
     // MARK: - Game Configuration Form
     
     private func GameConfigurationForm() -> some View {
-        Form {
+       Form {
             // Game ID display for live game controller
             if deviceRole == .controller && !gameId.isEmpty {
                 Section {
@@ -335,32 +349,122 @@ struct GameSetupView: View {
             Section("Teams") {
                 // Sahil's Team
                 if showAddTeamInput {
-                    AddTeamInputRow()
+                    HStack {
+                        TextField("New team name", text: $newTeamName)
+                        
+                        Button("Add") {
+                            addNewTeam()
+                        }
+                        .disabled(newTeamName.isEmpty)
+                        
+                        Button("Cancel") {
+                            showAddTeamInput = false
+                            newTeamName = ""
+                        }
+                    }
                 } else {
-                    TeamSelectionRow()
+                    if firebaseService.teams.isEmpty {
+                        TextField("Sahil's Team", text: $gameConfig.teamName)
+                            .autocapitalization(.words)
+                    } else {
+                        Picker("Sahil's Team", selection: $gameConfig.teamName) {
+                            ForEach(firebaseService.teams) { team in
+                                Text(team.name).tag(team.name)
+                            }
+                            Text("Add New Team...").tag("__ADD_NEW__")
+                        }
+                        .onChange(of: gameConfig.teamName) { oldValue, newValue in
+                            if newValue == "__ADD_NEW__" {
+                                gameConfig.teamName = oldValue
+                                showAddTeamInput = true
+                            }
+                        }
+                    }
                 }
                 
                 // Opponent
                 TextField("Opponent Team", text: $gameConfig.opponent)
                     .autocapitalization(.words)
                 
-                OpponentSuggestions()
+                // Opponent suggestions - simplified for Form compatibility
+                if !gameConfig.opponent.isEmpty {
+                    let suggestions = getOpponentSuggestions()
+                    ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
+                        Button(action: {
+                            gameConfig.opponent = suggestion
+                        }) {
+                            HStack {
+                                Text(suggestion)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text("Use")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
             }
             
-            // Location
-            Section("Where") {
-                HStack {
-                    TextField("Location (optional)", text: $gameConfig.location)
-                    
-                    Button(action: getAutoLocation) {
-                        Image(systemName: isGettingLocation ? "location.fill" : "location")
-                            .foregroundColor(.blue)
-                    }
-                    .disabled(isGettingLocation)
-                }
-                
-                LocationSuggestions()
-            }
+
+           // Location
+           Section("Where") {
+               HStack {
+                   TextField("Location (optional)", text: $gameConfig.location)
+                       .autocapitalization(.words)
+                   
+                   Button(action: getAutoLocation) {
+                       if locationManager.isLoading {
+                           ProgressView()
+                               .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                               .scaleEffect(0.8)
+                       } else {
+                           Image(systemName: locationManager.canRequestLocation ? "location.fill" : "location.slash")
+                               .foregroundColor(locationManager.canRequestLocation ? .blue : .gray)
+                       }
+                   }
+                   .disabled(locationManager.isLoading || !locationManager.canRequestLocation)
+               }
+               
+               // Location suggestions
+               if !gameConfig.location.isEmpty {
+                   let suggestions = getLocationSuggestions()
+                   ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
+                       Button(action: {
+                           gameConfig.location = suggestion
+                       }) {
+                           HStack {
+                               Text(suggestion)
+                                   .foregroundColor(.primary)
+                               Spacer()
+                               Text("Use")
+                                   .font(.caption)
+                                   .foregroundColor(.blue)
+                           }
+                       }
+                   }
+               }
+               
+               // Show location status/error if needed
+               if let error = locationManager.error {
+                   HStack {
+                       Image(systemName: "exclamationmark.triangle")
+                           .foregroundColor(.orange)
+                       Text(error.localizedDescription)
+                           .font(.caption)
+                           .foregroundColor(.orange)
+                       
+                       if locationManager.shouldShowSettingsAlert {
+                           Button("Settings") {
+                               locationManager.openLocationSettings()
+                           }
+                           .font(.caption)
+                           .foregroundColor(.blue)
+                       }
+                   }
+               }
+           }
+ 
             
             // Game Format (for live games only)
             if deviceRole == .controller {
@@ -522,13 +626,7 @@ struct GameSetupView: View {
     }
     
     private func getAutoLocation() {
-        isGettingLocation = true
-        
-        // Simulate getting location for now
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            gameConfig.location = "Home Court" // Placeholder
-            isGettingLocation = false
-        }
+        locationManager.requestLocation()
     }
     
     private func handleSubmit(mode: GameSubmissionMode) {
@@ -593,98 +691,6 @@ struct GameSetupView: View {
             } catch {
                 await MainActor.run {
                     self.error = "Failed to add team: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Supporting Views and Extensions
-
-extension GameSetupView {
-    private func TeamSelectionRow() -> some View {
-        Group {
-            if firebaseService.teams.isEmpty {
-                TextField("Sahil's Team", text: $gameConfig.teamName)
-                    .autocapitalization(.words)
-            } else {
-                Picker("Sahil's Team", selection: $gameConfig.teamName) {
-                    ForEach(firebaseService.teams) { team in
-                        Text(team.name).tag(team.name)
-                    }
-                    Text("Add New Team...").tag("__ADD_NEW__")
-                }
-                .onChange(of: gameConfig.teamName) { oldValue, newValue in
-                    if newValue == "__ADD_NEW__" {
-                        gameConfig.teamName = oldValue
-                        showAddTeamInput = true
-                    }
-                }
-            }
-        }
-    }
-    
-    private func AddTeamInputRow() -> some View {
-        HStack {
-            TextField("New team name", text: $newTeamName)
-            
-            Button("Add") {
-                addNewTeam()
-            }
-            .disabled(newTeamName.isEmpty)
-            
-            Button("Cancel") {
-                showAddTeamInput = false
-                newTeamName = ""
-            }
-        }
-    }
-    
-    private func OpponentSuggestions() -> some View {
-        Group {
-            if !gameConfig.opponent.isEmpty {
-                let suggestions = getOpponentSuggestions()
-                if !suggestions.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(suggestions, id: \.self) { suggestion in
-                                Button(suggestion) {
-                                    gameConfig.opponent = suggestion
-                                }
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(.systemGray5))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func LocationSuggestions() -> some View {
-        Group {
-            if !gameConfig.location.isEmpty {
-                let suggestions = getLocationSuggestions()
-                if !suggestions.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(suggestions, id: \.self) { suggestion in
-                                Button(suggestion) {
-                                    gameConfig.location = suggestion
-                                }
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(.systemGray5))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
                 }
             }
         }

@@ -651,19 +651,15 @@ struct LiveGameControllerView: View {
     @State private var clockSyncTimer: Timer?
     @State private var showingFinishAlert = false
     
-    // NEW: Control transfer alerts
+    // Control transfer alerts
     @State private var showingControlRequestAlert = false
     @State private var requestingUser = ""
     @State private var requestingDeviceId = ""
     
-    // Scroll tracking state
-    @State private var scrollOffset: CGFloat = 0
-    @State private var isHeaderCollapsed = false
-    
-    // ADDED: Force UI refresh capability
+    // Force UI refresh capability
     @StateObject private var refreshTrigger = RefreshTrigger()
     
-    // FIXED: Separate local clock state that doesn't get overridden by server
+    // Local clock state
     @State private var localClockTime: TimeInterval = 0
     @State private var lastServerUpdate: Date = Date()
     
@@ -680,13 +676,10 @@ struct LiveGameControllerView: View {
     private var isGameRunning: Bool {
         serverGameState.isRunning
     }
-    // Add these computed properties to your LiveGameControllerView:
-    private var expandedHeaderHeight: CGFloat {
-        isIPad ? 380 : 340
-    }
-
-    private var compactHeaderHeight: CGFloat {
-        isIPad ? 180 : 160
+    
+    // FIXED: Calculate header height to prevent content overlap
+    private var headerHeight: CGFloat {
+       return 0
     }
     
     init(liveGame: LiveGame) {
@@ -701,79 +694,38 @@ struct LiveGameControllerView: View {
     }
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Main content with scroll tracking
-            ScrollViewReader { proxy in
-                ScrollViewWithOffset(
-                    axes: .vertical,
-                    showsIndicators: true,
-                    onOffsetChange: { offset in
-                        let newOffset = -offset
-                        
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            scrollOffset = newOffset
-                            isHeaderCollapsed = newOffset > (isIPad ? 120 : 100)
-                        }
-                    }
-                ) {
-                    VStack(spacing: 0) {
-                        // Spacer to account for sticky header
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(height: isHeaderCollapsed ? compactHeaderHeight : expandedHeaderHeight)
-                            .id("header_spacer")
-                        
-                        // Main content
-                        VStack(spacing: isIPad ? 24 : 20) {
-                            // Only show stats if playing AND has control OR is viewer
-                            if !sahilOnBench && deviceControl.hasControl {
-                                cleanDetailedStatsEntry()
-                                LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
-                            } else if !sahilOnBench {
-                                // Viewer stats (read-only)
-                                LiveStatsDisplayCard(
-                                    stats: serverGameState.playerStats,
-                                    isIPad: isIPad,
-                                    isReadOnly: true
-                                )
-                            } else {
-                                // On bench message
-                                onBenchMessage()
-                            }
-                            
-                            // Add bottom padding
-                            Spacer(minLength: 100)
-                        }
-                        .padding(.horizontal, isIPad ? 24 : 16)
-                        .padding(.top, isIPad ? 20 : 16)
-                    }
-                }
-            }
+        VStack(spacing: 0) {
+            // SIMPLE: Fixed header at top
+            fixedHeader()
             
-            // Sticky collapsing header
-            VStack(spacing: 0) {
-                CollapsingLiveGameHeader(
-                    deviceControl: deviceControl,
-                    serverGameState: serverGameState,
-                    currentHomeScore: $currentHomeScore,
-                    currentAwayScore: $currentAwayScore,
-                    localClockTime: localClockTime,
-                    currentPeriod: currentPeriod,
-                    sahilOnBench: $sahilOnBench,
-                    isHeaderCollapsed: isHeaderCollapsed,
-                    isIPad: isIPad,
-                    onRequestControl: requestControl,
-                    onStartPause: toggleGameClock,
-                    onAddMinute: addMinuteToClock,
-                    onAdvancePeriod: nextPeriod,
-                    onFinishGame: { showingFinishAlert = true },
-                    onScoreChange: scheduleUpdate,
-                    onStatusChange: scheduleUpdate
-                )
-                
-                Spacer()
+            // SIMPLE: Main content in scroll view with proper header padding
+            ScrollView {
+                VStack(spacing: isIPad ? 24 : 20) {
+                    // Only show stats if playing AND has control OR is viewer
+                    if !sahilOnBench && deviceControl.hasControl {
+                        cleanDetailedStatsEntry()
+                        LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
+                    } else if !sahilOnBench {
+                        // Viewer stats (read-only)
+                        LiveStatsDisplayCard(
+                            stats: serverGameState.playerStats,
+                            isIPad: isIPad,
+                            isReadOnly: true
+                        )
+                    } else {
+                        // On bench message
+                        onBenchMessage()
+                    }
+                    
+                    // Add bottom padding for safe scrolling
+                    Spacer(minLength: 120)
+                }
+                .padding(.horizontal, isIPad ? 24 : 16)
+                //.padding(.top, headerHeight + (isIPad ? 20 : 16))
+                .padding(.top, headerHeight) // FIXED: Add header height to top padding
             }
         }
+        .background(Color(.systemBackground))
         // Keep all your existing alerts and onChange handlers
         .alert("Control Request", isPresented: $showingControlRequestAlert) {
             Button("Grant Control", role: .none) {
@@ -799,7 +751,6 @@ struct LiveGameControllerView: View {
         } message: {
             Text(error)
         }
-        // Keep all your existing onAppear, onDisappear, onChange handlers
         .onAppear {
             startFixedClockSync()
             syncWithServer()
@@ -848,34 +799,26 @@ struct LiveGameControllerView: View {
         }
     }
     
-    
-    private func calculateCurrentPoints() -> Int {
-        return (currentStats.fg2m * 2) + (currentStats.fg3m * 3) + currentStats.ftm
-    }
-    // MARK: - NEW STICKY HEADER
-
-
+    // SIMPLE: Fixed header that doesn't collapse
     @ViewBuilder
-    private func stickyHeader() -> some View {
+    private func fixedHeader() -> some View {
         VStack(spacing: isIPad ? 16 : 12) {
-            // Device Control Status (compact version)
+            // Device Control Status
             CompactDeviceControlStatusCard(
                 hasControl: deviceControl.hasControl,
                 controllingUser: deviceControl.controllingUser,
                 canRequestControl: deviceControl.canRequestControl,
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
-                onRequestControl: {
-                    requestControl()
-                }
+                onRequestControl: requestControl
             )
             
-            // FIXED: Clock Display with game format
+            // Clock Display
             CompactClockCard(
                 period: currentPeriod,
                 clockTime: localClockTime,
                 isGameRunning: isGameRunning,
-                gameFormat: serverGameState.gameFormat, // PASS GAME FORMAT
+                gameFormat: serverGameState.gameFormat,
                 isIPad: isIPad
             )
             
@@ -907,26 +850,18 @@ struct LiveGameControllerView: View {
                 onStatusChange: scheduleUpdate
             )
             
-            // FIXED: Game Controls with correct format
+            // Game Controls
             if deviceControl.hasControl {
                 CompactGameControlsCard(
                     currentPeriod: currentPeriod,
                     maxPeriods: serverGameState.numPeriods,
-                    gameFormat: serverGameState.gameFormat, // ALREADY PASSING THIS
+                    gameFormat: serverGameState.gameFormat,
                     isGameRunning: serverGameState.isRunning,
                     isIPad: isIPad,
-                    onStartPause: {
-                        toggleGameClock()
-                    },
-                    onAddMinute: {
-                        addMinuteToClock()
-                    },
-                    onAdvancePeriod: {
-                        nextPeriod()
-                    },
-                    onFinishGame: {
-                        showingFinishAlert = true
-                    }
+                    onStartPause: toggleGameClock,
+                    onAddMinute: addMinuteToClock,
+                    onAdvancePeriod: nextPeriod,
+                    onFinishGame: { showingFinishAlert = true }
                 )
             }
         }
@@ -937,7 +872,6 @@ struct LiveGameControllerView: View {
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         )
     }
-
     
     @ViewBuilder
     private func onBenchMessage() -> some View {
@@ -960,8 +894,121 @@ struct LiveGameControllerView: View {
         .cornerRadius(isIPad ? 16 : 12)
     }
     
-    // MARK: - All the existing methods remain the same...
-    // (startFixedClockSync, syncNonClockDataWithServer, etc.)
+    // MARK: - Clean Detailed Stats Entry (COMPLETE)
+    
+    private func cleanDetailedStatsEntry() -> some View {
+        VStack(spacing: isIPad ? 24 : 20) {
+            HStack {
+                Text("Detailed Stats")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.bold)
+            }
+            
+            // Shooting Stats with Smart Logic
+            VStack(spacing: isIPad ? 20 : 16) {
+                HStack {
+                    Text("Shooting")
+                        .font(isIPad ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                    Spacer()
+                }
+                
+                VStack(spacing: isIPad ? 16 : 12) {
+                    SmartShootingStatCard(
+                        title: "2-Point Shots",
+                        shotType: .twoPoint,
+                        made: $currentStats.fg2m,
+                        attempted: $currentStats.fg2a,
+                        liveScore: $currentHomeScore,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    
+                    SmartShootingStatCard(
+                        title: "3-Point Shots",
+                        shotType: .threePoint,
+                        made: $currentStats.fg3m,
+                        attempted: $currentStats.fg3a,
+                        liveScore: $currentHomeScore,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    
+                    SmartShootingStatCard(
+                        title: "Free Throws",
+                        shotType: .freeThrow,
+                        made: $currentStats.ftm,
+                        attempted: $currentStats.fta,
+                        liveScore: $currentHomeScore,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                }
+            }
+            
+            // Other Stats Section
+            VStack(spacing: isIPad ? 20 : 16) {
+                HStack {
+                    Text("Other Stats")
+                        .font(isIPad ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.purple)
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                    RegularStatCard(
+                        title: "Rebounds",
+                        value: $currentStats.rebounds,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Assists",
+                        value: $currentStats.assists,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Steals",
+                        value: $currentStats.steals,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Blocks",
+                        value: $currentStats.blocks,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Fouls",
+                        value: $currentStats.fouls,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Turnovers",
+                        value: $currentStats.turnovers,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                }
+            }
+            
+            // Points summary for live game
+            LivePointsSummaryCard(stats: currentStats, isIPad: isIPad)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 24 : 20)
+        .padding(.horizontal, isIPad ? 24 : 20)
+        .background(Color(.systemBackground))
+        .cornerRadius(isIPad ? 16 : 12)
+        .shadow(color: .black.opacity(0.05), radius: isIPad ? 8 : 4, x: 0, y: 2)
+    }
+    
+    // MARK: - All existing methods remain the same...
     
     private func startFixedClockSync() {
         clockSyncTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
@@ -1339,117 +1386,5 @@ struct LiveGameControllerView: View {
             }
         }
     }
-    
-    // MARK: - Clean Detailed Stats Entry (same as before)
-    
-    private func cleanDetailedStatsEntry() -> some View {
-        VStack(spacing: isIPad ? 24 : 20) {
-            HStack {
-                Text("Detailed Stats")
-                    .font(isIPad ? .title2 : .headline)
-                    .fontWeight(.bold)
-            }
-            
-            // Shooting Stats with Smart Logic
-            VStack(spacing: isIPad ? 20 : 16) {
-                HStack {
-                    Text("Shooting")
-                        .font(isIPad ? .title3 : .subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
-                    Spacer()
-                }
-                
-                VStack(spacing: isIPad ? 16 : 12) {
-                    SmartShootingStatCard(
-                        title: "2-Point Shots",
-                        shotType: .twoPoint,
-                        made: $currentStats.fg2m,
-                        attempted: $currentStats.fg2a,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    
-                    SmartShootingStatCard(
-                        title: "3-Point Shots",
-                        shotType: .threePoint,
-                        made: $currentStats.fg3m,
-                        attempted: $currentStats.fg3a,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    
-                    SmartShootingStatCard(
-                        title: "Free Throws",
-                        shotType: .freeThrow,
-                        made: $currentStats.ftm,
-                        attempted: $currentStats.fta,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                }
-            }
-            
-            // Other Stats Section - ALL THE MISSING STATS!
-            VStack(spacing: isIPad ? 20 : 16) {
-                HStack {
-                    Text("Other Stats")
-                        .font(isIPad ? .title3 : .subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.purple)
-                    Spacer()
-                }
-                
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
-                    RegularStatCard(
-                        title: "Rebounds",
-                        value: $currentStats.rebounds,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    RegularStatCard(
-                        title: "Assists",
-                        value: $currentStats.assists,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    RegularStatCard(
-                        title: "Steals",
-                        value: $currentStats.steals,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    RegularStatCard(
-                        title: "Blocks",
-                        value: $currentStats.blocks,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    RegularStatCard(
-                        title: "Fouls",
-                        value: $currentStats.fouls,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    RegularStatCard(
-                        title: "Turnovers",
-                        value: $currentStats.turnovers,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                }
-            }
-            
-            // Points summary for live game
-            LivePointsSummaryCard(stats: currentStats, isIPad: isIPad)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, isIPad ? 24 : 20)
-        .padding(.horizontal, isIPad ? 24 : 20)
-        .background(Color(.systemBackground))
-        .cornerRadius(isIPad ? 16 : 12)
-    }
 }
+
