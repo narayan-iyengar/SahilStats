@@ -163,21 +163,7 @@ struct GameDeleteAlert: View {
     }
 }
 
-// MARK: - Live Game Full Screen View
-struct LiveGameFullScreenView: View {
-    let onDismiss: () -> Void
-    
-    var body: some View {
-        ZStack {
-            Color(.systemBackground).ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                LiveGameNavigationBar(onDismiss: onDismiss)
-                LiveGameView()
-            }
-        }
-    }
-}
+
 
 // MARK: - Live Game Navigation Bar
 struct LiveGameNavigationBar: View {

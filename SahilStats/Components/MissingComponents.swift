@@ -7,31 +7,7 @@ import Combine
 import Foundation
 
 
-// MARK: - Enhanced Career Stats View
-struct EnhancedCareerStatsView: View {
-    let stats: CareerStats
-    let games: [Game]
-    @Binding var isViewingTrends: Bool
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Sahil's Career Dashboard")
-                .font(.title2)
-                .fontWeight(.heavy)
-            
-            // Basic stats overview
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
-                StatCard(title: "Games", value: "\(stats.totalGames)", color: .blue)
-                StatCard(title: "Points", value: "\(stats.totalPoints)", color: .purple)
-                StatCard(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo)
-                StatCard(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: .green)
-            }
-        }
-        .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(12)
-    }
-}
+
 
 // MARK: - Stat Card
 struct StatCard: View {

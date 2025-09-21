@@ -67,7 +67,8 @@ struct CareerStatsSection: View {
         EnhancedCareerStatsView(
             stats: stats,
             games: games,
-            isViewingTrends: $isViewingTrends
+            isViewingTrends: $isViewingTrends,
+            isIPad: isIPad
         )
         .listRowBackground(Color.blue.opacity(0.08))
         .listRowSeparator(.hidden)
@@ -157,24 +158,7 @@ struct LiveGameSection: View {
     }
 }
 
-// MARK: - Games Section Header
-struct GamesSectionHeader: View {
-    let filteredCount: Int
-    let totalCount: Int
-    let displayedCount: Int
-    
-    var body: some View {
-        HStack {
-            Text(filteredCount == totalCount ? "Recent Games" : "Filtered Games")
-            Spacer()
-            if displayedCount < filteredCount {
-                Text("Showing \(displayedCount) of \(filteredCount)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
+
 
 // MARK: - Game Rows Section
 struct GameRowsSection: View {
