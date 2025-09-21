@@ -18,68 +18,34 @@ struct PostGameStatsView: View {
     @State private var isSubmitting = false
     @State private var error = ""
     
-    // Scroll tracking state
-    @State private var scrollOffset: CGFloat = 0
-    @State private var isHeaderCollapsed = false
-    
     // iPad detection
     private var isIPad: Bool {
         horizontalSizeClass == .regular
     }
     
-    // Header collapse threshold
-    private var collapseThreshold: CGFloat {
-        isIPad ? 100 : 80
+    // FIXED: Calculate header height to prevent content overlap
+    private var headerHeight: CGFloat {
+       return 0
     }
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Main content with scroll tracking
-            ScrollViewWithOffset(
-                axes: .vertical,
-                showsIndicators: true,
-                onOffsetChange: { offset in
-                    let newOffset = -offset
-                    
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        scrollOffset = newOffset
-                        isHeaderCollapsed = newOffset > collapseThreshold
-                    }
-                }
-            ) {
-                VStack(spacing: 0) {
-                    // Spacer to account for sticky header height
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: isHeaderCollapsed ? compactHeaderHeight : expandedHeaderHeight)
-                    
-                    // Main stats content
-                    VStack(spacing: isIPad ? 40 : 24) {
-                        postGameDetailedStatsEntry()
-                        AchievementsPreview(stats: gameStats)
-                        Spacer(minLength: isIPad ? 150 : 100)
-                    }
-                    .padding(.horizontal, isIPad ? 40 : 24)
-                    .padding(.top, isIPad ? 32 : 20)
-                }
-            }
+        VStack(spacing: 0) {
+            // SIMPLE: Fixed header at top
+            fixedHeader()
             
-            // Sticky header that collapses/expands
-            VStack(spacing: 0) {
-                CollapsingPostGameHeader(
-                    gameConfig: gameConfig,
-                    gameStats: $gameStats,
-                    isCollapsed: isHeaderCollapsed,
-                    isSubmitting: isSubmitting,
-                    isValid: gameStats.isValid,
-                    isIPad: isIPad,
-                    onSave: { showingSubmitAlert = true },
-                    onCancel: { dismiss() }
-                )
-                
-                Spacer()
+            // SIMPLE: Main content in scroll view with proper header padding
+            ScrollView {
+                VStack(spacing: isIPad ? 40 : 24) {
+                    postGameDetailedStatsEntry()
+                    AchievementsPreview(stats: gameStats)
+                    Spacer(minLength: isIPad ? 150 : 100)
+                }
+                .padding(.horizontal, isIPad ? 40 : 24)
+                //.padding(.top, headerHeight + (isIPad ? 32 : 20)) // FIXED: Add header height to top padding
+                .padding(.top, headerHeight)
             }
         }
+        .background(Color(.systemBackground))
         .navigationBarHidden(true)
         .alert("Save Game", isPresented: $showingSubmitAlert) {
             Button("Cancel", role: .cancel) { }
@@ -102,16 +68,149 @@ struct PostGameStatsView: View {
         }
     }
     
-    // Header height calculations
-    private var expandedHeaderHeight: CGFloat {
-        isIPad ? 320 : 280
+    // SIMPLE: Fixed header that doesn't collapse
+    @ViewBuilder
+    private func fixedHeader() -> some View {
+        VStack(spacing: isIPad ? 24 : 16) {
+            // Game info
+            PostGameInfoHeader(config: gameConfig, isIPad: isIPad)
+            
+            // Score entry
+            PostGameScoreCard(
+                myTeamScore: $gameStats.myTeamScore,
+                opponentScore: $gameStats.opponentScore,
+                teamName: gameConfig.teamName,
+                opponent: gameConfig.opponent,
+                isIPad: isIPad
+            )
+            
+            // Action buttons
+            PostGameActionButtons(
+                isSubmitting: isSubmitting,
+                isValid: gameStats.isValid,
+                isIPad: isIPad,
+                onSave: { showingSubmitAlert = true },
+                onCancel: { dismiss() }
+            )
+        }
+        .padding(.horizontal, isIPad ? 40 : 24)
+        .padding(.vertical, isIPad ? 32 : 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+        )
     }
     
-    private var compactHeaderHeight: CGFloat {
-        isIPad ? 140 : 120
+    // COMPLETE: Detailed stats entry implementation
+    private func postGameDetailedStatsEntry() -> some View {
+        VStack(spacing: isIPad ? 20 : 16) {
+            HStack {
+                Text("Sahil's Stats")
+                    .font(isIPad ? .system(size: 32, weight: .bold) : .title2)
+                    .fontWeight(.bold)
+            }
+            
+            // Shooting Stats Section
+            VStack(spacing: isIPad ? 20 : 16) {
+                HStack {
+                    Text("Shooting")
+                        .font(isIPad ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                    Spacer()
+                }
+                
+                VStack(spacing: isIPad ? 16 : 12) {
+                    PostGameShootingStatCard(
+                        title: "2-Point Shots",
+                        shotType: .twoPoint,
+                        made: $gameStats.playerStats.fg2m,
+                        attempted: $gameStats.playerStats.fg2a,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    
+                    PostGameShootingStatCard(
+                        title: "3-Point Shots",
+                        shotType: .threePoint,
+                        made: $gameStats.playerStats.fg3m,
+                        attempted: $gameStats.playerStats.fg3a,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    
+                    PostGameShootingStatCard(
+                        title: "Free Throws",
+                        shotType: .freeThrow,
+                        made: $gameStats.playerStats.ftm,
+                        attempted: $gameStats.playerStats.fta,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                }
+            }
+            
+            // Other Stats Section
+            VStack(spacing: isIPad ? 20 : 16) {
+                HStack {
+                    Text("Other Stats")
+                        .font(isIPad ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.purple)
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                    CleanStatCard(
+                        title: "Rebounds",
+                        value: $gameStats.playerStats.rebounds,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Assists",
+                        value: $gameStats.playerStats.assists,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Steals",
+                        value: $gameStats.playerStats.steals,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Blocks",
+                        value: $gameStats.playerStats.blocks,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Fouls",
+                        value: $gameStats.playerStats.fouls,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                    CleanStatCard(
+                        title: "Turnovers",
+                        value: $gameStats.playerStats.turnovers,
+                        isIPad: isIPad,
+                        onStatChange: { }
+                    )
+                }
+            }
+            
+            // Points Summary
+            PointsSummaryCard(gameStats: gameStats, isIPad: isIPad)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 40 : 24)
+        .padding(.horizontal, isIPad ? 40 : 24)
+        .background(Color(.systemBackground))
+        .cornerRadius(isIPad ? 24 : 16)
+        .shadow(color: .black.opacity(0.05), radius: isIPad ? 12 : 4, x: 0, y: 2)
     }
     
-    // Keep your existing submitGame() method
     private func submitGame() {
         isSubmitting = true
         
@@ -154,26 +253,119 @@ struct PostGameStatsView: View {
             }
         }
     }
+}
+
+
+struct PostGameShootingStatCard: View {
+    let title: String
+    let shotType: SmartShootingStatCard.ShotType
+    @Binding var made: Int
+    @Binding var attempted: Int
+    let isIPad: Bool
+    let onStatChange: () -> Void
     
-    // Keep your existing postGameDetailedStatsEntry() method unchanged
-    private func postGameDetailedStatsEntry() -> some View {
-        // Your existing implementation
-        VStack(spacing: isIPad ? 40 : 24) {
-            HStack {
-                Text("Sahil's Stats")
-                    .font(isIPad ? .system(size: 32, weight: .bold) : .title2)
-                    .fontWeight(.bold)
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 12) {
+            // Clean header - just the title
+            Text(title)
+                .font(isIPad ? .title3 : .subheadline)
+                .foregroundColor(.primary)
+                .fontWeight(.semibold)
+            
+            // Made shots section
+            VStack(spacing: isIPad ? 12 : 8) {
+                Text(shotType.madeTitle)
+                    .font(isIPad ? .body : .subheadline)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: isIPad ? 16 : 12) {
+                    Button("-") {
+                        if made > 0 {
+                            made -= 1
+                            if attempted < made {
+                                attempted = made
+                            }
+                            onStatChange()
+                        }
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .red, isIPad: isIPad))
+                    .disabled(made <= 0)
+                    
+                    Text("\(made)")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.bold)
+                        .frame(minWidth: isIPad ? 40 : 35)
+                        .foregroundColor(.primary)
+                    
+                    Button("+") {
+                        made += 1
+                        if attempted < made {
+                            attempted = made
+                        }
+                        onStatChange()
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .green, isIPad: isIPad))
+                }
             }
             
-            // Your existing shooting and other stats sections
-            // ... (keep all your existing stat card implementations)
+            // Attempted shots section
+            VStack(spacing: isIPad ? 12 : 8) {
+                Text(shotType.attemptedTitle)
+                    .font(isIPad ? .body : .subheadline)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: isIPad ? 16 : 12) {
+                    Button("-") {
+                        if attempted > made {
+                            attempted -= 1
+                            onStatChange()
+                        }
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .red, isIPad: isIPad))
+                    .disabled(attempted <= made)
+                    
+                    Text("\(attempted)")
+                        .font(isIPad ? .title2 : .title3)
+                        .fontWeight(.bold)
+                        .frame(minWidth: isIPad ? 40 : 35)
+                        .foregroundColor(.primary)
+                    
+                    Button("+") {
+                        attempted += 1
+                        onStatChange()
+                    }
+                    .buttonStyle(CleanStatButtonStyle(color: .orange, isIPad: isIPad))
+                }
+            }
+            
+            // Clean bottom section - just percentage and points
+            HStack {
+                if attempted > 0 {
+                    let percentage = Double(made) / Double(attempted) * 100
+                    Text("\(Int(percentage))%")
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                if made > 0 {
+                    let totalPoints = made * shotType.pointValue
+                    Text("\(totalPoints) pts")
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(shotType == .twoPoint ? .blue : (shotType == .threePoint ? .green : .orange))
+                        .fontWeight(.medium)
+                }
+            }
         }
+        .padding(.vertical, isIPad ? 20 : 16)
+        .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, isIPad ? 40 : 24)
-        .padding(.horizontal, isIPad ? 40 : 24)
-        .background(Color(.systemBackground))
-        .cornerRadius(isIPad ? 24 : 16)
-        .shadow(color: .black.opacity(0.05), radius: isIPad ? 12 : 4, x: 0, y: 2)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
@@ -433,24 +625,24 @@ struct PostGameScoreCard: View {
     let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: isIPad ? 24 : 16) { // MORE spacing on iPad
+        VStack(spacing: isIPad ? 24 : 16) {
             HStack {
                 Image(systemName: "trophy.fill")
-                    .font(isIPad ? .system(size: 24) : .title3) // BIGGER on iPad
+                    .font(isIPad ? .system(size: 24) : .title3)
                     .foregroundColor(.orange)
                 
                 Text("Final Score")
-                    .font(isIPad ? .system(size: 24, weight: .semibold) : .headline) // BIGGER on iPad
+                    .font(isIPad ? .system(size: 24, weight: .semibold) : .headline)
                     .fontWeight(.semibold)
                 
                 Spacer()
             }
             
-            HStack(spacing: isIPad ? 50 : 30) { // MORE spacing on iPad
+            HStack(spacing: isIPad ? 50 : 30) {
                 // My team score
-                VStack(spacing: isIPad ? 16 : 8) { // MORE spacing on iPad
+                VStack(spacing: isIPad ? 16 : 8) {
                     Text(teamName)
-                        .font(isIPad ? .system(size: 16, weight: .medium) : .caption) // BIGGER on iPad
+                        .font(isIPad ? .system(size: 16, weight: .medium) : .caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
@@ -459,13 +651,13 @@ struct PostGameScoreCard: View {
                 }
                 
                 Text("–")
-                    .font(isIPad ? .system(size: 36, weight: .medium) : .title) // BIGGER on iPad
+                    .font(isIPad ? .system(size: 36, weight: .medium) : .title)
                     .foregroundColor(.secondary)
                 
                 // Opponent score
-                VStack(spacing: isIPad ? 16 : 8) { // MORE spacing on iPad
+                VStack(spacing: isIPad ? 16 : 8) {
                     Text(opponent)
-                        .font(isIPad ? .system(size: 16, weight: .medium) : .caption) // BIGGER on iPad
+                        .font(isIPad ? .system(size: 16, weight: .medium) : .caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
@@ -474,9 +666,9 @@ struct PostGameScoreCard: View {
                 }
             }
         }
-        .padding(isIPad ? 28 : 16) // MORE padding on iPad
+        .padding(isIPad ? 28 : 16)
         .background(Color(.systemGray6))
-        .cornerRadius(isIPad ? 20 : 12) // BIGGER corner radius on iPad
+        .cornerRadius(isIPad ? 20 : 12)
     }
 }
 
@@ -487,16 +679,16 @@ struct PostGameScoreControl: View {
     let isIPad: Bool
     
     var body: some View {
-        HStack(spacing: isIPad ? 20 : 12) { // MORE spacing on iPad
+        HStack(spacing: isIPad ? 20 : 12) {
             Button("-") {
                 if score > 0 { score -= 1 }
             }
             .buttonStyle(PostGameScoreButtonStyle(isIPad: isIPad))
             
             Text("\(score)")
-                .font(isIPad ? .system(size: 40, weight: .bold) : .largeTitle) // BIGGER on iPad
+                .font(isIPad ? .system(size: 40, weight: .bold) : .largeTitle)
                 .fontWeight(.bold)
-                .frame(minWidth: isIPad ? 70 : 50) // BIGGER frame on iPad
+                .frame(minWidth: isIPad ? 70 : 50)
             
             Button("+") {
                 score += 1
@@ -514,7 +706,7 @@ struct PostGameActionButtons: View {
     let onCancel: () -> Void
     
     var body: some View {
-        HStack(spacing: isIPad ? 24 : 16) { // MORE spacing on iPad
+        HStack(spacing: isIPad ? 24 : 16) {
             Button("Cancel") {
                 onCancel()
             }
@@ -538,35 +730,35 @@ struct PostGameInfoHeader: View {
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: isIPad ? 12 : 4) { // MORE spacing on iPad
+            VStack(alignment: .leading, spacing: isIPad ? 12 : 4) {
                 Text("Enter Game Stats")
-                    .font(isIPad ? .system(size: 32, weight: .bold) : .title2) // BIGGER on iPad
+                    .font(isIPad ? .system(size: 32, weight: .bold) : .title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
                 Text("\(config.teamName) vs \(config.opponent)")
-                    .font(isIPad ? .system(size: 20, weight: .medium) : .body) // BIGGER on iPad
+                    .font(isIPad ? .system(size: 20, weight: .medium) : .body)
                     .foregroundColor(.secondary)
             }
             
             Spacer()
             
-            VStack(alignment: .trailing, spacing: isIPad ? 8 : 4) { // MORE spacing on iPad
+            VStack(alignment: .trailing, spacing: isIPad ? 8 : 4) {
                 Text(config.date, style: .date)
-                    .font(isIPad ? .system(size: 18, weight: .medium) : .body) // BIGGER on iPad
+                    .font(isIPad ? .system(size: 18, weight: .medium) : .body)
                     .foregroundColor(.secondary)
                 
                 if !config.location.isEmpty {
                     Text(config.location)
-                        .font(isIPad ? .system(size: 16, weight: .regular) : .caption) // BIGGER on iPad
+                        .font(isIPad ? .system(size: 16, weight: .regular) : .caption)
                         .foregroundColor(.secondary)
                 }
             }
         }
-        .padding(.horizontal, isIPad ? 28 : 16) // MORE padding on iPad
-        .padding(.vertical, isIPad ? 24 : 12) // MORE padding on iPad
+        .padding(.horizontal, isIPad ? 28 : 16)
+        .padding(.vertical, isIPad ? 24 : 12)
         .background(Color(.systemGray6))
-        .cornerRadius(isIPad ? 20 : 12) // BIGGER corner radius on iPad
+        .cornerRadius(isIPad ? 20 : 12)
     }
 }
 
@@ -589,6 +781,11 @@ struct GameStatsData {
 
 struct AchievementsPreview: View {
     let stats: GameStatsData
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     private var previewGame: Game {
         Game(
@@ -615,48 +812,48 @@ struct AchievementsPreview: View {
         let achievements = Achievement.getEarnedAchievements(for: previewGame)
         
         if !achievements.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
                 Text("Achievements Earned 🎉")
-                    .font(.headline)
+                    .font(isIPad ? .title2 : .headline)
                     .foregroundColor(.orange)
                 
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 12 : 8) {
                     ForEach(achievements.prefix(4), id: \.id) { achievement in
-                        HStack(spacing: 8) {
+                        HStack(spacing: isIPad ? 12 : 8) {
                             Text(achievement.emoji)
-                                .font(.title3)
+                                .font(isIPad ? .title2 : .title3)
                             
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: isIPad ? 4 : 2) {
                                 Text(achievement.name)
-                                    .font(.caption)
+                                    .font(isIPad ? .body : .caption)
                                     .fontWeight(.semibold)
                                 Text(achievement.description)
-                                    .font(.caption2)
+                                    .font(isIPad ? .caption : .caption2)
                                     .foregroundColor(.secondary)
                             }
                             
                             Spacer()
                         }
-                        .padding(8)
+                        .padding(isIPad ? 12 : 8)
                         .background(Color.orange.opacity(0.1))
-                        .cornerRadius(8)
+                        .cornerRadius(isIPad ? 12 : 8)
                     }
                 }
                 
                 if achievements.count > 4 {
                     Text("+ \(achievements.count - 4) more achievements!")
-                        .font(.caption)
+                        .font(isIPad ? .body : .caption)
                         .foregroundColor(.orange)
                         .fontWeight(.medium)
                 }
             }
-            .padding()
+            .padding(isIPad ? 20 : 16)
             .background(Color.orange.opacity(0.05))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
                     .stroke(Color.orange.opacity(0.3), lineWidth: 1)
             )
-            .cornerRadius(12)
+            .cornerRadius(isIPad ? 16 : 12)
         }
     }
 }

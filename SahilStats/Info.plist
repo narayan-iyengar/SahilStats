@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>SahilStats uses your location to automatically fill in the game location, making it easier to track where games are played.</string>
+    
+    <key>NSLocationUsageDescription</key>
+    <string>SahilStats uses your location to automatically fill in the game location.</string>
+    
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
