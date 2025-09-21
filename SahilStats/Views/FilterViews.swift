@@ -92,7 +92,7 @@ struct FilterView: View {
                                         .fill(selectedOutcomeFilter == outcome ? Color.orange : Color(.systemGray5))
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PillButtonStyle(isIPad: isIPad))
                         }
                     }
                 }
@@ -133,7 +133,7 @@ struct FilterView: View {
                 }
             }
         }
-        .presentationDetents(isIPad ? [.large] : [.medium, .large])
+        .presentationDetents([.large])
     }
 }
 
@@ -283,6 +283,7 @@ struct FilterChip: View {
 struct QuickFilterButtons: View {
     @Binding var selectedOutcomeFilter: GameOutcome?
     @Binding var selectedDateRange: GameListView.DateRange  // Use the existing enum
+    let isIPad: Bool
     
     var body: some View {
         VStack(spacing: 12) {
@@ -309,7 +310,7 @@ struct QuickFilterButtons: View {
                                 .fill(selectedOutcomeFilter == outcome ? Color.orange : Color(.systemGray5))
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PillButtonStyle(isIPad: isIPad))
                 }
                 
                 Spacer()
@@ -331,7 +332,7 @@ struct QuickFilterButtons: View {
                                     .fill(selectedDateRange == range ? Color.blue : Color(.systemGray5))
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PillButtonStyle(isIPad: isIPad))
                 }
                 
                 Spacer()

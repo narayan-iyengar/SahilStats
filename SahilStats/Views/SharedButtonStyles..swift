@@ -237,6 +237,23 @@ struct LiveStatButtonStyle: ButtonStyle {
     }
 }
 
+struct PillButtonStyle: ButtonStyle {
+    let isIPad: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .headline)
+            .fontWeight(.semibold)
+            .foregroundColor(.orange)
+            .padding(.horizontal, isIPad ? 20 : 16)
+            .padding(.vertical, isIPad ? 12 : 8)
+            .background(Color.orange.opacity(0.1))
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 
 struct PostGameSecondaryButtonStyle: ButtonStyle {
     let isIPad: Bool

@@ -17,6 +17,7 @@ struct LoadingView: View {
 // MARK: - Empty State View
 struct EmptyStateView: View {
     let canCreateGames: Bool
+    let isIPad: Bool
     
     var body: some View {
         VStack(spacing: 16) {
@@ -66,6 +67,7 @@ struct GameListToolbar: View {
     let canCreateGames: Bool
     let onShowFilters: () -> Void
     let onShowLiveGame: () -> Void
+    let isIPad: Bool
     
     var body: some View {
         HStack(spacing: 12) {
@@ -100,7 +102,7 @@ struct GameListToolbar: View {
             }
             
             if canCreateGames {
-                AddGameButton()
+                AddGameButton(isIPad: isIPad)
             }
         }
     }
@@ -134,6 +136,7 @@ struct LiveGameButton: View {
 
 // MARK: - Add Game Button
 struct AddGameButton: View {
+    let isIPad: Bool
     var body: some View {
         NavigationLink(destination: GameSetupView()) {
             Image(systemName: "plus")

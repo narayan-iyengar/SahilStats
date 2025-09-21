@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameListView.swift (Enhanced with Career Stats and Trends)
+// File: SahilStats/Views/GameListView.swift (Corrected and Refactored)
 
 import SwiftUI
 import Charts
@@ -26,30 +26,19 @@ struct GameListView: View {
     }
     
     var body: some View {
+        navigationView
+    }
+    
+    // MARK: - Main View Structure
+    
+    private var navigationView: some View {
         NavigationView {
             contentView
         }
-        .navigationTitle("Sahil's Basketball Stats")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                GameListToolbar(
-                    activeFiltersCount: filterManager.activeFiltersCount,
-                    hasLiveGame: firebaseService.hasLiveGame,
-                    canCreateGames: authService.canCreateGames,
-                    onShowFilters: { showingFilters = true },
-                    onShowLiveGame: { showingLiveGame = true }
-                )
-            }
-            
-            ToolbarItem(placement: .navigationBarLeading) {
-                if authService.isSignedIn {
-                    UserStatusIndicator()
-                }
-            }
-        }
-        .searchable(text: $searchText, prompt: "Search games...")
-        .sheet(item: $selectedGame) { game in
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { toolbarContent }
+        .fullScreenCover(item: $selectedGame) { game in
             GameDetailView(game: game)
         }
         .sheet(isPresented: $showingFilters) {
@@ -88,27 +77,31 @@ struct GameListView: View {
         .onDisappear {
             firebaseService.stopListening()
         }
-        .onChange(of: firebaseService.games) { _, _ in
-            updateDisplayedGames()
-        }
+        .onChange(of: firebaseService.games) { _, _ in updateDisplayedGames() }
         .onChange(of: searchText) { _, _ in
             filterManager.searchText = searchText
-            updateDisplayedGames()
+            filterManager.resetPagination()
         }
-        .onChange(of: filterManager.needsUpdate) { _, _ in
-            updateDisplayedGames()
-        }
+        .onChange(of: filterManager.needsUpdate) { _, _ in updateDisplayedGames() }
+        .onChange(of: filterManager.selectedTeamFilter) { _, _ in filterManager.resetPagination() }
+        .onChange(of: filterManager.selectedOpponentFilter) { _, _ in filterManager.resetPagination() }
+        .onChange(of: filterManager.selectedOutcomeFilter) { _, _ in filterManager.resetPagination() }
+        .onChange(of: filterManager.selectedDateRange) { _, _ in filterManager.resetPagination() }
+        .onChange(of: filterManager.customStartDate) { _, _ in filterManager.resetPagination() }
+        .onChange(of: filterManager.customEndDate) { _, _ in filterManager.resetPagination() }
     }
+    
+    // MARK: - Child Views
     
     @ViewBuilder
     private var contentView: some View {
         if firebaseService.isLoading {
             LoadingView()
         } else if sortedGames.isEmpty {
-            EmptyStateView(canCreateGames: authService.canCreateGames)
+            EmptyStateView(canCreateGames: authService.canCreateGames, isIPad: isIPad)
         } else {
             List {
-                // Career Stats Section (always visible when not heavily filtered)
+                // Career Stats Section
                 if shouldShowCareerStats {
                     Section {
                         ModernCareerDashboard(
@@ -120,74 +113,120 @@ struct GameListView: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: -35, leading: 0, bottom: 8, trailing: 0))
                 }
                 
-                // Only show games when not viewing trends
+                // Games Section
                 if !isViewingTrends {
-                    // Active filters display
-                    if hasActiveFilters {
-                        Section {
-                            ActiveFiltersView(
-                                searchText: effectiveSearchText,
-                                selectedTeamFilter: filterManager.selectedTeamFilter,
-                                selectedOpponentFilter: filterManager.selectedOpponentFilter,
-                                selectedOutcomeFilter: filterManager.selectedOutcomeFilter,
-                                selectedDateRange: filterManager.selectedDateRange,
-                                filteredCount: filteredGames.count,
-                                totalCount: sortedGames.count,
-                                onClearAll: clearAllFilters
-                            )
-                        }
-                        .listRowBackground(Color.orange.opacity(0.05))
-                        .listRowSeparator(.hidden)
-                    }
-                    
-                    // Live game indicator
-                    if firebaseService.hasLiveGame {
-                        Section {
-                            LiveGameIndicatorView(onTap: { showingLiveGame = true })
-                        }
-                        .listRowBackground(Color.red.opacity(0.1))
-                        .listRowSeparator(.hidden)
-                    }
-                    
-                    // Games section
-                    Section {
-                        ForEach(displayedGames) { game in
-                            EditableGameRowView(
-                                game: .constant(game),
-                                isHovered: hoveredGameId == game.id,
-                                canDelete: authService.canDeleteGames,
-                                canEdit: authService.canEditGames,
-                                onTap: { selectedGame = game },
-                                onDelete: {
-                                    gameToDelete = game
-                                    showingDeleteAlert = true
-                                },
-                                onSave: saveGameChanges
-                            )
-                            .onHover { isHovering in
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    hoveredGameId = isHovering ? game.id : nil
-                                }
-                            }
-                        }
-                        
-                        // Load more indicator
-                        if hasMoreGames {
-                            LoadMoreView(onLoadMore: loadMoreGames)
-                        }
-                    } header: {
-                        GamesSectionHeader(
-                            filteredCount: filteredGames.count,
-                            totalCount: sortedGames.count,
-                            displayedCount: displayedGames.count
-                        )
-                    }
+                    gamesListSection
                 }
             }
             .listStyle(PlainListStyle())
+        }
+    }
+    
+    @ViewBuilder
+    private var gamesListSection: some View {
+        // Active filters display
+        if hasActiveFilters {
+            Section {
+                ActiveFiltersView(
+                    searchText: effectiveSearchText,
+                    selectedTeamFilter: filterManager.selectedTeamFilter,
+                    selectedOpponentFilter: filterManager.selectedOpponentFilter,
+                    selectedOutcomeFilter: filterManager.selectedOutcomeFilter,
+                    selectedDateRange: filterManager.selectedDateRange,
+                    filteredCount: filteredGames.count,
+                    totalCount: sortedGames.count,
+                    onClearAll: clearAllFilters
+                )
+            }
+            .listRowBackground(Color.orange.opacity(0.05))
+            .listRowSeparator(.hidden)
+        }
+        
+        // Live game indicator
+        if firebaseService.hasLiveGame {
+            Section {
+                LiveGameIndicatorView(onTap: { showingLiveGame = true })
+            }
+            .listRowBackground(Color.red.opacity(0.1))
+            .listRowSeparator(.hidden)
+        }
+        
+        // Games list
+        Section {
+            ForEach(displayedGames) { game in
+                EditableGameRowView(
+                    game: .constant(game),
+                    isHovered: hoveredGameId == game.id,
+                    canDelete: authService.canDeleteGames,
+                    canEdit: authService.canEditGames,
+                    onTap: { selectedGame = game },
+                    onDelete: {
+                        gameToDelete = game
+                        showingDeleteAlert = true
+                    },
+                    onSave: saveGameChanges
+                )
+                .onHover { isHovering in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hoveredGameId = isHovering ? game.id : nil
+                    }
+                }
+            }
+            
+            // Load more indicator
+            if hasMoreGames {
+                LoadMoreView(onLoadMore: loadMoreGames)
+            }
+        } header: {
+            GamesSectionHeader(
+                filteredCount: filteredGames.count,
+                totalCount: sortedGames.count,
+                displayedCount: displayedGames.count,
+                isIPad: isIPad
+            )
+        }
+    }
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
+            GameListToolbar(
+                activeFiltersCount: filterManager.activeFiltersCount,
+                hasLiveGame: firebaseService.hasLiveGame,
+                canCreateGames: authService.canCreateGames,
+                onShowFilters: { showingFilters = true },
+                onShowLiveGame: { showingLiveGame = true },
+                isIPad: isIPad
+            )
+        }
+        
+        ToolbarItem(placement: .navigationBarLeading) {
+            if authService.isSignedIn {
+                UserStatusIndicator()
+            }
+        }
+    }
+}
+struct GamesSectionHeader: View {
+    let filteredCount: Int
+    let totalCount: Int
+    let displayedCount: Int
+    let isIPad: Bool
+    
+    var body: some View {
+        HStack {
+            Text(filteredCount == totalCount ? "Recent Games" : "Filtered Games")
+                .font(isIPad ? .title2 : .headline)
+                .fontWeight(.bold)
+            Spacer()
+            if displayedCount < filteredCount {
+                Text("Showing \(displayedCount) of \(filteredCount)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 }
@@ -320,23 +359,6 @@ struct LoadMoreView: View {
     }
 }
 
-struct GamesSectionHeader: View {
-    let filteredCount: Int
-    let totalCount: Int
-    let displayedCount: Int
-    
-    var body: some View {
-        HStack {
-            Text(filteredCount == totalCount ? "Recent Games" : "Filtered Games")
-            Spacer()
-            if displayedCount < filteredCount {
-                Text("Showing \(displayedCount) of \(filteredCount)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
 
 // MARK: - Enhanced Career Stats View
 struct EnhancedCareerStatsView: View {
@@ -347,7 +369,7 @@ struct EnhancedCareerStatsView: View {
     @State private var selectedTab = 0
     
     var body: some View {
-        VStack(spacing: isIPad ? 40 : 16) {
+        VStack(spacing: isIPad ? 60 : 25) {
             // Header
             HStack {
                 Text("Sahil's Career Dashboard")
@@ -526,7 +548,7 @@ struct CareerTrendsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .font(isIPad ? .title2 : .caption)
+                    .font(isIPad ? .title3 : .caption)
                     .scaleEffect(isIPad ? 1.4 : 1.0)
                 }
             }
