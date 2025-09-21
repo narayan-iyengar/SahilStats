@@ -44,8 +44,29 @@ class FirebaseService: ObservableObject {
     }
     
     func updateGame(_ game: Game) async throws {
-        guard let id = game.id else { return }
-        try await db.collection("games").document(id).setData(from: game)
+        guard let gameId = game.id else {
+            throw NSError(domain: "FirebaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Game ID is required for updates"])
+        }
+        
+        // Create updated game with edit metadata
+        var updatedGame = game
+        updatedGame.editedAt = Date()
+        updatedGame.editedBy = Auth.auth().currentUser?.email
+        
+        // Recalculate outcome based on new scores
+        if updatedGame.myTeamScore > updatedGame.opponentScore {
+            updatedGame.outcome = .win
+        } else if updatedGame.myTeamScore < updatedGame.opponentScore {
+            updatedGame.outcome = .loss
+        } else {
+            updatedGame.outcome = .tie
+        }
+        
+        // Update achievements based on new stats
+        updatedGame.achievements = Achievement.getEarnedAchievements(for: updatedGame)
+        
+        try await db.collection("games").document(gameId).setData(from: updatedGame)
+        print("✅ Game updated successfully: \(gameId)")
     }
     
     func deleteGame(_ gameId: String) async throws {
@@ -240,9 +261,6 @@ class FirebaseService: ObservableObject {
         )
     }
 }
-
-
-
 
 // MARK: - Career Stats Model
 
