@@ -4,6 +4,7 @@ import SwiftUI
 import Charts
 import Foundation
 import Combine
+import FirebaseAuth
 
 struct GameListView: View {
     @StateObject private var firebaseService = FirebaseService.shared
@@ -56,10 +57,55 @@ struct GameListView: View {
             )
         }
         .fullScreenCover(isPresented: $showingLiveGame) {
-            LiveGameFullScreenView {
-                showingLiveGame = false
+            NavigationView {
+                ZStack {
+                    Color(.systemBackground).ignoresSafeArea()
+                    
+                    VStack(spacing: 0) {
+                        // Navigation bar
+                        HStack {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 12, height: 12)
+                                    .opacity(0.8)
+                                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                                
+                                Text("Live Game")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.primary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: { showingLiveGame = false }) {
+                                Text("Done")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(20)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+                        .padding(.bottom, 16)
+                        .background(
+                            Color(.systemBackground)
+                                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                        )
+                        
+                        // Main content
+                        LiveGameView()
+                    }
+                }
+                .navigationBarHidden(true)
             }
-            .environmentObject(authService)
+            .navigationViewStyle(StackNavigationViewStyle())
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             GameDeleteAlert(
@@ -73,6 +119,12 @@ struct GameListView: View {
         .onAppear {
             firebaseService.startListening()
             updateDisplayedGames()
+            print("🔍 GameListView appeared - hasLiveGame: \(firebaseService.hasLiveGame)")
+        }
+
+        // And add this to your showingLiveGame state change:
+        .onChange(of: showingLiveGame) { oldValue, newValue in
+            print("🔍 showingLiveGame changed from \(oldValue) to \(newValue)")
         }
         .onDisappear {
             firebaseService.stopListening()
@@ -764,10 +816,48 @@ private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some Vie
         Color(.systemBackground).ignoresSafeArea()
         
         VStack(spacing: 0) {
-            FullScreenNavigationBar(onDismiss: onDismiss)
+            // Navigation bar
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 12, height: 12)
+                        .opacity(0.8)
+                        .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                    
+                    Text("Live Game")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+                
+                Button(action: onDismiss) {
+                    Text("Done")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(20)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+            .background(
+                Color(.systemBackground)
+                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+            )
+            
+            // Main content - Remove the explicit environmentObject since it should inherit
             LiveGameView()
         }
     }
+    .navigationBarHidden(true)
 }
 
 @ViewBuilder

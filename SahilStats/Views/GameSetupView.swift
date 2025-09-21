@@ -77,10 +77,46 @@ struct GameSetupView: View {
             }
         }
         .fullScreenCover(isPresented: $showingLiveGameView) {
-            if let liveGame = createdLiveGame {
-                LiveGameView()
-                    .environmentObject(authService)
+            ZStack {
+                Color(.systemBackground).ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // Navigation bar
+                    HStack {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 12, height: 12)
+                                .opacity(0.8)
+                                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                            
+                            Text("Live Game")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button("Done") {
+                            showingLiveGameView = false
+                        }
+                        .buttonStyle(PillButtonStyle(isIPad: isIPad))
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, 16)
+                    .background(
+                        Color(.systemBackground)
+                            .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                    )
+                    
+                    // Main content
+                    LiveGameView()
+                        .environmentObject(authService)
+                }
             }
+            .navigationBarHidden(true)
         }
         .onChange(of: locationManager.locationName) { _, newLocation in
             if !newLocation.isEmpty {
@@ -285,15 +321,13 @@ struct GameSetupView: View {
                 ) {
                     if firebaseService.hasLiveGame {
                         // Navigate directly to live game view
-                        if let currentLiveGame = firebaseService.getCurrentLiveGame() {
-                            createdLiveGame = currentLiveGame
-                            showingLiveGameView = true
-                        }
+                        showingLiveGameView = true
                     } else {
                         setupMode = .gameForm
                         deviceRole = .controller
                     }
                 }
+
                 
                 // Recording Setup (Future feature)
                 SetupOptionCard(
@@ -633,6 +667,7 @@ struct GameSetupView: View {
                 case .live:
                     let liveGame = try await createLiveGame()
                     await MainActor.run {
+                        // Set the created game and show the live view
                         createdLiveGame = liveGame
                         showingLiveGameView = true
                     }
