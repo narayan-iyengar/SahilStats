@@ -2,10 +2,11 @@
 
 import Foundation
 import FirebaseFirestore
+import Combine
 
 // MARK: - Game Model
 
-struct Game: Identifiable, Codable {
+struct Game: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var teamName: String
     var opponent: String
@@ -546,7 +547,7 @@ enum GameOutcome: String, Codable, CaseIterable {
 
 // MARK: - Game Photo
 
-struct GamePhoto: Codable, Identifiable {
+struct GamePhoto: Codable, Identifiable, Equatable {
     var id: String
     var url: String
     var description: String
