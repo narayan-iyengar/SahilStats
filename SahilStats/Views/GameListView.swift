@@ -1,6 +1,7 @@
-// File: SahilStats/Views/GameListView.swift
+// File: SahilStats/Views/GameListView.swift (Enhanced with Career Stats and Trends)
 
 import SwiftUI
+import Charts
 import Foundation
 import Combine
 
@@ -15,6 +16,8 @@ struct GameListView: View {
     @State private var gameToDelete: Game?
     @State private var showingLiveGame = false
     @State private var isViewingTrends = false
+    @State private var searchText = ""
+    @State private var showingFilters = false
     
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -34,7 +37,7 @@ struct GameListView: View {
                     activeFiltersCount: filterManager.activeFiltersCount,
                     hasLiveGame: firebaseService.hasLiveGame,
                     canCreateGames: authService.canCreateGames,
-                    onShowFilters: { filterManager.showingFilters = true },
+                    onShowFilters: { showingFilters = true },
                     onShowLiveGame: { showingLiveGame = true }
                 )
             }
@@ -45,14 +48,21 @@ struct GameListView: View {
                 }
             }
         }
+        .searchable(text: $searchText, prompt: "Search games...")
         .sheet(item: $selectedGame) { game in
             GameDetailView(game: game)
         }
-        .sheet(isPresented: $filterManager.showingFilters) {
-            GameFiltersSheet(
-                filterManager: filterManager,
+        .sheet(isPresented: $showingFilters) {
+            FilterView(
+                selectedTeamFilter: $filterManager.selectedTeamFilter,
+                selectedOpponentFilter: $filterManager.selectedOpponentFilter,
+                selectedOutcomeFilter: $filterManager.selectedOutcomeFilter,
+                selectedDateRange: $filterManager.selectedDateRange,
+                customStartDate: $filterManager.customStartDate,
+                customEndDate: $filterManager.customEndDate,
                 availableTeams: availableTeams,
                 availableOpponents: availableOpponents,
+                onClearAll: filterManager.clearAllFilters,
                 isIPad: isIPad
             )
         }
@@ -73,16 +83,20 @@ struct GameListView: View {
         }
         .onAppear {
             firebaseService.startListening()
-            filterManager.updateDisplayedGames(from: filteredGames)
+            updateDisplayedGames()
         }
         .onDisappear {
             firebaseService.stopListening()
         }
         .onChange(of: firebaseService.games) { _, _ in
-            filterManager.updateDisplayedGames(from: filteredGames)
+            updateDisplayedGames()
+        }
+        .onChange(of: searchText) { _, _ in
+            filterManager.searchText = searchText
+            updateDisplayedGames()
         }
         .onChange(of: filterManager.needsUpdate) { _, _ in
-            filterManager.updateDisplayedGames(from: filteredGames)
+            updateDisplayedGames()
         }
     }
     
@@ -93,21 +107,87 @@ struct GameListView: View {
         } else if sortedGames.isEmpty {
             EmptyStateView(canCreateGames: authService.canCreateGames)
         } else {
-            GameListContent(
-                sortedGames: sortedGames,
-                filterManager: filterManager,
-                firebaseService: firebaseService,
-                authService: authService,
-                isViewingTrends: $isViewingTrends,
-                hoveredGameId: $hoveredGameId,
-                onGameTap: { selectedGame = $0 },
-                onGameDelete: {
-                    gameToDelete = $0
-                    showingDeleteAlert = true
-                },
-                onGameSave: saveGameChanges,
-                onShowLiveGame: { showingLiveGame = true }
-            )
+            List {
+                // Career Stats Section (always visible when not heavily filtered)
+                if shouldShowCareerStats {
+                    Section {
+                        ModernCareerDashboard(
+                            stats: firebaseService.getCareerStats(),
+                            games: sortedGames,
+                            isViewingTrends: $isViewingTrends,
+                            isIPad: isIPad
+                        )
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                }
+                
+                // Only show games when not viewing trends
+                if !isViewingTrends {
+                    // Active filters display
+                    if hasActiveFilters {
+                        Section {
+                            ActiveFiltersView(
+                                searchText: effectiveSearchText,
+                                selectedTeamFilter: filterManager.selectedTeamFilter,
+                                selectedOpponentFilter: filterManager.selectedOpponentFilter,
+                                selectedOutcomeFilter: filterManager.selectedOutcomeFilter,
+                                selectedDateRange: filterManager.selectedDateRange,
+                                filteredCount: filteredGames.count,
+                                totalCount: sortedGames.count,
+                                onClearAll: clearAllFilters
+                            )
+                        }
+                        .listRowBackground(Color.orange.opacity(0.05))
+                        .listRowSeparator(.hidden)
+                    }
+                    
+                    // Live game indicator
+                    if firebaseService.hasLiveGame {
+                        Section {
+                            LiveGameIndicatorView(onTap: { showingLiveGame = true })
+                        }
+                        .listRowBackground(Color.red.opacity(0.1))
+                        .listRowSeparator(.hidden)
+                    }
+                    
+                    // Games section
+                    Section {
+                        ForEach(displayedGames) { game in
+                            EditableGameRowView(
+                                game: .constant(game),
+                                isHovered: hoveredGameId == game.id,
+                                canDelete: authService.canDeleteGames,
+                                canEdit: authService.canEditGames,
+                                onTap: { selectedGame = game },
+                                onDelete: {
+                                    gameToDelete = game
+                                    showingDeleteAlert = true
+                                },
+                                onSave: saveGameChanges
+                            )
+                            .onHover { isHovering in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    hoveredGameId = isHovering ? game.id : nil
+                                }
+                            }
+                        }
+                        
+                        // Load more indicator
+                        if hasMoreGames {
+                            LoadMoreView(onLoadMore: loadMoreGames)
+                        }
+                    } header: {
+                        GamesSectionHeader(
+                            filteredCount: filteredGames.count,
+                            totalCount: sortedGames.count,
+                            displayedCount: displayedGames.count
+                        )
+                    }
+                }
+            }
+            .listStyle(PlainListStyle())
         }
     }
 }
@@ -131,12 +211,60 @@ extension GameListView {
     }
     
     private var filteredGames: [Game] {
-        filterManager.applyFilters(to: sortedGames)
+        var games = sortedGames
+        
+        // Apply search filter
+        if !effectiveSearchText.isEmpty {
+            games = games.filter { game in
+                game.teamName.localizedCaseInsensitiveContains(effectiveSearchText) ||
+                game.opponent.localizedCaseInsensitiveContains(effectiveSearchText) ||
+                (game.location?.localizedCaseInsensitiveContains(effectiveSearchText) ?? false)
+            }
+        }
+        
+        // Apply other filters
+        games = filterManager.applyFilters(to: games)
+        
+        return games
+    }
+    
+    private var displayedGames: [Game] {
+        filterManager.displayedGames
+    }
+    
+    private var effectiveSearchText: String {
+        !searchText.isEmpty ? searchText : filterManager.searchText
+    }
+    
+    private var hasActiveFilters: Bool {
+        !effectiveSearchText.isEmpty || filterManager.activeFiltersCount > 0
+    }
+    
+    private var shouldShowCareerStats: Bool {
+        !hasActiveFilters && !sortedGames.isEmpty
+    }
+    
+    private var hasMoreGames: Bool {
+        displayedGames.count < filteredGames.count
     }
 }
 
 // MARK: - Actions
 extension GameListView {
+    private func updateDisplayedGames() {
+        filterManager.updateDisplayedGames(from: filteredGames)
+    }
+    
+    private func loadMoreGames() {
+        // Implementation would go in FilterManager
+        print("Loading more games...")
+    }
+    
+    private func clearAllFilters() {
+        searchText = ""
+        filterManager.clearAllFilters()
+    }
+    
     private func saveGameChanges(_ game: Game) {
         Task {
             do {
@@ -159,7 +287,507 @@ extension GameListView {
     }
 }
 
-// MARK: - Date Range Enum (for FilterManager compatibility)
+// MARK: - Supporting Views
+
+struct LoadMoreView: View {
+    let onLoadMore: () -> Void
+    @State private var isLoading = false
+    
+    var body: some View {
+        HStack {
+            Spacer()
+            
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                    .scaleEffect(0.8)
+            } else {
+                Button("Load More Games") {
+                    isLoading = true
+                    onLoadMore()
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isLoading = false
+                    }
+                }
+                .foregroundColor(.orange)
+                .font(.subheadline)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+struct GamesSectionHeader: View {
+    let filteredCount: Int
+    let totalCount: Int
+    let displayedCount: Int
+    
+    var body: some View {
+        HStack {
+            Text(filteredCount == totalCount ? "Recent Games" : "Filtered Games")
+            Spacer()
+            if displayedCount < filteredCount {
+                Text("Showing \(displayedCount) of \(filteredCount)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Enhanced Career Stats View
+struct EnhancedCareerStatsView: View {
+    let stats: CareerStats
+    let games: [Game]
+    @Binding var isViewingTrends: Bool
+    let isIPad: Bool
+    @State private var selectedTab = 0
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 40 : 16) {
+            // Header
+            HStack {
+                Text("Sahil's Career Dashboard")
+                    .font(isIPad ? .system(size: 52, weight: .heavy) : .title2)
+                    .fontWeight(.heavy)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            
+            // Tab selector
+            Picker("View", selection: $selectedTab) {
+                Text("Overview")
+                    .font(isIPad ? .largeTitle : .body)
+                    .tag(0)
+                Text("Trends")
+                    .font(isIPad ? .largeTitle : .body)
+                    .tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .scaleEffect(isIPad ? 1.5 : 1.0)
+            .onChange(of: selectedTab) { oldValue, newValue in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isViewingTrends = (newValue == 1)
+                }
+            }
+            
+            // Content based on selected tab
+            if selectedTab == 0 {
+                OverviewStatsView(stats: stats, isIPad: isIPad)
+            } else {
+                CareerTrendsView(games: games, isIPad: isIPad)
+            }
+        }
+        .padding(isIPad ? 40 : 16)
+    }
+}
+
+// MARK: - Overview Stats
+struct OverviewStatsView: View {
+    let stats: CareerStats
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 40 : 12) {
+            // First row: Main stats
+            HStack(spacing: isIPad ? 40 : 20) {
+                StatBox(title: "Games", value: "\(stats.totalGames)", color: .blue, isIPad: isIPad)
+                StatBox(title: "Points", value: "\(stats.totalPoints)", color: .purple, isIPad: isIPad)
+                StatBox(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo, isIPad: isIPad)
+                StatBox(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: stats.winPercentage > 0.5 ? .green : .red, isIPad: isIPad)
+            }
+            
+            // Second row: Other key stats
+            HStack(spacing: isIPad ? 40 : 20) {
+                StatBox(title: "Rebounds", value: "\(stats.totalRebounds)", color: .mint, isIPad: isIPad)
+                StatBox(title: "Assists", value: "\(stats.totalAssists)", color: .cyan, isIPad: isIPad)
+                StatBox(title: "Steals", value: "\(stats.totalSteals)", color: .yellow, isIPad: isIPad)
+                StatBox(title: "Fouls", value: "\(stats.totalFouls)", color: .pink, isIPad: isIPad)
+            }
+            
+            // Third row: Shooting percentages
+            HStack(spacing: isIPad ? 40 : 20) {
+                StatBox(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
+                StatBox(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
+                StatBox(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
+                StatBox(title: "A/T", value: String(format: "%.1f", stats.assistTurnoverRatio), color: .indigo, isIPad: isIPad)
+            }
+        }
+    }
+}
+
+struct StatBox: View {
+    let title: String
+    let value: String
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 20 : 6) {
+            Text(value)
+                .font(isIPad ? .system(size: 64, weight: .black) : .title3)
+                .fontWeight(.black)
+                .foregroundColor(color)
+                .minimumScaleFactor(0.6)
+            
+            Text(title)
+                .font(isIPad ? .system(size: 20, weight: .semibold) : .caption2)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 32 : 8)
+        .padding(.horizontal, isIPad ? 20 : 8)
+        .background(color.opacity(0.08))
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 24 : 8)
+                .stroke(color.opacity(0.2), lineWidth: isIPad ? 3 : 1)
+        )
+        .cornerRadius(isIPad ? 24 : 8)
+    }
+}
+
+// MARK: - Career Trends View
+struct CareerTrendsView: View {
+    let games: [Game]
+    let isIPad: Bool
+    @State private var selectedStat: CareerStatType = .avgPoints
+    @State private var selectedTimeframe: TrendTimeframe = .auto
+    
+    enum CareerStatType: String, CaseIterable {
+        case avgPoints = "Avg Points"
+        case totalPoints = "Total Points"
+        case avgRebounds = "Avg Rebounds"
+        case totalRebounds = "Total Rebounds"
+        case avgAssists = "Avg Assists"
+        case totalAssists = "Total Assists"
+        case fieldGoalPct = "Field Goal %"
+        case threePointPct = "3-Point %"
+        case freeThrowPct = "Free Throw %"
+        case winPercentage = "Win Rate"
+        case gamesPlayed = "Games Played"
+        
+        var color: Color {
+            switch self {
+            case .totalPoints, .avgPoints: return .purple
+            case .totalRebounds, .avgRebounds: return .mint
+            case .totalAssists, .avgAssists: return .cyan
+            case .fieldGoalPct: return .blue
+            case .threePointPct: return .green
+            case .freeThrowPct: return .orange
+            case .winPercentage: return .green
+            case .gamesPlayed: return .blue
+            }
+        }
+        
+        var isPercentage: Bool {
+            switch self {
+            case .fieldGoalPct, .threePointPct, .freeThrowPct, .winPercentage:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+    
+    enum TrendTimeframe: String, CaseIterable {
+        case auto = "Auto"
+        case weekly = "Weekly"
+        case monthly = "Monthly"
+        case quarterly = "Quarterly"
+        case yearly = "Yearly"
+        
+        var displayName: String { rawValue }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: isIPad ? 40 : 16) {
+            // Header
+            VStack(alignment: .leading, spacing: isIPad ? 24 : 12) {
+                Text("Sahil's Progress Over Time")
+                    .font(isIPad ? .system(size: 44, weight: .heavy) : .headline)
+                    .foregroundColor(.primary)
+                
+                HStack {
+                    Text("Track performance trends across different time periods")
+                        .font(isIPad ? .title2 : .caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Picker("Timeframe", selection: $selectedTimeframe) {
+                        ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
+                            Text(timeframe.displayName).tag(timeframe)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .font(isIPad ? .title2 : .caption)
+                    .scaleEffect(isIPad ? 1.4 : 1.0)
+                }
+            }
+            
+            // Stat selector grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 4 : 3), spacing: isIPad ? 20 : 6) {
+                ForEach(CareerStatType.allCases, id: \.self) { stat in
+                    CareerTrendStatButton(
+                        stat: stat,
+                        isSelected: selectedStat == stat,
+                        isIPad: isIPad
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            selectedStat = stat
+                        }
+                    }
+                }
+            }
+            
+            // Chart
+            if !games.isEmpty && games.count >= 2 {
+                VStack(alignment: .leading, spacing: isIPad ? 24 : 8) {
+                    HStack {
+                        Text("\(selectedStat.rawValue) - \(selectedTimeframe.displayName)")
+                            .font(isIPad ? .system(size: 32, weight: .bold) : .subheadline)
+                            .fontWeight(.bold)
+                            .foregroundColor(selectedStat.color)
+                        
+                        Spacer()
+                        
+                        Text("Latest: \(getLatestValueText())")
+                            .font(isIPad ? .title : .caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Chart {
+                        ForEach(Array(getTrendData().enumerated()), id: \.offset) { index, dataPoint in
+                            LineMark(
+                                x: .value("Game", index + 1),
+                                y: .value(selectedStat.rawValue, dataPoint)
+                            )
+                            .foregroundStyle(selectedStat.color)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: isIPad ? 8 : 3))
+                            
+                            PointMark(
+                                x: .value("Game", index + 1),
+                                y: .value(selectedStat.rawValue, dataPoint)
+                            )
+                            .foregroundStyle(selectedStat.color)
+                            .symbolSize(isIPad ? 300 : 60)
+                        }
+                    }
+                    .frame(height: isIPad ? 400 : 150)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine()
+                            AxisValueLabel {
+                                if let doubleValue = value.as(Double.self) {
+                                    Text(formatYAxisValue(doubleValue))
+                                        .font(isIPad ? .title2 : .caption2)
+                                }
+                            }
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks { value in
+                            AxisGridLine()
+                            AxisValueLabel {
+                                if let intValue = value.as(Int.self) {
+                                    Text("\(intValue)")
+                                        .font(isIPad ? .title2 : .caption2)
+                                }
+                            }
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.5), value: selectedStat)
+                }
+                .padding(isIPad ? 40 : 16)
+                .background(selectedStat.color.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: isIPad ? 28 : 12)
+                        .stroke(selectedStat.color.opacity(0.2), lineWidth: isIPad ? 3 : 1)
+                )
+                .cornerRadius(isIPad ? 28 : 12)
+            } else {
+                VStack(spacing: isIPad ? 32 : 12) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: isIPad ? 100 : 40))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Keep Playing!")
+                        .font(isIPad ? .system(size: 40, weight: .heavy) : .headline)
+                        .fontWeight(.heavy)
+                    
+                    Text("Play a few more games to see trends over time")
+                        .font(isIPad ? .largeTitle : .subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(height: isIPad ? 400 : 150)
+                .frame(maxWidth: .infinity)
+                .padding(isIPad ? 48 : 24)
+                .background(Color(.systemGray6))
+                .cornerRadius(isIPad ? 28 : 12)
+            }
+        }
+    }
+    
+    private func getTrendData() -> [Double] {
+        let recentGames = Array(games.suffix(min(games.count, 10)))
+        
+        return recentGames.map { game in
+            calculateStatValue(for: [game])
+        }
+    }
+    
+    private func getLatestValueText() -> String {
+        guard let latest = getTrendData().last else { return "" }
+        let formatted = selectedStat.isPercentage ?
+            String(format: "%.1f%%", latest) :
+            String(format: "%.1f", latest)
+        return formatted
+    }
+    
+    private func formatYAxisValue(_ value: Double) -> String {
+        if selectedStat.isPercentage {
+            return String(format: "%.0f%%", value)
+        } else if value >= 1000 {
+            return String(format: "%.1fk", value / 1000)
+        } else {
+            return String(format: "%.0f", value)
+        }
+    }
+    
+    private func calculateStatValue(for games: [Game]) -> Double {
+        let gameCount = Double(games.count)
+        guard gameCount > 0 else { return 0 }
+        
+        switch selectedStat {
+        case .avgPoints:
+            return Double(games.reduce(0) { $0 + $1.points }) / gameCount
+        case .totalPoints:
+            return Double(games.reduce(0) { $0 + $1.points })
+        case .avgRebounds:
+            return Double(games.reduce(0) { $0 + $1.rebounds }) / gameCount
+        case .totalRebounds:
+            return Double(games.reduce(0) { $0 + $1.rebounds })
+        case .avgAssists:
+            return Double(games.reduce(0) { $0 + $1.assists }) / gameCount
+        case .totalAssists:
+            return Double(games.reduce(0) { $0 + $1.assists })
+        case .fieldGoalPct:
+            let totalMade = games.reduce(0) { $0 + $1.fg2m + $1.fg3m }
+            let totalAttempted = games.reduce(0) { $0 + $1.fg2a + $1.fg3a }
+            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
+        case .threePointPct:
+            let totalMade = games.reduce(0) { $0 + $1.fg3m }
+            let totalAttempted = games.reduce(0) { $0 + $1.fg3a }
+            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
+        case .freeThrowPct:
+            let totalMade = games.reduce(0) { $0 + $1.ftm }
+            let totalAttempted = games.reduce(0) { $0 + $1.fta }
+            return totalAttempted > 0 ? Double(totalMade) / Double(totalAttempted) * 100 : 0
+        case .winPercentage:
+            let wins = games.filter { $0.outcome == .win }.count
+            return gameCount > 0 ? Double(wins) / gameCount * 100 : 0
+        case .gamesPlayed:
+            return gameCount
+        }
+    }
+}
+
+struct CareerTrendStatButton: View {
+    let stat: CareerTrendsView.CareerStatType
+    let isSelected: Bool
+    let isIPad: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: isIPad ? 12 : 2) {
+                Text(stat.rawValue)
+                    .font(isIPad ? .title2 : .caption2)
+                    .foregroundColor(isSelected ? stat.color : .secondary)
+                    .fontWeight(isSelected ? .heavy : .medium)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: isIPad ? 100 : 35)
+            .padding(.horizontal, isIPad ? 16 : 6)
+            .background(
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 6)
+                    .fill(isSelected ? stat.color.opacity(0.15) : Color.gray.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 6)
+                    .stroke(isSelected ? stat.color.opacity(0.5) : Color.clear, lineWidth: isIPad ? 4 : 1.5)
+            )
+            .scaleEffect(isSelected ? 1.02 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isSelected)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Live Game Full Screen View
+@ViewBuilder
+private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
+    ZStack {
+        Color(.systemBackground).ignoresSafeArea()
+        
+        VStack(spacing: 0) {
+            FullScreenNavigationBar(onDismiss: onDismiss)
+            LiveGameView()
+        }
+    }
+}
+
+@ViewBuilder
+private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
+    HStack {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 12, height: 12)
+                .opacity(0.8)
+                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+            
+            Text("Live Game")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+        }
+        
+        Spacer()
+        
+        Button(action: onDismiss) {
+            Text("Done")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.orange)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(20)
+        }
+        .buttonStyle(.plain)
+    }
+    .padding(.horizontal, 24)
+    .padding(.top, 20)
+    .padding(.bottom, 16)
+    .background(
+        Color(.systemBackground)
+            .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+    )
+}
+
+// MARK: - Date Range Extension for FilterManager Compatibility
 extension GameListView {
     enum DateRange: String, CaseIterable {
         case all = "All Time"
@@ -193,5 +821,3 @@ extension GameListView {
     GameListView()
         .environmentObject(AuthService())
 }
-
-
