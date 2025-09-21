@@ -25,6 +25,11 @@ struct GameSetupView: View {
     @State private var showingLiveGameView = false
     @State private var createdLiveGame: LiveGame?
     
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
     @StateObject private var locationManager = LocationManager.shared
     
     enum SetupMode {
@@ -143,15 +148,8 @@ struct GameSetupView: View {
                 // Done button - ALWAYS visible and prominent
                 Button(action: onDismiss) {
                     Text("Done")
-                        .font(isIPad ? .title3 : .headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, isIPad ? 20 : 16)
-                        .padding(.vertical, isIPad ? 12 : 8)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(isIPad ? 24 : 20)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PillButtonStyle(isIPad: isIPad))
             }
             .padding(.horizontal, isIPad ? 28 : 24)
             .padding(.top, isIPad ? 24 : 20)
@@ -222,15 +220,8 @@ struct GameSetupView: View {
             // FIXED: Always show "Done" button, never "X"
             Button(action: onDismiss) {
                 Text("Done")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(20)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PillButtonStyle(isIPad: isIPad))
         }
         .padding(.horizontal, 24)
         .padding(.top, 20)
@@ -531,6 +522,7 @@ struct GameSetupView: View {
                     deviceRole = .none
                     gameId = ""
                 }
+                .buttonStyle(PillButtonStyle(isIPad: isIPad))
             }
         }
         .alert("Error", isPresented: .constant(!error.isEmpty)) {
@@ -712,6 +704,29 @@ struct GameSetupView: View {
             .map { $0 }
     }
 }
+#Preview {
+    struct PreviewWrapper: View {
+        @Environment(\.horizontalSizeClass) var horizontalSizeClass
+        private var isIPad: Bool {
+            horizontalSizeClass == .regular
+        }
+        var body: some View {
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    GameSetupView()
+                        .environmentObject(AuthService())
+                }
+            } else {
+                NavigationView {
+                    GameSetupView()
+                        .environmentObject(AuthService())
+                        .navigationViewStyle(StackNavigationViewStyle())
+                }
+            }
+        }
+    }
+    return PreviewWrapper()
+}
 
 // MARK: - Supporting Models and Views
 
@@ -840,6 +855,7 @@ struct GameIdDisplayCard: View {
 }
 
 #Preview {
+
     if #available(iOS 16.0, *) {
         NavigationStack {
             GameSetupView()

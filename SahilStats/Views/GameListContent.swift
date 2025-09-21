@@ -43,6 +43,7 @@ struct GameListContent: View {
                     filterManager: filterManager,
                     firebaseService: firebaseService,
                     authService: authService,
+                    isIPad: isIPad,
                     filteredGames: filteredGames,
                     hoveredGameId: $hoveredGameId,
                     onGameTap: onGameTap,
@@ -80,6 +81,7 @@ struct GamesListSection: View {
     @ObservedObject var filterManager: GameFilterManager
     @ObservedObject var firebaseService: FirebaseService
     @ObservedObject var authService: AuthService
+    let isIPad: Bool
     
     let filteredGames: [Game]
     @Binding var hoveredGameId: String?
@@ -119,7 +121,8 @@ struct GamesListSection: View {
                 GamesSectionHeader(
                     filteredCount: filteredGames.count,
                     totalCount: firebaseService.games.count,
-                    displayedCount: filterManager.displayedGames.count
+                    displayedCount: filterManager.displayedGames.count,
+                    isIPad: isIPad
                 )
             }
         }

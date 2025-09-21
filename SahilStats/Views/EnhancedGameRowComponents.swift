@@ -1,5 +1,6 @@
 // File: SahilStats/Views/EnhancedGameRowComponents.swift
 
+
 import SwiftUI
 import Combine
 import Foundation
@@ -46,132 +47,9 @@ struct EditableGameRowView: View {
                     .animation(.easeInOut(duration: 0.2), value: isHovered)
                 
                 VStack(alignment: .leading, spacing: 6) {
-                    // Teams and score
-                    HStack {
-                        Text("\(game.teamName) vs \(game.opponent)")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        HStack(spacing: 8) {
-                            Text("\(game.myTeamScore) - \(game.opponentScore)")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(outcomeColor)
-                            
-                            // Action buttons (only show on hover for admins)
-                            if isHovered && !isEditing {
-                                HStack(spacing: 4) {
-                                    if canEdit {
-                                        Button(action: startEditing) {
-                                            Image(systemName: "pencil")
-                                                .font(.caption)
-                                                .foregroundColor(.blue)
-                                                .padding(4)
-                                                .background(Color.blue.opacity(0.1))
-                                                .cornerRadius(4)
-                                        }
-                                        .transition(.opacity)
-                                    }
-                                    
-                                    if canDelete {
-                                        Button(action: onDelete) {
-                                            Image(systemName: "trash")
-                                                .font(.caption)
-                                                .foregroundColor(.red)
-                                                .padding(4)
-                                                .background(Color.red.opacity(0.1))
-                                                .cornerRadius(4)
-                                        }
-                                        .transition(.opacity)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Editable stats section
-                    if isEditing {
-                        EditableStatsGrid(game: $editingGame)
-                            .padding(.top, 8)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .top)),
-                                removal: .opacity.combined(with: .move(edge: .top))
-                            ))
-                    } else {
-                        // Regular stats display
-                        HStack(spacing: 12) {
-                            StatPill(label: "PTS", value: "\(game.points)", color: .purple)
-                            StatPill(label: "REB", value: "\(game.rebounds)", color: .blue)
-                            StatPill(label: "AST", value: "\(game.assists)", color: .green)
-                            
-                            Spacer()
-                            
-                            // Shooting efficiency
-                            if game.fieldGoalPercentage > 0 {
-                                HStack(spacing: 2) {
-                                    Image(systemName: "target")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                    Text("\(Int(game.fieldGoalPercentage * 100))%")
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Date and location (always visible)
-                    if !isEditing {
-                        HStack {
-                            if let location = game.location {
-                                Label(location, systemImage: "location")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Text(formatRelativeDate(game.timestamp))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // Achievements (always visible)
-                        if !game.achievements.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 4) {
-                                    ForEach(Array(game.achievements.prefix(5)), id: \.id) { achievement in
-                                        HStack(spacing: 2) {
-                                            Text(achievement.emoji)
-                                                .font(.caption)
-                                            if isHovered {
-                                                Text(achievement.name)
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                                    .transition(.opacity)
-                                            }
-                                        }
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 2)
-                                        .background(Color.orange.opacity(0.1))
-                                        .cornerRadius(4)
-                                    }
-                                    
-                                    if game.achievements.count > 5 {
-                                        Text("+\(game.achievements.count - 5)")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                            .padding(.horizontal, 4)
-                                    }
-                                }
-                            }
-                            .animation(.easeInOut(duration: 0.2), value: isHovered)
-                        }
-                    }
+                    gameRowHeader
+                    gameRowStats
+                    gameRowFooter
                 }
             }
             
@@ -221,45 +99,10 @@ struct EditableGameRowView: View {
             Text("Save the changes to this game?")
         }
         .contextMenu {
-            if !isEditing {
-                Button("View Details") {
-                    onTap()
-                }
-                
-                if canEdit {
-                    Button("Edit Stats") {
-                        startEditing()
-                    }
-                }
-                
-                if canDelete {
-                    Button("Delete Game", role: .destructive) {
-                        onDelete()
-                    }
-                }
-            }
+            contextMenuItems
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if !isEditing {
-                if canDelete {
-                    Button("Delete", role: .destructive) {
-                        onDelete()
-                    }
-                    .tint(.red)
-                }
-                
-                if canEdit {
-                    Button("Edit") {
-                        startEditing()
-                    }
-                    .tint(.blue)
-                }
-                
-                Button("Details") {
-                    onTap()
-                }
-                .tint(.green)
-            }
+            swipeActionItems
         }
     }
     
@@ -307,7 +150,186 @@ struct EditableGameRowView: View {
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
     }
+
+    // MARK: - Child Views
+    
+    private var gameRowHeader: some View {
+        HStack {
+            Text("\(game.teamName) vs \(game.opponent)")
+                .font(isIPad ? .title2 : .headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Text("\(game.myTeamScore) - \(game.opponentScore)")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(outcomeColor)
+                
+                // Action buttons (only show on hover for admins)
+                if isHovered && !isEditing {
+                    actionButtons
+                }
+            }
+        }
+    }
+    
+    private var gameRowStats: some View {
+        Group {
+            if isEditing {
+                EditableStatsGrid(game: $editingGame)
+                    .padding(.top, 8)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    ))
+            } else {
+                // Regular stats display
+                HStack(spacing: 12) {
+                    StatPill(label: "PTS", value: "\(game.points)", color: .purple)
+                    StatPill(label: "REB", value: "\(game.rebounds)", color: .blue)
+                    StatPill(label: "AST", value: "\(game.assists)", color: .green)
+                    
+                    Spacer()
+                    
+                    // Shooting efficiency
+                    if game.fieldGoalPercentage > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "target")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("\(Int(game.fieldGoalPercentage * 100))%")
+                                .font(isIPad ? .body : .caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var gameRowFooter: some View {
+        Group {
+            if !isEditing {
+                HStack {
+                    if let location = game.location {
+                        Label(location, systemImage: "location")
+                            .font(isIPad ? .body : .caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(formatRelativeDate(game.timestamp))
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Achievements (always visible)
+                if !game.achievements.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            ForEach(Array(game.achievements.prefix(5)), id: \.id) { achievement in
+                                HStack(spacing: 2) {
+                                    Text(achievement.emoji)
+                                        .font(.caption)
+                                    if isHovered {
+                                        Text(achievement.name)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .transition(.opacity)
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(4)
+                            }
+                            
+                            if game.achievements.count > 5 {
+                                Text("+\(game.achievements.count - 5)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 4)
+                            }
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: isHovered)
+                }
+            }
+        }
+    }
+    
+    private var actionButtons: some View {
+        HStack(spacing: 4) {
+            if canEdit {
+                Button(action: startEditing) {
+                    Image(systemName: "pencil")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .padding(4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                .transition(.opacity)
+            }
+            
+            if canDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(4)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                .transition(.opacity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var contextMenuItems: some View {
+        if !isEditing {
+            Button("View Details") {
+                onTap()
+            }
+            if canDelete {
+                Button("Delete Game", role: .destructive) {
+                    onDelete()
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var swipeActionItems: some View {
+        if !isEditing {
+            if canDelete {
+                Button("Delete", role: .destructive) {
+                    onDelete()
+                }
+                .tint(.red)
+            }
+            
+            if canEdit {
+                Button("Edit") {
+                    startEditing()
+                }
+                .tint(.blue)
+            }
+            
+            Button("Details") {
+                onTap()
+            }
+            .tint(.green)
+        }
+    }
 }
+
 
 // MARK: - Editable Stats Grid
 
@@ -497,6 +519,7 @@ struct StatPill: View {
         .cornerRadius(6)
     }
 }
+
 
 
 
