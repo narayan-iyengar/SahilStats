@@ -14,23 +14,46 @@ class RefreshTrigger: ObservableObject {
 
 struct LiveGameView: View {
     @StateObject private var firebaseService = FirebaseService.shared
+    @StateObject private var roleManager = DeviceRoleManager.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
+    @State private var showingRoleSelection = false
+    
     var body: some View {
         Group {
             if let liveGame = firebaseService.getCurrentLiveGame() {
-                if authService.showAdminFeatures {
-                    // Admin view - can control the game
-                    LiveGameControllerView(liveGame: liveGame)
-                } else {
-                    // Viewer - watch only
+                // 🆕 Route based on device role
+                switch roleManager.deviceRole {
+                case .recorder:
+                    RecordingDeviceView(liveGame: liveGame)
+                case .controller:
+                    ControlDeviceView(liveGame: liveGame)
+                case .viewer:
                     LiveGameWatchView(liveGame: liveGame)
+                case .none:
+                    // Show role selection
+                    DeviceRoleSelectionView(liveGame: liveGame)
                 }
             } else {
-                // No live game
                 NoLiveGameView()
+            }
+        }
+        .onAppear {
+            // Auto-reconnect if previously connected
+            if roleManager.isConnectedToGame,
+               let gameId = roleManager.liveGameId,
+               firebaseService.getCurrentLiveGame()?.id == gameId {
+                // Already connected, stay in current role
+            } else if firebaseService.hasLiveGame && !roleManager.isConnectedToGame {
+                // New live game available, show role selection
+                showingRoleSelection = true
+            }
+        }
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceRoleSelectionView(liveGame: liveGame)
             }
         }
     }
