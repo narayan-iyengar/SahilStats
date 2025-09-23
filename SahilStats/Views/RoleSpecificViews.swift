@@ -13,6 +13,77 @@ import Combine
 
 // MARK: - Recording Device View (iPhone Optimized)
 
+struct CameraPreviewView: UIViewRepresentable {
+    let previewLayer: AVCaptureVideoPreviewLayer
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.layer.addSublayer(previewLayer)
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {
+        previewLayer.frame = uiView.bounds
+    }
+}
+
+// MARK: - Fix 8: Create missing RecordingStats
+
+struct RecordingStats {
+    var totalRecordings: Int = 0
+    var totalDuration: TimeInterval = 0
+    var currentSessionDuration: TimeInterval = 0
+}
+
+struct LiveScoreOverlay: View {
+    let game: LiveGame
+    let recordingDuration: TimeInterval
+    
+    var body: some View {
+        VStack {
+            HStack {
+                VStack {
+                    Text(game.teamName)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    Text("\(game.homeScore)")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
+                }
+                
+                Text("-")
+                    .font(.title)
+                    .foregroundColor(.white)
+                
+                VStack {
+                    Text(game.opponent)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    Text("\(game.awayScore)")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.red)
+                }
+            }
+            
+            HStack {
+                Text("Period \(game.period)")
+                Text("•")
+                Text(game.currentClockDisplay)
+                Text("•")
+                Text("REC \(formatDuration(recordingDuration))")
+                    .foregroundColor(.red)
+            }
+            .font(.subheadline)
+            .foregroundColor(.white)
+            
+            Spacer()
+        }
+        .padding()
+    }
+}
+
 struct RecordingDeviceView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
@@ -202,6 +273,12 @@ struct RecordingDeviceView: View {
                 .fill(Color.black.opacity(0.7))
                 .background(.ultraThinMaterial)
         )
+    }
+    
+    func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
     
     @ViewBuilder

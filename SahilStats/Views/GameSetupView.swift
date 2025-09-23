@@ -5,6 +5,7 @@ import AVFoundation
 import Combine
 import FirebaseAuth
 import CoreLocation
+import UIKit
 
 
 struct GameSetupView: View {
@@ -27,7 +28,6 @@ struct GameSetupView: View {
     
     
     @State private var enableMultiDevice = false
-    @StateObject private var roleManager = DeviceRoleManager.shared
     
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
