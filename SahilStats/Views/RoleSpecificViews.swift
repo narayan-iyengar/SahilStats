@@ -13,19 +13,7 @@ import Combine
 
 // MARK: - Recording Device View (iPhone Optimized)
 
-struct CameraPreviewView: UIViewRepresentable {
-    let previewLayer: AVCaptureVideoPreviewLayer
-    
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.layer.addSublayer(previewLayer)
-        return view
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {
-        previewLayer.frame = uiView.bounds
-    }
-}
+
 
 // MARK: - Fix 8: Create missing RecordingStats
 
@@ -84,6 +72,14 @@ struct LiveScoreOverlay: View {
     }
 }
 
+
+private func formatDuration(_ duration: TimeInterval) -> String {
+    let minutes = Int(duration) / 60
+    let seconds = Int(duration) % 60
+    return String(format: "%02d:%02d", minutes, seconds)
+}
+
+
 struct RecordingDeviceView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
@@ -99,6 +95,9 @@ struct RecordingDeviceView: View {
     // Real-time game data
     private var currentGame: LiveGame {
         firebaseService.getCurrentLiveGame() ?? liveGame
+    }
+    private var currentConnectionState: DeviceRoleManager.ConnectionState {
+        return roleManager.connectionState
     }
     
     var body: some View {
@@ -151,6 +150,8 @@ struct RecordingDeviceView: View {
         }
     }
     
+    
+    
     // MARK: - Recording Setup
     
     @ViewBuilder
@@ -181,6 +182,40 @@ struct RecordingDeviceView: View {
         }
         .padding()
     }
+    
+
+
+
+    @ViewBuilder
+    private var connectionStatusOverlay: some View {
+        VStack {
+            // Display a status banner if not fully connected
+            // USE THE NEW HELPER PROPERTY HERE
+            if currentConnectionState != .connected {
+                HStack {
+                    // Show a different icon based on the state
+                    if currentConnectionState == .connecting {
+                        ProgressView() // Shows a spinning indicator
+                    } else {
+                        Image(systemName: "wifi.slash")
+                    }
+                    // AND HERE
+                    Text(currentConnectionState.description)
+                }
+                .font(.caption)
+                .foregroundColor(.white)
+                .padding(8)
+                // AND HERE
+                .background(currentConnectionState == .connecting ? Color.orange.opacity(0.8) : Color.red.opacity(0.8))
+                .cornerRadius(10)
+                .padding(.top) // Position it near the top
+            }
+            Spacer() // Pushes the overlay to the top
+        }
+        .padding()
+    }
+    
+    
     
     // MARK: - Recording Controls Overlay
     
@@ -275,12 +310,64 @@ struct RecordingDeviceView: View {
         )
     }
     
-    func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+    private func setupRecordingDevice() {
+            Task {
+                if await recordingManager.requestCameraAccess() {
+                    if let layer = await recordingManager.setupCamera() {
+                        await MainActor.run {
+                            self.previewLayer = layer
+                        }
+                    }
+                }
+            }
+        }
+    
+
+    
+    
+    private func toggleRecording() {
+        if recordingManager.isRecording {
+            Task {
+                await recordingManager.stopRecording()
+            }
+        } else {
+            Task {
+                await recordingManager.startRecording()
+            }
+        }
     }
     
+    private func updateRecordingStats() {
+        // Update recording statistics
+        if recordingManager.isRecording {
+            recordingStats.currentSessionDuration = recordingManager.recordingDuration
+        }
+    }
+    
+    private func toggleControlsVisibility() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showingControls.toggle()
+        }
+        
+        // Auto-hide controls after 3 seconds
+        hideControlsTimer?.invalidate()
+        if showingControls {
+            hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingControls = false
+                }
+            }
+        }
+    }
+    
+    private func disconnect() {
+        Task {
+            await roleManager.disconnectFromGame()
+            dismiss()
+        }
+    }
+    
+        
     @ViewBuilder
     private var recordingButtonsOverlay: some View {
         HStack(spacing: 40) {
