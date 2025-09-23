@@ -618,6 +618,108 @@ struct NoLiveGameView: View {
     }
 }
 
+struct PlayingTimeCard: View {
+    let totalPlayingTime: Double
+    let totalBenchTime: Double
+    let isIPad: Bool
+    
+    private var totalTime: Double {
+        totalPlayingTime + totalBenchTime
+    }
+    
+    private var playingPercentage: Double {
+        totalTime > 0 ? (totalPlayingTime / totalTime) * 100 : 0
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 12 : 8) {
+            Text("Playing Time")
+                .font(isIPad ? .title3 : .headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            HStack(spacing: isIPad ? 20 : 16) {
+                TimeStatItem(
+                    title: "On Court",
+                    time: totalPlayingTime,
+                    color: .green,
+                    isIPad: isIPad
+                )
+                
+                TimeStatItem(
+                    title: "On Bench",
+                    time: totalBenchTime,
+                    color: .orange,
+                    isIPad: isIPad
+                )
+            }
+            
+            // Playing time percentage bar
+            VStack(spacing: 4) {
+                HStack {
+                    Text("Court Time")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(Int(playingPercentage))%")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.green)
+                }
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(height: 4)
+                        
+                        Rectangle()
+                            .fill(Color.green)
+                            .frame(width: geometry.size.width * (playingPercentage / 100), height: 4)
+                    }
+                }
+                .frame(height: 4)
+            }
+        }
+        .padding(isIPad ? 20 : 16)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+struct TimeStatItem: View {
+    let title: String
+    let time: Double
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 6 : 4) {
+            Text(formatTime(time))
+                .font(isIPad ? .title2 : .title3)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(title)
+                .font(isIPad ? .caption : .caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    private func formatTime(_ minutes: Double) -> String {
+        let totalMinutes = Int(minutes)
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(mins)m"
+        } else {
+            return "\(mins)m"
+        }
+    }
+}
+
 // MARK: - Fixed Synchronized Clock Card
 
 struct FixedSynchronizedClockCard: View {

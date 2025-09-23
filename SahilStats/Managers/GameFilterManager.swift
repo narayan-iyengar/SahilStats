@@ -69,6 +69,12 @@ class GameFilterManager: ObservableObject {
         let endIndex = min(currentPage * gamesPerPage, filteredGames.count)
         displayedGames = Array(filteredGames.prefix(endIndex))
     }
+
+    // Add this new function
+    func loadMoreGames(from filteredGames: [Game]) {
+        currentPage += 1
+        updateDisplayedGames(from: filteredGames)
+    }
     
     func updateGameInDisplayed(_ updatedGame: Game) {
         if let index = displayedGames.firstIndex(where: { $0.id == updatedGame.id }) {

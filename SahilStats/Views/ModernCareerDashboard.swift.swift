@@ -131,6 +131,19 @@ struct ModernOverviewStatsView: View {
                 color: stats.winPercentage > 0.5 ? .green : .red,
                 isIPad: isIPad
             )
+            ModernStatCard(
+                title: "Avg Time",
+                value: String(format: "%.0fm", stats.averagePlayingTimePerGame),
+                color: .teal,
+                isIPad: isIPad
+            )
+
+            ModernStatCard(
+                title: "Court %",
+                value: String(format: "%.0f%%", stats.playingTimePercentage),
+                color: .green,
+                isIPad: isIPad
+            )
             
             // Second row - other stats
             ModernStatCard(
@@ -243,6 +256,8 @@ struct ModernCareerTrendsView: View {
         case freeThrowPct = "Free Throw %"
         case winRate = "Win Rate"
         case gamesPlayed = "Games Played"
+        case avgPlayingTime = "Avg Playing Time"
+        case playingTimePercentage = "Court Time %"
         
         var color: Color {
             switch self {
@@ -254,6 +269,8 @@ struct ModernCareerTrendsView: View {
             case .freeThrowPct: return .orange
             case .winRate: return .green
             case .gamesPlayed: return .blue
+            case .avgPlayingTime: return .indigo       
+            case .playingTimePercentage: return .teal
             }
         }
         
@@ -538,6 +555,12 @@ struct ModernCareerTrendsView: View {
             return gameCount > 0 ? Double(wins) / gameCount * 100 : 0
         case .gamesPlayed:
             return gameCount
+        case .avgPlayingTime:
+            return Double(games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }) / gameCount
+        case .playingTimePercentage:
+            let totalPlaying = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }
+            let totalTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes + $1.benchTimeMinutes }
+            return totalTime > 0 ? (totalPlaying / totalTime) * 100 : 0
         }
     }
     

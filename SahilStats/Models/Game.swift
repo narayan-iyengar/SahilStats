@@ -45,6 +45,15 @@ struct Game: Identifiable, Codable, Equatable {
     var photos: [GamePhoto]?
     var achievements: [Achievement]
     
+    var totalPlayingTimeMinutes: Double = 0.0 // Total minutes on court
+    var benchTimeMinutes: Double = 0.0 // Total minutes on bench
+    var gameTimeTracking: [GameTimeSegment] = [] // Detailed time tracking
+    
+    var playingTimePercentage: Double {
+        let totalGameTime = totalPlayingTimeMinutes + benchTimeMinutes
+        return totalGameTime > 0 ? (totalPlayingTimeMinutes / totalGameTime) * 100 : 0
+    }
+    
     // Custom coding keys for date handling
     enum CodingKeys: String, CodingKey {
         case teamName, opponent, location, timestamp, gameFormat, periodLength, numPeriods, status
@@ -368,7 +377,9 @@ struct Game: Identifiable, Codable, Equatable {
         return turnovers > 0 ? Double(assists) / Double(turnovers) : Double(assists)
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, timestamp: Date = Date(), gameFormat: GameFormat = .halves, periodLength: Int = 20, myTeamScore: Int = 0, opponentScore: Int = 0, fg2m: Int = 0, fg2a: Int = 0, fg3m: Int = 0, fg3a: Int = 0, ftm: Int = 0, fta: Int = 0, rebounds: Int = 0, assists: Int = 0, steals: Int = 0, blocks: Int = 0, fouls: Int = 0, turnovers: Int = 0, adminName: String? = nil) {
+    init(teamName: String, opponent: String, location: String? = nil, timestamp: Date = Date(), gameFormat: GameFormat = .halves, periodLength: Int = 20, myTeamScore: Int = 0, opponentScore: Int = 0, fg2m: Int = 0, fg2a: Int = 0, fg3m: Int = 0, fg3a: Int = 0, ftm: Int = 0, fta: Int = 0, rebounds: Int = 0, assists: Int = 0, steals: Int = 0, blocks: Int = 0, fouls: Int = 0, turnovers: Int = 0, adminName: String? = nil,     totalPlayingTimeMinutes: Double = 0.0,
+         benchTimeMinutes: Double = 0.0,
+         gameTimeTracking: [GameTimeSegment] = []) {
         self.teamName = teamName
         self.opponent = opponent
         self.location = location
@@ -379,6 +390,9 @@ struct Game: Identifiable, Codable, Equatable {
         self.status = .final
         self.myTeamScore = myTeamScore
         self.opponentScore = opponentScore
+        self.totalPlayingTimeMinutes = totalPlayingTimeMinutes
+        self.benchTimeMinutes = benchTimeMinutes
+        self.gameTimeTracking = gameTimeTracking
         
         // Calculate outcome
         if myTeamScore > opponentScore {
@@ -419,7 +433,18 @@ struct Game: Identifiable, Codable, Equatable {
     }
 }
 
-
+//MARK: Platying Time
+struct GameTimeSegment: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var startTime: Date
+    var endTime: Date?
+    var isOnCourt: Bool // true = on court, false = on bench
+    
+    var durationMinutes: Double {
+        guard let endTime = endTime else { return 0 }
+        return endTime.timeIntervalSince(startTime) / 60.0
+    }
+}
 
 
 // MARK: - Player Stats
@@ -731,6 +756,18 @@ struct LiveGame: Identifiable, Codable, Equatable {
     // Computed properties
     var isGameOver: Bool {
         period >= numPeriods && clock <= 0 && !isRunning
+    }
+    
+    var currentTimeSegment: GameTimeSegment?
+    var timeSegments: [GameTimeSegment] = []
+
+    // Computed properties
+    var totalPlayingTime: Double {
+        return timeSegments.filter { $0.isOnCourt }.reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    var totalBenchTime: Double {
+        return timeSegments.filter { !$0.isOnCourt }.reduce(0) { $0 + $1.durationMinutes }
     }
     
     // Calculate current clock based on server time (prevents drift)

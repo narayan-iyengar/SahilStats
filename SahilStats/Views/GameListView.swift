@@ -57,6 +57,13 @@ struct GameListView: View {
             )
         }
         .fullScreenCover(isPresented: $showingLiveGame) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                LiveGameView()
+                    .environmentObject(authService)
+            } else {
+                NoLiveGameView()
+                    .environmentObject(authService)
+            }
             NavigationView {
                 ZStack {
                     Color(.systemBackground).ignoresSafeArea()
@@ -346,14 +353,14 @@ extension GameListView {
         filterManager.updateDisplayedGames(from: filteredGames)
     }
     
-    private func loadMoreGames() {
-        // Implementation would go in FilterManager
-        print("Loading more games...")
-    }
-    
     private func clearAllFilters() {
         searchText = ""
         filterManager.clearAllFilters()
+    }
+    
+    private func loadMoreGames() {
+        // Implementation would go in FilterManager
+        filterManager.loadMoreGames(from: filteredGames)
     }
     
     private func saveGameChanges(_ game: Game) {
