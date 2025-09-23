@@ -271,99 +271,84 @@ struct GameSetupView: View {
     // MARK: - Setup Mode Selection
     
     private func SetupModeSelection() -> some View {
-        VStack(spacing: 20) {
-            // Header
-            VStack(spacing: 12) {
-                Image(systemName: "basketball.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.orange)
-                
-                Text("Game Setup")
-                    .font(.title)
-                    .fontWeight(.bold)
-                
-                Text("Choose how you want to set up today's game")
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+    VStack(spacing: 20) {
+        // Header
+        VStack(spacing: 12) {
+            Image(systemName: "basketball.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.orange)
+            
+            Text("Game Setup")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("Choose how you want to set up today's game")
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 40)
+        
+        // REMOVED: Live game status indicator banner
+        // No more green banner here
+        
+        Spacer()
+        
+        // Setup options with enhanced live game tracking
+        VStack(spacing: 16) {
+            // Post-Game Stats Entry
+            SetupOptionCard(
+                title: "Enter Final Stats",
+                subtitle: "Enter final score and stats",
+                icon: "chart.bar.fill",
+                color: .green,
+                status: "Quick stat entry after the game",
+                statusColor: .blue
+            ) {
+                setupMode = .gameForm
+                deviceRole = .none
             }
-            .padding(.top, 40)
             
-            // Live game status indicator
-            if firebaseService.hasLiveGame {
-                LiveGameStatusCard()
-            }
-            
-            Spacer()
-            
-            // Setup options
-            VStack(spacing: 16) {
-                // Post-Game Stats Entry
-                SetupOptionCard(
-                    title: "Enter Final Stats",
-                    subtitle: "Game is over - enter final score and stats",
-                    icon: "chart.bar.fill",
-                    color: .green,
-                    status: "Quick stat entry after the game",
-                    statusColor: .blue
-                ) {
+            // ENHANCED: Live Game Tracking with prominent status
+            SubtleLiveGameTrackingCard(
+                hasLiveGame: firebaseService.hasLiveGame
+            ) {
+                if firebaseService.hasLiveGame {
+                    // Navigate directly to live game view
+                    showingLiveGameView = true
+                } else {
                     setupMode = .gameForm
-                    deviceRole = .none
-                }
-                
-                // Live Game Scoring
-                SetupOptionCard(
-                    title: "Live Game Tracking",
-                    subtitle: "Track stats and score during the game",
-                    icon: "stopwatch.fill",
-                    color: .orange,
-                    status: firebaseService.hasLiveGame ? "Join existing live game" : "Start new live game",
-                    statusColor: firebaseService.hasLiveGame ? .green : .blue
-                ) {
-                    if firebaseService.hasLiveGame {
-                        // Navigate directly to live game view
-                        showingLiveGameView = true
-                    } else {
-                        setupMode = .gameForm
-                        deviceRole = .controller
-                    }
-                }
-
-                
-                // Recording Setup (Future feature)
-                SetupOptionCard(
-                    title: "Video Recording",
-                    subtitle: "Multi-device recording with live overlays",
-                    icon: "video.fill",
-                    color: .red,
-                    status: "Coming Soon",
-                    statusColor: .gray
-                ) {
-                    // setupMode = .recording
-                    error = "Video recording feature coming soon!"
+                    deviceRole = .controller
                 }
             }
             
-            Spacer()
+            // Recording Setup (Future feature)
+            SetupOptionCard(
+                title: "Video Recording",
+                subtitle: "Multi-device recording with live overlays",
+                icon: "video.fill",
+                color: .red,
+                status: "Coming Soon",
+                statusColor: .gray
+            ) {
+                error = "Video recording feature coming soon!"
+            }
         }
-        .padding()
-        .alert("Feature Info", isPresented: .constant(!error.isEmpty)) {
-            Button("OK") { error = "" }
-        } message: {
-            Text(error)
-        }
+        
+        Spacer()
     }
+    .padding()
+    .alert("Feature Info", isPresented: .constant(!error.isEmpty)) {
+        Button("OK") { error = "" }
+    } message: {
+        Text(error)
+    }
+}
     
     // MARK: - Game Configuration Form
     
     private func GameConfigurationForm() -> some View {
        Form {
-            // Game ID display for live game controller
-            if deviceRole == .controller && !gameId.isEmpty {
-                Section {
-                    GameIdDisplayCard(gameId: gameId)
-                }
-            }
-            
+
             // Date and Time
             Section("When") {
                 DatePicker("Date", selection: $gameConfig.date, displayedComponents: .date)
@@ -551,10 +536,13 @@ struct GameSetupView: View {
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Back") {
+                Button(action: {
                     setupMode = .selection
                     deviceRole = .none
                     gameId = ""
+                }) {
+                    Text("Back")
+                        .fixedSize() // Prevents text from being clipped
                 }
                 .buttonStyle(PillButtonStyle(isIPad: isIPad))
             }
@@ -827,33 +815,114 @@ struct SetupOptionCard: View {
     }
 }
 
-struct LiveGameStatusCard: View {
+
+// MARK: - Live Game Badge Component
+struct LiveGameBadge: View {
+    @State private var isAnimating = false
+    
     var body: some View {
-        HStack {
+        HStack(spacing: 4) {
             Circle()
-                .fill(Color.green)
-                .frame(width: 12, height: 12)
-                .opacity(0.8)
-                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                .fill(Color.red)
+                .frame(width: 6, height: 6)
+                .opacity(isAnimating ? 0.4 : 1.0)
+                .animation(.easeInOut(duration: 1).repeatForever(), value: isAnimating)
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Live Game In Progress")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.green)
+            Text("LIVE")
+                .font(.caption2)
+                .fontWeight(.bold)
+                .foregroundColor(.red)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.red.opacity(0.1))
+        .clipShape(Capsule())
+        .onAppear {
+            isAnimating = true
+        }
+    }
+}
+
+// MARK: - Alternative: Subtle Animation Version
+struct SubtleLiveGameTrackingCard: View {
+    let hasLiveGame: Bool
+    let action: () -> Void
+    @State private var pulseScale: CGFloat = 1.0
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                // Icon with subtle pulse when live
+                Image(systemName: "stopwatch.fill")
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
+                    .background(hasLiveGame ? Color.red : Color.orange)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .scaleEffect(hasLiveGame ? pulseScale : 1.0)
+                    .animation(
+                        hasLiveGame ?
+                        .easeInOut(duration: 1.5).repeatForever(autoreverses: true) :
+                        .default,
+                        value: pulseScale
+                    )
                 
-                Text("You can join the current live game or create a new one")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Live Game Tracking")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        if hasLiveGame {
+                            Text("• ACTIVE")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Text(hasLiveGame ?
+                         "Join the current live game session" :
+                         "Track stats and score during the game")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(hasLiveGame ? "Tap to join and control" : "Start new live game")
+                        .font(.caption2)
+                        .foregroundColor(hasLiveGame ? .red : .blue)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
-            Spacer()
+            .padding()
+            .background(
+                hasLiveGame ?
+                Color.red.opacity(0.1) :
+                Color(.systemGray6)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        hasLiveGame ? Color.red.opacity(0.3) : Color.clear,
+                        lineWidth: hasLiveGame ? 1 : 0
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
-        .padding()
-        .background(Color.green.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .buttonStyle(.plain)
+        .onAppear {
+            if hasLiveGame {
+                pulseScale = 1.05
+            }
+        }
     }
 }
+
 
 struct GameIdDisplayCard: View {
     let gameId: String

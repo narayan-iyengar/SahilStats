@@ -239,6 +239,11 @@ class FirebaseService: ObservableObject {
         let totalFG3A = games.reduce(0) { $0 + $1.fg3a }
         let totalFTM = games.reduce(0) { $0 + $1.ftm }
         let totalFTA = games.reduce(0) { $0 + $1.fta }
+        let totalPlayingTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }
+        let avgPlayingTime = totalGames > 0 ? totalPlayingTime / Double(totalGames) : 0.0
+        let totalGameTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes + $1.benchTimeMinutes }
+        let playingPercentage = totalGameTime > 0 ? (totalPlayingTime / totalGameTime) * 100 : 0
+
         
         return CareerStats(
             totalGames: totalGames,
@@ -257,7 +262,10 @@ class FirebaseService: ObservableObject {
             fg3m: totalFG3M,
             fg3a: totalFG3A,
             ftm: totalFTM,
-            fta: totalFTA
+            fta: totalFTA,
+            totalPlayingTimeMinutes: totalPlayingTime,
+            averagePlayingTimePerGame: avgPlayingTime,
+            playingTimePercentage: playingPercentage
         )
     }
 }
@@ -282,6 +290,9 @@ struct CareerStats {
     let fg3a: Int
     let ftm: Int
     let fta: Int
+    let totalPlayingTimeMinutes: Double
+    let averagePlayingTimePerGame: Double
+    let playingTimePercentage: Double
     
     var fieldGoalPercentage: Double {
         let totalMade = fg2m + fg3m

@@ -156,7 +156,6 @@ struct EditableGameRowView: View {
     private var gameRowHeader: some View {
         HStack {
             Text("\(game.teamName) vs \(game.opponent)")
-                .font(isIPad ? .title2 : .headline)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
             

@@ -61,9 +61,10 @@ struct LiveGameIndicatorView: View {
                 Image(systemName: "chevron.right")
                     .foregroundColor(.red)
             }
-            .padding()
-            .background(Color.red.opacity(0.1))
-            .cornerRadius(12)
+            //.padding()
+            //.background(Color.red.opacity(0.1))
+            //.cornerRadius(12)
+            //.contentShape(Rectangle()) // ⭐ THIS IS THE KEY FIX
         }
         .buttonStyle(.plain)
     }
@@ -143,6 +144,7 @@ struct GameDetailView: View {
     @State private var isEditingScore = false
     @State private var editingMyTeamScore = ""
     @State private var editingOpponentScore = ""
+
     
     var body: some View {
         NavigationView {

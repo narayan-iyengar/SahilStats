@@ -705,6 +705,11 @@ struct LiveGameControllerView: View {
                     if !sahilOnBench && deviceControl.hasControl {
                         cleanDetailedStatsEntry()
                         LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
+                        PlayingTimeCard(
+                            totalPlayingTime: serverGameState.totalPlayingTime,
+                            totalBenchTime: serverGameState.totalBenchTime,
+                            isIPad: isIPad
+                        )
                     } else if !sahilOnBench {
                         // Viewer stats (read-only)
                         LiveStatsDisplayCard(
@@ -713,8 +718,11 @@ struct LiveGameControllerView: View {
                             isReadOnly: true
                         )
                     } else {
-                        // On bench message
-                        onBenchMessage()
+                        VStack {
+                            // On bench message with extra top spacing
+                            Spacer(minLength: isIPad ? 90 : 50) // Add this spacer
+                            onBenchMessage()
+                        }
                     }
                     
                     // Add bottom padding for safe scrolling
@@ -847,7 +855,7 @@ struct LiveGameControllerView: View {
                 sahilOnBench: $sahilOnBench,
                 isIPad: isIPad,
                 hasControl: deviceControl.hasControl,
-                onStatusChange: scheduleUpdate
+                onStatusChange: updatePlayingStatus
             )
             
             // Game Controls
@@ -1007,6 +1015,52 @@ struct LiveGameControllerView: View {
         .cornerRadius(isIPad ? 16 : 12)
         .shadow(color: .black.opacity(0.05), radius: isIPad ? 8 : 4, x: 0, y: 2)
     }
+    
+    
+    private func startTimeTracking(onCourt: Bool) {
+        // End current segment if exists
+        endCurrentTimeSegment()
+        
+        // Start new segment
+        let newSegment = GameTimeSegment(
+            startTime: Date(),
+            endTime: nil,
+            isOnCourt: onCourt
+        )
+        
+        var updatedGame = serverGameState
+        updatedGame.currentTimeSegment = newSegment
+        
+        Task {
+            try await firebaseService.updateLiveGame(updatedGame)
+        }
+    }
+
+    private func endCurrentTimeSegment() {
+        guard var currentSegment = serverGameState.currentTimeSegment else { return }
+        
+        currentSegment.endTime = Date()
+        
+        var updatedGame = serverGameState
+        updatedGame.timeSegments.append(currentSegment)
+        updatedGame.currentTimeSegment = nil
+        
+        Task {
+            try await firebaseService.updateLiveGame(updatedGame)
+        }
+    }
+
+    private func updatePlayingStatus() {
+        let wasOnCourt = serverGameState.currentTimeSegment?.isOnCourt ?? true
+        let isNowOnCourt = !sahilOnBench
+        
+        if wasOnCourt != isNowOnCourt {
+            startTimeTracking(onCourt: isNowOnCourt)
+        }
+        
+        scheduleUpdate()
+    }
+    
     
     // MARK: - All existing methods remain the same...
     
@@ -1347,6 +1401,14 @@ struct LiveGameControllerView: View {
     private func finishGame() {
         guard deviceControl.hasControl else { return }
         
+        // End current time segment
+        endCurrentTimeSegment()
+        
+        // Calculate total playing time
+        let totalPlayingTime = serverGameState.totalPlayingTime
+        let totalBenchTime = serverGameState.totalBenchTime
+        
+        
         Task {
             do {
                 let finalGame = Game(
@@ -1370,7 +1432,10 @@ struct LiveGameControllerView: View {
                     blocks: currentStats.blocks,
                     fouls: currentStats.fouls,
                     turnovers: currentStats.turnovers,
-                    adminName: authService.currentUser?.email
+                    adminName: authService.currentUser?.email,
+                    totalPlayingTimeMinutes: totalPlayingTime,
+                    benchTimeMinutes: totalBenchTime,
+                    gameTimeTracking: serverGameState.timeSegments
                 )
                 
                 try await firebaseService.addGame(finalGame)
