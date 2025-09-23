@@ -12,6 +12,65 @@ class RefreshTrigger: ObservableObject {
     }
 }
 
+
+struct ControlDeviceView: View {
+    let liveGame: LiveGame
+    
+    var body: some View {
+        LiveGameControllerView(liveGame: liveGame)
+    }
+}
+
+struct DeviceManagerView: View {
+    let liveGame: LiveGame
+    @StateObject private var roleManager = DeviceRoleManager.shared
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Connected Devices")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                if roleManager.connectedDevices.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 60))
+                            .foregroundColor(.secondary)
+                        
+                        Text("No Connected Devices")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        Text("Other devices will appear here when they join the live game")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                } else {
+                    List(roleManager.connectedDevices) { device in
+                        ConnectedDeviceRow(device: device, isIPad: false)
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Device Manager")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct LiveGameView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var roleManager = DeviceRoleManager.shared
@@ -829,7 +888,36 @@ struct LiveGameControllerView: View {
             checkForControlRequests(newGame)
         }
     }
-    
+    @ViewBuilder
+    private var connectionStatusOverlay: some View {
+        VStack {
+            HStack {
+                Spacer()
+                
+                // Device role indicator
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(deviceControl.hasControl ? .green : .blue)
+                        .frame(width: 8, height: 8)
+                    
+                    Text(deviceControl.hasControl ? "Controller" : "Viewer")
+                        .font(.caption2)
+                        .foregroundColor(deviceControl.hasControl ? .green : .blue)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.systemBackground))
+                .cornerRadius(8)
+                .shadow(color: .black.opacity(0.1), radius: 2)
+            }
+            .padding(.top, 50)
+            .padding(.trailing, 16)
+            
+            Spacer()
+        }
+    }
+
     // SIMPLE: Fixed header that doesn't collapse
     @ViewBuilder
     private func fixedHeader() -> some View {
