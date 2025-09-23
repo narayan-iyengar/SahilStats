@@ -599,14 +599,14 @@ struct NoLiveGameView: View {
                     NavigationLink("Start New Live Game") {
                         GameSetupView()
                     }
-                    .buttonStyle(CustomPrimaryButtonStyle(isIPad: isIPad))
+                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
                 
                 // Back to Dashboard button
                 Button("Back to Dashboard") {
                     dismiss()
                 }
-                .buttonStyle(CustomSecondaryButtonStyle(isIPad: isIPad))
+                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             }
             .padding(.horizontal, isIPad ? 40 : 24)
             

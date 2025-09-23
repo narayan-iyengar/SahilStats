@@ -130,54 +130,9 @@ struct BiggerCompactControlButtonStyle: ButtonStyle {
     }
 }
 
-struct CustomPrimaryButtonStyle: ButtonStyle {
-    let isIPad: Bool
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(isIPad ? .title2 : .headline)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.vertical, isIPad ? 20 : 16)
-            .padding(.horizontal, isIPad ? 32 : 24)
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.orange, Color.orange.opacity(0.8)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .cornerRadius(isIPad ? 16 : 12)
-            .shadow(color: .orange.opacity(0.3), radius: 4, x: 0, y: 2)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .opacity(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
 
-struct CustomSecondaryButtonStyle: ButtonStyle {
-    let isIPad: Bool
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(isIPad ? .title3 : .body)
-            .fontWeight(.medium)
-            .foregroundColor(.orange)
-            .padding(.vertical, isIPad ? 16 : 12)
-            .padding(.horizontal, isIPad ? 28 : 20)
-            .frame(maxWidth: .infinity)
-            .background(Color.orange.opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: isIPad ? 12 : 8)
-                    .stroke(Color.orange.opacity(0.5), lineWidth: 1.5)
-            )
-            .cornerRadius(isIPad ? 12 : 8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
+
+
 
 
 
@@ -197,20 +152,22 @@ struct PostGameScoreButtonStyle: ButtonStyle {
     }
 }
 
-struct PostGamePrimaryButtonStyle: ButtonStyle {
+struct UnifiedPrimaryButtonStyle: ButtonStyle {
     let isIPad: Bool
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(isIPad ? .system(size: 20, weight: .semibold) : .headline) // BIGGER on iPad
+            .font(isIPad ? .title2 : .headline)
             .fontWeight(.semibold)
             .foregroundColor(.white)
-            .padding(.horizontal, isIPad ? 40 : 24) // MORE padding on iPad
-            .padding(.vertical, isIPad ? 20 : 12) // MORE padding on iPad
+            .padding(.vertical, isIPad ? 20 : 16)
+            .padding(.horizontal, isIPad ? 32 : 24)
+            .frame(maxWidth: .infinity)
             .background(Color.orange)
-            .cornerRadius(isIPad ? 20 : 12) // BIGGER corner radius on iPad
+            .cornerRadius(isIPad ? 16 : 12)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -269,20 +226,26 @@ struct RecordingButtonStyle: ButtonStyle {
     }
 }
 
-struct PostGameSecondaryButtonStyle: ButtonStyle {
+struct UnifiedSecondaryButtonStyle: ButtonStyle {
     let isIPad: Bool
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(isIPad ? .system(size: 18, weight: .medium) : .headline) // BIGGER on iPad
+            .font(isIPad ? .title3 : .body)
             .fontWeight(.medium)
-            .foregroundColor(.secondary)
-            .padding(.horizontal, isIPad ? 40 : 24) // MORE padding on iPad
-            .padding(.vertical, isIPad ? 20 : 12) // MORE padding on iPad
-            .background(Color(.systemGray5))
-            .cornerRadius(isIPad ? 20 : 12) // BIGGER corner radius on iPad
+            .foregroundColor(.orange)
+            .padding(.vertical, isIPad ? 16 : 12)
+            .padding(.horizontal, isIPad ? 28 : 20)
+            .frame(maxWidth: .infinity)
+            .background(Color.orange.opacity(0.1))
+            .overlay(
+                RoundedRectangle(cornerRadius: isIPad ? 12 : 8)
+                    .stroke(Color.orange.opacity(0.5), lineWidth: 1.5)
+            )
+            .cornerRadius(isIPad ? 12 : 8)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -398,51 +361,9 @@ struct UnifiedStatButtonStyle: ButtonStyle {
     }
 }
 
-struct PrimaryButtonStyle: ButtonStyle {
-    let isIPad: Bool
-    
-    init(isIPad: Bool = false) {
-        self.isIPad = isIPad
-    }
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(isIPad ? .title3 : .body)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.vertical, isIPad ? 18 : 16)
-            .frame(maxWidth: .infinity)
-            .background(Color.orange)
-            .cornerRadius(isIPad ? 16 : 12)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
 
-struct SecondaryButtonStyle: ButtonStyle {
-    let isIPad: Bool
-    
-    init(isIPad: Bool = false) {
-        self.isIPad = isIPad
-    }
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(isIPad ? .title3 : .body)
-            .fontWeight(.semibold)
-            .foregroundColor(.orange)
-            .padding(.vertical, isIPad ? 16 : 12)
-            .frame(maxWidth: .infinity)
-            .background(Color.orange.opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: isIPad ? 12 : 8)
-                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-            )
-            .cornerRadius(isIPad ? 12 : 8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
+
+
 
 struct DestructiveButtonStyle: ButtonStyle {
     let isIPad: Bool
