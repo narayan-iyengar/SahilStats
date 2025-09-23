@@ -5,7 +5,7 @@
 //  Created by Narayan Iyengar on 9/23/25.
 //
 // File: SahilStats/Views/MediaIntegration.swift
-// Integration components for Photos and Video features
+
 
 import SwiftUI
 import AVFoundation
@@ -19,7 +19,6 @@ struct EnhancedGameDetailView: View {
 
     
     // State for media features
-    @State private var showingPhotoPicker = false
     @State private var showingCameraCapture = false
     @State private var showingVideoRecording = false
     
@@ -81,14 +80,6 @@ struct EnhancedGameDetailView: View {
                 Spacer()
                 
                 Menu {
-                    Button(action: { showingPhotoPicker = true }) {
-                        Label("Add from Library", systemImage: "photo.on.rectangle")
-                    }
-                    
-                    Button(action: { showingCameraCapture = true }) {
-                        Label("Take Screenshot", systemImage: "camera.fill")
-                    }
-                    
                     if FirebaseService.shared.hasLiveGame {
                         Button(action: { showingVideoRecording = true }) {
                             Label("Record Video", systemImage: "video.fill")
@@ -101,8 +92,6 @@ struct EnhancedGameDetailView: View {
                 }
             }
             
-            // Photo gallery for this game
-            GamePhotoGallery(gameId: game.id ?? "")
             
             // Quick action buttons
             mediaActionButtons
@@ -308,26 +297,8 @@ struct EnhancedGameDetailView: View {
         }
     }
     
-    private func associatePhotosWithGame(_ results: [PHPickerResult]) async {
-        // In a real implementation, you'd save the association between photos and games
-        // This could be stored in Firebase or Core Data
-        for result in results {
-            if let assetIdentifier = result.assetIdentifier {
-                // Store the association
-                print("Associating photo \(assetIdentifier) with game \(game.id ?? "")")
-            }
-        }
-    }
     
-    private func saveGameScreenshot(_ image: UIImage, gameId: String) async {
-        let gameInfo = "\(game.teamName) vs \(game.opponent) - \(game.formattedDate)"
-        let assetId = await photosManager.saveGameScreenshot(image, gameInfo: gameInfo)
-        
-        if let assetId = assetId {
-            print("Screenshot saved with ID: \(assetId)")
-            // You could store this association in your database
-        }
-    }
+
 }
 
 // MARK: - Camera Capture View
@@ -372,6 +343,47 @@ struct CameraCapture: UIViewControllerRepresentable {
 }
 
 // MARK: - Enhanced Live Game View with Recording
+
+struct VideoRecordingView: View {
+    let liveGame: LiveGame
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Text("Recording")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+                .padding()
+                
+                Spacer()
+                
+                Text("Video recording interface would go here")
+                    .foregroundColor(.white)
+                
+                Spacer()
+            }
+        }
+    }
+}
 
 struct EnhancedLiveGameView: View {
     let liveGame: LiveGame
@@ -467,18 +479,6 @@ struct EnhancedLiveGameView: View {
         }
     }
     
-    private func takeScreenshot() {
-        // Capture screenshot of current live game state
-        let renderer = ImageRenderer(content: liveGameScreenshotView)
-        renderer.scale = UIScreen.main.scale
-        
-        if let image = renderer.uiImage {
-            Task {
-                let gameInfo = "\(liveGame.teamName) vs \(liveGame.opponent) - LIVE"
-                await PhotosManager.shared.saveGameScreenshot(image, gameInfo: gameInfo)
-            }
-        }
-    }
     
     @ViewBuilder
     private var liveGameScreenshotView: some View {
@@ -661,40 +661,13 @@ struct EnhancedGameSetupView: View {
 // MARK: - Media Access Status
 
 struct MediaAccessStatus: View {
-    @StateObject private var photosManager = PhotosManager.shared
     @StateObject private var recordingManager = VideoRecordingManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Permissions")
                 .font(.headline)
-            
-            // Photos access status
-            HStack {
-                Image(systemName: photosManager.canAccessPhotos ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundColor(photosManager.canAccessPhotos ? .green : .orange)
-                
-                Text("Photo Library")
-                    .font(.subheadline)
-                
-                Spacer()
-                
-                if !photosManager.canAccessPhotos {
-                    Button("Enable") {
-                        if photosManager.shouldShowSettingsAlert {
-                            photosManager.openPhotoLibrarySettings()
-                        } else {
-                            Task {
-                                await photosManager.requestPhotoLibraryAccess()
-                            }
-                        }
-                    }
-                    .font(.caption)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-            
+                        
             // Camera access status
             HStack {
                 Image(systemName: recordingManager.canRecordVideo ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -725,7 +698,6 @@ struct MediaAccessStatus: View {
         .background(Color.blue.opacity(0.05))
         .cornerRadius(12)
         .onAppear {
-            photosManager.authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
             recordingManager.authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
         }
     }
