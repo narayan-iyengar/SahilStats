@@ -42,7 +42,7 @@ struct Game: Identifiable, Codable, Equatable {
     var adminName: String?
     var editedAt: Date?
     var editedBy: String?
-    var photos: [GamePhoto]?
+
     var achievements: [Achievement]
     
     var totalPlayingTimeMinutes: Double = 0.0 // Total minutes on court
@@ -59,7 +59,7 @@ struct Game: Identifiable, Codable, Equatable {
         case teamName, opponent, location, timestamp, gameFormat, periodLength, numPeriods, status
         case myTeamScore, opponentScore, outcome
         case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
-        case createdAt, adminName, editedAt, editedBy, photos, achievements
+        case createdAt, adminName, editedAt, editedBy, achievements
     }
     
     // Custom decoder to handle different date formats
@@ -255,7 +255,6 @@ struct Game: Identifiable, Codable, Equatable {
         }
         
         editedBy = try container.decodeIfPresent(String.self, forKey: .editedBy)
-        photos = try container.decodeIfPresent([GamePhoto].self, forKey: .photos)
         achievements = try container.decodeIfPresent([Achievement].self, forKey: .achievements) ?? []
     }
 
@@ -343,7 +342,6 @@ struct Game: Identifiable, Codable, Equatable {
             try container.encode(Timestamp(date: editedAt), forKey: .editedAt)
         }
         try container.encodeIfPresent(editedBy, forKey: .editedBy)
-        try container.encodeIfPresent(photos, forKey: .photos)
         try container.encode(achievements, forKey: .achievements)
     }
     
@@ -423,7 +421,6 @@ struct Game: Identifiable, Codable, Equatable {
         self.adminName = adminName
         self.editedAt = nil
         self.editedBy = nil
-        self.photos = nil
         
         // Initialize achievements as empty array first, then calculate after self is fully initialized
         self.achievements = []
@@ -570,62 +567,6 @@ enum GameOutcome: String, Codable, CaseIterable {
     }
 }
 
-// MARK: - Game Photo
-
-struct GamePhoto: Codable, Identifiable, Equatable {
-    var id: String
-    var url: String
-    var description: String
-    var timestamp: Date
-    var isICloudLink: Bool
-    
-    // Custom coding keys
-    enum CodingKeys: String, CodingKey {
-        case id, url, description, timestamp, isICloudLink
-    }
-    
-    // Custom decoder to handle different id types
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        // Handle id as either String or Number
-        if let idString = try? container.decode(String.self, forKey: .id) {
-            self.id = idString
-        } else if let idNumber = try? container.decode(Int.self, forKey: .id) {
-            self.id = String(idNumber)
-        } else if let idDouble = try? container.decode(Double.self, forKey: .id) {
-            self.id = String(Int(idDouble))
-        } else {
-            // Fallback to generate new UUID
-            self.id = UUID().uuidString
-        }
-        
-        self.url = try container.decode(String.self, forKey: .url)
-        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? "Game photo"
-        
-        // Handle timestamp - try different formats
-        if let timestampData = try? container.decode(Timestamp.self, forKey: .timestamp) {
-            self.timestamp = timestampData.dateValue()
-        } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
-            let formatter = ISO8601DateFormatter()
-            self.timestamp = formatter.date(from: timestampString) ?? Date()
-        } else if let timestampDouble = try? container.decode(Double.self, forKey: .timestamp) {
-            self.timestamp = Date(timeIntervalSince1970: timestampDouble)
-        } else {
-            self.timestamp = Date()
-        }
-        
-        self.isICloudLink = try container.decodeIfPresent(Bool.self, forKey: .isICloudLink) ?? false
-    }
-    
-    init(url: String, description: String = "Game photo") {
-        self.id = UUID().uuidString
-        self.url = url
-        self.description = description
-        self.timestamp = Date()
-        self.isICloudLink = url.contains("icloud.com")
-    }
-}
 
 // MARK: - Achievement
 
