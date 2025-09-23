@@ -294,6 +294,7 @@ struct CareerStats {
     let averagePlayingTimePerGame: Double
     let playingTimePercentage: Double
     
+    // MARK: - Existing Computed Properties (already in your file)
     var fieldGoalPercentage: Double {
         let totalMade = fg2m + fg3m
         let totalAttempted = fg2a + fg3a
@@ -314,5 +315,77 @@ struct CareerStats {
     
     var assistTurnoverRatio: Double {
         return totalTurnovers > 0 ? Double(totalAssists) / Double(totalTurnovers) : Double(totalAssists)
+    }
+    
+    // MARK: - ADD THESE NEW Efficiency Metrics to CareerStats struct
+    
+    /// Simple NBA Efficiency Rating: (Points + Rebounds + Assists + Steals + Blocks - Turnovers - Missed FG - Missed FT) / Games
+    var efficiencyRating: Double {
+        guard totalGames > 0 else { return 0.0 }
+        
+        let positiveStats = totalPoints + totalRebounds + totalAssists + totalSteals + totalBlocks
+        let missedFG = (fg2a + fg3a) - (fg2m + fg3m)
+        let missedFT = fta - ftm
+        let negativeStats = totalTurnovers + missedFG + missedFT
+        
+        return Double(positiveStats - negativeStats) / Double(totalGames)
+    }
+    
+    /// Points Per Minute (when playing time is available)
+    var pointsPerMinute: Double {
+        return totalPlayingTimeMinutes > 0 ? Double(totalPoints) / totalPlayingTimeMinutes : 0.0
+    }
+    
+    /// True Shooting Percentage - More accurate shooting metric
+    var trueShootingPercentage: Double {
+        let totalShots = Double(fg2a) + Double(fg3a) + (Double(fta) * 0.44)
+        guard totalShots > 0 else { return 0.0 }
+        return Double(totalPoints) / (2.0 * totalShots)
+    }
+    
+    /// Effective Field Goal Percentage - Accounts for 3-pointers being worth more
+    var effectiveFieldGoalPercentage: Double {
+        let totalAttempted = fg2a + fg3a
+        guard totalAttempted > 0 else { return 0.0 }
+        let adjustedMade = Double(fg2m + fg3m) + (Double(fg3m) * 0.5) // 3-pointers get 0.5 bonus
+        return adjustedMade / Double(totalAttempted)
+    }
+    
+    /// Overall Efficiency Per Minute (for players with playing time data)
+    var efficiencyPerMinute: Double {
+        guard totalPlayingTimeMinutes > 0 else { return 0.0 }
+        
+        let positiveStats = totalPoints + totalRebounds + totalAssists + totalSteals + totalBlocks
+        let missedFG = (fg2a + fg3a) - (fg2m + fg3m)
+        let missedFT = fta - ftm
+        let negativeStats = totalTurnovers + missedFG + missedFT
+        
+        return Double(positiveStats - negativeStats) / totalPlayingTimeMinutes
+    }
+    
+    /// Simplified PER-like metric (without complex league adjustments)
+    var playerEfficiencyRating: Double {
+        guard totalGames > 0 else { return 0.0 }
+        
+        // Simplified version of PER formula focusing on per-game impact
+        let fg = Double(fg2m + fg3m)
+        let fga = Double(fg2a + fg3a)
+        let ft = Double(ftm)
+        let fta_stat = Double(fta)
+        let threePM = Double(fg3m)
+        let ast = Double(totalAssists)
+        let reb = Double(totalRebounds)
+        let stl = Double(totalSteals)
+        let blk = Double(totalBlocks)
+        let pf = Double(totalFouls)
+        let to = Double(totalTurnovers)
+        
+        // Simplified PER calculation (approximation)
+        let uPER = (fg * 85.91) + (stl * 53.897) + (threePM * 51.757) + (ft * 46.845) +
+                   (blk * 39.190) + (pf * -17.174) + ((fga - fg) * -39.190) +
+                   ((fta_stat - ft) * -20.091) + (to * -53.897) +
+                   (ast * 34.677) + (reb * 14.707)
+        
+        return uPER / Double(totalGames)
     }
 }
