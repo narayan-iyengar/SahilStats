@@ -593,6 +593,7 @@ struct MultiDeviceGameSetup: View {
     @EnvironmentObject var authService: AuthService
     @State private var showingRoleSelection = false
     @State private var gameConfig = GameConfig()
+    let isIPad: Bool
     
     var body: some View {
         VStack(spacing: 20) {
@@ -642,7 +643,7 @@ struct MultiDeviceGameSetup: View {
                 Button("Join Live Game") {
                     showingRoleSelection = true
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
             }
         }
         .padding()
