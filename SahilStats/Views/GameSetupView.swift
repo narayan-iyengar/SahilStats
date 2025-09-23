@@ -25,6 +25,12 @@ struct GameSetupView: View {
     @State private var showingLiveGameView = false
     @State private var createdLiveGame: LiveGame?
     
+    
+    @State private var enableMultiDevice = false
+    @State private var deviceRole: DeviceRoleManager.DeviceRole = .none
+    @StateObject private var roleManager = DeviceRoleManager.shared
+    
+    
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
         horizontalSizeClass == .regular
