@@ -128,7 +128,11 @@ struct GameFiltersSheet: View {
     }
 }
 
-// MARK: - Game Detail View (Now with Editing)
+
+
+
+// MARK: - Enhanced Game Detail View with Playing Time
+
 struct GameDetailView: View {
     @State var game: Game
     @Environment(\.dismiss) private var dismiss
@@ -144,7 +148,11 @@ struct GameDetailView: View {
     @State private var isEditingScore = false
     @State private var editingMyTeamScore = ""
     @State private var editingOpponentScore = ""
-
+    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     var body: some View {
         NavigationView {
@@ -153,7 +161,7 @@ struct GameDetailView: View {
                     // Header
                     headerView
                     
-                    // Player Stats Section
+                    // Player Stats Section (now includes playing time if available)
                     playerStatsSection
                     
                     // Shooting Percentages Section
@@ -258,7 +266,96 @@ struct GameDetailView: View {
                 
                 statCard(for: "Turnovers", value: $game.turnovers, color: .pink.opacity(0.7))
                 DetailStatCard(title: "A/T Ratio", value: String(format: "%.2f", game.assistTurnoverRatio), color: .indigo)
+                
+                // Playing Time Stats (always show for consistent layout)
+                if game.totalPlayingTimeMinutes > 0 || game.benchTimeMinutes > 0 {
+                    DetailStatCard(
+                        title: "Minutes Played",
+                        value: formatPlayingTime(game.totalPlayingTimeMinutes),
+                        color: .green
+                    )
+                    DetailStatCard(
+                        title: "Court Time %",
+                        value: "\(Int(game.playingTimePercentage))%",
+                        color: .teal
+                    )
+                    DetailStatCard(
+                        title: "Bench Time",
+                        value: formatPlayingTime(game.benchTimeMinutes),
+                        color: .orange
+                    )
+                    DetailStatCard(
+                        title: "Points/Min",
+                        value: String(format: "%.1f", calculatePointsPerMinute()),
+                        color: .red
+                    )
+                    DetailStatCard(
+                        title: "Efficiency",
+                        value: String(format: "%.1f", calculateEfficiencyRating()),
+                        color: .purple
+                    )
+                } else {
+                    // Placeholder cards for manual games
+                    DetailStatCard(
+                        title: "Minutes Played",
+                        value: "Not tracked",
+                        color: .gray
+                    )
+                    DetailStatCard(
+                        title: "Court Time %",
+                        value: "Not tracked",
+                        color: .gray
+                    )
+                    DetailStatCard(
+                        title: "Bench Time",
+                        value: "Not tracked",
+                        color: .gray
+                    )
+                    DetailStatCard(
+                        title: "Points/Min",
+                        value: "Not tracked",
+                        color: .gray
+                    )
+                    DetailStatCard(
+                        title: "Efficiency",
+                        value: "Not tracked",
+                        color: .gray
+                    )
+                }
+                
+                // Game Time Played (total game duration)
+                if game.totalPlayingTimeMinutes > 0 || game.benchTimeMinutes > 0 {
+                    DetailStatCard(
+                        title: "Game Duration",
+                        value: formatPlayingTime(game.totalPlayingTimeMinutes + game.benchTimeMinutes),
+                        color: .purple
+                    )
+                } else {
+                    DetailStatCard(
+                        title: "Game Duration",
+                        value: "Not tracked",
+                        color: .gray
+                    )
+                }
             }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func formatPlayingTime(_ minutes: Double) -> String {
+        if minutes == 0 {
+            return "0m"
+        }
+        
+        let totalMinutes = Int(minutes)
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        
+        if hours > 0 {
+            return "\(hours)h\(mins)m"
+        } else {
+            return "\(mins)m"
         }
     }
     
@@ -302,11 +399,11 @@ struct GameDetailView: View {
     private func statCard(for title: String, value: Binding<Int>, color: Color) -> some View {
         DetailStatCard(title: title, value: "\(value.wrappedValue)", color: color)
             .onLongPressGesture {
-                            editingStatTitle = title
-                            editingStatValue = "\(value.wrappedValue)"
-                            statUpdateBinding = value
-                            isEditingStat = true
-                        }
+                editingStatTitle = title
+                editingStatValue = "\(value.wrappedValue)"
+                statUpdateBinding = value
+                isEditingStat = true
+            }
     }
     
     private func saveStatChange() {
@@ -351,6 +448,150 @@ struct GameDetailView: View {
             } catch {
                 print("Failed to save score change: \(error.localizedDescription)")
             }
+        }
+    }
+    
+    private func calculatePointsPerMinute() -> Double {
+        guard game.totalPlayingTimeMinutes > 0 else { return 0.0 }
+        return Double(game.points) / game.totalPlayingTimeMinutes
+    }
+    
+    private func calculateEfficiencyRating() -> Double {
+        guard game.totalPlayingTimeMinutes > 0 else { return 0.0 }
+        
+        // Basketball efficiency formula: (Points + Rebounds + Assists + Steals + Blocks - Turnovers - Missed FG - Missed FT) / Minutes
+        let positiveStats = game.points + game.rebounds + game.assists + game.steals + game.blocks
+        let negativeStats = game.turnovers + (game.fg2a + game.fg3a - game.fg2m - game.fg3m) + (game.fta - game.ftm)
+        let efficiency = Double(positiveStats - negativeStats) / game.totalPlayingTimeMinutes
+        
+        return efficiency
+    }
+}
+
+
+
+struct GameDetailTimeCard: View {
+    let title: String
+    let time: Double
+    let color: Color
+    let isIPad: Bool
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 8 : 6) {
+            Text(formatTime(time))
+                .font(isIPad ? .title2 : .title3)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(title)
+                .font(isIPad ? .caption : .caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 16 : 12)
+        .background(color.opacity(0.08))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+    
+    private func formatTime(_ minutes: Double) -> String {
+        if minutes == 0 {
+            return "0m"
+        }
+        
+        let totalMinutes = Int(minutes)
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(mins)m"
+        } else {
+            return "\(mins)m"
+        }
+    }
+}
+
+struct PlayingTimePercentageBar: View {
+    let playingTime: Double
+    let totalTime: Double
+    let isIPad: Bool
+    
+    private var playingPercentage: Double {
+        totalTime > 0 ? (playingTime / totalTime) * 100 : 0
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 8 : 6) {
+            HStack {
+                Text("Court Time Percentage")
+                    .font(isIPad ? .body : .caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Text("\(Int(playingPercentage))%")
+                    .font(isIPad ? .body : .caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
+            }
+            
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background bar
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: isIPad ? 12 : 8)
+                        .cornerRadius(isIPad ? 6 : 4)
+                    
+                    // Progress bar
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [.green, .green.opacity(0.7)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(
+                            width: geometry.size.width * (playingPercentage / 100),
+                            height: isIPad ? 12 : 8
+                        )
+                        .cornerRadius(isIPad ? 6 : 4)
+                        .animation(.easeInOut(duration: 0.5), value: playingPercentage)
+                }
+            }
+            .frame(height: isIPad ? 12 : 8)
+            
+            // Additional info
+            if totalTime > 0 {
+                HStack {
+                    Text("On court: \(formatMinutes(playingTime))")
+                        .font(isIPad ? .caption : .caption2)
+                        .foregroundColor(.green)
+                    
+                    Spacer()
+                    
+                    Text("On bench: \(formatMinutes(totalTime - playingTime))")
+                        .font(isIPad ? .caption : .caption2)
+                        .foregroundColor(.orange)
+                }
+            }
+        }
+        .padding(isIPad ? 16 : 12)
+        .background(Color(.systemGray6))
+        .cornerRadius(isIPad ? 12 : 8)
+    }
+    
+    private func formatMinutes(_ minutes: Double) -> String {
+        let totalMinutes = Int(minutes)
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(mins)m"
+        } else {
+            return "\(mins)m"
         }
     }
 }
