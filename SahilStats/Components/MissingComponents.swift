@@ -132,7 +132,8 @@ struct GameFiltersSheet: View {
 
 
 // MARK: - Enhanced Game Detail View with Playing Time
-
+//OLD
+/*
 struct GameDetailView: View {
     @State var game: Game
     @Environment(\.dismiss) private var dismiss
@@ -467,7 +468,15 @@ struct GameDetailView: View {
         return efficiency
     }
 }
+*/
 
+struct GameDetailView: View {
+    @State var game: Game
+    
+    var body: some View {
+        EnhancedGameDetailView(game: game)
+    }
+}
 
 
 struct GameDetailTimeCard: View {

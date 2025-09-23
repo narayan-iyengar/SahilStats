@@ -56,18 +56,6 @@ struct EnhancedGameDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingPhotoPicker) {
-            GamePhotoPicker(
-                isPresented: $showingPhotoPicker,
-                selectionLimit: 5
-            ) { results in
-                Task {
-                    await photosManager.processSelectedPhotos(results)
-                    // Associate photos with this game
-                    await associatePhotosWithGame(results)
-                }
-            }
-        }
         .fullScreenCover(isPresented: $showingCameraCapture) {
             CameraCapture(gameId: game.id ?? "") { image in
                 Task {

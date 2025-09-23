@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showingDeleteAlert = false
     @State private var teamToDelete: Team?
     @State private var showingDeleteLiveGamesAlert = false
+    @State private var showingDeviceManager = false
     
     var body: some View {
         List {
@@ -132,7 +133,30 @@ struct SettingsView: View {
                     .foregroundColor(.red)
                 }
             }
-            
+            if authService.showAdminFeatures {
+                Section("Media & Recording") {
+                    MediaAccessStatus()
+                    
+                    Button("Manage Connected Devices") {
+                        // Show device manager if in live game
+                        if firebaseService.hasLiveGame {
+                            showingDeviceManager = true
+                        }
+                    }
+                    .disabled(!firebaseService.hasLiveGame)
+                    
+                    Button("Clear Recording Cache") {
+                        // Clear temporary video files
+                        clearRecordingCache()
+                    }
+                    .foregroundColor(.orange)
+                }
+            }
+            .sheet(isPresented: $showingDeviceManager) {
+                    if let liveGame = firebaseService.getCurrentLiveGame() {
+                        DeviceManagerView(liveGame: liveGame)
+                    }
+                }
             // App Info Section
             Section("App Info") {
                 HStack {
@@ -193,6 +217,18 @@ struct SettingsView: View {
     
     // MARK: - Helper Methods
     
+    private func clearRecordingCache() {
+        // Implementation to clear video cache
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let videoFiles = try? FileManager.default.contentsOfDirectory(at: documentsPath, includingPropertiesForKeys: nil)
+        
+        videoFiles?.forEach { url in
+            if url.pathExtension == "mov" {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+    
     private func addTeam() {
         guard !newTeamName.isEmpty else { return }
         
@@ -242,6 +278,23 @@ class SettingsManager: ObservableObject {
     @Published var periodLength: Int {
         didSet {
             UserDefaults.standard.set(periodLength, forKey: "periodLength")
+        }
+    }
+    @Published var enableMultiDevice: Bool {
+        didSet {
+            UserDefaults.standard.set(enableMultiDevice, forKey: "enableMultiDevice")
+        }
+    }
+
+    @Published var autoScreenshots: Bool {
+        didSet {
+            UserDefaults.standard.set(autoScreenshots, forKey: "autoScreenshots")
+        }
+    }
+
+    @Published var videoQuality: String {
+        didSet {
+            UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
         }
     }
     

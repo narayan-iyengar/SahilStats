@@ -27,7 +27,6 @@ struct GameSetupView: View {
     
     
     @State private var enableMultiDevice = false
-    @State private var deviceRole: DeviceRoleManager.DeviceRole = .none
     @StateObject private var roleManager = DeviceRoleManager.shared
     
     
@@ -277,31 +276,8 @@ struct GameSetupView: View {
     // MARK: - Setup Mode Selection
     
     private func SetupModeSelection() -> some View {
-    VStack(spacing: 20) {
-        // Header
-        VStack(spacing: 12) {
-            Image(systemName: "basketball.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.orange)
-            
-            Text("Game Setup")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("Choose how you want to set up today's game")
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.top, 40)
-        
-        // REMOVED: Live game status indicator banner
-        // No more green banner here
-        
-        Spacer()
-        
-        // Setup options with enhanced live game tracking
         VStack(spacing: 16) {
-            // Post-Game Stats Entry
+            // Post-Game Stats Entry (existing)
             SetupOptionCard(
                 title: "Enter Final Stats",
                 subtitle: "Enter final score and stats",
@@ -314,12 +290,12 @@ struct GameSetupView: View {
                 deviceRole = .none
             }
             
-            // ENHANCED: Live Game Tracking with prominent status
-            SubtleLiveGameTrackingCard(
-                hasLiveGame: firebaseService.hasLiveGame
+            // 🆕 Multi-Device Live Game
+            MultiDeviceLiveGameCard(
+                hasLiveGame: firebaseService.hasLiveGame,
+                enableMultiDevice: $enableMultiDevice
             ) {
                 if firebaseService.hasLiveGame {
-                    // Navigate directly to live game view
                     showingLiveGameView = true
                 } else {
                     setupMode = .gameForm
@@ -327,28 +303,27 @@ struct GameSetupView: View {
                 }
             }
             
-            // Recording Setup (Future feature)
-            SetupOptionCard(
-                title: "Video Recording",
-                subtitle: "Multi-device recording with live overlays",
-                icon: "video.fill",
-                color: .red,
-                status: "Coming Soon",
-                statusColor: .gray
-            ) {
-                error = "Video recording feature coming soon!"
+            // 🆕 Join Existing Live Game
+            if firebaseService.hasLiveGame {
+                SetupOptionCard(
+                    title: "Join Live Game",
+                    subtitle: "Connect as recording or viewing device",
+                    icon: "antenna.radiowaves.left.and.right",
+                    color: .blue,
+                    status: "Multi-device support",
+                    statusColor: .green
+                ) {
+                    showingRoleSelection = true
+                }
             }
         }
-        
-        Spacer()
-    }
-    .padding()
-    .alert("Feature Info", isPresented: .constant(!error.isEmpty)) {
-        Button("OK") { error = "" }
-    } message: {
-        Text(error)
-    }
-}
+
+        // Add role selection sheet
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceRoleSelectionView(liveGame: liveGame)
+            }
+        }
     
     // MARK: - Game Configuration Form
     
@@ -772,6 +747,80 @@ enum GameSubmissionMode {
     case live, postGame
 }
 
+    
+// 🆕 Multi-Device Live Game Card
+    struct MultiDeviceLiveGameCard: View {
+        let hasLiveGame: Bool
+        @Binding var enableMultiDevice: Bool
+        let action: () -> Void
+        
+        var body: some View {
+            Button(action: action) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 16) {
+                        Image(systemName: "stopwatch.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .frame(width: 50, height: 50)
+                            .background(hasLiveGame ? Color.red : Color.orange)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Live Game Tracking")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                if hasLiveGame {
+                                    Text("• ACTIVE")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.red)
+                                }
+                            }
+                            
+                            Text(hasLiveGame ?
+                                 "Join the current live game session" :
+                                 "Start live scoring with video recording")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    // 🆕 Multi-device toggle
+                    Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
+                        .font(.caption)
+                        .toggleStyle(SwitchToggleStyle(tint: .orange))
+                    
+                    if enableMultiDevice {
+                        HStack(spacing: 8) {
+                            Image(systemName: "iphone")
+                                .font(.caption2)
+                            Text("iPhone: Recording")
+                                .font(.caption2)
+                            
+                            Text("•")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            
+                            Image(systemName: "ipad")
+                                .font(.caption2)
+                            Text("iPad: Control")
+                                .font(.caption2)
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
 // Reuse the setup option card from the previous implementation
 struct SetupOptionCard: View {
     let title: String
