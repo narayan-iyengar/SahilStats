@@ -132,8 +132,8 @@ struct SettingsView: View {
                     }
                     .foregroundColor(.red)
                 }
-            }
-            if authService.showAdminFeatures {
+                
+                // Media & Recording Section
                 Section("Media & Recording") {
                     MediaAccessStatus()
                     
@@ -152,11 +152,7 @@ struct SettingsView: View {
                     .foregroundColor(.orange)
                 }
             }
-            .sheet(isPresented: $showingDeviceManager) {
-                    if let liveGame = firebaseService.getCurrentLiveGame() {
-                        DeviceManagerView(liveGame: liveGame)
-                    }
-                }
+            
             // App Info Section
             Section("App Info") {
                 HStack {
@@ -186,6 +182,11 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showingAuth) {
             AuthView()
+        }
+        .sheet(isPresented: $showingDeviceManager) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceManagerView(liveGame: liveGame)
+            }
         }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
@@ -280,20 +281,14 @@ class SettingsManager: ObservableObject {
             UserDefaults.standard.set(periodLength, forKey: "periodLength")
         }
     }
-    @Published var enableMultiDevice: Bool {
+    
+    @Published var enableMultiDevice: Bool = false {
         didSet {
             UserDefaults.standard.set(enableMultiDevice, forKey: "enableMultiDevice")
         }
     }
-/*
-    @Published var autoScreenshots: Bool {
-        didSet {
-            UserDefaults.standard.set(autoScreenshots, forKey: "autoScreenshots")
-        }
-    }
- */
 
-    @Published var videoQuality: String {
+    @Published var videoQuality: String = "High" {
         didSet {
             UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
         }
@@ -310,6 +305,9 @@ class SettingsManager: ObservableObject {
         
         let savedLength = UserDefaults.standard.integer(forKey: "periodLength")
         self.periodLength = savedLength > 0 ? savedLength : 20 // Default to 20 minutes
+        
+        self.enableMultiDevice = UserDefaults.standard.bool(forKey: "enableMultiDevice")
+        self.videoQuality = UserDefaults.standard.string(forKey: "videoQuality") ?? "High"
     }
     
     // Helper method to get default game settings for new games
