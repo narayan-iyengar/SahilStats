@@ -1169,7 +1169,7 @@ struct LiveGameControllerView: View {
         .shadow(color: .black.opacity(0.05), radius: isIPad ? 8 : 4, x: 0, y: 2)
     }
     
-    
+/*
     private func startTimeTracking(onCourt: Bool) {
         // End current segment if exists
         endCurrentTimeSegment()
@@ -1188,7 +1188,28 @@ struct LiveGameControllerView: View {
             try await firebaseService.updateLiveGame(updatedGame)
         }
     }
+*/
+    private func startTimeTracking(onCourt: Bool) {
+        Task {
+            // First, properly end the previous segment and get the updated game state.
+            let gameAfterEndingSegment = try await endCurrentTimeSegment()
+            
+            // Now, start the new segment on the guaranteed latest game state.
+            let newSegment = GameTimeSegment(
+                startTime: Date(),
+                endTime: nil,
+                isOnCourt: onCourt
+            )
+            
+            var updatedGame = gameAfterEndingSegment
+            updatedGame.currentTimeSegment = newSegment
+            
+            try await firebaseService.updateLiveGame(updatedGame)
+        }
+    }
+    
 
+/*
     private func endCurrentTimeSegment() {
         guard var currentSegment = serverGameState.currentTimeSegment else { return }
         
@@ -1201,6 +1222,25 @@ struct LiveGameControllerView: View {
         Task {
             try await firebaseService.updateLiveGame(updatedGame)
         }
+    }
+*/
+    private func endCurrentTimeSegment() async throws -> LiveGame {
+        guard var currentSegment = serverGameState.currentTimeSegment else {
+            // If there's no active segment, just return the current state.
+            return serverGameState
+        }
+        
+        currentSegment.endTime = Date()
+        
+        var updatedGame = serverGameState
+        updatedGame.timeSegments.append(currentSegment)
+        updatedGame.currentTimeSegment = nil
+        
+        // Await the database update to ensure it completes.
+        try await firebaseService.updateLiveGame(updatedGame)
+        
+        // Return the truly updated game object.
+        return updatedGame
     }
 
     private func updatePlayingStatus() {
@@ -1551,26 +1591,27 @@ struct LiveGameControllerView: View {
         }
     }
     
+   
     private func finishGame() {
         guard deviceControl.hasControl else { return }
         
-        // End current time segment
-        endCurrentTimeSegment()
-        
-        // Calculate total playing time
-        let totalPlayingTime = serverGameState.totalPlayingTime
-        let totalBenchTime = serverGameState.totalBenchTime
-        
-        
         Task {
             do {
+                // 1. Await the definitive, updated game object after ending the last segment.
+                let finalServerState = try await endCurrentTimeSegment()
+
+                // 2. Now, calculate time with guaranteed fresh data. No race condition.
+                let totalPlayingTime = finalServerState.totalPlayingTime
+                let totalBenchTime = finalServerState.totalBenchTime
+                
+                // 3. Create the final Game object with correct time data.
                 let finalGame = Game(
-                    teamName: serverGameState.teamName,
-                    opponent: serverGameState.opponent,
-                    location: serverGameState.location,
-                    timestamp: serverGameState.createdAt ?? Date(),
-                    gameFormat: serverGameState.gameFormat,
-                    periodLength: serverGameState.periodLength,
+                    teamName: finalServerState.teamName,
+                    opponent: finalServerState.opponent,
+                    location: finalServerState.location,
+                    timestamp: finalServerState.createdAt ?? Date(),
+                    gameFormat: finalServerState.gameFormat,
+                    periodLength: finalServerState.periodLength,
                     myTeamScore: currentHomeScore,
                     opponentScore: currentAwayScore,
                     fg2m: currentStats.fg2m,
@@ -1588,11 +1629,11 @@ struct LiveGameControllerView: View {
                     adminName: authService.currentUser?.email,
                     totalPlayingTimeMinutes: totalPlayingTime,
                     benchTimeMinutes: totalBenchTime,
-                    gameTimeTracking: serverGameState.timeSegments
+                    gameTimeTracking: finalServerState.timeSegments
                 )
                 
                 try await firebaseService.addGame(finalGame)
-                try await firebaseService.deleteLiveGame(serverGameState.id ?? "")
+                try await firebaseService.deleteLiveGame(finalServerState.id ?? "")
                 
                 await MainActor.run {
                     dismiss()

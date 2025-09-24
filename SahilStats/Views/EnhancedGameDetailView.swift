@@ -50,9 +50,9 @@ struct CompleteGameDetailView: View {
                     playerStatsSection
                     
                     // Playing Time Section (if available)
-                    if game.totalPlayingTimeMinutes > 0 || game.benchTimeMinutes > 0 {
-                        playingTimeSection
-                    }
+                    //if game.totalPlayingTimeMinutes > 0 || game.benchTimeMinutes > 0 {
+                    playingTimeSection
+                    //}
                     
                     // Shooting Percentages Section
                     shootingPercentagesSection
