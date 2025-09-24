@@ -101,12 +101,12 @@ struct GamesListSection: View {
                     totalCount: firebaseService.games.count
                 )
             }
-            
+/*
             // Live game indicator if present
             if firebaseService.hasLiveGame {
                 LiveGameSection(onTap: onShowLiveGame)
             }
-            
+*/
             // Games section with header
             Section {
                 GameRowsSection(
@@ -151,6 +151,7 @@ struct ActiveFiltersSection: View {
     }
 }
 
+/*
 // MARK: - Live Game Section
 struct LiveGameSection: View {
     let onTap: () -> Void
@@ -160,7 +161,7 @@ struct LiveGameSection: View {
             .listRowBackground(Color.red.opacity(0.1))
     }
 }
-
+*/
 
 
 // MARK: - Game Rows Section
