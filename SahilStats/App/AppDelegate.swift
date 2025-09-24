@@ -7,6 +7,7 @@
 
 import UIKit
 
+
 class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientationLock = UIInterfaceOrientationMask.portrait
     
