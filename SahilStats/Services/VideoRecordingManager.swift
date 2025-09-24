@@ -269,27 +269,24 @@ extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
     }
     
     private func saveVideoToPhotoLibrary(_ videoURL: URL) async {
-        guard await PhotosManager.shared.requestPhotoLibraryAccess() else {
-            await MainActor.run {
-                self.error = .saveFailed
-            }
-            return
-        }
-        
-        do {
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
-            }
-            
-            // Clean up temporary file
-            try? FileManager.default.removeItem(at: videoURL)
-            
-        } catch {
-            await MainActor.run {
-                self.error = .saveFailed
+            do {
+                try await PhotosManager.shared.saveVideoToPhotoLibrary(at: videoURL)
+                
+                // Clean up temporary file
+                try? FileManager.default.removeItem(at: videoURL)
+                
+                print("✅ Video saved to photo library successfully")
+                
+            } catch {
+                await MainActor.run {
+                    self.error = .saveFailed
+                }
+                print("❌ Failed to save video: \(error)")
             }
         }
-    }
+
+    
+    
 }
 
 // MARK: - Score Overlay Data
@@ -406,7 +403,6 @@ struct ScoreOverlayView: View {
 
 struct VideoRecordingView: View {
     @StateObject private var recordingManager = VideoRecordingManager.shared
-    @StateObject private var photosManager = PhotosManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     

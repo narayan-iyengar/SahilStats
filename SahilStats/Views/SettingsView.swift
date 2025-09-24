@@ -285,12 +285,13 @@ class SettingsManager: ObservableObject {
             UserDefaults.standard.set(enableMultiDevice, forKey: "enableMultiDevice")
         }
     }
-
+/*
     @Published var autoScreenshots: Bool {
         didSet {
             UserDefaults.standard.set(autoScreenshots, forKey: "autoScreenshots")
         }
     }
+ */
 
     @Published var videoQuality: String {
         didSet {

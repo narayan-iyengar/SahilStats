@@ -55,6 +55,7 @@ struct EnhancedGameDetailView: View {
                 }
             }
         }
+ /*
         .fullScreenCover(isPresented: $showingCameraCapture) {
             CameraCapture(gameId: game.id ?? "") { image in
                 Task {
@@ -64,6 +65,7 @@ struct EnhancedGameDetailView: View {
                 }
             }
         }
+  */
     }
     
     // MARK: - Media Section
@@ -101,6 +103,7 @@ struct EnhancedGameDetailView: View {
         .cornerRadius(isIPad ? 16 : 12)
     }
     
+/*
     @ViewBuilder
     private var mediaActionButtons: some View {
         HStack(spacing: 12) {
@@ -143,6 +146,7 @@ struct EnhancedGameDetailView: View {
             Spacer()
         }
     }
+ */
     
     // MARK: - Existing Views (same as your current implementation)
     
@@ -217,7 +221,7 @@ struct EnhancedGameDetailView: View {
     }
     
     // MARK: - Media Actions
-    
+/*
     private func takeStatsScreenshot() {
         // Create a screenshot of the current stats view
         let renderer = ImageRenderer(content: statsScreenshotView)
@@ -231,7 +235,9 @@ struct EnhancedGameDetailView: View {
             }
         }
     }
+ */
     
+/*
     @ViewBuilder
     private var statsScreenshotView: some View {
         VStack(spacing: 20) {
@@ -272,6 +278,7 @@ struct EnhancedGameDetailView: View {
         .padding(24)
         .background(Color(.systemBackground))
     }
+ */
     
     private func shareGameSummary() {
         let text = """
@@ -300,6 +307,25 @@ struct EnhancedGameDetailView: View {
     
 
 }
+
+/*
+func takeScreenshot() {
+    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+          let window = windowScene.windows.first else {
+        print("❌ Could not get window for screenshot")
+        return
+    }
+    
+    let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
+    let image = renderer.image { context in
+        window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+    }
+    
+    Task {
+        await saveGameScreenshot(image, gameId: "screenshot_\(Date().timeIntervalSince1970)")
+    }
+}
+ */
 
 // MARK: - Camera Capture View
 
@@ -342,48 +368,6 @@ struct CameraCapture: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - Enhanced Live Game View with Recording
-
-struct VideoRecordingView: View {
-    let liveGame: LiveGame
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Text("Recording")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                }
-                .padding()
-                
-                Spacer()
-                
-                Text("Video recording interface would go here")
-                    .foregroundColor(.white)
-                
-                Spacer()
-            }
-        }
-    }
-}
 
 struct EnhancedLiveGameView: View {
     let liveGame: LiveGame
@@ -431,6 +415,7 @@ struct EnhancedLiveGameView: View {
                 
                 // NEW: Recording controls
                 HStack(spacing: 12) {
+ /*
                     // Screenshot button
                     Button(action: takeScreenshot) {
                         HStack(spacing: 4) {
@@ -446,7 +431,7 @@ struct EnhancedLiveGameView: View {
                         .background(Color.blue)
                         .cornerRadius(8)
                     }
-                    
+  */
                     // Video recording button
                     VideoRecordingButton(liveGame: liveGame)
                 }
@@ -633,7 +618,8 @@ struct EnhancedGameSetupView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
-                
+  
+                /*
                 // Auto screenshots toggle
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -650,6 +636,7 @@ struct EnhancedGameSetupView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
+                 */
                 
                 // Media access status
                 MediaAccessStatus()
@@ -703,34 +690,3 @@ struct MediaAccessStatus: View {
     }
 }
 
-// MARK: - Usage Examples
-
-/*
- To integrate these features into your existing views:
-
- 1. Replace GameDetailView with EnhancedGameDetailView
- 2. Add VideoRecordingButton to your LiveGameView toolbar
- 3. Add MediaAccessStatus to your SettingsView
- 4. Update GameSetupView with media options
-
- Example integration in LiveGameView:
- 
- .toolbar {
-     ToolbarItemGroup(placement: .navigationBarTrailing) {
-         VideoRecordingButton(liveGame: liveGame)
-         
-         Button("Screenshot") {
-             // Take screenshot action
-         }
-     }
- }
-
- Example integration in GameDetailView:
- 
- struct GameDetailView: View {
-     var body: some View {
-         EnhancedGameDetailView(game: game)
-     }
- }
- 
- */
