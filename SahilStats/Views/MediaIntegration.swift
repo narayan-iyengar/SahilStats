@@ -6,88 +6,17 @@
 //
 // File: SahilStats/Views/MediaIntegration.swift
 
+
 import SwiftUI
 import AVFoundation
-import FirebaseAuth
 
 // MARK: - Enhanced Game Detail View with Media
-
-struct MediaIntegrationView: View {
-    let game: Game
-    @StateObject private var recordingManager = VideoRecordingManager.shared
-    @State private var showingVideoRecording = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Game Media")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.orange)
-                
-                Spacer()
-                
-                // Only video recording option
-                if FirebaseService.shared.hasLiveGame {
-                    Button("Record Video") {
-                        showingVideoRecording = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-            
-            // Share game summary (text only)
-            Button(action: shareGameText) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.caption)
-                    Text("Share Game Summary")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.green)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(8)
-            }
-        }
-        .padding()
-        .background(Color.orange.opacity(0.05))
-        .cornerRadius(12)
-        .fullScreenCover(isPresented: $showingVideoRecording) {
-            VideoRecordingView(liveGame: FirebaseService.shared.getCurrentLiveGame())
-        }
-    }
-    
-    private func shareGameText() {
-        let text = """
-        🏀 \(game.teamName) vs \(game.opponent)
-        Final: \(game.myTeamScore) - \(game.opponentScore)
-        
-        Sahil's Stats:
-        📊 \(game.points) PTS • \(game.rebounds) REB • \(game.assists) AST
-        
-        #SahilStats
-        """
-        
-        let activityViewController = UIActivityViewController(
-            activityItems: [text],
-            applicationActivities: nil
-        )
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootViewController = window.rootViewController {
-            rootViewController.present(activityViewController, animated: true)
-        }
-    }
-}
 
 struct EnhancedGameDetailView: View {
     @State var game: Game
     @Environment(\.dismiss) private var dismiss
     @StateObject private var firebaseService = FirebaseService.shared
+
     
     // State for media features
     @State private var showingCameraCapture = false
@@ -135,9 +64,6 @@ struct EnhancedGameDetailView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingVideoRecording) {
-            VideoRecordingView(liveGame: FirebaseService.shared.getCurrentLiveGame())
-        }
     }
     
     // MARK: - Media Section
@@ -165,6 +91,7 @@ struct EnhancedGameDetailView: View {
                         .foregroundColor(.orange)
                 }
             }
+            
             
             // Quick action buttons
             mediaActionButtons
@@ -217,7 +144,7 @@ struct EnhancedGameDetailView: View {
         }
     }
     
-    // MARK: - Existing Views
+    // MARK: - Existing Views (same as your current implementation)
     
     private var headerView: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -292,6 +219,7 @@ struct EnhancedGameDetailView: View {
     // MARK: - Media Actions
     
     private func takeStatsScreenshot() {
+        // Create a screenshot of the current stats view
         let renderer = ImageRenderer(content: statsScreenshotView)
         renderer.scale = UIScreen.main.scale
         
@@ -369,11 +297,8 @@ struct EnhancedGameDetailView: View {
         }
     }
     
-    private func saveGameScreenshot(_ image: UIImage, gameId: String) async {
-        // Implementation for saving screenshots
-        // You can implement Firebase storage or local storage here
-        print("Screenshot saved for game: \(gameId)")
-    }
+    
+
 }
 
 // MARK: - Camera Capture View
@@ -419,6 +344,47 @@ struct CameraCapture: UIViewControllerRepresentable {
 
 // MARK: - Enhanced Live Game View with Recording
 
+struct VideoRecordingView: View {
+    let liveGame: LiveGame
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Text("Recording")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+                .padding()
+                
+                Spacer()
+                
+                Text("Video recording interface would go here")
+                    .foregroundColor(.white)
+                
+                Spacer()
+            }
+        }
+    }
+}
+
 struct EnhancedLiveGameView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
@@ -432,6 +398,7 @@ struct EnhancedLiveGameView: View {
             // Existing live game content
             ScrollView {
                 VStack(spacing: 20) {
+                    // Your existing live game content here
                     existingLiveGameContent()
                 }
                 .padding()
@@ -462,7 +429,7 @@ struct EnhancedLiveGameView: View {
                 
                 Spacer()
                 
-                // Recording controls
+                // NEW: Recording controls
                 HStack(spacing: 12) {
                     // Screenshot button
                     Button(action: takeScreenshot) {
@@ -495,6 +462,8 @@ struct EnhancedLiveGameView: View {
     
     @ViewBuilder
     private func existingLiveGameContent() -> some View {
+        // Your existing live game content would go here
+        // This is just a placeholder - use your actual LiveGameView content
         VStack(spacing: 20) {
             Text("Live Game Content")
                 .font(.title2)
@@ -510,28 +479,6 @@ struct EnhancedLiveGameView: View {
         }
     }
     
-    private func takeScreenshot() {
-        let renderer = ImageRenderer(content: liveGameScreenshotView)
-        renderer.scale = UIScreen.main.scale
-        
-        if let image = renderer.uiImage {
-            // Handle the screenshot image
-            shareScreenshot(image)
-        }
-    }
-    
-    private func shareScreenshot(_ image: UIImage) {
-        let activityViewController = UIActivityViewController(
-            activityItems: [image],
-            applicationActivities: nil
-        )
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootViewController = window.rootViewController {
-            rootViewController.present(activityViewController, animated: true)
-        }
-    }
     
     @ViewBuilder
     private var liveGameScreenshotView: some View {
@@ -590,7 +537,7 @@ struct EnhancedLiveGameView: View {
             }
             
             // Player stats if available
-            if liveGame.playerStats.points > 0 || liveGame.playerStats.rebounds > 0 {
+            if !liveGame.playerStats.points == 0 || !liveGame.playerStats.rebounds == 0 {
                 VStack(spacing: 12) {
                     Text("Sahil's Stats")
                         .font(.headline)
@@ -649,15 +596,13 @@ struct EnhancedGameSetupView: View {
     @State private var showingMediaOptions = false
     @State private var enableVideoRecording = false
     @State private var enableAutoScreenshots = false
-    @StateObject private var authService = AuthService.shared
     
     var body: some View {
+        // Your existing GameSetupView content
         VStack {
-            // Existing setup content would go here
-            Text("Game Setup Content")
-                .font(.title2)
+            // Existing setup content...
             
-            // Media Options Section
+            // NEW: Media Options Section
             if authService.showAdminFeatures {
                 mediaOptionsSection
             }
@@ -666,55 +611,50 @@ struct EnhancedGameSetupView: View {
     
     @ViewBuilder
     private var mediaOptionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Media Features")
-                .font(.headline)
-                .fontWeight(.bold)
-            
-            Text("Capture and share your game moments")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            // Video recording toggle
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Video Recording")
-                        .font(.headline)
-                    Text("Record live game with score overlay")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+        Section("Media Features") {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Capture and share your game moments")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                // Video recording toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Video Recording")
+                            .font(.headline)
+                        Text("Record live game with score overlay")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $enableVideoRecording)
+                        .toggleStyle(SwitchToggleStyle(tint: .orange))
                 }
-                Spacer()
-                Toggle("", isOn: $enableVideoRecording)
-                    .toggleStyle(SwitchToggleStyle(tint: .orange))
-            }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            
-            // Auto screenshots toggle
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Auto Screenshots")
-                        .font(.headline)
-                    Text("Automatically capture key moments")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                // Auto screenshots toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Auto Screenshots")
+                            .font(.headline)
+                        Text("Automatically capture key moments")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $enableAutoScreenshots)
+                        .toggleStyle(SwitchToggleStyle(tint: .orange))
                 }
-                Spacer()
-                Toggle("", isOn: $enableAutoScreenshots)
-                    .toggleStyle(SwitchToggleStyle(tint: .orange))
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                // Media access status
+                MediaAccessStatus()
             }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            
-            // Media access status
-            MediaAccessStatus()
         }
-        .padding()
-        .background(Color.orange.opacity(0.05))
-        .cornerRadius(12)
     }
 }
 
@@ -762,3 +702,35 @@ struct MediaAccessStatus: View {
         }
     }
 }
+
+// MARK: - Usage Examples
+
+/*
+ To integrate these features into your existing views:
+
+ 1. Replace GameDetailView with EnhancedGameDetailView
+ 2. Add VideoRecordingButton to your LiveGameView toolbar
+ 3. Add MediaAccessStatus to your SettingsView
+ 4. Update GameSetupView with media options
+
+ Example integration in LiveGameView:
+ 
+ .toolbar {
+     ToolbarItemGroup(placement: .navigationBarTrailing) {
+         VideoRecordingButton(liveGame: liveGame)
+         
+         Button("Screenshot") {
+             // Take screenshot action
+         }
+     }
+ }
+
+ Example integration in GameDetailView:
+ 
+ struct GameDetailView: View {
+     var body: some View {
+         EnhancedGameDetailView(game: game)
+     }
+ }
+ 
+ */

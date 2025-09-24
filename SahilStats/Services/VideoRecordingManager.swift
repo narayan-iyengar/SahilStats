@@ -247,18 +247,6 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
 }
 
-class PhotosManager: ObservableObject {
-    static let shared = PhotosManager()
-    
-    private init() {}
-    
-    func requestPhotoLibraryAccess() async -> Bool {
-        // Removed photo library access - video recording will save directly
-        return false
-    }
-}
-
-
 // MARK: - AVCaptureFileOutputRecordingDelegate
 
 extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
@@ -281,15 +269,21 @@ extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
     }
     
     private func saveVideoToPhotoLibrary(_ videoURL: URL) async {
-        // Simplified video saving without photo library integration
-        do {
-            // Just keep the video in documents directory for now
-            print("Video saved to: \(videoURL.path)")
-            
-            // You could implement custom video management here
+        guard await PhotosManager.shared.requestPhotoLibraryAccess() else {
             await MainActor.run {
-                self.recordedVideoURL = videoURL
+                self.error = .saveFailed
             }
+            return
+        }
+        
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
+            }
+            
+            // Clean up temporary file
+            try? FileManager.default.removeItem(at: videoURL)
+            
         } catch {
             await MainActor.run {
                 self.error = .saveFailed

@@ -152,7 +152,11 @@ struct SettingsView: View {
                     .foregroundColor(.orange)
                 }
             }
-
+            .sheet(isPresented: $showingDeviceManager) {
+                    if let liveGame = firebaseService.getCurrentLiveGame() {
+                        DeviceManagerView(liveGame: liveGame)
+                    }
+                }
             // App Info Section
             Section("App Info") {
                 HStack {
@@ -183,11 +187,6 @@ struct SettingsView: View {
         .sheet(isPresented: $showingAuth) {
             AuthView()
         }
-        .sheet(isPresented: $showingDeviceManager) {
-                if let liveGame = firebaseService.getCurrentLiveGame() {
-                    DeviceManagerView(liveGame: liveGame)
-                }
-            }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
                 teamToDelete = nil
@@ -310,13 +309,7 @@ class SettingsManager: ObservableObject {
         
         let savedLength = UserDefaults.standard.integer(forKey: "periodLength")
         self.periodLength = savedLength > 0 ? savedLength : 20 // Default to 20 minutes
-        
-        self.enableMultiDevice = UserDefaults.standard.bool(forKey: "enableMultiDevice")
-        self.autoScreenshots = UserDefaults.standard.bool(forKey: "autoScreenshots")
-        self.videoQuality = UserDefaults.standard.string(forKey: "videoQuality") ?? "High"
     }
-    
-
     
     // Helper method to get default game settings for new games
     func getDefaultGameSettings() -> (format: GameFormat, length: Int) {
