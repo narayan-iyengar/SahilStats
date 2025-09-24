@@ -33,10 +33,8 @@ struct StatCard: View {
 
 
 
-<<<<<<< HEAD
+
 /*
-=======
->>>>>>> 52081fe0520a20d6751c9db4bbe5ce3d233ec663
 // MARK: - Live Game Indicator View
 struct LiveGameIndicatorView: View {
     let onTap: () -> Void
