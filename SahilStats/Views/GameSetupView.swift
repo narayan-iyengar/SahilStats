@@ -66,6 +66,7 @@ struct GameSetupView: View {
             firebaseService.startListening()
             loadDefaultSettings()
         }
+
         .fullScreenCover(isPresented: $showingPostGameView) {
             if #available(iOS 16.0, *) {
                 NavigationStack {
@@ -78,6 +79,8 @@ struct GameSetupView: View {
                 }
             }
         }
+ 
+
         .fullScreenCover(isPresented: $showingLiveGameView) {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
@@ -120,6 +123,7 @@ struct GameSetupView: View {
             }
             .navigationBarHidden(true)
         }
+ 
         .onChange(of: locationManager.locationName) { _, newLocation in
             if !newLocation.isEmpty {
                 gameConfig.location = newLocation
@@ -615,25 +619,6 @@ struct MultiDeviceLiveGameCard: View {
                 Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
                     .font(.caption)
                     .toggleStyle(SwitchToggleStyle(tint: .orange))
-                
-                if enableMultiDevice {
-                    HStack(spacing: 8) {
-                        Image(systemName: "iphone")
-                            .font(.caption2)
-                        Text("iPhone: Recording")
-                            .font(.caption2)
-                        
-                        Text("•")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        
-                        Image(systemName: "ipad")
-                            .font(.caption2)
-                        Text("iPad: Control")
-                            .font(.caption2)
-                    }
-                    .foregroundColor(.secondary)
-                }
             }
             .padding()
             .background(Color(.systemGray6))

@@ -56,64 +56,6 @@ struct GameListView: View {
                 isIPad: isIPad
             )
         }
-        .fullScreenCover(isPresented: $showingLiveGame) {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                LiveGameView()
-                    .environmentObject(authService)
-            } else {
-                NoLiveGameView()
-                    .environmentObject(authService)
-            }
-            NavigationView {
-                ZStack {
-                    Color(.systemBackground).ignoresSafeArea()
-                    
-                    VStack(spacing: 0) {
-                        // Navigation bar
-                        HStack {
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(Color.red)
-                                    .frame(width: 12, height: 12)
-                                    .opacity(0.8)
-                                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                                
-                                Text("Live Game")
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Spacer()
-                            
-                            Button(action: { showingLiveGame = false }) {
-                                Text("Done")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.orange)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.orange.opacity(0.1))
-                                    .cornerRadius(20)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 20)
-                        .padding(.bottom, 16)
-                        .background(
-                            Color(.systemBackground)
-                                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                        )
-                        
-                        // Main content
-                        LiveGameView()
-                    }
-                }
-                .navigationBarHidden(true)
-            }
-            .navigationViewStyle(StackNavigationViewStyle())
-        }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             GameDeleteAlert(
                 gameToDelete: $gameToDelete,
@@ -203,7 +145,8 @@ struct GameListView: View {
             .listRowBackground(Color.orange.opacity(0.05))
             .listRowSeparator(.hidden)
         }
-        
+
+/*
         // Live game indicator
         if firebaseService.hasLiveGame {
             Section {
@@ -212,6 +155,7 @@ struct GameListView: View {
             .listRowBackground(Color.red.opacity(0.1))
             .listRowSeparator(.hidden)
         }
+*/
         
         // Games list
         Section {
@@ -816,95 +760,7 @@ struct CareerTrendStatButton: View {
     }
 }
 
-// MARK: - Live Game Full Screen View
-@ViewBuilder
-private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
-    ZStack {
-        Color(.systemBackground).ignoresSafeArea()
-        
-        VStack(spacing: 0) {
-            // Navigation bar
-            HStack {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 12, height: 12)
-                        .opacity(0.8)
-                        .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                    
-                    Text("Live Game")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                }
-                
-                Spacer()
-                
-                Button(action: onDismiss) {
-                    Text("Done")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(20)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
-            .background(
-                Color(.systemBackground)
-                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-            )
-            
-            // Main content - Remove the explicit environmentObject since it should inherit
-            LiveGameView()
-        }
-    }
-    .navigationBarHidden(true)
-}
 
-@ViewBuilder
-private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
-    HStack {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 12, height: 12)
-                .opacity(0.8)
-                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-            
-            Text("Live Game")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-        }
-        
-        Spacer()
-        
-        Button(action: onDismiss) {
-            Text("Done")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.orange)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(20)
-        }
-        .buttonStyle(.plain)
-    }
-    .padding(.horizontal, 24)
-    .padding(.top, 20)
-    .padding(.bottom, 16)
-    .background(
-        Color(.systemBackground)
-            .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-    )
-}
 
 // MARK: - Date Range Extension for FilterManager Compatibility
 extension GameListView {

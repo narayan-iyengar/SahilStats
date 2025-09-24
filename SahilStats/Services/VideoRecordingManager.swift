@@ -715,12 +715,6 @@ struct VideoControlButtonStyle: ButtonStyle {
 
 // MARK: - Integration with Live Game
 
-extension LiveGameView {
-    func presentVideoRecording() {
-        // This would be called from a button in the live game view
-        // You'd present the VideoRecordingView as a full screen cover
-    }
-}
 
 // MARK: - Video Recording Button for Live Game
 

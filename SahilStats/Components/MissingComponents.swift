@@ -33,7 +33,7 @@ struct StatCard: View {
 
 
 
-
+/*
 // MARK: - Live Game Indicator View
 struct LiveGameIndicatorView: View {
     let onTap: () -> Void
@@ -70,6 +70,7 @@ struct LiveGameIndicatorView: View {
         .buttonStyle(.plain)
     }
 }
+ */
 
 // MARK: - Game Filters Sheet
 struct GameFiltersSheet: View {
