@@ -74,12 +74,12 @@ struct Game: Identifiable, Codable, Equatable {
         // FIXED: Better timestamp handling with detailed logging
         if let timestampData = try? container.decode(Timestamp.self, forKey: .timestamp) {
             timestamp = timestampData.dateValue()
-            print("✅ Decoded Firestore Timestamp: \(timestamp)")
+            //print("✅ Decoded Firestore Timestamp: \(timestamp)")
         } else if let timestampDouble = try? container.decode(Double.self, forKey: .timestamp) {
             timestamp = Date(timeIntervalSince1970: timestampDouble)
-            print("✅ Decoded Double timestamp: \(timestamp)")
+            //print("✅ Decoded Double timestamp: \(timestamp)")
         } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
-            print("🔍 Attempting to parse timestamp string: \(timestampString)")
+            //print("🔍 Attempting to parse timestamp string: \(timestampString)")
             
             // FIXED: Proper ISO8601 formatter with fractional seconds
             let iso8601Formatter = ISO8601DateFormatter()
@@ -87,7 +87,7 @@ struct Game: Identifiable, Codable, Equatable {
             
             if let parsedDate = iso8601Formatter.date(from: timestampString) {
                 timestamp = parsedDate
-                print("✅ Decoded ISO8601 with fractional seconds: \(timestamp)")
+                //print("✅ Decoded ISO8601 with fractional seconds: \(timestamp)")
             } else {
                 // Fallback: ISO8601 without fractional seconds
                 let iso8601FormatterNoFraction = ISO8601DateFormatter()
@@ -95,7 +95,7 @@ struct Game: Identifiable, Codable, Equatable {
                 
                 if let parsedDate = iso8601FormatterNoFraction.date(from: timestampString) {
                     timestamp = parsedDate
-                    print("✅ Decoded ISO8601 without fractional seconds: \(timestamp)")
+                    //print("✅ Decoded ISO8601 without fractional seconds: \(timestamp)")
                 } else {
                     // Final fallback: Custom date formatter
                     let customFormatter = DateFormatter()
@@ -105,7 +105,7 @@ struct Game: Identifiable, Codable, Equatable {
                     
                     if let parsedDate = customFormatter.date(from: timestampString) {
                         timestamp = parsedDate
-                        print("✅ Decoded with custom formatter: \(timestamp)")
+                        //print("✅ Decoded with custom formatter: \(timestamp)")
                     } else {
                         // Try without milliseconds
                         let customFormatterNoMs = DateFormatter()
@@ -115,17 +115,17 @@ struct Game: Identifiable, Codable, Equatable {
                         
                         if let parsedDate = customFormatterNoMs.date(from: timestampString) {
                             timestamp = parsedDate
-                            print("✅ Decoded with custom formatter (no ms): \(timestamp)")
+                            //print("✅ Decoded with custom formatter (no ms): \(timestamp)")
                         } else {
-                            print("❌ Failed to parse timestamp string: \(timestampString)")
-                            print("❌ Using current date as fallback - THIS SHOULD BE FIXED!")
+                           // print("❌ Failed to parse timestamp string: \(timestampString)")
+                            //print("❌ Using current date as fallback - THIS SHOULD BE FIXED!")
                             timestamp = Date() // Last resort fallback
                         }
                     }
                 }
             }
         } else {
-            print("❌ No valid timestamp found, using current date as fallback")
+            //print("❌ No valid timestamp found, using current date as fallback")
             timestamp = Date() // Last resort fallback
         }
         
@@ -198,12 +198,12 @@ struct Game: Identifiable, Codable, Equatable {
         // FIXED: Better createdAt handling with detailed logging
         if let createdAtData = try? container.decode(Timestamp.self, forKey: .createdAt) {
             createdAt = createdAtData.dateValue()
-            print("✅ Decoded createdAt Firestore Timestamp: \(createdAt)")
+            //print("✅ Decoded createdAt Firestore Timestamp: \(createdAt)")
         } else if let createdAtDouble = try? container.decode(Double.self, forKey: .createdAt) {
             createdAt = Date(timeIntervalSince1970: createdAtDouble)
-            print("✅ Decoded createdAt Double: \(createdAt)")
+            //print("✅ Decoded createdAt Double: \(createdAt)")
         } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
-            print("🔍 Attempting to parse createdAt string: \(createdAtString)")
+            //print("🔍 Attempting to parse createdAt string: \(createdAtString)")
             
             // FIXED: Same improved ISO8601 parsing for createdAt
             let iso8601Formatter = ISO8601DateFormatter()
@@ -211,14 +211,14 @@ struct Game: Identifiable, Codable, Equatable {
             
             if let parsedDate = iso8601Formatter.date(from: createdAtString) {
                 createdAt = parsedDate
-                print("✅ Decoded createdAt ISO8601 with fractional seconds: \(createdAt)")
+                //print("✅ Decoded createdAt ISO8601 with fractional seconds: \(createdAt)")
             } else {
                 let iso8601FormatterNoFraction = ISO8601DateFormatter()
                 iso8601FormatterNoFraction.formatOptions = [.withInternetDateTime]
                 
                 if let parsedDate = iso8601FormatterNoFraction.date(from: createdAtString) {
                     createdAt = parsedDate
-                    print("✅ Decoded createdAt ISO8601 without fractional seconds: \(createdAt)")
+                    //print("✅ Decoded createdAt ISO8601 without fractional seconds: \(createdAt)")
                 } else {
                     let customFormatter = DateFormatter()
                     customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
@@ -227,15 +227,15 @@ struct Game: Identifiable, Codable, Equatable {
                     
                     if let parsedDate = customFormatter.date(from: createdAtString) {
                         createdAt = parsedDate
-                        print("✅ Decoded createdAt with custom formatter: \(createdAt)")
+                        //print("✅ Decoded createdAt with custom formatter: \(createdAt)")
                     } else {
-                        print("❌ Failed to parse createdAt string: \(createdAtString), using current date")
+                        //print("❌ Failed to parse createdAt string: \(createdAtString), using current date")
                         createdAt = Date() // Fallback for createdAt is acceptable
                     }
                 }
             }
         } else {
-            print("❌ No createdAt found, using current date")
+            //print("❌ No createdAt found, using current date")
             createdAt = Date() // Fallback for createdAt is acceptable
         }
         
@@ -775,6 +775,13 @@ struct LiveGame: Identifiable, Codable, Equatable {
            self.createdAt = Date()
            self.createdBy = createdBy
            self.sahilOnBench = false
+           // FIXED: Create initial time segment
+           self.currentTimeSegment = GameTimeSegment(
+             startTime: Date(),
+             endTime: nil,
+             isOnCourt: true  // Start assuming on court
+           )
+        self.timeSegments = []
        }
    }
 

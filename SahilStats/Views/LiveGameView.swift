@@ -12,6 +12,132 @@ class RefreshTrigger: ObservableObject {
     }
 }
 
+struct DebugPlayingTimeCard: View {
+    let totalPlayingTime: Double
+    let totalBenchTime: Double
+    let timeSegments: [GameTimeSegment]
+    let currentSegment: GameTimeSegment?
+    let isIPad: Bool
+    
+    private var totalTime: Double {
+        var total = totalPlayingTime + totalBenchTime
+        
+        // ADD current segment time if active
+        if let current = currentSegment {
+            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
+            total += currentDuration
+        }
+        
+        return total
+    }
+    
+    private var displayPlayingTime: Double {
+        var playing = totalPlayingTime
+        
+        // ADD current segment if it's court time
+        if let current = currentSegment, current.isOnCourt {
+            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
+            playing += currentDuration
+        }
+        
+        return playing
+    }
+    
+    private var displayBenchTime: Double {
+        var bench = totalBenchTime
+        
+        // ADD current segment if it's bench time
+        if let current = currentSegment, !current.isOnCourt {
+            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
+            bench += currentDuration
+        }
+        
+        return bench
+    }
+    
+    private var playingPercentage: Double {
+        totalTime > 0 ? (displayPlayingTime / totalTime) * 100 : 0
+    }
+    
+    var body: some View {
+        VStack(spacing: isIPad ? 12 : 8) {
+            Text("Playing Time (Live)")
+                .font(isIPad ? .title3 : .headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.teal)
+            
+            // Show raw numbers
+            VStack(spacing: 4) {
+                Text("Segments: \(timeSegments.count) completed")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                if let current = currentSegment {
+                    let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
+                    Text("Current: \(current.isOnCourt ? "Court" : "Bench") (\(String(format: "%.1f", currentDuration)) min)")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+                
+                Text("Total time: \(String(format: "%.1f", totalTime)) min")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            // ALWAYS show time data, even if small
+            HStack(spacing: isIPad ? 20 : 16) {
+                TimeStatItem(
+                    title: "On Court",
+                    time: displayPlayingTime,
+                    color: .green,
+                    isIPad: isIPad
+                )
+                
+                TimeStatItem(
+                    title: "On Bench",
+                    time: displayBenchTime,
+                    color: .orange,
+                    isIPad: isIPad
+                )
+            }
+            
+            if totalTime > 0 {
+                // Playing time percentage bar
+                VStack(spacing: 4) {
+                    HStack {
+                        Text("Court Time")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(playingPercentage))%")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.green)
+                    }
+                    
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(height: 4)
+                            
+                            Rectangle()
+                                .fill(Color.green)
+                                .frame(width: geometry.size.width * (playingPercentage / 100), height: 4)
+                        }
+                    }
+                    .frame(height: 4)
+                }
+            }
+        }
+        .padding(isIPad ? 20 : 16)
+        .background(Color.teal.opacity(0.08))
+        .cornerRadius(isIPad ? 16 : 12)
+    }
+}
+
+
+
 struct LiveGameView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var roleManager = DeviceRoleManager.shared
@@ -117,354 +243,9 @@ struct LivePointsSummaryCard: View {
 }
 
 
-// MARK: - Collapsing Live Game Header Component
 
-struct CollapsingLiveGameHeader: View {
-    let deviceControl: DeviceControlManager
-    let serverGameState: LiveGame
-    @Binding var currentHomeScore: Int
-    @Binding var currentAwayScore: Int
-    let localClockTime: TimeInterval
-    let currentPeriod: Int
-    @Binding var sahilOnBench: Bool
-    let isHeaderCollapsed: Bool
-    let isIPad: Bool
-    
-    let onRequestControl: () -> Void
-    let onStartPause: () -> Void
-    let onAddMinute: () -> Void
-    let onAdvancePeriod: () -> Void
-    let onFinishGame: () -> Void
-    let onScoreChange: () -> Void
-    let onStatusChange: () -> Void
-    
-    var body: some View {
-        VStack(spacing: isHeaderCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 16 : 12)) {
-            // Always show device control status (but make it smaller when collapsed)
-            CompactDeviceControlStatusCard(
-                hasControl: deviceControl.hasControl,
-                controllingUser: deviceControl.controllingUser,
-                canRequestControl: deviceControl.canRequestControl,
-                pendingRequest: deviceControl.pendingControlRequest,
-                isIPad: isIPad,
-                onRequestControl: onRequestControl
-            )
-            .scaleEffect(isHeaderCollapsed ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.25), value: isHeaderCollapsed)
-            
-            if !isHeaderCollapsed {
-                // Expanded: Show clock
-                CompactClockCard(
-                    period: currentPeriod,
-                    clockTime: localClockTime,
-                    isGameRunning: serverGameState.isRunning,
-                    gameFormat: serverGameState.gameFormat,
-                    isIPad: isIPad
-                )
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .top)),
-                    removal: .opacity.combined(with: .move(edge: .top))
-                ))
-            }
-            
-            // Score (always visible but smaller when collapsed)
-            Group {
-                if deviceControl.hasControl {
-                    CollapsibleLiveScoreCard(
-                        homeScore: $currentHomeScore,
-                        awayScore: $currentAwayScore,
-                        teamName: serverGameState.teamName,
-                        opponent: serverGameState.opponent,
-                        isCollapsed: isHeaderCollapsed,
-                        isIPad: isIPad,
-                        onScoreChange: onScoreChange
-                    )
-                } else {
-                    CollapsibleLiveScoreDisplayCard(
-                        homeScore: serverGameState.homeScore,
-                        awayScore: serverGameState.awayScore,
-                        teamName: serverGameState.teamName,
-                        opponent: serverGameState.opponent,
-                        isCollapsed: isHeaderCollapsed,
-                        isIPad: isIPad
-                    )
-                }
-            }
-            
-            if !isHeaderCollapsed {
-                // Expanded: Show player status and game controls
-                VStack(spacing: isIPad ? 12 : 8) {
-                    PlayerStatusCard(
-                        sahilOnBench: $sahilOnBench,
-                        isIPad: isIPad,
-                        hasControl: deviceControl.hasControl,
-                        onStatusChange: onStatusChange
-                    )
-                    
-                    if deviceControl.hasControl {
-                        CompactGameControlsCard(
-                            currentPeriod: currentPeriod,
-                            maxPeriods: serverGameState.numPeriods,
-                            gameFormat: serverGameState.gameFormat,
-                            isGameRunning: serverGameState.isRunning,
-                            isIPad: isIPad,
-                            onStartPause: onStartPause,
-                            onAddMinute: onAddMinute,
-                            onAdvancePeriod: onAdvancePeriod,
-                            onFinishGame: onFinishGame
-                        )
-                    }
-                }
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .bottom)),
-                    removal: .opacity.combined(with: .move(edge: .bottom))
-                ))
-            }
-        }
-        .padding(.horizontal, isIPad ? 24 : 16)
-        .padding(.vertical, isHeaderCollapsed ? (isIPad ? 16 : 12) : (isIPad ? 16 : 12))
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-        )
-        .animation(.easeInOut(duration: 0.25), value: isHeaderCollapsed)
-    }
-}
 
-// MARK: - Collapsible Live Score Cards
 
-struct CollapsibleLiveScoreCard: View {
-    @Binding var homeScore: Int
-    @Binding var awayScore: Int
-    let teamName: String
-    let opponent: String
-    let isCollapsed: Bool
-    let isIPad: Bool
-    let onScoreChange: () -> Void
-    
-    var body: some View {
-        VStack(spacing: isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16)) {
-            if !isCollapsed {
-                Text("Live Score")
-                    .font(isIPad ? .title2 : .title3)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                    .transition(.opacity)
-            }
-            
-            HStack(spacing: isCollapsed ? (isIPad ? 24 : 20) : (isIPad ? 32 : 24)) {
-                // Home team
-                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
-                    if !isCollapsed {
-                        Text(teamName)
-                            .font(isIPad ? .body : .caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .transition(.opacity)
-                    }
-                    
-                    VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
-                        Text("\(homeScore)")
-                            .font(isCollapsed ?
-                                  (isIPad ? .system(size: 40, weight: .heavy) : .system(size: 36, weight: .heavy)) :
-                                  (isIPad ? .system(size: 64, weight: .heavy) : .system(size: 56, weight: .heavy))
-                            )
-                            .foregroundColor(.blue)
-                            .frame(minWidth: isCollapsed ? (isIPad ? 60 : 50) : (isIPad ? 80 : 70))
-                            .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-                        
-                        if !isCollapsed {
-                            HStack(spacing: isIPad ? 20 : 16) {
-                                Button("-") {
-                                    if homeScore > 0 {
-                                        homeScore -= 1
-                                        onScoreChange()
-                                    }
-                                }
-                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
-                                
-                                Button("+") {
-                                    homeScore += 1
-                                    onScoreChange()
-                                }
-                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
-                    }
-                }
-                
-                Text("–")
-                    .font(isCollapsed ?
-                          (isIPad ? .system(size: 24, weight: .medium) : .system(size: 20, weight: .medium)) :
-                          (isIPad ? .system(size: 40, weight: .medium) : .system(size: 36, weight: .medium))
-                    )
-                    .foregroundColor(.secondary)
-                    .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-                
-                // Away team
-                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
-                    if !isCollapsed {
-                        Text(opponent)
-                            .font(isIPad ? .body : .caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .transition(.opacity)
-                    }
-                    
-                    VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
-                        Text("\(awayScore)")
-                            .font(isCollapsed ?
-                                  (isIPad ? .system(size: 40, weight: .heavy) : .system(size: 36, weight: .heavy)) :
-                                  (isIPad ? .system(size: 64, weight: .heavy) : .system(size: 56, weight: .heavy))
-                            )
-                            .foregroundColor(.red)
-                            .frame(minWidth: isCollapsed ? (isIPad ? 60 : 50) : (isIPad ? 80 : 70))
-                            .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-                        
-                        if !isCollapsed {
-                            HStack(spacing: isIPad ? 20 : 16) {
-                                Button("-") {
-                                    if awayScore > 0 {
-                                        awayScore -= 1
-                                        onScoreChange()
-                                    }
-                                }
-                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
-                                
-                                Button("+") {
-                                    awayScore += 1
-                                    onScoreChange()
-                                }
-                                .buttonStyle(CollapsibleScoreButtonStyle(isCollapsed: isCollapsed, isIPad: isIPad))
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, isCollapsed ? (isIPad ? 20 : 16) : (isIPad ? 28 : 24))
-        .padding(.vertical, isCollapsed ? (isIPad ? 16 : 12) : (isIPad ? 28 : 24))
-        .background(Color(.systemBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16))
-                .stroke(Color.orange.opacity(0.4), lineWidth: 2)
-        )
-        .cornerRadius(isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16))
-        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-    }
-}
-
-struct CollapsibleLiveScoreDisplayCard: View {
-    let homeScore: Int
-    let awayScore: Int
-    let teamName: String
-    let opponent: String
-    let isCollapsed: Bool
-    let isIPad: Bool
-    
-    var body: some View {
-        VStack(spacing: isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16)) {
-            if !isCollapsed {
-                Text("Live Score")
-                    .font(isIPad ? .title2 : .title3)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                    .transition(.opacity)
-            }
-            
-            HStack(spacing: isCollapsed ? (isIPad ? 32 : 24) : (isIPad ? 40 : 32)) {
-                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
-                    if !isCollapsed {
-                        Text(teamName)
-                            .font(isIPad ? .body : .caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .transition(.opacity)
-                    }
-                    
-                    Text("\(homeScore)")
-                        .font(isCollapsed ?
-                              (isIPad ? .system(size: 48, weight: .heavy) : .system(size: 40, weight: .heavy)) :
-                              (isIPad ? .system(size: 72, weight: .heavy) : .system(size: 64, weight: .heavy))
-                        )
-                        .foregroundColor(.blue)
-                        .frame(minWidth: isCollapsed ? (isIPad ? 70 : 60) : (isIPad ? 90 : 80))
-                        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-                }
-                
-                Text("–")
-                    .font(isCollapsed ?
-                          (isIPad ? .system(size: 28, weight: .medium) : .system(size: 24, weight: .medium)) :
-                          (isIPad ? .system(size: 44, weight: .medium) : .system(size: 40, weight: .medium))
-                    )
-                    .foregroundColor(.secondary)
-                    .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-                
-                VStack(spacing: isCollapsed ? (isIPad ? 8 : 6) : (isIPad ? 16 : 12)) {
-                    if !isCollapsed {
-                        Text(opponent)
-                            .font(isIPad ? .body : .caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .transition(.opacity)
-                    }
-                    
-                    Text("\(awayScore)")
-                        .font(isCollapsed ?
-                              (isIPad ? .system(size: 48, weight: .heavy) : .system(size: 40, weight: .heavy)) :
-                              (isIPad ? .system(size: 72, weight: .heavy) : .system(size: 64, weight: .heavy))
-                        )
-                        .foregroundColor(.red)
-                        .frame(minWidth: isCollapsed ? (isIPad ? 70 : 60) : (isIPad ? 90 : 80))
-                        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-                }
-            }
-        }
-        .padding(.horizontal, isCollapsed ? (isIPad ? 20 : 16) : (isIPad ? 28 : 24))
-        .padding(.vertical, isCollapsed ? (isIPad ? 16 : 12) : (isIPad ? 28 : 24))
-        .background(Color(.systemGray6))
-        .cornerRadius(isCollapsed ? (isIPad ? 12 : 8) : (isIPad ? 20 : 16))
-        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-    }
-}
-
-// MARK: - Button Style for Collapsible Score
-
-struct CollapsibleScoreButtonStyle: ButtonStyle {
-    let isCollapsed: Bool
-    let isIPad: Bool
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(isCollapsed ?
-                  (isIPad ? .system(size: 18, weight: .bold) : .body) :
-                  (isIPad ? .system(size: 28, weight: .bold) : .system(size: 24, weight: .bold))
-            )
-            .foregroundColor(.white)
-            .frame(
-                width: isCollapsed ? (isIPad ? 36 : 32) : (isIPad ? 56 : 48),
-                height: isCollapsed ? (isIPad ? 36 : 32) : (isIPad ? 56 : 48)
-            )
-            .background(
-                Circle()
-                    .fill(Color.orange)
-                    .shadow(color: .orange.opacity(0.3), radius: configuration.isPressed ? 2 : 4, x: 0, y: configuration.isPressed ? 1 : 2)
-            )
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-            .animation(.easeInOut(duration: 0.25), value: isCollapsed)
-    }
-}
 
 // MARK: - ScrollView with Offset Tracking (Keep this from previous artifact)
 
@@ -725,11 +506,19 @@ struct LiveGameControllerView: View {
                         
                         // Summary cards
                         LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
-                        PlayingTimeCard(
+                        DebugPlayingTimeCard(
+                            totalPlayingTime: serverGameState.totalPlayingTime,
+                            totalBenchTime: serverGameState.totalBenchTime,
+                            timeSegments: serverGameState.timeSegments,
+                            currentSegment: serverGameState.currentTimeSegment,
+                            isIPad: isIPad
+                        )
+                        /*PlayingTimeCard(
                             totalPlayingTime: serverGameState.totalPlayingTime,
                             totalBenchTime: serverGameState.totalBenchTime,
                             isIPad: isIPad
-                        )
+                            
+                        )*/
                     } else if !sahilOnBench {
                         // Viewer stats (read-only)
                         LiveStatsDisplayCard(
@@ -786,6 +575,14 @@ struct LiveGameControllerView: View {
             )
             
             autoGrantInitialControl()
+            print("HERE HERE HERE HERE")
+            print("here: \(serverGameState.currentTimeSegment)")
+            
+            // FIXED: Start initial time tracking if no current segment exists
+            if serverGameState.currentTimeSegment == nil && deviceControl.hasControl {
+                print("HERE HERE HERE HERE !!!!!")
+                startInitialTimeTracking()
+            }
         }
         .onDisappear {
             stopFixedClockSync()
@@ -813,6 +610,27 @@ struct LiveGameControllerView: View {
             refreshTrigger.trigger()
             checkForControlRequests(newGame)
         }
+    }
+    
+    
+    //MARK: DEBUG
+    private func debugTimeSegments() {
+        let game = serverGameState
+        print("=== TIME SEGMENTS DEBUG ===")
+        print("Total segments: \(game.timeSegments.count)")
+        print("Current segment: \(game.currentTimeSegment != nil ? "Active" : "None")")
+        print("Total playing time: \(game.totalPlayingTime) minutes")
+        print("Total bench time: \(game.totalBenchTime) minutes")
+        
+        for (index, segment) in game.timeSegments.enumerated() {
+            print("Segment \(index + 1): \(segment.isOnCourt ? "Court" : "Bench") - \(segment.durationMinutes) min")
+        }
+        
+        if let currentSegment = game.currentTimeSegment {
+            let currentDuration = Date().timeIntervalSince(currentSegment.startTime) / 60.0
+            print("Current segment: \(currentSegment.isOnCourt ? "Court" : "Bench") - \(currentDuration) min (ongoing)")
+        }
+        print("=== END DEBUG ===")
     }
     
     // MARK: - FIXED: Single Game Header (All Info in One Place)
@@ -864,7 +682,10 @@ struct LiveGameControllerView: View {
                 sahilOnBench: $sahilOnBench,
                 isIPad: isIPad,
                 hasControl: deviceControl.hasControl,
-                onStatusChange: updatePlayingStatus
+                onStatusChange: {
+                        print("🔥 DEBUG: PlayerStatusCard onStatusChange triggered")
+                        updatePlayingStatus()  // Make sure this calls updatePlayingStatus
+                    }
             )
             
             // Game Controls
@@ -1209,24 +1030,11 @@ struct LiveGameControllerView: View {
     }
     
 
-/*
-    private func endCurrentTimeSegment() {
-        guard var currentSegment = serverGameState.currentTimeSegment else { return }
-        
-        currentSegment.endTime = Date()
-        
-        var updatedGame = serverGameState
-        updatedGame.timeSegments.append(currentSegment)
-        updatedGame.currentTimeSegment = nil
-        
-        Task {
-            try await firebaseService.updateLiveGame(updatedGame)
-        }
-    }
-*/
+
     private func endCurrentTimeSegment() async throws -> LiveGame {
         guard var currentSegment = serverGameState.currentTimeSegment else {
-            // If there's no active segment, just return the current state.
+            // If there's no active segment, just return the current state
+            print("📍 No active time segment to end")
             return serverGameState
         }
         
@@ -1236,25 +1044,81 @@ struct LiveGameControllerView: View {
         updatedGame.timeSegments.append(currentSegment)
         updatedGame.currentTimeSegment = nil
         
-        // Await the database update to ensure it completes.
+        print("📍 Ending time segment: \(currentSegment.isOnCourt ? "Court" : "Bench"), Duration: \(currentSegment.durationMinutes) minutes")
+        
+        // Await the database update to ensure it completes
         try await firebaseService.updateLiveGame(updatedGame)
         
-        // Return the truly updated game object.
+        // Return the truly updated game object
         return updatedGame
     }
 
     private func updatePlayingStatus() {
+        
+        print("🔥 DEBUG: updatePlayingStatus() CALLED")
         let wasOnCourt = serverGameState.currentTimeSegment?.isOnCourt ?? true
         let isNowOnCourt = !sahilOnBench
+
+        print("🔥 DEBUG: wasOnCourt: \(wasOnCourt), isNowOnCourt: \(isNowOnCourt)")
+        print("🔥 DEBUG: sahilOnBench: \(sahilOnBench)")
         
+        // DEBUG: Print current status
+        print("🔍 Status change: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
+        debugTimeSegments() // ADD THIS LINE
+        
+        // Only update time tracking if status actually changed
         if wasOnCourt != isNowOnCourt {
-            startTimeTracking(onCourt: isNowOnCourt)
+            print("📍 Playing status changed: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
+            
+            Task {
+                do {
+                    // FIXED: Properly await the endCurrentTimeSegment to avoid race condition
+                    let gameAfterEndingSegment = try await endCurrentTimeSegment()
+                    
+                    // Start new segment with the guaranteed latest game state
+                    let newSegment = GameTimeSegment(
+                        startTime: Date(),
+                        endTime: nil,
+                        isOnCourt: isNowOnCourt
+                    )
+                    
+                    var updatedGame = gameAfterEndingSegment
+                    updatedGame.currentTimeSegment = newSegment
+                    updatedGame.sahilOnBench = sahilOnBench // Update bench status too
+                    
+                    try await firebaseService.updateLiveGame(updatedGame)
+                    print("✅ Time tracking updated successfully")
+                    
+                } catch {
+                    print("❌ Failed to update time tracking: \(error)")
+                }
+            }
+        } else {
+            print("🔥 DEBUG: No status change, calling scheduleUpdate()")
+            scheduleUpdate()
         }
-        
-        scheduleUpdate()
     }
     
     
+    
+    // MARK: - ALSO ENSURE: Start time tracking when game begins
+    // Add this to your game start logic if not already present
+
+    private func startInitialTimeTracking() {
+        let initialSegment = GameTimeSegment(
+            startTime: Date(),
+            endTime: nil,
+            isOnCourt: !sahilOnBench // Start based on current bench status
+        )
+        
+        var updatedGame = serverGameState
+        updatedGame.currentTimeSegment = initialSegment
+        
+        Task {
+            try await firebaseService.updateLiveGame(updatedGame)
+            print("✅ Initial time tracking started")
+        }
+    }
     // MARK: - All existing methods remain the same...
     
     private func startFixedClockSync() {
