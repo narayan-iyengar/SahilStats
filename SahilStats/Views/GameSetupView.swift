@@ -792,15 +792,13 @@ enum GameSubmissionMode {
                         
                         Spacer()
                     }
-                    
-<<<<<<< HEAD
+            
                     Spacer()
                 }
                 
                 Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
                     .font(.caption)
                     .toggleStyle(SwitchToggleStyle(tint: .orange))
-=======
                     // 🆕 Multi-device toggle
                     Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
                         .font(.caption)
@@ -828,7 +826,6 @@ enum GameSubmissionMode {
                 .padding()
                 .background(Color(.systemGray6))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
->>>>>>> 52081fe0520a20d6751c9db4bbe5ce3d233ec663
             }
             .buttonStyle(.plain)
         }

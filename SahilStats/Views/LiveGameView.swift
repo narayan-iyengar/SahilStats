@@ -815,16 +815,10 @@ struct LiveGameControllerView: View {
         }
     }
     
-<<<<<<< HEAD
     // MARK: - FIXED: Single Game Header (All Info in One Place)
     
     @ViewBuilder
     private func fixedGameHeader() -> some View {
-=======
-    // SIMPLE: Fixed header that doesn't collapse
-    @ViewBuilder
-    private func fixedHeader() -> some View {
->>>>>>> 52081fe0520a20d6751c9db4bbe5ce3d233ec663
         VStack(spacing: isIPad ? 16 : 12) {
             // Device Control Status
             CompactDeviceControlStatusCard(
