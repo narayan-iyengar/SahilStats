@@ -506,19 +506,24 @@ struct LiveGameControllerView: View {
                         
                         // Summary cards
                         LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
+                        /*
                         DebugPlayingTimeCard(
                             totalPlayingTime: serverGameState.totalPlayingTime,
                             totalBenchTime: serverGameState.totalBenchTime,
                             timeSegments: serverGameState.timeSegments,
                             currentSegment: serverGameState.currentTimeSegment,
                             isIPad: isIPad
-                        )
+                        )*/
                         /*PlayingTimeCard(
                             totalPlayingTime: serverGameState.totalPlayingTime,
                             totalBenchTime: serverGameState.totalBenchTime,
                             isIPad: isIPad
                             
                         )*/
+                        PlayingTimeCard(
+                            liveGame: serverGameState,
+                            isIPad: isIPad
+                        )
                     } else if !sahilOnBench {
                         // Viewer stats (read-only)
                         LiveStatsDisplayCard(
@@ -577,6 +582,7 @@ struct LiveGameControllerView: View {
             autoGrantInitialControl()
             print("HERE HERE HERE HERE")
             print("here: \(serverGameState.currentTimeSegment)")
+            print("here: \(deviceControl.hasControl)")
             
             // FIXED: Start initial time tracking if no current segment exists
             if serverGameState.currentTimeSegment == nil && deviceControl.hasControl {
@@ -1039,17 +1045,31 @@ struct LiveGameControllerView: View {
         }
         
         currentSegment.endTime = Date()
+        let segmentDuration = currentSegment.durationMinutes
         
         var updatedGame = serverGameState
+        
+        // Add completed segment to array
         updatedGame.timeSegments.append(currentSegment)
         updatedGame.currentTimeSegment = nil
         
-        print("📍 Ending time segment: \(currentSegment.isOnCourt ? "Court" : "Bench"), Duration: \(currentSegment.durationMinutes) minutes")
+        // 🔥 CRITICAL FIX: Update the stored cumulative totals
+        if currentSegment.isOnCourt {
+            updatedGame.totalPlayingTimeMinutes += segmentDuration
+            print("📍 Added \(segmentDuration) minutes to PLAYING time (new total: \(updatedGame.totalPlayingTimeMinutes))")
+        } else {
+            updatedGame.benchTimeMinutes += segmentDuration
+            print("📍 Added \(segmentDuration) minutes to BENCH time (new total: \(updatedGame.benchTimeMinutes))")
+        }
         
-        // Await the database update to ensure it completes
+        print("📍 Ending time segment: \(currentSegment.isOnCourt ? "Court" : "Bench"), Duration: \(segmentDuration) minutes")
+        print("📍 UPDATED TOTALS - Playing: \(updatedGame.totalPlayingTimeMinutes), Bench: \(updatedGame.benchTimeMinutes)")
+        print("📍 Total segments: \(updatedGame.timeSegments.count)")
+        
+        // Save to Firebase with updated totals
         try await firebaseService.updateLiveGame(updatedGame)
         
-        // Return the truly updated game object
+        // Return the updated game state
         return updatedGame
     }
 
