@@ -710,12 +710,12 @@ struct PostGameActionButtons: View {
             Button("Cancel") {
                 onCancel()
             }
-            .buttonStyle(PostGameSecondaryButtonStyle(isIPad: isIPad))
+            .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             
             Button("Save Game") {
                 onSave()
             }
-            .buttonStyle(PostGamePrimaryButtonStyle(isIPad: isIPad))
+            .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
             .disabled(!isValid || isSubmitting)
         }
     }

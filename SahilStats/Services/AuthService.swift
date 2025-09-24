@@ -24,8 +24,6 @@ class AuthService: ObservableObject {
     
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
-    static let shared = AuthService()
-    
     enum UserRole: String, CaseIterable {
         case admin = "admin"
         case viewer = "viewer"

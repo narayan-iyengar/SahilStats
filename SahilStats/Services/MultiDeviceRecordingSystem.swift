@@ -22,26 +22,9 @@ class DeviceRoleManager: ObservableObject {
     @Published var connectedDevices: [ConnectedDevice] = []
     @Published var isConnectedToGame = false
     @Published var liveGameId: String?
-    @Published var connectionState: ConnectionState = .disconnected
     
     private let firebaseService = FirebaseService.shared
     private var deviceListener: ListenerRegistration?
-    
-    enum ConnectionState: Equatable {
-        case disconnected
-        case connecting
-        case connected
-        case error(String)
-
-        var description: String {
-            switch self {
-            case .disconnected: return "Disconnected"
-            case .connecting: return "Connecting..."
-            case .connected: return "Connected"
-            case .error(let message): return "Error: \(message)"
-            }
-        }
-    }
     
     enum DeviceRole: String, CaseIterable {
         case none = "none"
@@ -96,10 +79,6 @@ class DeviceRoleManager: ObservableObject {
         deviceRole = role
         liveGameId = gameId
         
-        await MainActor.run {
-            connectionState = .connecting
-        }
-        
         // Save role to UserDefaults
         UserDefaults.standard.set(role.rawValue, forKey: "deviceRole")
         UserDefaults.standard.set(gameId, forKey: "connectedGameId")
@@ -112,7 +91,6 @@ class DeviceRoleManager: ObservableObject {
         
         await MainActor.run {
             isConnectedToGame = true
-            connectionState = .connected
         }
     }
     
@@ -128,7 +106,6 @@ class DeviceRoleManager: ObservableObject {
             liveGameId = nil
             isConnectedToGame = false
             connectedDevices.removeAll()
-            connectionState = .disconnected
         }
         
         // Clear saved state
@@ -593,6 +570,7 @@ struct MultiDeviceGameSetup: View {
     @EnvironmentObject var authService: AuthService
     @State private var showingRoleSelection = false
     @State private var gameConfig = GameConfig()
+    let isIPad: Bool
     
     var body: some View {
         VStack(spacing: 20) {
@@ -642,7 +620,7 @@ struct MultiDeviceGameSetup: View {
                 Button("Join Live Game") {
                     showingRoleSelection = true
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
             }
         }
         .padding()

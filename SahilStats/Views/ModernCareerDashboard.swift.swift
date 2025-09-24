@@ -199,7 +199,7 @@ struct ModernOverviewStatsView: View {
             ModernStatCard(title: "Efficiency", value: String(format: "%.1f", stats.efficiencyRating), color: .indigo, isIPad: isIPad)
             ModernStatCard(title: "True Shooting", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
             ModernStatCard(title: "Effective FG", value: String(format: "%.0f%%", stats.effectiveFieldGoalPercentage * 100), color: .teal, isIPad: isIPad)
-            ModernStatCard(title: "Player Efficiency Rating", value: String(format: "%.1f", stats.playerEfficiencyRating), color: .purple, isIPad: isIPad)
+            ModernStatCard(title: "PER", value: String(format: "%.1f", stats.playerEfficiencyRating), color: .purple, isIPad: isIPad)
             
             // Only show these if playing time data exists
             if stats.totalPlayingTimeMinutes > 0 {
