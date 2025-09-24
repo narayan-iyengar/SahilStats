@@ -618,6 +618,7 @@ struct NoLiveGameView: View {
     }
 }
 
+
 struct PlayingTimeCard: View {
     let totalPlayingTime: Double
     let totalBenchTime: Double
@@ -708,17 +709,24 @@ struct TimeStatItem: View {
     }
     
     private func formatTime(_ minutes: Double) -> String {
-        let totalMinutes = Int(minutes)
-        let hours = totalMinutes / 60
-        let mins = totalMinutes % 60
-        
-        if hours > 0 {
-            return "\(hours)h \(mins)m"
+        if minutes < 1.0 {
+            // Show seconds for values under 1 minute
+            let seconds = Int(minutes * 60)
+            return "\(seconds)s"
         } else {
-            return "\(mins)m"
+            let totalMinutes = Int(minutes)
+            let hours = totalMinutes / 60
+            let mins = totalMinutes % 60
+            
+            if hours > 0 {
+                return "\(hours)h \(mins)m"
+            } else {
+                return "\(mins)m"
+            }
         }
     }
 }
+
 
 // MARK: - Fixed Synchronized Clock Card
 
@@ -834,14 +842,20 @@ struct PlayerStatusCard: View {
                 // INTERACTIVE: Only show buttons if user has control
                 HStack(spacing: isIPad ? 8 : 6) {
                     Button("Court") {
+                        print("🔥 DEBUG: Court button tapped - before: \(sahilOnBench)")
                         sahilOnBench = false
+                        print("🔥 DEBUG: Court button tapped - after: \(sahilOnBench)")
                         onStatusChange()
+                        print("🔥 DEBUG: onStatusChange() called")
                     }
                     .buttonStyle(CompactStatusButtonStyle(isSelected: !sahilOnBench, isIPad: isIPad))
                     
                     Button("Bench") {
+                        print("🔥 DEBUG: Bench button tapped - before: \(sahilOnBench)")
                         sahilOnBench = true
+                        print("🔥 DEBUG: Bench button tapped - after: \(sahilOnBench)")
                         onStatusChange()
+                        print("🔥 DEBUG: onStatusChange() called")
                     }
                     .buttonStyle(CompactStatusButtonStyle(isSelected: sahilOnBench, isIPad: isIPad))
                 }

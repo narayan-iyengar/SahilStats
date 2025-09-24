@@ -273,46 +273,29 @@ struct CompleteGameDetailView: View {
                 .fontWeight(.bold)
                 .foregroundColor(.teal)
             
-            if game.totalPlayingTimeMinutes > 0 || game.benchTimeMinutes > 0 {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
-                    GameDetailTimeCard(
-                        title: "Minutes Played",
-                        time: game.totalPlayingTimeMinutes,
-                        color: .green,
-                        isIPad: isIPad
-                    )
-                    GameDetailTimeCard(
-                        title: "Bench Time",
-                        time: game.benchTimeMinutes,
-                        color: .orange,
-                        isIPad: isIPad
-                    )
-                    DetailStatCard(
-                        title: "Court Time %",
-                        value: "\(Int(game.playingTimePercentage))%",
-                        color: .teal
-                    )
-                    DetailStatCard(
-                        title: "Points/Min",
-                        value: String(format: "%.1f", calculatePointsPerMinute()),
-                        color: .red
-                    )
-                }
-                
-                // Playing time percentage bar
-                PlayingTimePercentageBar(
-                    playingTime: game.totalPlayingTimeMinutes,
-                    totalTime: game.totalPlayingTimeMinutes + game.benchTimeMinutes,
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                GameDetailTimeCard(
+                    title: "Minutes Played",
+                    time: game.totalPlayingTimeMinutes,
+                    color: .green,
                     isIPad: isIPad
                 )
-            } else {
-                Text("Playing time data not available for this game")
-                    .font(isIPad ? .body : .subheadline)
-                    .foregroundColor(.secondary)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(isIPad ? 12 : 8)
+                GameDetailTimeCard(
+                    title: "Bench Time",
+                    time: game.benchTimeMinutes,
+                    color: .orange,
+                    isIPad: isIPad
+                )
+                DetailStatCard(
+                    title: "Court Time %",
+                    value: "\(Int(game.playingTimePercentage))%",
+                    color: .teal
+                )
+                DetailStatCard(
+                    title: "Points/Min",
+                    value: String(format: "%.1f", calculatePointsPerMinute()),
+                    color: .red
+                )
             }
         }
     }
