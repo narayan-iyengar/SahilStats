@@ -11,9 +11,25 @@ import SwiftUI
 import AVFoundation
 import Combine
 
+// MARK: - Global Helper Functions
 
+func formatDuration(_ duration: TimeInterval) -> String {
+    let minutes = Int(duration) / 60
+    let seconds = Int(duration) % 60
+    return String(format: "%02d:%02d", minutes, seconds)
+}
 
-// MARK: - Fix 8: Create missing RecordingStats
+// MARK: - Control Device View (Main Controller)
+
+struct ControlDeviceView: View {
+    let liveGame: LiveGame
+    
+    var body: some View {
+        LiveGameControllerView(liveGame: liveGame)
+    }
+}
+
+// MARK: - Recording Stats and Components
 
 struct RecordingStats {
     var totalRecordings: Int = 0
@@ -69,6 +85,8 @@ struct LiveScoreOverlay: View {
         .padding()
     }
 }
+
+// MARK: - Recording Device View
 
 struct RecordingDeviceView: View {
     let liveGame: LiveGame
@@ -261,12 +279,6 @@ struct RecordingDeviceView: View {
         )
     }
     
-    func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
-    
     @ViewBuilder
     private var recordingButtonsOverlay: some View {
         HStack(spacing: 40) {
@@ -334,6 +346,167 @@ struct RecordingDeviceView: View {
                     .clipShape(Circle())
             }
             .disabled(recordingManager.isRecording)
+        }
+        .padding(.horizontal, 40)
+        .padding(.bottom, 30)
+    }
+    
+    @ViewBuilder
+    private var connectionStatusOverlay: some View {
+        VStack {
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                    
+                    Text("Connected as Recorder")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(.black.opacity(0.7))
+                        .background(.ultraThinMaterial)
+                )
+                
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 50)
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func setupRecordingDevice() {
+        Task {
+            let layer = await recordingManager.setupCamera()
+            await MainActor.run {
+                self.previewLayer = layer
+            }
+        }
+    }
+    
+    private func toggleRecording() {
+        Task {
+            if recordingManager.isRecording {
+                await recordingManager.stopRecording()
+            } else {
+                await recordingManager.startRecording()
+            }
+        }
+    }
+    
+    private func toggleControlsVisibility() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showingControls.toggle()
+        }
+        
+        // Auto-hide after 3 seconds if showing
+        if showingControls {
+            hideControlsTimer?.invalidate()
+            hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingControls = false
+                }
+            }
+        } else {
+            hideControlsTimer?.invalidate()
+        }
+    }
+    
+    private func updateRecordingStats() {
+        // Update recording statistics
+        if recordingManager.isRecording {
+            recordingStats.currentSessionDuration = recordingManager.recordingDuration
+        }
+    }
+    
+    private func disconnect() {
+        Task {
+            await roleManager.disconnectFromGame()
+            await MainActor.run {
+                dismiss()
+            }
+        }
+    }
+}
+
+// MARK: - Device Manager View
+
+struct DeviceManagerView: View {
+    let liveGame: LiveGame
+    @StateObject private var roleManager = DeviceRoleManager.shared
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                // Current device info
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("This Device")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    HStack {
+                        Image(systemName: roleManager.deviceRole.icon)
+                            .foregroundColor(roleManager.deviceRole == .controller ? .blue : .red)
+                        
+                        VStack(alignment: .leading) {
+                            Text(roleManager.deviceRole.displayName)
+                                .fontWeight(.medium)
+                            Text(roleManager.deviceRole.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+                
+                // Connected devices
+                if !roleManager.connectedDevices.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Connected Devices")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        ForEach(roleManager.connectedDevices) { device in
+                            ConnectedDeviceRow(device: device, isIPad: true)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                // Disconnect button
+                Button("Disconnect from Game") {
+                    Task {
+                        await roleManager.disconnectFromGame()
+                        dismiss()
+                    }
+                }
+                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: true))
+            }
+            .padding()
+            .navigationTitle("Device Manager")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

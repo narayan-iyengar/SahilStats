@@ -6,7 +6,6 @@
 //
 // File: SahilStats/Views/MediaIntegration.swift
 
-
 import SwiftUI
 import AVFoundation
 
@@ -55,17 +54,6 @@ struct EnhancedGameDetailView: View {
                 }
             }
         }
- /*
-        .fullScreenCover(isPresented: $showingCameraCapture) {
-            CameraCapture(gameId: game.id ?? "") { image in
-                Task {
-                    if let gameId = game.id {
-                        await saveGameScreenshot(image, gameId: gameId)
-                    }
-                }
-            }
-        }
-  */
     }
     
     // MARK: - Media Section
@@ -94,7 +82,6 @@ struct EnhancedGameDetailView: View {
                 }
             }
             
-            
             // Quick action buttons
             mediaActionButtons
         }
@@ -103,28 +90,9 @@ struct EnhancedGameDetailView: View {
         .cornerRadius(isIPad ? 16 : 12)
     }
     
-/*
     @ViewBuilder
     private var mediaActionButtons: some View {
         HStack(spacing: 12) {
-            // Screenshot current stats
-            Button(action: {
-                takeStatsScreenshot()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "camera.viewfinder")
-                        .font(.caption)
-                    Text("Screenshot Stats")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.blue)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(8)
-            }
-            
             // Share game summary
             Button(action: {
                 shareGameSummary()
@@ -146,7 +114,6 @@ struct EnhancedGameDetailView: View {
             Spacer()
         }
     }
- */
     
     // MARK: - Existing Views (same as your current implementation)
     
@@ -220,66 +187,6 @@ struct EnhancedGameDetailView: View {
         }
     }
     
-    // MARK: - Media Actions
-/*
-    private func takeStatsScreenshot() {
-        // Create a screenshot of the current stats view
-        let renderer = ImageRenderer(content: statsScreenshotView)
-        renderer.scale = UIScreen.main.scale
-        
-        if let image = renderer.uiImage {
-            Task {
-                if let gameId = game.id {
-                    await saveGameScreenshot(image, gameId: gameId)
-                }
-            }
-        }
-    }
- */
-    
-/*
-    @ViewBuilder
-    private var statsScreenshotView: some View {
-        VStack(spacing: 20) {
-            // Game header
-            VStack(spacing: 8) {
-                Text("\(game.teamName) vs \(game.opponent)")
-                    .font(.title)
-                    .fontWeight(.bold)
-                
-                Text("Final: \(game.myTeamScore) - \(game.opponentScore)")
-                    .font(.title2)
-                    .foregroundColor(game.outcome == .win ? .green : .red)
-                
-                Text(game.formattedDate)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            // Stats grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
-                DetailStatCard(title: "PTS", value: "\(game.points)", color: .purple)
-                DetailStatCard(title: "REB", value: "\(game.rebounds)", color: .mint)
-                DetailStatCard(title: "AST", value: "\(game.assists)", color: .cyan)
-                DetailStatCard(title: "STL", value: "\(game.steals)", color: .yellow)
-                DetailStatCard(title: "BLK", value: "\(game.blocks)", color: .red)
-                DetailStatCard(title: "FG%", value: String(format: "%.0f%%", game.fieldGoalPercentage * 100), color: .blue)
-            }
-            
-            // Watermark
-            HStack {
-                Spacer()
-                Text("SahilStats")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .opacity(0.7)
-            }
-        }
-        .padding(24)
-        .background(Color(.systemBackground))
-    }
- */
-    
     private func shareGameSummary() {
         let text = """
         🏀 \(game.teamName) vs \(game.opponent)
@@ -303,29 +210,7 @@ struct EnhancedGameDetailView: View {
             rootViewController.present(activityViewController, animated: true)
         }
     }
-    
-    
-
 }
-
-/*
-func takeScreenshot() {
-    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-          let window = windowScene.windows.first else {
-        print("❌ Could not get window for screenshot")
-        return
-    }
-    
-    let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
-    let image = renderer.image { context in
-        window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
-    }
-    
-    Task {
-        await saveGameScreenshot(image, gameId: "screenshot_\(Date().timeIntervalSince1970)")
-    }
-}
- */
 
 // MARK: - Camera Capture View
 
@@ -367,7 +252,6 @@ struct CameraCapture: UIViewControllerRepresentable {
         }
     }
 }
-
 
 struct EnhancedLiveGameView: View {
     let liveGame: LiveGame
@@ -415,23 +299,6 @@ struct EnhancedLiveGameView: View {
                 
                 // NEW: Recording controls
                 HStack(spacing: 12) {
- /*
-                    // Screenshot button
-                    Button(action: takeScreenshot) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "camera.fill")
-                                .font(.caption)
-                            Text("Screenshot")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.blue)
-                        .cornerRadius(8)
-                    }
-  */
                     // Video recording button
                     VideoRecordingButton(liveGame: liveGame)
                 }
@@ -463,7 +330,6 @@ struct EnhancedLiveGameView: View {
                 .foregroundColor(.secondary)
         }
     }
-    
     
     @ViewBuilder
     private var liveGameScreenshotView: some View {
@@ -521,8 +387,8 @@ struct EnhancedLiveGameView: View {
                     .monospacedDigit()
             }
             
-            // Player stats if available
-            if !liveGame.playerStats.points == 0 || !liveGame.playerStats.rebounds == 0 {
+            // Player stats if available - FIXED: Compare to 0 instead of using as boolean
+            if liveGame.playerStats.points != 0 || liveGame.playerStats.rebounds != 0 {
                 VStack(spacing: 12) {
                     Text("Sahil's Stats")
                         .font(.headline)
@@ -577,6 +443,8 @@ struct StatItem: View {
 // MARK: - Enhanced Game Setup with Media Options
 
 struct EnhancedGameSetupView: View {
+    @EnvironmentObject var authService: AuthService
+    
     // Your existing GameSetupView properties
     @State private var showingMediaOptions = false
     @State private var enableVideoRecording = false
@@ -618,25 +486,6 @@ struct EnhancedGameSetupView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
-  
-                /*
-                // Auto screenshots toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Auto Screenshots")
-                            .font(.headline)
-                        Text("Automatically capture key moments")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Toggle("", isOn: $enableAutoScreenshots)
-                        .toggleStyle(SwitchToggleStyle(tint: .orange))
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                 */
                 
                 // Media access status
                 MediaAccessStatus()
@@ -689,4 +538,3 @@ struct MediaAccessStatus: View {
         }
     }
 }
-

@@ -10,6 +10,7 @@ import Foundation
 import Photos
 import UIKit
 import SwiftUI
+import Combine
 
 class PhotosManager: ObservableObject {
     static let shared = PhotosManager()
