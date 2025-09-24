@@ -656,7 +656,9 @@ struct Achievement: Codable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Live Game Model (Enhanced with Control Request Tracking)
+
+
+// MARK: - Live Game Model (Enhanced with FIXED Time Tracking)
 
 struct LiveGame: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
@@ -679,7 +681,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
     var controllingUserEmail: String? // Which user has control
     var controlRequestedBy: String? // User requesting control
     var controlRequestingDeviceId: String? // Device requesting control
-    var controlRequestTimestamp: Date? // NEW: When the control request was made
+    var controlRequestTimestamp: Date? // When the control request was made
     var lastClockUpdate: Date? // Server timestamp of last clock update
     
     // Current scores
@@ -694,21 +696,40 @@ struct LiveGame: Identifiable, Codable, Equatable {
     var createdBy: String?
     var sahilOnBench: Bool?
     
-    // Computed properties
-    var isGameOver: Bool {
-        period >= numPeriods && clock <= 0 && !isRunning
-    }
-    
-    var currentTimeSegment: GameTimeSegment?
-    var timeSegments: [GameTimeSegment] = []
+    // 🔥 FIXED: Consistent time tracking properties (all stored in Firebase)
+    var totalPlayingTimeMinutes: Double = 0.0 // Cumulative court time from completed segments
+    var benchTimeMinutes: Double = 0.0        // Cumulative bench time from completed segments
+    var timeSegments: [GameTimeSegment] = []  // Array of completed time segments
+    var currentTimeSegment: GameTimeSegment? = nil // Currently active segment (if any)
 
-    // Computed properties
+    // 🔥 FIXED: Computed properties that include live active segment time
     var totalPlayingTime: Double {
-        return timeSegments.filter { $0.isOnCourt }.reduce(0) { $0 + $1.durationMinutes }
+        var total = totalPlayingTimeMinutes // Start with stored completed time
+        
+        // Add current active segment time if it's court time
+        if let current = currentTimeSegment, current.isOnCourt, current.endTime == nil {
+            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
+            total += currentDuration
+        }
+        
+        return total
     }
 
     var totalBenchTime: Double {
-        return timeSegments.filter { !$0.isOnCourt }.reduce(0) { $0 + $1.durationMinutes }
+        var total = benchTimeMinutes // Start with stored completed time
+        
+        // Add current active segment time if it's bench time
+        if let current = currentTimeSegment, !current.isOnCourt, current.endTime == nil {
+            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
+            total += currentDuration
+        }
+        
+        return total
+    }
+    
+    // Computed properties (existing ones)
+    var isGameOver: Bool {
+        period >= numPeriods && clock <= 0 && !isRunning
     }
     
     // Calculate current clock based on server time (prevents drift)
@@ -749,43 +770,45 @@ struct LiveGame: Identifiable, Codable, Equatable {
     }
     
     init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, periodLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
-           self.teamName = teamName
-           self.opponent = opponent
-           self.location = location
-           self.gameFormat = gameFormat
-           self.periodLength = periodLength
-           self.numPeriods = gameFormat == .halves ? 2 : 4
-           self.isRunning = false
-           self.period = 1
-           self.clock = TimeInterval(periodLength * 60)
-           self.clockStartTime = nil
-           self.clockAtStart = TimeInterval(periodLength * 60)
-           
-           // AUTO-GRANT CONTROL: Set the creating device as the controller
-           self.controllingDeviceId = deviceId
-           self.controllingUserEmail = createdBy
-           self.controlRequestedBy = nil
-           self.controlRequestingDeviceId = nil
-           self.controlRequestTimestamp = nil
-           self.lastClockUpdate = nil
-           
-           self.homeScore = 0
-           self.awayScore = 0
-           self.playerStats = PlayerStats()
-           self.createdAt = Date()
-           self.createdBy = createdBy
-           self.sahilOnBench = false
-           // FIXED: Create initial time segment
-           self.currentTimeSegment = GameTimeSegment(
-             startTime: Date(),
-             endTime: nil,
-             isOnCourt: true  // Start assuming on court
-           )
-        self.timeSegments = []
-       }
-   }
+        self.teamName = teamName
+        self.opponent = opponent
+        self.location = location
+        self.gameFormat = gameFormat
+        self.periodLength = periodLength
+        self.numPeriods = gameFormat == .halves ? 2 : 4
+        self.isRunning = false
+        self.period = 1
+        self.clock = TimeInterval(periodLength * 60)
+        self.clockStartTime = nil
+        self.clockAtStart = TimeInterval(periodLength * 60)
+        
+        // AUTO-GRANT CONTROL: Set the creating device as the controller
+        self.controllingDeviceId = deviceId
+        self.controllingUserEmail = createdBy
+        self.controlRequestedBy = nil
+        self.controlRequestingDeviceId = nil
+        self.controlRequestTimestamp = nil
+        self.lastClockUpdate = nil
+        
+        self.homeScore = 0
+        self.awayScore = 0
+        self.playerStats = PlayerStats()
+        self.createdAt = Date()
+        self.createdBy = createdBy
+        self.sahilOnBench = false
+        
+        // 🔥 CRITICAL FIX: Explicitly initialize time tracking as nil/empty
+        self.totalPlayingTimeMinutes = 0.0
+        self.benchTimeMinutes = 0.0
+        self.currentTimeSegment = nil  // ✅ This ensures startInitialTimeTracking() will be called
+        self.timeSegments = []         // ✅ Start with empty completed segments
+        
+        print("🔥 NEW LiveGame created - currentTimeSegment is NIL: \(currentTimeSegment == nil)")
+    }
+}
 
-// MARK: - Extensions for Firebase Compatibility (Updated)
+
+// MARK: - Extensions for Firebase Compatibility (Updated with Time Tracking Fix)
 extension LiveGame {
     init(from document: QueryDocumentSnapshot) throws {
         let data = document.data()
@@ -831,6 +854,80 @@ extension LiveGame {
             createdAt = Date()
         }
         
+        // FIXED: Parse time segments
+        var timeSegments: [GameTimeSegment] = []
+        if let timeSegmentsData = data["timeSegments"] as? [[String: Any]] {
+            timeSegments = timeSegmentsData.compactMap { segmentData in
+                guard let startTimeData = segmentData["startTime"],
+                      let isOnCourt = segmentData["isOnCourt"] as? Bool else {
+                    return nil
+                }
+                
+                let startTime: Date
+                if let timestamp = startTimeData as? Timestamp {
+                    startTime = timestamp.dateValue()
+                } else if let timestampDouble = startTimeData as? Double {
+                    startTime = Date(timeIntervalSince1970: timestampDouble)
+                } else {
+                    return nil
+                }
+                
+                let endTime: Date?
+                if let endTimeData = segmentData["endTime"] {
+                    if let timestamp = endTimeData as? Timestamp {
+                        endTime = timestamp.dateValue()
+                    } else if let timestampDouble = endTimeData as? Double {
+                        endTime = Date(timeIntervalSince1970: timestampDouble)
+                    } else {
+                        endTime = nil
+                    }
+                } else {
+                    endTime = nil
+                }
+                
+                return GameTimeSegment(
+                    startTime: startTime,
+                    endTime: endTime,
+                    isOnCourt: isOnCourt
+                )
+            }
+        }
+        
+        // FIXED: Parse current time segment (this was missing!)
+        var currentTimeSegment: GameTimeSegment? = nil
+        if let currentSegmentData = data["currentTimeSegment"] as? [String: Any],
+           let startTimeData = currentSegmentData["startTime"],
+           let isOnCourt = currentSegmentData["isOnCourt"] as? Bool {
+            
+            let startTime: Date
+            if let timestamp = startTimeData as? Timestamp {
+                startTime = timestamp.dateValue()
+            } else if let timestampDouble = startTimeData as? Double {
+                startTime = Date(timeIntervalSince1970: timestampDouble)
+            } else {
+                startTime = Date() // fallback
+            }
+            
+            let endTime: Date?
+            if let endTimeData = currentSegmentData["endTime"] {
+                if let timestamp = endTimeData as? Timestamp {
+                    endTime = timestamp.dateValue()
+                } else if let timestampDouble = endTimeData as? Double {
+                    endTime = Date(timeIntervalSince1970: timestampDouble)
+                } else {
+                    endTime = nil
+                }
+            } else {
+                endTime = nil
+            }
+            
+            currentTimeSegment = GameTimeSegment(
+                startTime: startTime,
+                endTime: endTime,
+                isOnCourt: isOnCourt
+            )
+        }
+        
         self.id = document.documentID
         self.teamName = data["teamName"] as? String ?? ""
         self.opponent = data["opponent"] as? String ?? ""
@@ -874,5 +971,12 @@ extension LiveGame {
         self.createdAt = createdAt
         self.createdBy = data["createdBy"] as? String
         self.sahilOnBench = data["sahilOnBench"] as? Bool ?? false
+        
+        // FIXED: Set the time tracking properties
+        self.timeSegments = timeSegments
+        self.currentTimeSegment = currentTimeSegment
+        
+        print("🔍 DECODED LiveGame - currentTimeSegment: \(currentTimeSegment != nil ? "EXISTS" : "NIL")")
+        print("🔍 DECODED LiveGame - timeSegments count: \(timeSegments.count)")
     }
 }

@@ -620,12 +620,26 @@ struct NoLiveGameView: View {
 
 
 struct PlayingTimeCard: View {
-    let totalPlayingTime: Double
-    let totalBenchTime: Double
+    let liveGame: LiveGame
     let isIPad: Bool
     
+    // Calculate current segment duration if active
+    private var currentSegmentDuration: Double {
+        guard let current = liveGame.currentTimeSegment, current.endTime == nil else { return 0 }
+        return Date().timeIntervalSince(current.startTime) / 60.0
+    }
+    
+    // Use the computed properties from LiveGame that include active segments
+    private var totalPlayingTime: Double {
+        return liveGame.totalPlayingTime // This now includes active segment time!
+    }
+    
+    private var totalBenchTime: Double {
+        return liveGame.totalBenchTime // This now includes active segment time!
+    }
+    
     private var totalTime: Double {
-        totalPlayingTime + totalBenchTime
+        return totalPlayingTime + totalBenchTime
     }
     
     private var playingPercentage: Double {
@@ -656,30 +670,47 @@ struct PlayingTimeCard: View {
             }
             
             // Playing time percentage bar
-            VStack(spacing: 4) {
-                HStack {
-                    Text("Court Time")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(Int(playingPercentage))%")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.green)
-                }
-                
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(height: 4)
-                        
-                        Rectangle()
-                            .fill(Color.green)
-                            .frame(width: geometry.size.width * (playingPercentage / 100), height: 4)
+            if totalTime > 0 {
+                VStack(spacing: 4) {
+                    HStack {
+                        Text("Court Time")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(playingPercentage))%")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.green)
                     }
+                    
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(height: 4)
+                            
+                            Rectangle()
+                                .fill(Color.green)
+                                .frame(width: geometry.size.width * (playingPercentage / 100), height: 4)
+                        }
+                    }
+                    .frame(height: 4)
                 }
-                .frame(height: 4)
+            }
+            
+            // Optional: Show active segment info
+            if let current = liveGame.currentTimeSegment, current.endTime == nil {
+                HStack {
+                    Circle()
+                        .fill(current.isOnCourt ? .green : .orange)
+                        .frame(width: 6, height: 6)
+                    
+                    Text("Currently \(current.isOnCourt ? "on court" : "on bench") • \(String(format: "%.1f", currentSegmentDuration))m")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                }
             }
         }
         .padding(isIPad ? 20 : 16)
