@@ -1,4 +1,4 @@
-// File: SahilStats/Views/GameSetupView.swift (Fixed Form closure issue)
+// File: SahilStats/Views/GameSetupView.swift (Fixed Version)
 
 import SwiftUI
 import AVFoundation
@@ -6,7 +6,6 @@ import Combine
 import FirebaseAuth
 import CoreLocation
 import UIKit
-
 
 struct GameSetupView: View {
     @StateObject private var firebaseService = FirebaseService.shared
@@ -25,10 +24,8 @@ struct GameSetupView: View {
     @State private var showingPostGameView = false
     @State private var showingLiveGameView = false
     @State private var createdLiveGame: LiveGame?
-    
-    
+    @State private var showingRoleSelection = false // FIXED: Added missing property
     @State private var enableMultiDevice = false
-    
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
@@ -40,8 +37,8 @@ struct GameSetupView: View {
     enum SetupMode {
         case selection      // Choose setup type
         case recording      // Recording device role selection
-        case gameForm      // Game configuration form
-        case connecting    // Connecting to existing game
+        case gameForm       // Game configuration form
+        case connecting     // Connecting to existing game
     }
     
     enum DeviceRole {
@@ -54,13 +51,13 @@ struct GameSetupView: View {
         Group {
             switch setupMode {
             case .selection:
-                SetupModeSelection()
+                setupModeSelection
             case .recording:
-                RecordingRoleSelection()
+                recordingRoleSelection
             case .gameForm:
-                GameConfigurationForm()
+                gameConfigurationForm
             case .connecting:
-                ConnectToGameView()
+                connectToGameView
             }
         }
         .navigationTitle("Game Setup")
@@ -69,64 +66,21 @@ struct GameSetupView: View {
             firebaseService.startListening()
             loadDefaultSettings()
         }
-
         .fullScreenCover(isPresented: $showingPostGameView) {
-            if #available(iOS 16.0, *) {
-                NavigationStack {
-                    PostGameStatsView(gameConfig: gameConfig)
-                }
-            } else {
-                NavigationView {
-                    PostGameStatsView(gameConfig: gameConfig)
-                        .navigationViewStyle(StackNavigationViewStyle())
-                }
+            PostGameFullScreenWrapper(gameConfig: gameConfig) {
+                showingPostGameView = false
             }
         }
- 
-
         .fullScreenCover(isPresented: $showingLiveGameView) {
-            ZStack {
-                Color(.systemBackground).ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    // Navigation bar
-                    HStack {
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 12, height: 12)
-                                .opacity(0.8)
-                                .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                            
-                            Text("Live Game")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .foregroundColor(.primary)
-                        }
-                        
-                        Spacer()
-                        
-                        Button("Done") {
-                            showingLiveGameView = false
-                        }
-                        .buttonStyle(PillButtonStyle(isIPad: isIPad))
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                    .padding(.bottom, 16)
-                    .background(
-                        Color(.systemBackground)
-                            .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                    )
-                    
-                    // Main content
-                    LiveGameView()
-                        .environmentObject(authService)
-                }
+            LiveGameFullScreenWrapper {
+                showingLiveGameView = false
             }
-            .navigationBarHidden(true)
         }
- 
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceRoleSelectionView(liveGame: liveGame)
+            }
+        }
         .onChange(of: locationManager.locationName) { _, newLocation in
             if !newLocation.isEmpty {
                 gameConfig.location = newLocation
@@ -138,150 +92,13 @@ struct GameSetupView: View {
             }
         }
     }
-
-    struct PostGameFullScreenWrapper: View {
-        let gameConfig: GameConfig
-        let onDismiss: () -> Void
-        @Environment(\.horizontalSizeClass) var horizontalSizeClass
-        
-        private var isIPad: Bool {
-            horizontalSizeClass == .regular
-        }
-        
-        var body: some View {
-            ZStack {
-                // FORCE: Full background coverage
-                Color(.systemBackground)
-                    .ignoresSafeArea(.all) // IMPORTANT: Ignore ALL safe areas
-                
-                VStack(spacing: 0) {
-                    // Custom navigation bar (replaces system nav)
-                    PostGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
-                    
-                    // Main content
-                    PostGameStatsView(gameConfig: gameConfig)
-                        .navigationBarHidden(true) // FORCE: Hide any system nav
-                }
-            }
-            .navigationBarHidden(true) // DOUBLE FORCE: Ensure nav is hidden
-            .navigationViewStyle(StackNavigationViewStyle()) // FORCE: Stack style on iPad
-        }
-    }
-
-    // MARK: - Enhanced Navigation Bar for iPad
-
-    struct PostGameNavigationBar: View {
-        let onDismiss: () -> Void
-        let isIPad: Bool
-        
-        var body: some View {
-            HStack {
-                // Title section
-                HStack(spacing: 8) {
-                    Image(systemName: "chart.bar.fill")
-                        .font(isIPad ? .title2 : .title3)
-                        .foregroundColor(.orange)
-                    
-                    Text("Enter Game Stats")
-                        .font(isIPad ? .largeTitle : .title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                }
-                
-                Spacer()
-                
-                // Done button - ALWAYS visible and prominent
-                Button(action: onDismiss) {
-                    Text("Done")
-                }
-                .buttonStyle(PillButtonStyle(isIPad: isIPad))
-            }
-            .padding(.horizontal, isIPad ? 28 : 24)
-            .padding(.top, isIPad ? 24 : 20)
-            .padding(.bottom, isIPad ? 20 : 16)
-            .background(
-                Color(.systemBackground)
-                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 2)
-                    .ignoresSafeArea(.container, edges: .top) // EXTEND: To top edge
-            )
-        }
-    }
-    
-    // MARK: - Alternative PostGameFullScreenView (FIXED)
-    struct PostGameFullScreenView: View {
-        let gameConfig: GameConfig
-        let onDismiss: () -> Void
-        @Environment(\.horizontalSizeClass) var horizontalSizeClass
-        
-        private var isIPad: Bool {
-            horizontalSizeClass == .regular
-        }
-        
-        var body: some View {
-            ZStack {
-                Color(.systemBackground).ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    PostGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
-                    PostGameStatsView(gameConfig: gameConfig)
-                }
-            }
-        }
-    }
-
-    // MARK: - Full Screen Live Game View (FIXED)
-    
-    @ViewBuilder
-    private func LiveGameFullScreenView(onDismiss: @escaping () -> Void) -> some View {
-        ZStack {
-            Color(.systemBackground).ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                FullScreenNavigationBar(onDismiss: onDismiss)
-                LiveGameView().environmentObject(authService)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func FullScreenNavigationBar(onDismiss: @escaping () -> Void) -> some View {
-        HStack {
-            // Title
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 12, height: 12)
-                    .opacity(0.8)
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
-                Text("Live Game")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-            }
-            
-            Spacer()
-            
-            // FIXED: Always show "Done" button, never "X"
-            Button(action: onDismiss) {
-                Text("Done")
-            }
-            .buttonStyle(PillButtonStyle(isIPad: isIPad))
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-        )
-    }
     
     // MARK: - Setup Mode Selection
     
-    private func SetupModeSelection() -> some View {
+    @ViewBuilder
+    private var setupModeSelection: some View {
         VStack(spacing: 16) {
-            // Post-Game Stats Entry (existing)
+            // Post-Game Stats Entry
             SetupOptionCard(
                 title: "Enter Final Stats",
                 subtitle: "Enter final score and stats",
@@ -294,7 +111,7 @@ struct GameSetupView: View {
                 deviceRole = .none
             }
             
-            // 🆕 Multi-Device Live Game
+            // Multi-Device Live Game
             MultiDeviceLiveGameCard(
                 hasLiveGame: firebaseService.hasLiveGame,
                 enableMultiDevice: $enableMultiDevice
@@ -307,7 +124,7 @@ struct GameSetupView: View {
                 }
             }
             
-            // 🆕 Join Existing Live Game
+            // Join Existing Live Game
             if firebaseService.hasLiveGame {
                 SetupOptionCard(
                     title: "Join Live Game",
@@ -321,19 +138,14 @@ struct GameSetupView: View {
                 }
             }
         }
-
-        // Add role selection sheet
-        .sheet(isPresented: $showingRoleSelection) {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                DeviceRoleSelectionView(liveGame: liveGame)
-            }
-        }
+        .padding()
+    }
     
     // MARK: - Game Configuration Form
     
-    private func GameConfigurationForm() -> some View {
-       Form {
-
+    @ViewBuilder
+    private var gameConfigurationForm: some View {
+        Form {
             // Date and Time
             Section("When") {
                 DatePicker("Date", selection: $gameConfig.date, displayedComponents: .date)
@@ -342,7 +154,7 @@ struct GameSetupView: View {
             
             // Teams
             Section("Teams") {
-                // Sahil's Team
+                // Team name input
                 if showAddTeamInput {
                     HStack {
                         TextField("New team name", text: $newTeamName)
@@ -381,7 +193,7 @@ struct GameSetupView: View {
                 TextField("Opponent Team", text: $gameConfig.opponent)
                     .autocapitalization(.words)
                 
-                // Opponent suggestions - simplified for Form compatibility
+                // Opponent suggestions
                 if !gameConfig.opponent.isEmpty {
                     let suggestions = getOpponentSuggestions()
                     ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
@@ -401,65 +213,63 @@ struct GameSetupView: View {
                 }
             }
             
-
-           // Location
-           Section("Where") {
-               HStack {
-                   TextField("Location (optional)", text: $gameConfig.location)
-                       .autocapitalization(.words)
-                   
-                   Button(action: getAutoLocation) {
-                       if locationManager.isLoading {
-                           ProgressView()
-                               .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                               .scaleEffect(0.8)
-                       } else {
-                           Image(systemName: locationManager.canRequestLocation ? "location.fill" : "location.slash")
-                               .foregroundColor(locationManager.canRequestLocation ? .blue : .gray)
-                       }
-                   }
-                   .disabled(locationManager.isLoading || !locationManager.canRequestLocation)
-               }
-               
-               // Location suggestions
-               if !gameConfig.location.isEmpty {
-                   let suggestions = getLocationSuggestions()
-                   ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
-                       Button(action: {
-                           gameConfig.location = suggestion
-                       }) {
-                           HStack {
-                               Text(suggestion)
-                                   .foregroundColor(.primary)
-                               Spacer()
-                               Text("Use")
-                                   .font(.caption)
-                                   .foregroundColor(.blue)
-                           }
-                       }
-                   }
-               }
-               
-               // Show location status/error if needed
-               if let error = locationManager.error {
-                   HStack {
-                       Image(systemName: "exclamationmark.triangle")
-                           .foregroundColor(.orange)
-                       Text(error.localizedDescription)
-                           .font(.caption)
-                           .foregroundColor(.orange)
-                       
-                       if locationManager.shouldShowSettingsAlert {
-                           Button("Settings") {
-                               locationManager.openLocationSettings()
-                           }
-                           .font(.caption)
-                           .foregroundColor(.blue)
-                       }
-                   }
-               }
-           }
- 
+            // Location
+            Section("Where") {
+                HStack {
+                    TextField("Location (optional)", text: $gameConfig.location)
+                        .autocapitalization(.words)
+                    
+                    Button(action: getAutoLocation) {
+                        if locationManager.isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: locationManager.canRequestLocation ? "location.fill" : "location.slash")
+                                .foregroundColor(locationManager.canRequestLocation ? .blue : .gray)
+                        }
+                    }
+                    .disabled(locationManager.isLoading || !locationManager.canRequestLocation)
+                }
+                
+                // Location suggestions
+                if !gameConfig.location.isEmpty {
+                    let suggestions = getLocationSuggestions()
+                    ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
+                        Button(action: {
+                            gameConfig.location = suggestion
+                        }) {
+                            HStack {
+                                Text(suggestion)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text("Use")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
+                
+                // Show location status/error if needed
+                if let error = locationManager.error {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.orange)
+                        Text(error.localizedDescription)
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        
+                        if locationManager.shouldShowSettingsAlert {
+                            Button("Settings") {
+                                locationManager.openLocationSettings()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        }
+                    }
+                }
+            }
             
             // Game Format (for live games only)
             if deviceRole == .controller {
@@ -472,7 +282,6 @@ struct GameSetupView: View {
                     .pickerStyle(.segmented)
                     
                     HStack {
-                        // DYNAMIC: Label changes based on format
                         Text("\(gameConfig.gameFormat.periodName) Length")
                         Spacer()
                         TextField("Minutes", value: $gameConfig.periodLength, format: .number)
@@ -483,7 +292,6 @@ struct GameSetupView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    // OPTIONAL: Add helpful context
                     Text("Each \(gameConfig.gameFormat.periodName.lowercased()) will be \(gameConfig.periodLength) minutes long")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -493,19 +301,15 @@ struct GameSetupView: View {
             // Game Actions
             Section {
                 if deviceRole == .controller {
-                    // Live game controller
                     Button("Start Live Game") {
                         handleSubmit(mode: .live)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 } else {
-                    // Post-game stats entry
                     Button("Enter Game Stats") {
                         handleSubmit(mode: .postGame)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
                 
                 Button("Cancel") {
@@ -515,19 +319,16 @@ struct GameSetupView: View {
                         dismiss()
                     }
                 }
-                .foregroundColor(.secondary)
+                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             }
         }
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: {
+                Button("Back") {
                     setupMode = .selection
                     deviceRole = .none
                     gameId = ""
-                }) {
-                    Text("Back")
-                        .fixedSize() // Prevents text from being clipped
                 }
                 .buttonStyle(PillButtonStyle(isIPad: isIPad))
             }
@@ -539,9 +340,10 @@ struct GameSetupView: View {
         }
     }
     
-    // MARK: - Recording Role Selection (Future)
+    // MARK: - Recording Role Selection (FIXED)
     
-    private func RecordingRoleSelection() -> some View {
+    @ViewBuilder
+    private var recordingRoleSelection: some View {
         VStack(spacing: 30) {
             VStack(spacing: 16) {
                 Image(systemName: "video.fill")
@@ -563,16 +365,17 @@ struct GameSetupView: View {
             Button("Back to Setup Options") {
                 setupMode = .selection
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
             
             Spacer()
         }
         .padding()
     }
     
-    // MARK: - Connect to Game View (Future)
+    // MARK: - Connect to Game View (FIXED)
     
-    private func ConnectToGameView() -> some View {
+    @ViewBuilder
+    private var connectToGameView: some View {
         VStack(spacing: 30) {
             VStack(spacing: 16) {
                 Image(systemName: "link")
@@ -594,7 +397,7 @@ struct GameSetupView: View {
             Button("Back to Setup Options") {
                 setupMode = .selection
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
             
             Spacer()
         }
@@ -608,12 +411,10 @@ struct GameSetupView: View {
         gameConfig.gameFormat = settings.format
         gameConfig.periodLength = settings.length
         
-        // Set default team if available
         if let firstTeam = firebaseService.teams.first {
             gameConfig.teamName = firstTeam.name
         }
         
-        // Generate game ID for controller role
         if deviceRole == .controller && gameId.isEmpty {
             gameId = generateGameId()
         }
@@ -640,7 +441,6 @@ struct GameSetupView: View {
                 case .live:
                     let liveGame = try await createLiveGame()
                     await MainActor.run {
-                        // Set the created game and show the live view
                         createdLiveGame = liveGame
                         showingLiveGameView = true
                     }
@@ -658,7 +458,6 @@ struct GameSetupView: View {
     }
     
     private func createLiveGame() async throws -> LiveGame {
-        // Use the shared instance to get the device ID
         let deviceId = DeviceControlManager.shared.deviceId
         var liveGame = LiveGame(
             teamName: gameConfig.teamName,
@@ -667,7 +466,7 @@ struct GameSetupView: View {
             gameFormat: gameConfig.gameFormat,
             periodLength: gameConfig.periodLength,
             createdBy: authService.currentUser?.email,
-            deviceId: deviceId // Pass the deviceId here
+            deviceId: deviceId
         )
         
         let createdGameId = try await firebaseService.createLiveGame(liveGame)
@@ -712,31 +511,126 @@ struct GameSetupView: View {
             .map { $0 }
     }
 }
-#Preview {
-    struct PreviewWrapper: View {
-        @Environment(\.horizontalSizeClass) var horizontalSizeClass
-        private var isIPad: Bool {
-            horizontalSizeClass == .regular
-        }
-        var body: some View {
-            if #available(iOS 16.0, *) {
-                NavigationStack {
-                    GameSetupView()
-                        .environmentObject(AuthService())
-                }
-            } else {
-                NavigationView {
-                    GameSetupView()
-                        .environmentObject(AuthService())
-                        .navigationViewStyle(StackNavigationViewStyle())
-                }
+
+// MARK: - Supporting Views
+
+struct PostGameFullScreenWrapper: View {
+    let gameConfig: GameConfig
+    let onDismiss: () -> Void
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
+    var body: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea(.all)
+            
+            VStack(spacing: 0) {
+                PostGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
+                PostGameStatsView(gameConfig: gameConfig)
+                    .navigationBarHidden(true)
             }
         }
+        .navigationBarHidden(true)
     }
-    return PreviewWrapper()
 }
 
-// MARK: - Supporting Models and Views
+struct PostGameNavigationBar: View {
+    let onDismiss: () -> Void
+    let isIPad: Bool
+    
+    var body: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "chart.bar.fill")
+                    .font(isIPad ? .title2 : .title3)
+                    .foregroundColor(.orange)
+                
+                Text("Enter Game Stats")
+                    .font(isIPad ? .largeTitle : .title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+            
+            Button(action: onDismiss) {
+                Text("Done")
+            }
+            .buttonStyle(PillButtonStyle(isIPad: isIPad))
+        }
+        .padding(.horizontal, isIPad ? 28 : 24)
+        .padding(.top, isIPad ? 24 : 20)
+        .padding(.bottom, isIPad ? 20 : 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 2)
+                .ignoresSafeArea(.container, edges: .top)
+        )
+    }
+}
+
+struct LiveGameFullScreenWrapper: View {
+    let onDismiss: () -> Void
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
+    var body: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                LiveGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
+                LiveGameView()
+            }
+        }
+        .navigationBarHidden(true)
+    }
+}
+
+struct LiveGameNavigationBar: View {
+    let onDismiss: () -> Void
+    let isIPad: Bool
+    
+    var body: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 12, height: 12)
+                    .opacity(0.8)
+                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                
+                Text("Live Game")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+            
+            Button(action: onDismiss) {
+                Text("Done")
+            }
+            .buttonStyle(PillButtonStyle(isIPad: isIPad))
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+        )
+    }
+}
+
+// MARK: - Supporting Models (keep these as they are)
 
 struct GameConfig {
     var teamName = ""
@@ -751,87 +645,78 @@ enum GameSubmissionMode {
     case live, postGame
 }
 
+// Multi-Device Live Game Card
+struct MultiDeviceLiveGameCard: View {
+    let hasLiveGame: Bool
+    @Binding var enableMultiDevice: Bool
+    let action: () -> Void
     
-// 🆕 Multi-Device Live Game Card
-    struct MultiDeviceLiveGameCard: View {
-        let hasLiveGame: Bool
-        @Binding var enableMultiDevice: Bool
-        let action: () -> Void
-        
-        var body: some View {
-            Button(action: action) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 16) {
-                        Image(systemName: "stopwatch.fill")
-                            .font(.title)
-                            .foregroundColor(.white)
-                            .frame(width: 50, height: 50)
-                            .background(hasLiveGame ? Color.red : Color.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Live Game Tracking")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                
-                                if hasLiveGame {
-                                    Text("• ACTIVE")
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.red)
-                                }
-                            }
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 16) {
+                    Image(systemName: "stopwatch.fill")
+                        .font(.title)
+                        .foregroundColor(.white)
+                        .frame(width: 50, height: 50)
+                        .background(hasLiveGame ? Color.red : Color.orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Live Game Tracking")
+                                .font(.headline)
+                                .foregroundColor(.primary)
                             
-                            Text(hasLiveGame ?
-                                 "Join the current live game session" :
-                                 "Start live scoring with video recording")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            if hasLiveGame {
+                                Text("• ACTIVE")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.red)
+                            }
                         }
                         
-                        Spacer()
+                        Text(hasLiveGame ?
+                             "Join the current live game session" :
+                             "Start live scoring with video recording")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-            
+                    
                     Spacer()
                 }
                 
                 Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
                     .font(.caption)
                     .toggleStyle(SwitchToggleStyle(tint: .orange))
-                    // 🆕 Multi-device toggle
-                    Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
-                        .font(.caption)
-                        .toggleStyle(SwitchToggleStyle(tint: .orange))
-                    
-                    if enableMultiDevice {
-                        HStack(spacing: 8) {
-                            Image(systemName: "iphone")
-                                .font(.caption2)
-                            Text("iPhone: Recording")
-                                .font(.caption2)
-                            
-                            Text("•")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            
-                            Image(systemName: "ipad")
-                                .font(.caption2)
-                            Text("iPad: Control")
-                                .font(.caption2)
-                        }
-                        .foregroundColor(.secondary)
+                
+                if enableMultiDevice {
+                    HStack(spacing: 8) {
+                        Image(systemName: "iphone")
+                            .font(.caption2)
+                        Text("iPhone: Recording")
+                            .font(.caption2)
+                        
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        Image(systemName: "ipad")
+                            .font(.caption2)
+                        Text("iPad: Control")
+                            .font(.caption2)
                     }
+                    .foregroundColor(.secondary)
                 }
-                .padding()
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .buttonStyle(.plain)
+            .padding()
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .buttonStyle(.plain)
     }
-    
-// Reuse the setup option card from the previous implementation
+}
+
 struct SetupOptionCard: View {
     let title: String
     let subtitle: String
@@ -880,151 +765,7 @@ struct SetupOptionCard: View {
     }
 }
 
-
-// MARK: - Live Game Badge Component
-struct LiveGameBadge: View {
-    @State private var isAnimating = false
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .opacity(isAnimating ? 0.4 : 1.0)
-                .animation(.easeInOut(duration: 1).repeatForever(), value: isAnimating)
-            
-            Text("LIVE")
-                .font(.caption2)
-                .fontWeight(.bold)
-                .foregroundColor(.red)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(Color.red.opacity(0.1))
-        .clipShape(Capsule())
-        .onAppear {
-            isAnimating = true
-        }
-    }
-}
-
-// MARK: - Alternative: Subtle Animation Version
-struct SubtleLiveGameTrackingCard: View {
-    let hasLiveGame: Bool
-    let action: () -> Void
-    @State private var pulseScale: CGFloat = 1.0
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                // Icon with subtle pulse when live
-                Image(systemName: "stopwatch.fill")
-                    .font(.title)
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(hasLiveGame ? Color.red : Color.orange)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .scaleEffect(hasLiveGame ? pulseScale : 1.0)
-                    .animation(
-                        hasLiveGame ?
-                        .easeInOut(duration: 1.5).repeatForever(autoreverses: true) :
-                        .default,
-                        value: pulseScale
-                    )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Live Game Tracking")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        
-                        if hasLiveGame {
-                            Text("• ACTIVE")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(.red)
-                        }
-                    }
-                    
-                    Text(hasLiveGame ?
-                         "Join the current live game session" :
-                         "Track stats and score during the game")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(hasLiveGame ? "Tap to join and control" : "Start new live game")
-                        .font(.caption2)
-                        .foregroundColor(hasLiveGame ? .red : .blue)
-                        .fontWeight(.medium)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(
-                hasLiveGame ?
-                Color.red.opacity(0.1) :
-                Color(.systemGray6)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(
-                        hasLiveGame ? Color.red.opacity(0.3) : Color.clear,
-                        lineWidth: hasLiveGame ? 1 : 0
-                    )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-        .onAppear {
-            if hasLiveGame {
-                pulseScale = 1.05
-            }
-        }
-    }
-}
-
-
-struct GameIdDisplayCard: View {
-    let gameId: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Live Game Setup")
-                .font(.headline)
-                .foregroundColor(.orange)
-            
-            Text("This will create a live game that can be tracked in real-time:")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            HStack {
-                Text("Game ID: \(gameId)")
-                    .font(.monospaced(.caption)())
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                
-                Button("Copy") {
-                    UIPasteboard.general.string = gameId
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-        .padding()
-        .background(Color.orange.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
-
 #Preview {
-
     if #available(iOS 16.0, *) {
         NavigationStack {
             GameSetupView()

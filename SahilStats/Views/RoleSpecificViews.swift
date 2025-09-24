@@ -11,21 +11,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-// MARK: - Recording Device View (iPhone Optimized)
 
-struct CameraPreviewView: UIViewRepresentable {
-    let previewLayer: AVCaptureVideoPreviewLayer
-    
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.layer.addSublayer(previewLayer)
-        return view
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {
-        previewLayer.frame = uiView.bounds
-    }
-}
 
 // MARK: - Fix 8: Create missing RecordingStats
 
