@@ -238,7 +238,19 @@ struct SimpleGameRow: View {
         }
     }
     
+/*
     private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter.string(from: date)
+    }
+ */
+    private func formatDate(_ date: Date?) -> String {
+        // Safely unwrap the optional date.
+        guard let date = date else {
+            // Provide a default string if the date is nil.
+            return "Date unknown"
+        }
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         return formatter.string(from: date)

@@ -330,27 +330,62 @@ struct LiveGameControllerView: View {
             ScrollView {
                 VStack(spacing: isIPad ? 24 : 20) {
                     if !sahilOnBench && deviceControl.hasControl {
-                        // FIXED: Show detailed stats entry (NOT another score card)
+                        // FIXED: Show detailed stats entry using your existing component
                         detailedStatsEntryView()
                         
-                        // Summary cards
-                        LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
-                        /*PlayingTimeCard(
-                            totalPlayingTime: serverGameState.totalPlayingTime,
-                            totalBenchTime: serverGameState.totalBenchTime,
+                        // Use your existing PlayerStatsSection for detailed stats display
+                        PlayerStatsSection(
+                            game: .constant(Game(
+                                teamName: serverGameState.teamName,
+                                opponent: serverGameState.opponent,
+                                myTeamScore: currentHomeScore,
+                                opponentScore: currentAwayScore,
+                                fg2m: currentStats.fg2m,
+                                fg2a: currentStats.fg2a,
+                                fg3m: currentStats.fg3m,
+                                fg3a: currentStats.fg3a,
+                                ftm: currentStats.ftm,
+                                fta: currentStats.fta,
+                                rebounds: currentStats.rebounds,
+                                assists: currentStats.assists,
+                                steals: currentStats.steals,
+                                blocks: currentStats.blocks,
+                                fouls: currentStats.fouls,
+                                turnovers: currentStats.turnovers
+                            )),
+                            authService: authService,
+                            firebaseService: firebaseService,
                             isIPad: isIPad
-                            
-                        )*/
+                        )
+                        
                         PlayingTimeCard(
                             liveGame: serverGameState,
                             isIPad: isIPad
                         )
                     } else if !sahilOnBench {
-                        // Viewer stats (read-only)
-                        LiveStatsDisplayCard(
-                            stats: serverGameState.playerStats,
-                            isIPad: isIPad,
-                            isReadOnly: true
+                        // Viewer stats (read-only) using your existing component
+                        PlayerStatsSection(
+                            game: .constant(Game(
+                                teamName: serverGameState.teamName,
+                                opponent: serverGameState.opponent,
+                                myTeamScore: serverGameState.homeScore,
+                                opponentScore: serverGameState.awayScore,
+                                fg2m: serverGameState.playerStats.fg2m,
+                                fg2a: serverGameState.playerStats.fg2a,
+                                fg3m: serverGameState.playerStats.fg3m,
+                                fg3a: serverGameState.playerStats.fg3a,
+                                ftm: serverGameState.playerStats.ftm,
+                                fta: serverGameState.playerStats.fta,
+                                rebounds: serverGameState.playerStats.rebounds,
+                                assists: serverGameState.playerStats.assists,
+                                steals: serverGameState.playerStats.steals,
+                                blocks: serverGameState.playerStats.blocks,
+                                fouls: serverGameState.playerStats.fouls,
+                                turnovers: serverGameState.playerStats.turnovers
+                            )),
+                            authService: authService,  // This will determine if editing is allowed
+                            firebaseService: firebaseService,
+                            isIPad: isIPad
                         )
                     } else {
                         VStack {

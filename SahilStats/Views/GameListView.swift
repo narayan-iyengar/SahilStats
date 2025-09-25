@@ -236,8 +236,22 @@ struct GamesSectionHeader: View {
 
 // MARK: - Computed Properties
 extension GameListView {
+    
+    /*
     private var sortedGames: [Game] {
         firebaseService.games.sorted { $0.timestamp > $1.timestamp }
+    }
+    */
+    private var sortedGames: [Game] {
+        firebaseService.games.sorted {
+            // Use a distant past date for any game that has a nil timestamp.
+            // This ensures they are treated as "older" and sorted to the end.
+            let date1 = $0.timestamp ?? .distantPast
+            let date2 = $1.timestamp ?? .distantPast
+            
+            // Sort descending, so recent games appear first.
+            return date1 > date2
+        }
     }
     
     private var availableTeams: [String] {

@@ -4,6 +4,7 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 import Combine
+import Network
 
 class FirebaseService: ObservableObject {
     static let shared = FirebaseService()
@@ -13,34 +14,326 @@ class FirebaseService: ObservableObject {
     @Published var liveGames: [LiveGame] = []
     @Published var isLoading = false
     @Published var error: String?
+    @Published var connectionState: ConnectionState = .unknown
     
     private let db = Firestore.firestore()
     private var gamesListener: ListenerRegistration?
     private var teamsListener: ListenerRegistration?
     private var liveGamesListener: ListenerRegistration?
     
-    private init() {}
+    // Network monitoring
+    private let networkMonitor = NWPathMonitor()
+    private let networkQueue = DispatchQueue(label: "NetworkMonitor")
     
-    // MARK: - Public Methods
+    // Retry mechanism
+    private var retryTimer: Timer?
+    private var retryCount = 0
+    private let maxRetries = 3
+    
+    enum ConnectionState {
+        case unknown
+        case connecting
+        case connected
+        case disconnected
+        case error
+    }
+    
+    private init() {
+        configureFirestore()
+        setupNetworkMonitoring()
+    }
+    
+    // MARK: - Enhanced Configuration
+    
+    private func configureFirestore() {
+        // Enhanced Firestore settings
+        let settings = FirestoreSettings()
+        
+        // Enable offline persistence
+        settings.isPersistenceEnabled = true
+        
+        // Set cache size (100MB)
+        settings.cacheSizeBytes = FirestoreCacheSizeUnlimited
+        
+        // Set host (useful for debugging)
+        // settings.host = "firestore.googleapis.com"
+        
+        db.settings = settings
+        
+        // Enable network logging in debug mode
+        #if DEBUG
+        print("🔍 Firebase debug mode enabled")
+        #endif
+    }
+    
+    private func setupNetworkMonitoring() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            DispatchQueue.main.async {
+                if path.status == .satisfied {
+                    print("✅ Network connection restored")
+                    self?.connectionState = .connected
+                    self?.handleNetworkReconnection()
+                } else {
+                    print("❌ Network connection lost")
+                    self?.connectionState = .disconnected
+                }
+            }
+        }
+        networkMonitor.start(queue: networkQueue)
+    }
+    
+    private func handleNetworkReconnection() {
+        // Restart listeners after network reconnection
+        if gamesListener == nil && teamsListener == nil && liveGamesListener == nil {
+            // Only restart if we were previously listening
+            startListening()
+        }
+    }
+    
+    // MARK: - Enhanced Listener Setup with Error Handling
     
     func startListening() {
-        setupGamesListener()
-        setupTeamsListener()
-        setupLiveGamesListener()
+        connectionState = .connecting
+        retryCount = 0
+        
+        setupGamesListenerWithRetry()
+        setupTeamsListenerWithRetry()
+        setupLiveGamesListenerWithRetry()
     }
     
     func stopListening() {
+        print("🔄 Stopping all Firestore listeners...")
+        
         gamesListener?.remove()
+        gamesListener = nil
+        
         teamsListener?.remove()
+        teamsListener = nil
+        
         liveGamesListener?.remove()
+        liveGamesListener = nil
+        
+        retryTimer?.invalidate()
+        retryTimer = nil
+        
+        connectionState = .disconnected
     }
     
-    // MARK: - Games
+    // MARK: - Games Listener with Enhanced Error Handling
+    
+    private func setupGamesListenerWithRetry() {
+        gamesListener = db.collection("games")
+            .order(by: "timestamp", descending: true)
+            .addSnapshotListener(includeMetadataChanges: false) { [weak self] snapshot, error in
+                self?.handleGamesSnapshot(snapshot: snapshot, error: error)
+            }
+    }
+    
+    private func handleGamesSnapshot(snapshot: QuerySnapshot?, error: Error?) {
+        if let error = error {
+            handleListenerError(error: error, listenerType: "Games") {
+                self.setupGamesListenerWithRetry()
+            }
+            return
+        }
+        
+        guard let documents = snapshot?.documents else {
+            print("⚠️ Games snapshot is nil")
+            return
+        }
+        
+        let newGames = documents.compactMap { document -> Game? in
+            do {
+                var game = try document.data(as: Game.self)
+                game.id = document.documentID
+                return game
+            } catch {
+                print("❌ Error decoding game \(document.documentID): \(error)")
+                // Log the problematic document data for debugging
+                print("📄 Document data: \(document.data())")
+                return nil
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.games = newGames
+            self.connectionState = .connected
+            self.retryCount = 0
+            print("✅ Games loaded successfully: \(newGames.count) games")
+        }
+    }
+    
+    // MARK: - Teams Listener with Enhanced Error Handling
+    
+    private func setupTeamsListenerWithRetry() {
+        teamsListener = db.collection("teams")
+            .order(by: "name")
+            .addSnapshotListener(includeMetadataChanges: false) { [weak self] snapshot, error in
+                self?.handleTeamsSnapshot(snapshot: snapshot, error: error)
+            }
+    }
+    
+    private func handleTeamsSnapshot(snapshot: QuerySnapshot?, error: Error?) {
+        if let error = error {
+            handleListenerError(error: error, listenerType: "Teams") {
+                self.setupTeamsListenerWithRetry()
+            }
+            return
+        }
+        
+        guard let documents = snapshot?.documents else {
+            print("⚠️ Teams snapshot is nil")
+            return
+        }
+        
+        let newTeams = documents.compactMap { document -> Team? in
+            do {
+                var team = try document.data(as: Team.self)
+                team.id = document.documentID
+                return team
+            } catch {
+                print("❌ Error decoding team \(document.documentID): \(error)")
+                return nil
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.teams = newTeams
+            print("✅ Teams loaded successfully: \(newTeams.count) teams")
+        }
+    }
+    
+    // MARK: - Live Games Listener with Enhanced Error Handling
+    
+    private func setupLiveGamesListenerWithRetry() {
+        liveGamesListener = db.collection("liveGames")
+            .addSnapshotListener(includeMetadataChanges: false) { [weak self] snapshot, error in
+                self?.handleLiveGamesSnapshot(snapshot: snapshot, error: error)
+            }
+    }
+    
+    private func handleLiveGamesSnapshot(snapshot: QuerySnapshot?, error: Error?) {
+        if let error = error {
+            handleListenerError(error: error, listenerType: "LiveGames") {
+                self.setupLiveGamesListenerWithRetry()
+            }
+            return
+        }
+        
+        guard let documents = snapshot?.documents else {
+            print("⚠️ LiveGames snapshot is nil")
+            return
+        }
+        
+        let newLiveGames = documents.compactMap { document -> LiveGame? in
+            do {
+                var liveGame = try document.data(as: LiveGame.self)
+                liveGame.id = document.documentID
+                return liveGame
+            } catch {
+                print("❌ Error decoding live game \(document.documentID): \(error)")
+                print("📄 Document data: \(document.data())")
+                return nil
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.liveGames = newLiveGames
+            print("✅ Live games loaded successfully: \(newLiveGames.count) games")
+        }
+    }
+    
+    // MARK: - Enhanced Error Handling
+    
+    private func handleListenerError(error: Error, listenerType: String, retryAction: @escaping () -> Void) {
+        let nsError = error as NSError
+        
+        print("❌ \(listenerType) listener error: \(error.localizedDescription)")
+        print("📊 Error domain: \(nsError.domain)")
+        print("📊 Error code: \(nsError.code)")
+        print("📊 Error userInfo: \(nsError.userInfo)")
+        
+        DispatchQueue.main.async {
+            self.connectionState = .error
+            self.error = "\(listenerType): \(error.localizedDescription)"
+        }
+        
+        // Handle specific error types
+        if nsError.domain == "FIRFirestoreErrorDomain" {
+            switch nsError.code {
+            case 14: // UNAVAILABLE
+                scheduleRetry(for: listenerType, retryAction: retryAction)
+            case 7: // PERMISSION_DENIED
+                print("🔒 Permission denied - check Firestore rules")
+            case 16: // UNAUTHENTICATED
+                print("🔐 User not authenticated")
+            default:
+                scheduleRetry(for: listenerType, retryAction: retryAction)
+            }
+        } else {
+            scheduleRetry(for: listenerType, retryAction: retryAction)
+        }
+    }
+    
+    private func scheduleRetry(for listenerType: String, retryAction: @escaping () -> Void) {
+        guard retryCount < maxRetries else {
+            print("🚫 Max retries exceeded for \(listenerType)")
+            return
+        }
+        
+        retryCount += 1
+        let delay = TimeInterval(retryCount * 2) // Exponential backoff: 2s, 4s, 6s
+        
+        print("🔄 Scheduling retry \(retryCount)/\(maxRetries) for \(listenerType) in \(delay)s")
+        
+        retryTimer?.invalidate()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+            print("🔄 Retrying \(listenerType) listener...")
+            retryAction()
+        }
+    }
+    
+    // MARK: - Enhanced Write Operations with Error Handling
     
     func addGame(_ game: Game) async throws {
-        var gameData = game
-        gameData.createdAt = Date()
-        let _ = try await db.collection("games").addDocument(from: gameData)
+        do {
+            var gameData = game
+            gameData.createdAt = Date()
+            let _ = try await db.collection("games").addDocument(from: gameData)
+            print("✅ Game added successfully")
+        } catch {
+            print("❌ Failed to add game: \(error)")
+            throw error
+        }
+    }
+    
+    func updateLiveGame(_ liveGame: LiveGame) async throws {
+        guard let id = liveGame.id else {
+            throw NSError(domain: "FirebaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Live game ID is required"])
+        }
+        
+        do {
+            try await db.collection("liveGames").document(id).setData(from: liveGame)
+            print("✅ Live game updated successfully: \(id)")
+        } catch {
+            print("❌ Failed to update live game: \(error)")
+            throw error
+        }
+    }
+    
+    // MARK: - Connection Status Helpers
+    
+    func forceReconnect() {
+        print("🔄 Force reconnecting to Firestore...")
+        stopListening()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.startListening()
+        }
+    }
+    
+    var hasActiveConnection: Bool {
+        return connectionState == .connected
     }
     
     func updateGame(_ game: Game) async throws {
@@ -90,10 +383,6 @@ class FirebaseService: ObservableObject {
         return docRef.documentID
     }
     
-    func updateLiveGame(_ liveGame: LiveGame) async throws {
-        guard let id = liveGame.id else { return }
-        try await db.collection("liveGames").document(id).setData(from: liveGame)
-    }
     
     func deleteLiveGame(_ liveGameId: String) async throws {
         try await db.collection("liveGames").document(liveGameId).delete()
