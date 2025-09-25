@@ -83,39 +83,12 @@ struct EnhancedGameDetailView: View {
                         .foregroundColor(.orange)
                 }
             }
-            
-            // Quick action buttons
-            mediaActionButtons
         }
         .padding(isIPad ? 20 : 16)
         .background(Color.orange.opacity(0.05))
         .cornerRadius(isIPad ? 16 : 12)
     }
     
-    @ViewBuilder
-    private var mediaActionButtons: some View {
-        HStack(spacing: 12) {
-            // Share game summary
-            Button(action: {
-                shareGameSummary()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.caption)
-                    Text("Share")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.green)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(8)
-            }
-            
-            Spacer()
-        }
-    }
     
     // MARK: - Existing Views (same as your current implementation)
     
