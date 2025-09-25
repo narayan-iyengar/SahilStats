@@ -149,6 +149,7 @@ struct GameDetailTimeCard: View {
     let isIPad: Bool
     
     var body: some View {
+        let _ = print("🔍 GameDetailTimeCard '\(title)' received time: \(time)")
         VStack(spacing: isIPad ? 8 : 6) {
             Text(formatTime(time))
                 .font(isIPad ? .title2 : .title3)
@@ -166,8 +167,13 @@ struct GameDetailTimeCard: View {
         .cornerRadius(isIPad ? 16 : 12)
     }
     
+    
     private func formatTime(_ minutes: Double) -> String {
+        // 🔍 DEBUG: Print the formatting process
+        print("🔍 formatTime called with minutes: \(minutes)")
+        
         if minutes == 0 {
+            print("🔍 formatTime returning '0m' (minutes was 0)")
             return "0m"
         }
         
@@ -175,11 +181,15 @@ struct GameDetailTimeCard: View {
         let hours = totalMinutes / 60
         let mins = totalMinutes % 60
         
+        let result: String
         if hours > 0 {
-            return "\(hours)h \(mins)m"
+            result = "\(hours)h \(mins)m"
         } else {
-            return "\(mins)m"
+            result = "\(mins)m"
         }
+        
+        print("🔍 formatTime returning: '\(result)'")
+        return result
     }
 }
 
