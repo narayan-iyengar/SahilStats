@@ -11,7 +11,7 @@ struct Game: Identifiable, Codable, Equatable {
     var teamName: String
     var opponent: String
     var location: String?
-    var timestamp: Date
+    //var timestamp: Date
     var gameFormat: GameFormat
     var periodLength: Int
     var numPeriods: Int
@@ -38,7 +38,7 @@ struct Game: Identifiable, Codable, Equatable {
     var turnovers: Int
     
     // Metadata
-    var createdAt: Date
+    //var createdAt: Date
     var adminName: String?
     var editedAt: Date?
     var editedBy: String?
@@ -62,6 +62,9 @@ struct Game: Identifiable, Codable, Equatable {
         case createdAt, adminName, editedAt, editedBy, achievements
         case totalPlayingTimeMinutes, benchTimeMinutes, gameTimeTracking
     }
+    
+    @ServerTimestamp var timestamp: Date?
+    @ServerTimestamp var createdAt: Date?
     
     // Custom decoder to handle different date formats
     init(from decoder: Decoder) throws {
@@ -301,6 +304,7 @@ struct Game: Identifiable, Codable, Equatable {
     }
     // MARK: - ALSO: Add better encoding to preserve dates correctly
 
+    /*
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
@@ -351,14 +355,31 @@ struct Game: Identifiable, Codable, Equatable {
         try container.encode(benchTimeMinutes, forKey: .benchTimeMinutes)
         try container.encode(gameTimeTracking, forKey: .gameTimeTracking)
     }
+    */
     
     // Computed properties
+ /*
     var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: timestamp)
     }
+ */
+    var formattedDate: String {
+        // First, check if the optional 'timestamp' contains a valid date.
+        guard let date = timestamp else {
+            // If it doesn't, return a default string.
+            return "Date not available"
+        }
+        
+        // If it does, create the formatter and use the unwrapped 'date' constant.
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
     
     var fieldGoalPercentage: Double {
         let totalMade = fg2m + fg3m
