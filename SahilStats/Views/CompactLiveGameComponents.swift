@@ -12,6 +12,9 @@
 //
 
 import SwiftUI
+import FirebaseCore
+import Firebase
+import FirebaseAuth
 
 // MARK: - COMPACT COMPONENTS FOR STICKY HEADER
 
@@ -474,6 +477,8 @@ struct CompactControlButtonStyle: ButtonStyle {
 struct LiveGameWatchView: View {
     let liveGame: LiveGame
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var firebaseService = FirebaseService.shared
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -526,12 +531,29 @@ struct LiveGameWatchView: View {
                     isIPad: isIPad
                 )
                 
-                // Stats display (read-only)
                 if !(liveGame.sahilOnBench ?? false) {
-                    LiveStatsDisplayCard(
-                        stats: liveGame.playerStats,
-                        isIPad: isIPad,
-                        isReadOnly: true
+                    PlayerStatsSection(
+                        game: .constant(Game(
+                            teamName: liveGame.teamName,
+                            opponent: liveGame.opponent,
+                            myTeamScore: liveGame.homeScore,
+                            opponentScore: liveGame.awayScore,
+                            fg2m: liveGame.playerStats.fg2m,
+                            fg2a: liveGame.playerStats.fg2a,
+                            fg3m: liveGame.playerStats.fg3m,
+                            fg3a: liveGame.playerStats.fg3a,
+                            ftm: liveGame.playerStats.ftm,
+                            fta: liveGame.playerStats.fta,
+                            rebounds: liveGame.playerStats.rebounds,
+                            assists: liveGame.playerStats.assists,
+                            steals: liveGame.playerStats.steals,
+                            blocks: liveGame.playerStats.blocks,
+                            fouls: liveGame.playerStats.fouls,
+                            turnovers: liveGame.playerStats.turnovers
+                        )),
+                        authService: authService,  // Viewers won't be able to edit
+                        firebaseService: firebaseService,
+                        isIPad: isIPad
                     )
                 } else {
                     VStack(spacing: 12) {

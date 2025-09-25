@@ -481,7 +481,8 @@ struct ModernCareerTrendsView: View {
             return getQuarterlyData(from: recentGames, calendar: calendar)
         }
     }
-    
+
+    /*
     private func getWeeklyData(from games: [Game], calendar: Calendar) -> [TrendDataPoint] {
         let gamesByWeek = Dictionary(grouping: games) { game in
             calendar.dateInterval(of: .weekOfYear, for: game.timestamp)?.start ?? game.timestamp
@@ -500,7 +501,33 @@ struct ModernCareerTrendsView: View {
             return TrendDataPoint(label: label, value: value)
         }
     }
+    */
     
+    private func getWeeklyData(from games: [Game], calendar: Calendar) -> [TrendDataPoint] {
+        // First, filter for games that have a valid timestamp.
+        let validGames = games.filter { $0.timestamp != nil }
+        
+        let gamesByWeek = Dictionary(grouping: validGames) { game in
+            // Force-unwrap is now safe because we filtered out nil values.
+            let date = game.timestamp!
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+        }
+        
+        let sortedWeeks = gamesByWeek.keys.sorted()
+        
+        return sortedWeeks.compactMap { weekStart in
+            guard let gamesInWeek = gamesByWeek[weekStart] else { return nil }
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d"
+            let label = formatter.string(from: weekStart)
+            
+            let value = calculateStatValue(for: gamesInWeek)
+            return TrendDataPoint(label: label, value: value)
+        }
+    }
+    
+    /*
     private func getMonthlyData(from games: [Game], calendar: Calendar) -> [TrendDataPoint] {
         let gamesByMonth = Dictionary(grouping: games) { game in
             let components = calendar.dateComponents([.year, .month], from: game.timestamp)
@@ -520,13 +547,66 @@ struct ModernCareerTrendsView: View {
             return TrendDataPoint(label: label, value: value)
         }
     }
+    */
+    private func getMonthlyData(from games: [Game], calendar: Calendar) -> [TrendDataPoint] {
+        // First, filter for games that have a valid timestamp.
+        let validGames = games.filter { $0.timestamp != nil }
+        
+        let gamesByMonth = Dictionary(grouping: validGames) { game in
+            // Force-unwrap is now safe.
+            let date = game.timestamp!
+            let components = calendar.dateComponents([.year, .month], from: date)
+            return calendar.date(from: components) ?? date
+        }
+        
+        let sortedMonths = gamesByMonth.keys.sorted()
+        
+        return sortedMonths.compactMap { monthStart in
+            guard let gamesInMonth = gamesByMonth[monthStart] else { return nil }
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM"
+            let label = formatter.string(from: monthStart)
+            
+            let value = calculateStatValue(for: gamesInMonth)
+            return TrendDataPoint(label: label, value: value)
+        }
+    }
     
+    /*
     private func getQuarterlyData(from games: [Game], calendar: Calendar) -> [TrendDataPoint] {
         let gamesByQuarter = Dictionary(grouping: games) { game in
             let components = calendar.dateComponents([.year, .month], from: game.timestamp)
             let quarter = ((components.month ?? 1) - 1) / 3 + 1
             let quarterStart = DateComponents(year: components.year, month: (quarter - 1) * 3 + 1)
             return calendar.date(from: quarterStart) ?? game.timestamp
+        }
+        
+        let sortedQuarters = gamesByQuarter.keys.sorted()
+        
+        return sortedQuarters.compactMap { quarterStart in
+            guard let gamesInQuarter = gamesByQuarter[quarterStart] else { return nil }
+            
+            let components = calendar.dateComponents([.year, .month], from: quarterStart)
+            let quarter = ((components.month ?? 1) - 1) / 3 + 1
+            let label = "Q\(quarter) '\(String(components.year ?? 0).suffix(2))"
+            
+            let value = calculateStatValue(for: gamesInQuarter)
+            return TrendDataPoint(label: label, value: value)
+        }
+    }
+     */
+    private func getQuarterlyData(from games: [Game], calendar: Calendar) -> [TrendDataPoint] {
+        // First, filter for games that have a valid timestamp.
+        let validGames = games.filter { $0.timestamp != nil }
+        
+        let gamesByQuarter = Dictionary(grouping: validGames) { game in
+            // Force-unwrap is now safe.
+            let date = game.timestamp!
+            let components = calendar.dateComponents([.year, .month], from: date)
+            let quarter = ((components.month ?? 1) - 1) / 3 + 1
+            let quarterStart = DateComponents(year: components.year, month: (quarter - 1) * 3 + 1)
+            return calendar.date(from: quarterStart) ?? date
         }
         
         let sortedQuarters = gamesByQuarter.keys.sorted()

@@ -49,6 +49,7 @@ struct ContentView: View {
                 // User signed out, you might want to show a message or take other actions
             }
         }
+        
     }
 }
 

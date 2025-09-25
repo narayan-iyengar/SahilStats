@@ -15,6 +15,7 @@ struct EnhancedGameDetailView: View {
     @State var game: Game
     @Environment(\.dismiss) private var dismiss
     @StateObject private var firebaseService = FirebaseService.shared
+    @EnvironmentObject var authService: AuthService
 
     
     // State for media features
@@ -55,7 +56,8 @@ struct EnhancedGameDetailView: View {
             }
         }
     }
-    
+     
+
     // MARK: - Media Section
     
     @ViewBuilder
@@ -81,39 +83,12 @@ struct EnhancedGameDetailView: View {
                         .foregroundColor(.orange)
                 }
             }
-            
-            // Quick action buttons
-            mediaActionButtons
         }
         .padding(isIPad ? 20 : 16)
         .background(Color.orange.opacity(0.05))
         .cornerRadius(isIPad ? 16 : 12)
     }
     
-    @ViewBuilder
-    private var mediaActionButtons: some View {
-        HStack(spacing: 12) {
-            // Share game summary
-            Button(action: {
-                shareGameSummary()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.caption)
-                    Text("Share")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.green)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(8)
-            }
-            
-            Spacer()
-        }
-    }
     
     // MARK: - Existing Views (same as your current implementation)
     
@@ -147,21 +122,14 @@ struct EnhancedGameDetailView: View {
         }
     }
     
+    @ViewBuilder
     private var playerStatsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Player Stats")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
-                DetailStatCard(title: "Points", value: "\(game.points)", color: .purple)
-                DetailStatCard(title: "Rebounds", value: "\(game.rebounds)", color: .mint)
-                DetailStatCard(title: "Assists", value: "\(game.assists)", color: .cyan)
-                DetailStatCard(title: "Steals", value: "\(game.steals)", color: .yellow)
-                DetailStatCard(title: "Blocks", value: "\(game.blocks)", color: .red)
-                DetailStatCard(title: "Fouls", value: "\(game.fouls)", color: .pink)
-            }
-        }
+        PlayerStatsSection(
+            game: $game,
+            authService: authService,
+            firebaseService: firebaseService,
+            isIPad: isIPad
+        )
     }
     
     private var shootingPercentagesSection: some View {

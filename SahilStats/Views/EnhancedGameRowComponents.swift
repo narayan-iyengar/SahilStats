@@ -145,11 +145,24 @@ struct EditableGameRowView: View {
         notificationFeedback.notificationOccurred(.success)
     }
     
+/*
     private func formatRelativeDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
     }
+*/
+    private func formatRelativeDate(_ date: Date?) -> String {
+        // Safely unwrap the optional date.
+        guard let date = date else {
+            // Provide a default string if the date is nil.
+            return "Date unknown"
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
 
     // MARK: - Child Views
     

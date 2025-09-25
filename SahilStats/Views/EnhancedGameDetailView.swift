@@ -43,9 +43,6 @@ struct CompleteGameDetailView: View {
                     // Header with game info
                     gameHeaderSection
                     
-                    // Media/Share Section
-                    mediaSection
-                    
                     // Player Stats Section (comprehensive)
                     playerStatsSection
                     
@@ -74,10 +71,6 @@ struct CompleteGameDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        Button(action: { showingShareSheet = true }) {
-                            Label("Share Game", systemImage: "square.and.arrow.up")
-                        }
-                        
                         if authService.canEditGames {
                             Button(action: { }) {
                                 Label("Edit Game", systemImage: "pencil")
@@ -114,9 +107,6 @@ struct CompleteGameDetailView: View {
             Button("Save") {
                 saveScoreChange()
             }
-        }
-        .sheet(isPresented: $showingShareSheet) {
-            ShareGameView(game: game)
         }
     }
     
@@ -189,76 +179,36 @@ struct CompleteGameDetailView: View {
         .cornerRadius(isIPad ? 20 : 16)
     }
     
-    // MARK: - Media Section
-    
-    @ViewBuilder
-    private var mediaSection: some View {
-        VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-            HStack {
-                Text("Share & Media")
-                    .font(isIPad ? .title2 : .headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.orange)
-                Spacer()
-            }
-            
-            HStack(spacing: isIPad ? 16 : 12) {
-                Button(action: { showingShareSheet = true }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(isIPad ? .body : .subheadline)
-                        Text("Share Game")
-                            .font(isIPad ? .body : .subheadline)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, isIPad ? 16 : 12)
-                    .padding(.vertical, isIPad ? 12 : 8)
-                    .background(Color.green)
-                    .cornerRadius(isIPad ? 12 : 8)
-                }
-                
-                Spacer()
-            }
-        }
-        .padding(isIPad ? 20 : 16)
-        .background(Color.orange.opacity(0.05))
-        .cornerRadius(isIPad ? 16 : 12)
-    }
     
     // MARK: - Player Stats Section (Comprehensive)
     
     @ViewBuilder
     private var playerStatsSection: some View {
-        VStack(alignment: .leading, spacing: isIPad ? 20 : 16) {
-            Text("Player Stats")
-                .font(isIPad ? .title2 : .headline)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-            
-            // Main stats grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: isIPad ? 16 : 12) {
-                // Scoring stats
-                editableStatCard(for: "Points", value: $game.points, color: .purple)
-                
-                // Shooting stats
-                editableStatCard(for: "2PT Made", value: $game.fg2m, color: .blue)
-                editableStatCard(for: "2PT Att", value: $game.fg2a, color: .blue.opacity(0.7))
-                editableStatCard(for: "3PT Made", value: $game.fg3m, color: .green)
-                editableStatCard(for: "3PT Att", value: $game.fg3a, color: .green.opacity(0.7))
-                editableStatCard(for: "FT Made", value: $game.ftm, color: .orange)
-                editableStatCard(for: "FT Att", value: $game.fta, color: .orange.opacity(0.7))
-                
-                // Other stats
-                editableStatCard(for: "Rebounds", value: $game.rebounds, color: .mint)
-                editableStatCard(for: "Assists", value: $game.assists, color: .cyan)
-                editableStatCard(for: "Steals", value: $game.steals, color: .yellow)
-                editableStatCard(for: "Blocks", value: $game.blocks, color: .red)
-                editableStatCard(for: "Fouls", value: $game.fouls, color: .pink)
-                editableStatCard(for: "Turnovers", value: $game.turnovers, color: .pink.opacity(0.7))
-                
-                // Calculated stats (non-editable)
-                DetailStatCard(title: "A/T Ratio", value: String(format: "%.2f", game.assistTurnoverRatio), color: .indigo)
+        PlayerStatsSection(
+            game: $game,
+            authService: authService,
+            firebaseService: firebaseService,
+            isIPad: isIPad
+        )
+    }
+
+    // Add this new helper function that shows stats to everyone but only allows editing for admins:
+    private func viewableStatCard(title: String, value: Int, color: Color) -> some View {
+        Group {
+            if authService.canEditGames {
+                // For admins: editable card with long press
+                DetailStatCard(title: title, value: "\(value)", color: color)
+                    .onLongPressGesture {
+                        // Your existing edit logic here
+                        editingStatTitle = title
+                        editingStatValue = "\(value)"
+                        // Note: You'd need to convert this to work with individual stat fields
+                        // since editableStatCard used bindings
+                        isEditingStat = true
+                    }
+            } else {
+                // For regular users: read-only card
+                DetailStatCard(title: title, value: "\(value)", color: color)
             }
         }
     }
@@ -513,108 +463,6 @@ struct CompleteGameDetailView: View {
             } catch {
                 print("Failed to save score change: \(error.localizedDescription)")
             }
-        }
-    }
-}
-
-// MARK: - Share Game View
-
-struct ShareGameView: View {
-    let game: Game
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Text("Share Game Stats")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                // Game summary for sharing
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("🏀 \(game.teamName) vs \(game.opponent)")
-                        .font(.headline)
-                    
-                    Text("Final: \(game.myTeamScore) - \(game.opponentScore)")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(game.outcome == .win ? .green : .red)
-                    
-                    Text("Sahil's Stats:")
-                        .font(.headline)
-                        .padding(.top)
-                    
-                    HStack {
-                        Text("📊 \(game.points) PTS • \(game.rebounds) REB • \(game.assists) AST")
-                        Spacer()
-                    }
-                    
-                    HStack {
-                        Text("🎯 FG: \(String(format: "%.0f%%", game.fieldGoalPercentage * 100))")
-                        if game.fg3a > 0 {
-                            Text("• 3P: \(String(format: "%.0f%%", game.threePointPercentage * 100))")
-                        }
-                        Spacer()
-                    }
-                    
-                    if !game.achievements.isEmpty {
-                        HStack {
-                            Text("🏆 ")
-                            Text(game.achievements.map { $0.emoji }.joined(separator: " "))
-                            Spacer()
-                        }
-                    }
-                    
-                    Text("#SahilStats #Basketball")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top)
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                
-                Button("Share") {
-                    shareGame()
-                }
-                .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: false))
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Share")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-    
-    private func shareGame() {
-        let text = """
-        🏀 \(game.teamName) vs \(game.opponent)
-        Final: \(game.myTeamScore) - \(game.opponentScore)
-        
-        Sahil's Stats:
-        📊 \(game.points) PTS • \(game.rebounds) REB • \(game.assists) AST
-        🎯 FG: \(String(format: "%.0f%%", game.fieldGoalPercentage * 100))\(game.fg3a > 0 ? " • 3P: \(String(format: "%.0f%%", game.threePointPercentage * 100))" : "")
-        
-        #SahilStats #Basketball
-        """
-        
-        let activityViewController = UIActivityViewController(
-            activityItems: [text],
-            applicationActivities: nil
-        )
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootViewController = window.rootViewController {
-            rootViewController.present(activityViewController, animated: true)
         }
     }
 }

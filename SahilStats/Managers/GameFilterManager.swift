@@ -55,12 +55,26 @@ class GameFilterManager: ObservableObject {
         }
         
         // Apply date range filter
+        /*
         if let dateFilter = selectedDateRange.dateFilter(from: customStartDate, to: customEndDate) {
             let (startDate, endDate) = dateFilter
             filteredGames = filteredGames.filter { game in
                 game.timestamp >= startDate && game.timestamp <= endDate
             }
         }
+         */
+        if let dateFilter = selectedDateRange.dateFilter(from: customStartDate, to: customEndDate) {
+                let (startDate, endDate) = dateFilter
+                filteredGames = filteredGames.filter { game in
+                    // Safely unwrap the optional timestamp before comparing.
+                    guard let gameTimestamp = game.timestamp else {
+                        // If a game has no timestamp, it cannot match a date filter.
+                        return false
+                    }
+                    // Perform the comparison on the unwrapped, non-optional date.
+                    return gameTimestamp >= startDate && gameTimestamp <= endDate
+                }
+            }
         
         return filteredGames
     }
