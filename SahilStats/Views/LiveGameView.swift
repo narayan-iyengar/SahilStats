@@ -120,54 +120,6 @@ struct LivePointsSummaryCard: View {
 }
 
 
-
-
-
-
-// MARK: - ScrollView with Offset Tracking (Keep this from previous artifact)
-
-struct ScrollViewWithOffset<Content: View>: View {
-    let axes: Axis.Set
-    let showsIndicators: Bool
-    let onOffsetChange: (CGFloat) -> Void
-    let content: Content
-    
-    init(
-        axes: Axis.Set = .vertical,
-        showsIndicators: Bool = true,
-        onOffsetChange: @escaping (CGFloat) -> Void,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.axes = axes
-        self.showsIndicators = showsIndicators
-        self.onOffsetChange = onOffsetChange
-        self.content = content()
-    }
-    
-    var body: some View {
-        ScrollView(axes, showsIndicators: showsIndicators) {
-            GeometryReader { geometry in
-                Color.clear.preference(
-                    key: ScrollOffsetPreferenceKey.self,
-                    value: geometry.frame(in: .named("scroll")).origin.y
-                )
-            }
-            .frame(height: 0)
-            
-            content
-        }
-        .coordinateSpace(name: "scroll")
-        .onPreferenceChange(ScrollOffsetPreferenceKey.self, perform: onOffsetChange)
-    }
-}
-
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct LivePointBreakdownItem: View {
     let title: String
     let made: Int
@@ -449,13 +401,8 @@ struct LiveGameControllerView: View {
             )
             
             autoGrantInitialControl()
-            print("HERE HERE HERE HERE")
-            print("here: \(serverGameState.currentTimeSegment)")
-            print("here: \(deviceControl.hasControl)")
-            
             // FIXED: Start initial time tracking if no current segment exists
             if serverGameState.currentTimeSegment == nil && deviceControl.hasControl {
-                print("HERE HERE HERE HERE !!!!!")
                 startInitialTimeTracking()
             }
         }
@@ -488,25 +435,6 @@ struct LiveGameControllerView: View {
     }
     
     
-    //MARK: DEBUG
-    private func debugTimeSegments() {
-        let game = serverGameState
-        print("=== TIME SEGMENTS DEBUG ===")
-        print("Total segments: \(game.timeSegments.count)")
-        print("Current segment: \(game.currentTimeSegment != nil ? "Active" : "None")")
-        print("Total playing time: \(game.totalPlayingTime) minutes")
-        print("Total bench time: \(game.totalBenchTime) minutes")
-        
-        for (index, segment) in game.timeSegments.enumerated() {
-            print("Segment \(index + 1): \(segment.isOnCourt ? "Court" : "Bench") - \(segment.durationMinutes) min")
-        }
-        
-        if let currentSegment = game.currentTimeSegment {
-            let currentDuration = Date().timeIntervalSince(currentSegment.startTime) / 60.0
-            print("Current segment: \(currentSegment.isOnCourt ? "Court" : "Bench") - \(currentDuration) min (ongoing)")
-        }
-        print("=== END DEBUG ===")
-    }
     
     // MARK: - FIXED: Single Game Header (All Info in One Place)
     
@@ -953,7 +881,7 @@ struct LiveGameControllerView: View {
         
         // DEBUG: Print current status
         print("🔍 Status change: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
-        debugTimeSegments() // ADD THIS LINE
+
         
         // Only update time tracking if status actually changed
         if wasOnCourt != isNowOnCourt {

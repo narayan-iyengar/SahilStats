@@ -1,0 +1,31 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+
+# Firebase & API Keys
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+.env
+Config.plist
+
+# Other sensitive files
+*.p12
+*.mobileprovision
+secrets.json
+
+# Build generated
+build/
+Build/
+
+# CocoaPods
+Pods/
+*.xcworkspace
+
+# Firebase config files
+GoogleService-Info.plist
+**/GoogleService-Info.plist
