@@ -60,6 +60,7 @@ struct Game: Identifiable, Codable, Equatable {
         case myTeamScore, opponentScore, outcome
         case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
         case createdAt, adminName, editedAt, editedBy, achievements
+        case totalPlayingTimeMinutes, benchTimeMinutes, gameTimeTracking
     }
     
     // Custom decoder to handle different date formats
@@ -256,6 +257,9 @@ struct Game: Identifiable, Codable, Equatable {
         
         editedBy = try container.decodeIfPresent(String.self, forKey: .editedBy)
         achievements = try container.decodeIfPresent([Achievement].self, forKey: .achievements) ?? []
+        totalPlayingTimeMinutes = try container.decodeIfPresent(Double.self, forKey: .totalPlayingTimeMinutes) ?? 0.0
+        benchTimeMinutes = try container.decodeIfPresent(Double.self, forKey: .benchTimeMinutes) ?? 0.0
+        gameTimeTracking = try container.decodeIfPresent([GameTimeSegment].self, forKey: .gameTimeTracking) ?? []
     }
 
     // MARK: - Helper Function for Date Parsing (Add this to your Game struct)
@@ -343,6 +347,9 @@ struct Game: Identifiable, Codable, Equatable {
         }
         try container.encodeIfPresent(editedBy, forKey: .editedBy)
         try container.encode(achievements, forKey: .achievements)
+        try container.encode(totalPlayingTimeMinutes, forKey: .totalPlayingTimeMinutes)
+        try container.encode(benchTimeMinutes, forKey: .benchTimeMinutes)
+        try container.encode(gameTimeTracking, forKey: .gameTimeTracking)
     }
     
     // Computed properties

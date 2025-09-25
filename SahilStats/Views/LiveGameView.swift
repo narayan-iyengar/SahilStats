@@ -12,129 +12,6 @@ class RefreshTrigger: ObservableObject {
     }
 }
 
-struct DebugPlayingTimeCard: View {
-    let totalPlayingTime: Double
-    let totalBenchTime: Double
-    let timeSegments: [GameTimeSegment]
-    let currentSegment: GameTimeSegment?
-    let isIPad: Bool
-    
-    private var totalTime: Double {
-        var total = totalPlayingTime + totalBenchTime
-        
-        // ADD current segment time if active
-        if let current = currentSegment {
-            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
-            total += currentDuration
-        }
-        
-        return total
-    }
-    
-    private var displayPlayingTime: Double {
-        var playing = totalPlayingTime
-        
-        // ADD current segment if it's court time
-        if let current = currentSegment, current.isOnCourt {
-            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
-            playing += currentDuration
-        }
-        
-        return playing
-    }
-    
-    private var displayBenchTime: Double {
-        var bench = totalBenchTime
-        
-        // ADD current segment if it's bench time
-        if let current = currentSegment, !current.isOnCourt {
-            let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
-            bench += currentDuration
-        }
-        
-        return bench
-    }
-    
-    private var playingPercentage: Double {
-        totalTime > 0 ? (displayPlayingTime / totalTime) * 100 : 0
-    }
-    
-    var body: some View {
-        VStack(spacing: isIPad ? 12 : 8) {
-            Text("Playing Time (Live)")
-                .font(isIPad ? .title3 : .headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.teal)
-            
-            // Show raw numbers
-            VStack(spacing: 4) {
-                Text("Segments: \(timeSegments.count) completed")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if let current = currentSegment {
-                    let currentDuration = Date().timeIntervalSince(current.startTime) / 60.0
-                    Text("Current: \(current.isOnCourt ? "Court" : "Bench") (\(String(format: "%.1f", currentDuration)) min)")
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                }
-                
-                Text("Total time: \(String(format: "%.1f", totalTime)) min")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            // ALWAYS show time data, even if small
-            HStack(spacing: isIPad ? 20 : 16) {
-                TimeStatItem(
-                    title: "On Court",
-                    time: displayPlayingTime,
-                    color: .green,
-                    isIPad: isIPad
-                )
-                
-                TimeStatItem(
-                    title: "On Bench",
-                    time: displayBenchTime,
-                    color: .orange,
-                    isIPad: isIPad
-                )
-            }
-            
-            if totalTime > 0 {
-                // Playing time percentage bar
-                VStack(spacing: 4) {
-                    HStack {
-                        Text("Court Time")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(Int(playingPercentage))%")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.green)
-                    }
-                    
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(height: 4)
-                            
-                            Rectangle()
-                                .fill(Color.green)
-                                .frame(width: geometry.size.width * (playingPercentage / 100), height: 4)
-                        }
-                    }
-                    .frame(height: 4)
-                }
-            }
-        }
-        .padding(isIPad ? 20 : 16)
-        .background(Color.teal.opacity(0.08))
-        .cornerRadius(isIPad ? 16 : 12)
-    }
-}
 
 
 
@@ -506,14 +383,6 @@ struct LiveGameControllerView: View {
                         
                         // Summary cards
                         LiveStatsDisplayCard(stats: currentStats, isIPad: isIPad)
-                        /*
-                        DebugPlayingTimeCard(
-                            totalPlayingTime: serverGameState.totalPlayingTime,
-                            totalBenchTime: serverGameState.totalBenchTime,
-                            timeSegments: serverGameState.timeSegments,
-                            currentSegment: serverGameState.currentTimeSegment,
-                            isIPad: isIPad
-                        )*/
                         /*PlayingTimeCard(
                             totalPlayingTime: serverGameState.totalPlayingTime,
                             totalBenchTime: serverGameState.totalBenchTime,
@@ -1476,6 +1345,7 @@ struct LiveGameControllerView: View {
     }
     
    
+
     private func finishGame() {
         guard deviceControl.hasControl else { return }
         
@@ -1484,11 +1354,56 @@ struct LiveGameControllerView: View {
                 // 1. Await the definitive, updated game object after ending the last segment.
                 let finalServerState = try await endCurrentTimeSegment()
 
-                // 2. Now, calculate time with guaranteed fresh data. No race condition.
+                // 🔍 DEBUG: Print detailed playing time information
+                print("🔍 ========== FINAL GAME TIME DEBUG ==========")
+                print("📊 Raw Stored Values:")
+                print("   totalPlayingTimeMinutes: \(finalServerState.totalPlayingTimeMinutes)")
+                print("   benchTimeMinutes: \(finalServerState.benchTimeMinutes)")
+                print("   timeSegments count: \(finalServerState.timeSegments.count)")
+                
+                // Show each completed segment
+                for (index, segment) in finalServerState.timeSegments.enumerated() {
+                    let durationSeconds = segment.durationMinutes * 60
+                    let minutes = Int(durationSeconds) / 60
+                    let seconds = Int(durationSeconds) % 60
+                    print("   Segment \(index + 1): \(segment.isOnCourt ? "Court" : "Bench") - \(minutes)m \(seconds)s")
+                }
+                
+                // Check if there's still an active segment (shouldn't be any after endCurrentTimeSegment)
+                if let current = finalServerState.currentTimeSegment {
+                    let currentDuration = Date().timeIntervalSince(current.startTime)
+                    let minutes = Int(currentDuration) / 60
+                    let seconds = Int(currentDuration) % 60
+                    print("   ⚠️ WARNING: Still has active segment: \(current.isOnCourt ? "Court" : "Bench") - \(minutes)m \(seconds)s")
+                } else {
+                    print("   ✅ No active segment (correct)")
+                }
+                
+                // Calculate totals using the computed properties
                 let totalPlayingTime = finalServerState.totalPlayingTime
                 let totalBenchTime = finalServerState.totalBenchTime
+                let totalTime = totalPlayingTime + totalBenchTime
                 
-                // 3. Create the final Game object with correct time data.
+                print("📈 Computed Totals (what will be saved to Game):")
+                let playingMinutes = Int(totalPlayingTime)
+                let playingSeconds = Int((totalPlayingTime - Double(playingMinutes)) * 60)
+                let benchMinutes = Int(totalBenchTime)
+                let benchSeconds = Int((totalBenchTime - Double(benchMinutes)) * 60)
+                let totalMinutes = Int(totalTime)
+                let totalSecondsRemainder = Int((totalTime - Double(totalMinutes)) * 60)
+                
+                print("   Total Playing Time: \(playingMinutes)m \(playingSeconds)s (\(totalPlayingTime) minutes)")
+                print("   Total Bench Time: \(benchMinutes)m \(benchSeconds)s (\(totalBenchTime) minutes)")
+                print("   Total Game Time: \(totalMinutes)m \(totalSecondsRemainder)s (\(totalTime) minutes)")
+                
+                if totalTime > 0 {
+                    let percentage = (totalPlayingTime / totalTime) * 100
+                    print("   Playing Percentage: \(String(format: "%.1f", percentage))%")
+                }
+                
+                print("🔍 ==========================================")
+
+                // 2. Create the final Game object with correct time data.
                 let finalGame = Game(
                     teamName: finalServerState.teamName,
                     opponent: finalServerState.opponent,
@@ -1518,6 +1433,15 @@ struct LiveGameControllerView: View {
                 
                 try await firebaseService.addGame(finalGame)
                 try await firebaseService.deleteLiveGame(finalServerState.id ?? "")
+                
+                // 🔍 DEBUG: Print what's actually in the Game object before saving
+                print("🔍 ========== FINAL GAME OBJECT DEBUG ==========")
+                print("📊 Game Object Time Values:")
+                print("   finalGame.totalPlayingTimeMinutes: \(finalGame.totalPlayingTimeMinutes)")
+                print("   finalGame.benchTimeMinutes: \(finalGame.benchTimeMinutes)")
+                print("   finalGame.gameTimeTracking.count: \(finalGame.gameTimeTracking.count)")
+                print("   finalGame.playingTimePercentage: \(finalGame.playingTimePercentage)")
+                print("🔍 =============================================")
                 
                 await MainActor.run {
                     dismiss()
