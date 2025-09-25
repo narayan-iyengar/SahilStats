@@ -458,6 +458,98 @@ struct Game: Identifiable, Codable, Equatable {
     }
 }
 
+extension Game {
+    // FIXED: Proper encoding that avoids problematic data types
+    func toFirestoreData() -> [String: Any] {
+        var data: [String: Any] = [
+            "teamName": teamName,
+            "opponent": opponent,
+            "gameFormat": gameFormat.rawValue,
+            "periodLength": periodLength,
+            "numPeriods": numPeriods,
+            "status": status.rawValue,
+            "myTeamScore": myTeamScore,
+            "opponentScore": opponentScore,
+            "outcome": outcome.rawValue,
+            
+            // Stats as explicit integers
+            "points": points,
+            "fg2m": fg2m,
+            "fg2a": fg2a,
+            "fg3m": fg3m,
+            "fg3a": fg3a,
+            "ftm": ftm,
+            "fta": fta,
+            "rebounds": rebounds,
+            "assists": assists,
+            "steals": steals,
+            "blocks": blocks,
+            "fouls": fouls,
+            "turnovers": turnovers,
+            
+            // Time tracking as doubles
+            "totalPlayingTimeMinutes": totalPlayingTimeMinutes,
+            "benchTimeMinutes": benchTimeMinutes
+        ]
+        
+        // SAFE: Only add optional fields if they exist
+        if let location = location, !location.isEmpty {
+            data["location"] = location
+        }
+        
+        if let adminName = adminName {
+            data["adminName"] = adminName
+        }
+        
+        if let editedBy = editedBy {
+            data["editedBy"] = editedBy
+        }
+        
+        // CRITICAL: Handle timestamps safely
+        if let timestamp = timestamp {
+            data["timestamp"] = Timestamp(date: timestamp)
+        } else {
+            data["timestamp"] = Timestamp(date: Date()) // Fallback
+        }
+        
+        if let createdAt = createdAt {
+            data["createdAt"] = Timestamp(date: createdAt)
+        } else {
+            data["createdAt"] = Timestamp(date: Date()) // Fallback
+        }
+        
+        if let editedAt = editedAt {
+            data["editedAt"] = Timestamp(date: editedAt)
+        }
+        
+        // SAFE: Convert achievements to array of dictionaries
+        data["achievements"] = achievements.map { achievement in
+            [
+                "id": achievement.id,
+                "name": achievement.name,
+                "emoji": achievement.emoji,
+                "description": achievement.description
+            ]
+        }
+        
+        // SAFE: Convert time segments to array of dictionaries
+        data["gameTimeTracking"] = gameTimeTracking.map { segment in
+            var segmentData: [String: Any] = [
+                "isOnCourt": segment.isOnCourt,
+                "startTime": Timestamp(date: segment.startTime)
+            ]
+            
+            if let endTime = segment.endTime {
+                segmentData["endTime"] = Timestamp(date: endTime)
+            }
+            
+            return segmentData
+        }
+        
+        return data
+    }
+}
+
 //MARK: Platying Time
 struct GameTimeSegment: Codable, Identifiable, Equatable {
     var id = UUID()
@@ -1007,4 +1099,117 @@ extension LiveGame {
         print("🔍 DECODED LiveGame - currentTimeSegment: \(currentTimeSegment != nil ? "EXISTS" : "NIL")")
         print("🔍 DECODED LiveGame - timeSegments count: \(timeSegments.count)")
     }
+    
+    
+    func toFirestoreData() -> [String: Any] {
+            var data: [String: Any] = [
+                "teamName": teamName,
+                "opponent": opponent,
+                "gameFormat": gameFormat.rawValue,
+                "periodLength": periodLength,
+                "numPeriods": numPeriods,
+                "isRunning": isRunning,
+                "period": period,
+                "clock": clock,
+                "homeScore": homeScore,
+                "awayScore": awayScore,
+                
+                // Player stats as nested dictionary
+                "playerStats": [
+                    "fg2m": playerStats.fg2m,
+                    "fg2a": playerStats.fg2a,
+                    "fg3m": playerStats.fg3m,
+                    "fg3a": playerStats.fg3a,
+                    "ftm": playerStats.ftm,
+                    "fta": playerStats.fta,
+                    "rebounds": playerStats.rebounds,
+                    "assists": playerStats.assists,
+                    "steals": playerStats.steals,
+                    "blocks": playerStats.blocks,
+                    "fouls": playerStats.fouls,
+                    "turnovers": playerStats.turnovers
+                ],
+                
+                // Time tracking
+                "totalPlayingTimeMinutes": totalPlayingTimeMinutes,
+                "benchTimeMinutes": benchTimeMinutes,
+                "sahilOnBench": sahilOnBench ?? false
+            ]
+            
+            // SAFE: Handle optional strings
+            if let location = location, !location.isEmpty {
+                data["location"] = location
+            }
+            
+            if let createdBy = createdBy {
+                data["createdBy"] = createdBy
+            }
+            
+            if let controllingDeviceId = controllingDeviceId {
+                data["controllingDeviceId"] = controllingDeviceId
+            }
+            
+            if let controllingUserEmail = controllingUserEmail {
+                data["controllingUserEmail"] = controllingUserEmail
+            }
+            
+            if let controlRequestedBy = controlRequestedBy {
+                data["controlRequestedBy"] = controlRequestedBy
+            }
+            
+            if let controlRequestingDeviceId = controlRequestingDeviceId {
+                data["controlRequestingDeviceId"] = controlRequestingDeviceId
+            }
+            
+            // CRITICAL: Handle timestamps safely
+            if let createdAt = createdAt {
+                data["createdAt"] = Timestamp(date: createdAt)
+            }
+            
+            if let clockStartTime = clockStartTime {
+                data["clockStartTime"] = Timestamp(date: clockStartTime)
+            }
+            
+            if let clockAtStart = clockAtStart {
+                data["clockAtStart"] = clockAtStart
+            }
+            
+            if let lastClockUpdate = lastClockUpdate {
+                data["lastClockUpdate"] = Timestamp(date: lastClockUpdate)
+            }
+            
+            if let controlRequestTimestamp = controlRequestTimestamp {
+                data["controlRequestTimestamp"] = Timestamp(date: controlRequestTimestamp)
+            }
+            
+            // SAFE: Convert time segments
+            data["timeSegments"] = timeSegments.map { segment in
+                var segmentData: [String: Any] = [
+                    "isOnCourt": segment.isOnCourt,
+                    "startTime": Timestamp(date: segment.startTime)
+                ]
+                
+                if let endTime = segment.endTime {
+                    segmentData["endTime"] = Timestamp(date: endTime)
+                }
+                
+                return segmentData
+            }
+            
+            // SAFE: Handle current time segment
+            if let currentSegment = currentTimeSegment {
+                var currentSegmentData: [String: Any] = [
+                    "isOnCourt": currentSegment.isOnCourt,
+                    "startTime": Timestamp(date: currentSegment.startTime)
+                ]
+                
+                if let endTime = currentSegment.endTime {
+                    currentSegmentData["endTime"] = Timestamp(date: endTime)
+                }
+                
+                data["currentTimeSegment"] = currentSegmentData
+            }
+            
+            return data
+        }
 }

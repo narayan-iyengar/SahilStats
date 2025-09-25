@@ -559,6 +559,155 @@ class FirebaseService: ObservableObject {
     }
 }
 
+
+extension FirebaseService {
+    // FIXED: Safer game creation with proper data validation
+    func addGameSafely(_ game: Game) async throws {
+        do {
+            print("🔍 Adding game with data validation...")
+            
+            // Use custom encoding instead of Codable
+            let gameData = game.toFirestoreData()
+            
+            // DIAGNOSTIC: Log data before sending
+            print("📊 Game data keys: \(gameData.keys)")
+            print("📊 Team: \(gameData["teamName"] ?? "nil")")
+            print("📊 Opponent: \(gameData["opponent"] ?? "nil")")
+            
+            let docRef = try await db.collection("games").addDocument(data: gameData)
+            print("✅ Game added successfully with ID: \(docRef.documentID)")
+            
+        } catch let error as NSError {
+            print("❌ Failed to add game - Domain: \(error.domain)")
+            print("❌ Failed to add game - Code: \(error.code)")
+            print("❌ Failed to add game - Info: \(error.userInfo)")
+            
+            // Provide more specific error information
+            if error.domain == "FIRFirestoreErrorDomain" {
+                switch error.code {
+                case 3: // INVALID_ARGUMENT
+                    print("🔧 INVALID_ARGUMENT: Check for nil values or invalid data types")
+                case 7: // PERMISSION_DENIED
+                    print("🔧 PERMISSION_DENIED: Check Firestore security rules")
+                case 14: // UNAVAILABLE
+                    print("🔧 UNAVAILABLE: Network or server issues")
+                default:
+                    print("🔧 Other Firestore error: \(error.localizedDescription)")
+                }
+            }
+            
+            throw error
+        }
+    }
+    
+    // FIXED: Safer live game updates
+    func updateLiveGameSafely(_ liveGame: LiveGame) async throws {
+        guard let id = liveGame.id else {
+            throw NSError(domain: "FirebaseService", code: 1,
+                         userInfo: [NSLocalizedDescriptionKey: "Live game ID is required"])
+        }
+        
+        do {
+            print("🔍 Updating live game with ID: \(id)")
+            
+            // Use custom encoding
+            let gameData = liveGame.toFirestoreData()
+            
+            // DIAGNOSTIC: Log problematic fields
+            if let currentSegment = gameData["currentTimeSegment"] {
+                print("📊 Current segment data: \(currentSegment)")
+            }
+            
+            try await db.collection("liveGames").document(id).setData(gameData)
+            print("✅ Live game updated successfully")
+            
+        } catch let error as NSError {
+            print("❌ Failed to update live game - Domain: \(error.domain)")
+            print("❌ Failed to update live game - Code: \(error.code)")
+            print("❌ Failed to update live game - Info: \(error.userInfo)")
+            throw error
+        }
+    }
+}
+
+// MARK: 4. Network Connectivity Check
+
+class NetworkMonitor: ObservableObject {
+    @Published var isConnected = true
+    
+    func checkFirestoreConnectivity() {
+        let db = Firestore.firestore()
+        
+        // Simple connectivity test
+        Task {
+            do {
+                _ = try await db.collection("connectivity_test").limit(to: 1).getDocuments()
+                await MainActor.run {
+                    self.isConnected = true
+                }
+                print("✅ Firestore connectivity: OK")
+            } catch {
+                await MainActor.run {
+                    self.isConnected = false
+                }
+                print("❌ Firestore connectivity: FAILED - \(error)")
+            }
+        }
+    }
+}
+
+// MARK: 5. Enhanced Firestore Settings
+
+class FirestoreManager {
+    static func configureForStability() {
+        let db = Firestore.firestore()
+        let settings = FirestoreSettings()
+        
+        // CRITICAL: Enable offline persistence to prevent data loss
+        settings.isPersistenceEnabled = true
+        
+        // Set reasonable cache size (50MB instead of unlimited)
+        settings.cacheSizeBytes = 50 * 1024 * 1024
+        
+        // Use default host (don't override unless necessary)
+        // settings.host = "firestore.googleapis.com"
+        
+        db.settings = settings
+        
+        print("✅ Firestore configured for stability")
+    }
+}
+
+// MARK: 6. Retry Mechanism for Failed Writes
+
+class FirestoreRetryManager {
+    static func retryOperation<T>(
+        operation: @escaping () async throws -> T,
+        maxRetries: Int = 3,
+        delay: TimeInterval = 1.0
+    ) async throws -> T {
+        var lastError: Error?
+        
+        for attempt in 1...maxRetries {
+            do {
+                return try await operation()
+            } catch {
+                lastError = error
+                print("❌ Attempt \(attempt)/\(maxRetries) failed: \(error)")
+                
+                if attempt < maxRetries {
+                    print("⏱️ Retrying in \(delay) seconds...")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
+            }
+        }
+        
+        throw lastError ?? NSError(domain: "RetryManager", code: -1,
+                                  userInfo: [NSLocalizedDescriptionKey: "All retry attempts failed"])
+    }
+}
+
+
 // MARK: - Career Stats Model
 
 struct CareerStats {
