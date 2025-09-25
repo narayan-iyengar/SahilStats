@@ -29,3 +29,25 @@ Pods/
 # Firebase config files
 GoogleService-Info.plist
 **/GoogleService-Info.plist
+
+# Firebase Configuration (contains sensitive API keys)
+**/GoogleService-Info.plist
+GoogleService-Info.plist
+SahilStats/GoogleService-Info.plist
+
+# Firebase debug files
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# iOS sensitive files
+*.mobileprovision
+*.p8
+*.p12
+*.cer
+
+# Xcode sensitive data
+*/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
