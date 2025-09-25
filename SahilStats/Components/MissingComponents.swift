@@ -149,7 +149,6 @@ struct GameDetailTimeCard: View {
     let isIPad: Bool
     
     var body: some View {
-        let _ = print("🔍 GameDetailTimeCard '\(title)' received time: \(time)")
         VStack(spacing: isIPad ? 8 : 6) {
             Text(formatTime(time))
                 .font(isIPad ? .title2 : .title3)

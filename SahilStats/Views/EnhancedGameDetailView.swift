@@ -230,35 +230,31 @@ struct CompleteGameDetailView: View {
     
     @ViewBuilder
     private var playerStatsSection: some View {
-        VStack(alignment: .leading, spacing: isIPad ? 20 : 16) {
-            Text("Player Stats")
-                .font(isIPad ? .title2 : .headline)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-            
-            // Main stats grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: isIPad ? 16 : 12) {
-                // Scoring stats
-                editableStatCard(for: "Points", value: $game.points, color: .purple)
-                
-                // Shooting stats
-                editableStatCard(for: "2PT Made", value: $game.fg2m, color: .blue)
-                editableStatCard(for: "2PT Att", value: $game.fg2a, color: .blue.opacity(0.7))
-                editableStatCard(for: "3PT Made", value: $game.fg3m, color: .green)
-                editableStatCard(for: "3PT Att", value: $game.fg3a, color: .green.opacity(0.7))
-                editableStatCard(for: "FT Made", value: $game.ftm, color: .orange)
-                editableStatCard(for: "FT Att", value: $game.fta, color: .orange.opacity(0.7))
-                
-                // Other stats
-                editableStatCard(for: "Rebounds", value: $game.rebounds, color: .mint)
-                editableStatCard(for: "Assists", value: $game.assists, color: .cyan)
-                editableStatCard(for: "Steals", value: $game.steals, color: .yellow)
-                editableStatCard(for: "Blocks", value: $game.blocks, color: .red)
-                editableStatCard(for: "Fouls", value: $game.fouls, color: .pink)
-                editableStatCard(for: "Turnovers", value: $game.turnovers, color: .pink.opacity(0.7))
-                
-                // Calculated stats (non-editable)
-                DetailStatCard(title: "A/T Ratio", value: String(format: "%.2f", game.assistTurnoverRatio), color: .indigo)
+        PlayerStatsSection(
+            game: $game,
+            authService: authService,
+            firebaseService: firebaseService,
+            isIPad: isIPad
+        )
+    }
+
+    // Add this new helper function that shows stats to everyone but only allows editing for admins:
+    private func viewableStatCard(title: String, value: Int, color: Color) -> some View {
+        Group {
+            if authService.canEditGames {
+                // For admins: editable card with long press
+                DetailStatCard(title: title, value: "\(value)", color: color)
+                    .onLongPressGesture {
+                        // Your existing edit logic here
+                        editingStatTitle = title
+                        editingStatValue = "\(value)"
+                        // Note: You'd need to convert this to work with individual stat fields
+                        // since editableStatCard used bindings
+                        isEditingStat = true
+                    }
+            } else {
+                // For regular users: read-only card
+                DetailStatCard(title: title, value: "\(value)", color: color)
             }
         }
     }
