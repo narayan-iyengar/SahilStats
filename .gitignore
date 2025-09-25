@@ -51,3 +51,4 @@ firebase-debug.*.log
 *.xcworkspace/xcuserdata/
 *.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 
+SahilStats/GoogleService-Info.plist
