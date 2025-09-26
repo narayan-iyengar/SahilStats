@@ -250,6 +250,7 @@ struct GameSetupView: View {
                     .disabled(locationManager.isLoading || !locationManager.canRequestLocation)
                 }
                 
+/*
                 // Location suggestions
                 if !gameConfig.location.isEmpty {
                     let suggestions = getLocationSuggestions()
@@ -268,6 +269,7 @@ struct GameSetupView: View {
                         }
                     }
                 }
+ */
                 
                 // Show location status/error if needed
                 if let error = locationManager.error {
@@ -341,26 +343,6 @@ struct GameSetupView: View {
             }
         }
         .navigationBarBackButtonHidden()
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                // Add Back chevron in top left
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(isIPad ? .title2 : .title3)
-                        .foregroundColor(.orange)
-                }
-            }
-            
-            ToolbarItem(placement: .navigationBarTrailing) {
-                // Add Done button in top right
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
-            }
-        }
         .alert("Error", isPresented: .constant(!error.isEmpty)) {
             Button("OK") { error = "" }
         } message: {
@@ -604,6 +586,42 @@ struct PostGameNavigationBar: View {
     }
 }
 
+
+struct LiveGameFullScreenWrapper: View {
+    let onDismiss: () -> Void
+    
+    // 1. The wrapper now owns the state objects
+    @StateObject private var firebaseService = FirebaseService.shared
+    @StateObject private var roleManager = DeviceRoleManager.shared
+    @State private var showingRoleSelection = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 2. The navigation bar is now passed all the data it needs
+            LiveGameNavigationBar(
+                liveGame: firebaseService.getCurrentLiveGame(),
+                role: roleManager.deviceRole,
+                onDone: onDismiss,
+                onSelectRole: { showingRoleSelection = true }
+    
+            )
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground).shadow(color: .black.opacity(0.1), radius: 2, y: 1))
+
+            // 3. The main view receives the data and a binding
+            LiveGameView()
+        }
+        .navigationBarHidden(true)
+        .ignoresSafeArea(.all, edges: .bottom)
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceRoleSelectionView(liveGame: liveGame)
+            }
+        }
+    }
+}
+/*
 struct LiveGameFullScreenWrapper: View {
     let onDismiss: () -> Void
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -624,42 +642,53 @@ struct LiveGameFullScreenWrapper: View {
         .navigationBarHidden(true)
     }
 }
+*/
 
+// MARK: - Reusable Navigation Bar
 struct LiveGameNavigationBar: View {
-    let onDismiss: () -> Void
-    let isIPad: Bool
+    // Properties to receive data
+    let liveGame: LiveGame?
+    let role: DeviceRoleManager.DeviceRole
+    // Actions
+    let onDone: () -> Void
+    let onSelectRole: () -> Void
     
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+
     var body: some View {
         HStack {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 12, height: 12)
-                    .opacity(0.8)
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
-                Text("Live Game")
-                    .font(.largeTitle)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(liveGame != nil ? "Live Game" : "Game Setup")
+                    .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                
+                if let game = liveGame {
+                    Text("\(game.teamName) vs \(game.opponent)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            
+
             Spacer()
-            
-            Button(action: onDismiss) {
-                Text("Done")
+
+            if role == .none {
+                Button("Select Role") {
+                    onSelectRole()
+                }
+                .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             }
-            .buttonStyle(PillButtonStyle(isIPad: isIPad))
+
+            Button("Done") {
+                onDone()
+            }
+            .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-        )
     }
 }
+
 
 // MARK: - Supporting Models (keep these as they are)
 
@@ -737,6 +766,7 @@ struct SetupOptionCard: View {
     let status: String
     let statusColor: Color
     let action: () -> Void
+    
     
     var body: some View {
         Button(action: action) {

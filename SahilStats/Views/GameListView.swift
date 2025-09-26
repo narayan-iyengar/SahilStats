@@ -57,7 +57,9 @@ struct GameListView: View {
             )
         }
         .fullScreenCover(isPresented: $showingLiveGame) {
-            LiveGameView()
+            LiveGameFullScreenWrapper {
+                showingLiveGame = false  // ← Use the wrapper instead
+            }
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             GameDeleteAlert(

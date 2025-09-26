@@ -27,8 +27,10 @@ struct LiveGameView: View {
         horizontalSizeClass == .regular
     }
     
+    /* SOMEWHAT WORKS */
+    /*
     var body: some View {
-        NavigationView {
+
             Group {
                 if let liveGame = firebaseService.getCurrentLiveGame() {
                     // 🆕 Route based on device role
@@ -47,17 +49,18 @@ struct LiveGameView: View {
                     NoLiveGameView()
                 }
             }
+            /*
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    // Add Done button in top right
                     Button("Done") {
                         dismiss()
                     }
                     .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
                 }
             }
-        }
+            */
+
         .onAppear {
             // This is the logic that runs when the LiveGameView is presented.
             // If there's a game but this device has no role, show the selection screen.
@@ -65,6 +68,42 @@ struct LiveGameView: View {
                 showingRoleSelection = true
             }
         }
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceRoleSelectionView(liveGame: liveGame)
+            }
+        }
+    }
+    */
+    var body: some View {
+            
+            Group {
+                // 2. The correct view for the user's role will appear below the bar
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    switch roleManager.deviceRole {
+                    case .recorder:
+                        RecordingDeviceView(liveGame: liveGame)
+                    case .controller:
+                        ControlDeviceView(liveGame: liveGame)
+                    case .viewer:
+                        LiveGameWatchView(liveGame: liveGame)
+                    case .none:
+                        DeviceRoleSelectionView(liveGame: liveGame)
+                    }
+                } else {
+                    NoLiveGameView()
+                }
+                
+                Spacer() // Ensures content is pushed to the top
+            }
+        .onAppear {
+            // Logic that runs when the LiveGameView is presented
+            if firebaseService.hasLiveGame && !roleManager.isConnectedToGame && roleManager.deviceRole == .none {
+                showingRoleSelection = true
+            }
+        }
+        //.navigationBarHidden(true) // Hide the system navigation bar
+        //.ignoresSafeArea(.all, edges: .bottom) // Allow content to extend to the bottom
         .sheet(isPresented: $showingRoleSelection) {
             if let liveGame = firebaseService.getCurrentLiveGame() {
                 DeviceRoleSelectionView(liveGame: liveGame)

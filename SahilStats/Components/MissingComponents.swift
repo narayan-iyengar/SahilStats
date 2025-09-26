@@ -32,47 +32,6 @@ struct StatCard: View {
 }
 
 
-
-
-/*
-// MARK: - Live Game Indicator View
-struct LiveGameIndicatorView: View {
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 12, height: 12)
-                    .opacity(0.8)
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Live Game in Progress")
-                        .font(.headline)
-                        .foregroundColor(.red)
-                    
-                    Text("Tap to view")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.red)
-            }
-            //.padding()
-            //.background(Color.red.opacity(0.1))
-            //.cornerRadius(12)
-            //.contentShape(Rectangle()) // ⭐ THIS IS THE KEY FIX
-        }
-        .buttonStyle(.plain)
-    }
-}
- */
-
 // MARK: - Game Filters Sheet
 struct GameFiltersSheet: View {
     @ObservedObject var filterManager: GameFilterManager

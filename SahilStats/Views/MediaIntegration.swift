@@ -408,59 +408,6 @@ struct StatItem: View {
     }
 }
 
-// MARK: - Enhanced Game Setup with Media Options
-
-struct EnhancedGameSetupView: View {
-    @EnvironmentObject var authService: AuthService
-    
-    // Your existing GameSetupView properties
-    @State private var showingMediaOptions = false
-    @State private var enableVideoRecording = false
-    @State private var enableAutoScreenshots = false
-    
-    var body: some View {
-        // Your existing GameSetupView content
-        VStack {
-            // Existing setup content...
-            
-            // NEW: Media Options Section
-            if authService.showAdminFeatures {
-                mediaOptionsSection
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var mediaOptionsSection: some View {
-        Section("Media Features") {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Capture and share your game moments")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                // Video recording toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Video Recording")
-                            .font(.headline)
-                        Text("Record live game with score overlay")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Toggle("", isOn: $enableVideoRecording)
-                        .toggleStyle(SwitchToggleStyle(tint: .orange))
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                
-                // Media access status
-                MediaAccessStatus()
-            }
-        }
-    }
-}
 
 // MARK: - Media Access Status
 
