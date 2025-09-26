@@ -211,6 +211,27 @@ struct PillButtonStyle: ButtonStyle {
     }
 }
 
+// Add this to SharedButtonStyles.swift
+
+struct ToolbarPillButtonStyle: ButtonStyle {
+    let isIPad: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isIPad ? .body : .headline)
+            .fontWeight(.semibold)
+            .foregroundColor(.orange)
+            // Reduced horizontal padding to fit in the toolbar
+            .padding(.horizontal, isIPad ? 14 : 10)
+            .padding(.vertical, isIPad ? 10 : 6)
+            .background(Color.orange.opacity(0.1))
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+
 struct RecordingButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

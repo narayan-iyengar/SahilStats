@@ -95,46 +95,61 @@ struct GameSetupView: View {
     
     // MARK: - Setup Mode Selection
     
+    // In GameSetupView.swift
+
     @ViewBuilder
     private var setupModeSelection: some View {
         VStack(spacing: 16) {
-            // Post-Game Stats Entry
+            // 1. Post-Game Stats
             SetupOptionCard(
                 title: "Enter Final Stats",
-                subtitle: "Enter final score and stats",
+                subtitle: "For games that are already complete",
                 icon: "chart.bar.fill",
                 color: .green,
                 status: "Quick stat entry after the game",
-                statusColor: .blue
+                statusColor: .green
             ) {
-                setupMode = .gameForm
-                deviceRole = .none
+                self.setupMode = .gameForm
+                self.deviceRole = .none
             }
-            
-            // Multi-Device Live Game
-            MultiDeviceLiveGameCard(
-                hasLiveGame: firebaseService.hasLiveGame,
-                enableMultiDevice: $enableMultiDevice
+
+            // 2. Stats-Only Live Game
+            SetupOptionCard(
+                title: "Track Stats Live",
+                subtitle: "Use this device to score the game",
+                icon: "stopwatch.fill",
+                color: .orange,
+                status: "Single device, no recording",
+                statusColor: .orange
             ) {
-                if firebaseService.hasLiveGame {
-                    showingLiveGameView = true
-                } else {
-                    setupMode = .gameForm
-                    deviceRole = .controller
-                }
+                self.setupMode = .gameForm
+                self.deviceRole = .controller
             }
-            
-            // Join Existing Live Game
+
+            // 3. Start a Multi-Device Session
+            SetupOptionCard(
+                title: "Start Multi-Device Session",
+                subtitle: "Record video with a separate device",
+                icon: "video.fill",
+                color: .red,
+                status: "Controller + Recorder setup",
+                statusColor: .red
+            ) {
+                self.setupMode = .gameForm
+                self.deviceRole = .controller
+            }
+
+            // 4. Join an Existing Game
             if firebaseService.hasLiveGame {
                 SetupOptionCard(
                     title: "Join Live Game",
-                    subtitle: "Connect as recording or viewing device",
+                    subtitle: "Connect as a recorder or viewer",
                     icon: "antenna.radiowaves.left.and.right",
                     color: .blue,
-                    status: "Multi-device support",
-                    statusColor: .green
+                    status: "A game is in progress!",
+                    statusColor: .blue
                 ) {
-                    showingRoleSelection = true
+                    self.showingRoleSelection = true
                 }
             }
         }
@@ -325,12 +340,19 @@ struct GameSetupView: View {
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Back") {
+                Button(action: {
                     setupMode = .selection
                     deviceRole = .none
                     gameId = ""
+                }) {
+                    // Include an icon for a better UX
+                    HStack {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
                 }
-                .buttonStyle(PillButtonStyle(isIPad: isIPad))
+                // Apply the new, compact style
+                .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             }
         }
         .alert("Error", isPresented: .constant(!error.isEmpty)) {
@@ -440,6 +462,9 @@ struct GameSetupView: View {
                 switch mode {
                 case .live:
                     let liveGame = try await createLiveGame()
+                    if let gameId = liveGame.id {
+                        try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
+                    }
                     await MainActor.run {
                         createdLiveGame = liveGame
                         showingLiveGameView = true
@@ -689,25 +714,6 @@ struct MultiDeviceLiveGameCard: View {
                 Toggle("Enable multi-device recording", isOn: $enableMultiDevice)
                     .font(.caption)
                     .toggleStyle(SwitchToggleStyle(tint: .orange))
-                
-                if enableMultiDevice {
-                    HStack(spacing: 8) {
-                        Image(systemName: "iphone")
-                            .font(.caption2)
-                        Text("iPhone: Recording")
-                            .font(.caption2)
-                        
-                        Text("•")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        
-                        Image(systemName: "ipad")
-                            .font(.caption2)
-                        Text("iPad: Control")
-                            .font(.caption2)
-                    }
-                    .foregroundColor(.secondary)
-                }
             }
             .padding()
             .background(Color(.systemGray6))

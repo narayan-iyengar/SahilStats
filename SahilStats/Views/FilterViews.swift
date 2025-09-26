@@ -74,27 +74,17 @@ struct FilterView: View {
                 
                 // Outcome Filter
                 Section("Game Outcome") {
-                    HStack {
-                        ForEach([GameOutcome.win, GameOutcome.loss, GameOutcome.tie], id: \.self) { outcome in
-                            Button(action: {
-                                selectedOutcomeFilter = selectedOutcomeFilter == outcome ? nil : outcome
-                            }) {
-                                HStack {
-                                    Text(outcome.emoji)
-                                    Text(outcome.displayName)
-                                        .font(.subheadline)
-                                }
-                                .foregroundColor(selectedOutcomeFilter == outcome ? .white : .primary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedOutcomeFilter == outcome ? Color.orange : Color(.systemGray5))
-                                )
-                            }
-                            .buttonStyle(PillButtonStyle(isIPad: isIPad))
+                    Picker("Outcome", selection: $selectedOutcomeFilter) {
+                        // This 'tag' represents the 'nil' state for no filter
+                        Text("All Outcomes").tag(Optional<GameOutcome>.none)
+
+                        // Loop through all possible outcomes
+                        ForEach(GameOutcome.allCases, id: \.self) { outcome in
+                            Text(outcome.displayName) // Using Label to show text
+                                .tag(Optional(outcome)) // Tag each option with its outcome value
                         }
                     }
+                    .pickerStyle(.menu)
                 }
                 
                 // Date Range Filter
