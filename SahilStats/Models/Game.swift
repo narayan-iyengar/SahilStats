@@ -815,6 +815,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
     @ServerTimestamp var createdAt: Date?
     var createdBy: String?
     var sahilOnBench: Bool?
+    var isMultiDeviceSetup: Bool?
     
     // 🔥 FIXED: Consistent time tracking properties (all stored in Firebase)
     var totalPlayingTimeMinutes: Double = 0.0 // Cumulative court time from completed segments

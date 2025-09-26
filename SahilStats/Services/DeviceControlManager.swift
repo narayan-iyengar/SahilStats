@@ -32,7 +32,9 @@ class DeviceControlManager: ObservableObject {
             self.deviceId = newId
         }
     }
+  
     
+    /*
     // ENHANCED: Request control with timeout tracking
     func requestControl(for liveGame: LiveGame, userEmail: String?) async throws -> Bool {
         guard let gameId = liveGame.id,
@@ -82,6 +84,29 @@ class DeviceControlManager: ObservableObject {
         
         try await firebaseService.updateLiveGame(updatedGame)
         return false // Control not granted yet, waiting for approval
+    }
+    */
+
+
+    // This function now directly TAKES control instead of just requesting it.
+    func requestControl(for liveGame: LiveGame, userEmail: String?) async throws {
+        guard let email = userEmail else {
+            throw DeviceControlError.invalidRequest
+        }
+
+        print("--- Taking Control ---")
+        var updatedGame = liveGame
+        updatedGame.controllingDeviceId = self.deviceId
+        updatedGame.controllingUserEmail = email
+        
+        // Clear any old requests to keep the data clean.
+        updatedGame.controlRequestedBy = nil
+        updatedGame.controlRequestingDeviceId = nil
+        updatedGame.controlRequestTimestamp = nil
+
+        // Update the game document in Firebase with the new controller.
+        try await firebaseService.updateLiveGame(updatedGame)
+        print("✅ Control successfully taken by \(email) on device \(self.deviceId)")
     }
     
     // NEW: Clear expired control request

@@ -365,26 +365,36 @@ struct DeviceRoleSelectionView: View {
         .cornerRadius(16)
     }
     
+
     @ViewBuilder
     private var roleSelectionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Select Your Device Role")
                 .font(.title2)
                 .fontWeight(.bold)
-            
-            Text("Choose how this device will participate in the live game recording and control.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
+
+
+            let hasRecorderAlready = roleManager.connectedDevices.contains { $0.role == .recorder }
+            let isMultiDeviceSession = liveGame.isMultiDeviceSetup ?? hasRecorderAlready
+
             VStack(spacing: 12) {
-                ForEach([DeviceRoleManager.DeviceRole.recorder, .controller, .viewer], id: \.self) { role in
-                    DeviceRoleCard(
-                        role: role,
-                        isSelected: selectedRole == role,
-                        isIPad: isIPad
-                    ) {
-                        selectedRole = role
+                // Show "Recording Device" option ONLY if:
+                // 1. It's a multi-device session.
+                // 2. A recorder has NOT already joined.
+                if isMultiDeviceSession && !hasRecorderAlready {
+                    DeviceRoleCard(role: .recorder, isSelected: selectedRole == .recorder, isIPad: isIPad) {
+                        selectedRole = .recorder
                     }
+                }
+
+                // "Control Device" option is always available for someone to take over.
+                DeviceRoleCard(role: .controller, isSelected: selectedRole == .controller, isIPad: isIPad) {
+                    selectedRole = .controller
+                }
+
+                // "Viewer" option is always available.
+                DeviceRoleCard(role: .viewer, isSelected: selectedRole == .viewer, isIPad: isIPad) {
+                    selectedRole = .viewer
                 }
             }
         }
@@ -435,15 +445,24 @@ struct DeviceRoleSelectionView: View {
         .opacity(selectedRole == .none ? 0.6 : 1.0)
     }
     
+    // In MultiDeviceRecordingSystem.swift -> DeviceRoleSelectionView
+
     private func connectToGame() {
         guard let gameId = liveGame.id else { return }
-        
         isConnecting = true
         
         Task {
             do {
+                // This now handles both setting the role AND taking control if needed.
+                if selectedRole == .controller {
+                    try await DeviceControlManager.shared.requestControl(for: liveGame, userEmail: authService.currentUserEmail)
+                }
+                
+                // Set the role locally in the app.
                 try await roleManager.setDeviceRole(selectedRole, for: gameId)
+                
                 await MainActor.run {
+                    // Dismiss the sheet to reveal the new view.
                     dismiss()
                 }
             } catch {

@@ -26,6 +26,7 @@ struct GameSetupView: View {
     @State private var createdLiveGame: LiveGame?
     @State private var showingRoleSelection = false // FIXED: Added missing property
     @State private var enableMultiDevice = false
+    @State private var isCreatingMultiDeviceGame = false
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
@@ -122,6 +123,7 @@ struct GameSetupView: View {
                 status: "Single device, no recording",
                 statusColor: .orange
             ) {
+                self.isCreatingMultiDeviceGame = false
                 self.setupMode = .gameForm
                 self.deviceRole = .controller
             }
@@ -135,6 +137,7 @@ struct GameSetupView: View {
                 status: "Controller + Recorder setup",
                 statusColor: .red
             ) {
+                self.isCreatingMultiDeviceGame = true
                 self.setupMode = .gameForm
                 self.deviceRole = .controller
             }
@@ -317,12 +320,12 @@ struct GameSetupView: View {
             Section {
                 if deviceRole == .controller {
                     Button("Start Live Game") {
-                        handleSubmit(mode: .live)
+                        handleSubmit(mode: .live, isMultiDevice: isCreatingMultiDeviceGame)
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 } else {
                     Button("Enter Game Stats") {
-                        handleSubmit(mode: .postGame)
+                        handleSubmit(mode: .postGame, isMultiDevice: false)
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
@@ -451,7 +454,7 @@ struct GameSetupView: View {
         locationManager.requestLocation()
     }
     
-    private func handleSubmit(mode: GameSubmissionMode) {
+    private func handleSubmit(mode: GameSubmissionMode, isMultiDevice: Bool) {
         guard !gameConfig.teamName.isEmpty && !gameConfig.opponent.isEmpty else {
             error = "Please enter team name and opponent"
             return
@@ -461,7 +464,7 @@ struct GameSetupView: View {
             do {
                 switch mode {
                 case .live:
-                    let liveGame = try await createLiveGame()
+                    let liveGame = try await createLiveGame(isMultiDevice: isMultiDevice)
                     if let gameId = liveGame.id {
                         try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
                     }
@@ -482,7 +485,7 @@ struct GameSetupView: View {
         }
     }
     
-    private func createLiveGame() async throws -> LiveGame {
+    private func createLiveGame(isMultiDevice: Bool) async throws -> LiveGame {
         let deviceId = DeviceControlManager.shared.deviceId
         var liveGame = LiveGame(
             teamName: gameConfig.teamName,
