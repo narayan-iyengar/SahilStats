@@ -15,8 +15,9 @@ import SwiftUI
 import FirebaseCore
 import Firebase
 import FirebaseAuth
+import Combine
 
-// MARK: - COMPACT COMPONENTS FOR STICKY HEADER
+
 
 // MARK: - Compact Device Control Status
 
@@ -479,6 +480,7 @@ struct LiveGameWatchView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @EnvironmentObject var authService: AuthService
     @StateObject private var firebaseService = FirebaseService.shared
+    @State private var localClockTime: TimeInterval = 0
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -516,7 +518,7 @@ struct LiveGameWatchView: View {
                 // Game info (read-only)
                 FixedSynchronizedClockCard(
                     period: liveGame.period,
-                    clockTime: liveGame.getCurrentClock(),
+                    clockTime: localClockTime,
                     isGameRunning: liveGame.isRunning,
                     gameFormat: liveGame.gameFormat, // ADD THIS
                     isIPad: isIPad
@@ -576,6 +578,14 @@ struct LiveGameWatchView: View {
                 }
             }
             .padding(isIPad ? 24 : 16)
+        }
+        .onAppear {
+            // Set the initial clock time when the view appears
+            localClockTime = liveGame.getCurrentClock()
+        }
+        .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
+            // Update the local clock time continuously
+            localClockTime = firebaseService.getCurrentLiveGame()?.getCurrentClock() ?? localClockTime
         }
     }
 }
