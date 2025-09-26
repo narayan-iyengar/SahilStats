@@ -439,6 +439,7 @@ struct GameSetupView: View {
             do {
                 switch mode {
                 case .live:
+                    print("here")
                     let liveGame = try await createLiveGame()
                     await MainActor.run {
                         createdLiveGame = liveGame
