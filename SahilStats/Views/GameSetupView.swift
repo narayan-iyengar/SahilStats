@@ -128,18 +128,19 @@ struct GameSetupView: View {
                 self.deviceRole = .controller
             }
 
-            // 3. Start a Multi-Device Session
+            // 3. UPDATED: Multi-Device Recording Session
             SetupOptionCard(
-                title: "Start Multi-Device Session",
-                subtitle: "Record video with a separate device",
+                title: "Multi-Device Recording",
+                subtitle: "Record video + control scoring separately",
                 icon: "video.fill",
                 color: .red,
-                status: "Controller + Recorder setup",
+                status: "Choose recorder or controller role",
                 statusColor: .red
             ) {
+                // NEW: Go directly to role selection for multi-device
                 self.isCreatingMultiDeviceGame = true
-                self.setupMode = .gameForm
-                self.deviceRole = .controller
+                self.setupMode = .recording // Use existing recording mode
+                self.deviceRole = .none
             }
 
             // 4. Join an Existing Game
@@ -350,8 +351,8 @@ struct GameSetupView: View {
         }
     }
     
-    // MARK: - Recording Role Selection (FIXED)
-    
+    // MARK: - 2. Update the recordingRoleSelection in GameSetupView.swift
+
     @ViewBuilder
     private var recordingRoleSelection: some View {
         VStack(spacing: 30) {
@@ -360,15 +361,44 @@ struct GameSetupView: View {
                     .font(.system(size: 60))
                     .foregroundColor(.red)
                 
-                Text("Recording Setup")
+                Text("Multi-Device Setup")
                     .font(.title)
                     .fontWeight(.bold)
                 
-                Text("Video recording with live overlays coming soon!")
+                Text("Choose your device's role in this recording session")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.top, 40)
+            
+            // Role selection cards - REUSE existing DeviceRoleCard components
+            VStack(spacing: 16) {
+                // Controller role
+                DeviceRoleCard(
+                    role: .controller,
+                    isSelected: deviceRole == .controller,
+                    isIPad: isIPad
+                ) {
+                    deviceRole = .controller
+                    setupMode = .gameForm // Go to game form to set up the game
+                }
+                
+                // Recorder role
+                DeviceRoleCard(
+                    role: .recorder,
+                    isSelected: deviceRole == .recorder,
+                    isIPad: isIPad
+                ) {
+                    deviceRole = .recorder
+                    // For recorder, we need an existing game to join
+                    if firebaseService.hasLiveGame {
+                        showingRoleSelection = true
+                    } else {
+                        // Show message that controller needs to create game first
+                        error = "A controller needs to create the game first. Ask them to start the live game, then try joining as a recorder."
+                    }
+                }
+            }
             
             Spacer()
             
@@ -439,6 +469,8 @@ struct GameSetupView: View {
         locationManager.requestLocation()
     }
     
+    // MARK: - 3. Update handleSubmit in GameSetupView.swift to support multi-device
+
     private func handleSubmit(mode: GameSubmissionMode, isMultiDevice: Bool) {
         guard !gameConfig.teamName.isEmpty && !gameConfig.opponent.isEmpty else {
             error = "Please enter team name and opponent"
@@ -451,7 +483,9 @@ struct GameSetupView: View {
                 case .live:
                     let liveGame = try await createLiveGame(isMultiDevice: isMultiDevice)
                     if let gameId = liveGame.id {
-                        try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
+                        // Set device role based on selection
+                        let selectedRole: DeviceRoleManager.DeviceRole = deviceRole == .controller ? .controller : .controller
+                        try await DeviceRoleManager.shared.setDeviceRole(selectedRole, for: gameId)
                     }
                     await MainActor.run {
                         createdLiveGame = liveGame
@@ -481,6 +515,8 @@ struct GameSetupView: View {
             createdBy: authService.currentUser?.email,
             deviceId: deviceId
         )
+        
+        liveGame.isMultiDeviceSetup = isMultiDevice
         
         let createdGameId = try await firebaseService.createLiveGame(liveGame)
         liveGame.id = createdGameId
