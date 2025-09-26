@@ -69,7 +69,7 @@ struct CompleteGameDetailView: View {
             .navigationTitle("Game Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
                         dismiss()
                     }) {
