@@ -320,84 +320,58 @@ struct LiveGameControllerView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // FIXED: Single header with all game info (no duplicate scores)
+            // The fixed header stays the same
             fixedGameHeader()
             
-            // FIXED: Main content - stats ONLY when playing and has control
-            ScrollView {
-                VStack(spacing: isIPad ? 24 : 20) {
-                    if !sahilOnBench && deviceControl.hasControl {
-                        // FIXED: Show detailed stats entry using your existing component
-                        detailedStatsEntryView()
-                        
-                        // Use your existing PlayerStatsSection for detailed stats display
-                        PlayerStatsSection(
-                            game: .constant(Game(
-                                teamName: serverGameState.teamName,
-                                opponent: serverGameState.opponent,
-                                myTeamScore: currentHomeScore,
-                                opponentScore: currentAwayScore,
-                                fg2m: currentStats.fg2m,
-                                fg2a: currentStats.fg2a,
-                                fg3m: currentStats.fg3m,
-                                fg3a: currentStats.fg3a,
-                                ftm: currentStats.ftm,
-                                fta: currentStats.fta,
-                                rebounds: currentStats.rebounds,
-                                assists: currentStats.assists,
-                                steals: currentStats.steals,
-                                blocks: currentStats.blocks,
-                                fouls: currentStats.fouls,
-                                turnovers: currentStats.turnovers
-                            )),
-                            authService: authService,
-                            firebaseService: firebaseService,
-                            isIPad: isIPad
-                        )
+            // --- NEW LOGIC ---
+            // If Sahil is NOT on the bench, show the scrollable stats view
+            if !sahilOnBench {
+                ScrollView {
+                    VStack(spacing: isIPad ? 24 : 20) {
+                        if deviceControl.hasControl {
+                            detailedStatsEntryView()
+                        } else {
+                             // This is where the viewer stats would go
+                             PlayerStatsSection(
+                                 game: .constant(Game(
+                                     teamName: serverGameState.teamName,
+                                     opponent: serverGameState.opponent,
+                                     myTeamScore: serverGameState.homeScore,
+                                     opponentScore: serverGameState.awayScore,
+                                     fg2m: serverGameState.playerStats.fg2m,
+                                     fg2a: serverGameState.playerStats.fg2a,
+                                     fg3m: serverGameState.playerStats.fg3m,
+                                     fg3a: serverGameState.playerStats.fg3a,
+                                     ftm: serverGameState.playerStats.ftm,
+                                     fta: serverGameState.playerStats.fta,
+                                     rebounds: serverGameState.playerStats.rebounds,
+                                     assists: serverGameState.playerStats.assists,
+                                     steals: serverGameState.playerStats.steals,
+                                     blocks: serverGameState.playerStats.blocks,
+                                     fouls: serverGameState.playerStats.fouls,
+                                     turnovers: serverGameState.playerStats.turnovers
+                                 )),
+                                 authService: authService,
+                                 firebaseService: firebaseService,
+                                 isIPad: isIPad
+                             )
+                        }
                         
                         PlayingTimeCard(
                             liveGame: serverGameState,
                             isIPad: isIPad
                         )
-                    } else if !sahilOnBench {
-                        // Viewer stats (read-only) using your existing component
-                        PlayerStatsSection(
-                            game: .constant(Game(
-                                teamName: serverGameState.teamName,
-                                opponent: serverGameState.opponent,
-                                myTeamScore: serverGameState.homeScore,
-                                opponentScore: serverGameState.awayScore,
-                                fg2m: serverGameState.playerStats.fg2m,
-                                fg2a: serverGameState.playerStats.fg2a,
-                                fg3m: serverGameState.playerStats.fg3m,
-                                fg3a: serverGameState.playerStats.fg3a,
-                                ftm: serverGameState.playerStats.ftm,
-                                fta: serverGameState.playerStats.fta,
-                                rebounds: serverGameState.playerStats.rebounds,
-                                assists: serverGameState.playerStats.assists,
-                                steals: serverGameState.playerStats.steals,
-                                blocks: serverGameState.playerStats.blocks,
-                                fouls: serverGameState.playerStats.fouls,
-                                turnovers: serverGameState.playerStats.turnovers
-                            )),
-                            authService: authService,  // This will determine if editing is allowed
-                            firebaseService: firebaseService,
-                            isIPad: isIPad
-                        )
-                    } else {
-                        VStack {
-                            Spacer(minLength: isIPad ? 90 : 50)
-                            onBenchMessage()
-                        }
+                        
+                        Spacer(minLength: 120)
                     }
-                    
-                    Spacer(minLength: 120)
+                    .padding(.horizontal, isIPad ? 24 : 16)
+                    .padding(.top, isIPad ? 20 : 16)
                 }
-                .padding(.horizontal, isIPad ? 24 : 16)
-                .padding(.top, isIPad ? 20 : 16)
+            } else {
+                onBenchMessage()
             }
         }
-        .background(Color(.systemBackground))
+        .background(Color(.white))
         // Keep all your existing alerts and onChange handlers...
         .alert("Control Request", isPresented: $showingControlRequestAlert) {
             Button("Grant Control", role: .none) {
@@ -518,7 +492,6 @@ struct LiveGameControllerView: View {
                 isIPad: isIPad,
                 hasControl: deviceControl.hasControl,
                 onStatusChange: {
-                        print("🔥 DEBUG: PlayerStatusCard onStatusChange triggered")
                         updatePlayingStatus()  // Make sure this calls updatePlayingStatus
                     }
             )
@@ -690,12 +663,12 @@ struct LiveGameControllerView: View {
         return (currentStats.fg2m * 2) + (currentStats.fg3m * 3) + currentStats.ftm
     }
     
+
     @ViewBuilder
     private func onBenchMessage() -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "figure.basketball")
-                .font(.system(size: isIPad ? 80 : 60))
-                .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            LottieView(name: "bench-animation")
+                //.frame(width: isIPad ? 150 : 120, height: isIPad ? 150 : 120)
             
             Text("Sahil is on the bench")
                 .font(isIPad ? .title : .title2)
@@ -707,7 +680,7 @@ struct LiveGameControllerView: View {
                 .foregroundColor(.secondary)
         }
         .padding(isIPad ? 32 : 24)
-        .background(Color(.systemGray6))
+        .background(Color.white) // Add this back
         .cornerRadius(isIPad ? 16 : 12)
     }
     

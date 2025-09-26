@@ -86,7 +86,7 @@ struct CompactStatusButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(isIPad ? .caption : .caption2)
+            .font(isIPad ? .title3 : .body)
             .fontWeight(.medium)
             .foregroundColor(isSelected ? .white : .orange)
             .padding(.vertical, isIPad ? 8 : 6) // Smaller padding

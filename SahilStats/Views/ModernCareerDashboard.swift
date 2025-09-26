@@ -14,6 +14,26 @@ import Combine
 
 // MARK: - Modern Career Dashboard
 
+struct StatSectionHeader: View {
+    let title: String
+    
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .fontWeight(.semibold)
+            .foregroundColor(.secondary)
+            .padding(.top, 8)
+    }
+}
+
+enum StatCategory: String, CaseIterable {
+    case core = "Core"
+    case performance = "Performance"
+    case shooting = "Shooting"
+    case advanced = "Advanced"
+}
+
+
 struct ModernCareerDashboard: View {
     let stats: CareerStats
     let games: [Game]
@@ -100,111 +120,51 @@ struct ModernTabSelector: View {
 
 // MARK: - Modern Overview Stats View
 
+// In ModernCareerDashboard.swift.swift
+
 struct ModernOverviewStatsView: View {
     let stats: CareerStats
     let isIPad: Bool
     
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: isIPad ? 16 : 12) {
-            // First row - main stats
-            ModernStatCard(
-                title: "Games",
-                value: "\(stats.totalGames)",
-                color: .blue,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Points",
-                value: "\(stats.totalPoints)",
-                color: .purple,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Avg",
-                value: String(format: "%.1f", stats.averagePoints),
-                color: .indigo,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Win %",
-                value: String(format: "%.0f%%", stats.winPercentage * 100),
-                color: stats.winPercentage > 0.5 ? .green : .red,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Avg Time",
-                value: String(format: "%.0fm", stats.averagePlayingTimePerGame),
-                color: .teal,
-                isIPad: isIPad
-            )
+        VStack(alignment: .leading, spacing: isIPad ? 20 : 16) {
+            
+            // --- Core Stats Section ---
+            StatSectionHeader(title: "Core Stats")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: isIPad ? 16 : 12) {
+                ModernStatCard(title: "Games", value: "\(stats.totalGames)", color: .blue, isIPad: isIPad)
+                ModernStatCard(title: "Points", value: "\(stats.totalPoints)", color: .purple, isIPad: isIPad)
+                ModernStatCard(title: "Avg", value: String(format: "%.1f", stats.averagePoints), color: .indigo, isIPad: isIPad)
+                ModernStatCard(title: "Win %", value: String(format: "%.0f%%", stats.winPercentage * 100), color: stats.winPercentage > 0.5 ? .green : .red, isIPad: isIPad)
+            }
 
-            ModernStatCard(
-                title: "Court %",
-                value: String(format: "%.0f%%", stats.playingTimePercentage),
-                color: .green,
-                isIPad: isIPad
-            )
+            // --- Performance Section ---
+            StatSectionHeader(title: "Performance")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: isIPad ? 16 : 12) {
+                ModernStatCard(title: "Rebounds", value: "\(stats.totalRebounds)", color: .mint, isIPad: isIPad)
+                ModernStatCard(title: "Assists", value: "\(stats.totalAssists)", color: .cyan, isIPad: isIPad)
+                ModernStatCard(title: "Steals", value: "\(stats.totalSteals)", color: .yellow, isIPad: isIPad)
+                ModernStatCard(title: "A/T", value: String(format: "%.1f", stats.assistTurnoverRatio), color: .indigo, isIPad: isIPad)
+            }
             
-            // Second row - other stats
-            ModernStatCard(
-                title: "Rebounds",
-                value: "\(stats.totalRebounds)",
-                color: .mint,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Assists",
-                value: "\(stats.totalAssists)",
-                color: .cyan,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Steals",
-                value: "\(stats.totalSteals)",
-                color: .yellow,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "Fouls",
-                value: "\(stats.totalFouls)",
-                color: .pink,
-                isIPad: isIPad
-            )
+            // --- Shooting Efficiency Section ---
+            StatSectionHeader(title: "Shooting")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: isIPad ? 16 : 12) {
+                ModernStatCard(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
+                ModernStatCard(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
+                ModernStatCard(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
+                ModernStatCard(title: "True Shooting", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
+            }
             
-            // Third row - shooting percentages
-            ModernStatCard(
-                title: "FG%",
-                value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100),
-                color: .blue,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "3P%",
-                value: String(format: "%.0f%%", stats.threePointPercentage * 100),
-                color: .green,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "FT%",
-                value: String(format: "%.0f%%", stats.freeThrowPercentage * 100),
-                color: .orange,
-                isIPad: isIPad
-            )
-            ModernStatCard(
-                title: "A/T",
-                value: String(format: "%.1f", stats.assistTurnoverRatio),
-                color: .indigo,
-                isIPad: isIPad
-            )
-            ModernStatCard(title: "Efficiency", value: String(format: "%.1f", stats.efficiencyRating), color: .indigo, isIPad: isIPad)
-            ModernStatCard(title: "True Shooting", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
-            ModernStatCard(title: "Effective FG", value: String(format: "%.0f%%", stats.effectiveFieldGoalPercentage * 100), color: .teal, isIPad: isIPad)
-            ModernStatCard(title: "PER", value: String(format: "%.1f", stats.playerEfficiencyRating), color: .purple, isIPad: isIPad)
-            
-            // Only show these if playing time data exists
+            // --- Advanced Analytics Section ---
             if stats.totalPlayingTimeMinutes > 0 {
-                ModernStatCard(title: "Pts/Min", value: String(format: "%.2f", stats.pointsPerMinute), color: .red, isIPad: isIPad)
-                ModernStatCard(title: "Eff/Min", value: String(format: "%.2f", stats.efficiencyPerMinute), color: .mint, isIPad: isIPad)
+                StatSectionHeader(title: "Advanced Analytics")
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: isIPad ? 16 : 12) {
+                    ModernStatCard(title: "PER", value: String(format: "%.1f", stats.playerEfficiencyRating), color: .purple, isIPad: isIPad)
+                    ModernStatCard(title: "Pts/Min", value: String(format: "%.2f", stats.pointsPerMinute), color: .red, isIPad: isIPad)
+                    ModernStatCard(title: "Eff/Min", value: String(format: "%.2f", stats.efficiencyPerMinute), color: .mint, isIPad: isIPad)
+                    ModernStatCard(title: "Efficiency", value: String(format: "%.1f", stats.efficiencyRating), color: .indigo, isIPad: isIPad)
+                }
             }
         }
     }
@@ -304,6 +264,19 @@ struct ModernCareerTrendsView: View {
                 return false
             }
         }
+        
+        var category: StatCategory {
+            switch self {
+            case .avgPoints, .totalPoints, .winRate, .gamesPlayed:
+                return .core
+            case .avgRebounds, .totalRebounds, .avgAssists, .totalAssists:
+                return .performance
+            case .fieldGoalPct, .threePointPct, .freeThrowPct, .trueShootingPct, .effectiveFGPct:
+                return .shooting
+            case .avgPlayingTime, .playingTimePercentage, .efficiencyRating, .pointsPerMinute, .playerEfficiencyRating, .efficiencyPerMinute:
+                return .advanced
+            }
+        }
     }
     
     enum TrendTimeframe: String, CaseIterable {
@@ -371,15 +344,26 @@ struct ModernCareerTrendsView: View {
             }
             
             // Stat selector buttons
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 4 : 3), spacing: isIPad ? 12 : 8) {
-                ForEach(TrendStatType.allCases, id: \.self) { stat in
-                    ModernStatButton(
-                        stat: stat,
-                        isSelected: selectedStat == stat,
-                        isIPad: isIPad
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            selectedStat = stat
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(StatCategory.allCases, id: \.self) { category in
+                    // Only show the section if there are stats for it
+                    let statsForCategory = TrendStatType.allCases.filter { $0.category == category }
+                    if !statsForCategory.isEmpty {
+                        
+                        StatSectionHeader(title: category.rawValue)
+                        
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isIPad ? 4 : 3), spacing: isIPad ? 12 : 8) {
+                            ForEach(statsForCategory, id: \.self) { stat in
+                                ModernStatButton(
+                                    stat: stat,
+                                    isSelected: selectedStat == stat,
+                                    isIPad: isIPad
+                                ) {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        selectedStat = stat
+                                    }
+                                }
+                            }
                         }
                     }
                 }
