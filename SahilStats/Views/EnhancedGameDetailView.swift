@@ -70,26 +70,13 @@ struct CompleteGameDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        if authService.canEditGames {
-                            Button(action: { }) {
-                                Label("Edit Game", systemImage: "pencil")
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(.orange)
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
                         dismiss()
                     }) {
                         // Use an HStack to combine the icon and text
                         HStack {
                             Image(systemName: "chevron.left")
-                            Text("Done")
+                            Text("Back")
                         }
                     }
                     .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
