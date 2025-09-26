@@ -195,6 +195,7 @@ struct GameListView: View {
     
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+
         ToolbarItemGroup(placement: .navigationBarTrailing) {
             GameListToolbar(
                 activeFiltersCount: filterManager.activeFiltersCount,
@@ -207,9 +208,8 @@ struct GameListView: View {
         }
         
         ToolbarItem(placement: .navigationBarLeading) {
-            if authService.isSignedIn {
-                UserStatusIndicator()
-            }
+              UserStatusIndicator()
+
         }
     }
 }

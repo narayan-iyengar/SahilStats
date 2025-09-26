@@ -45,18 +45,47 @@ struct EmptyStateView: View {
     }
 }
 
-// MARK: - User Status Indicator
+// MARK: - Enhanced User Status Indicator
 struct UserStatusIndicator: View {
+    @EnvironmentObject var authService: AuthService
+    
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "person.crop.circle.fill")
-                .foregroundColor(.green)
-                .font(.caption)
+        Image(systemName: statusIcon)
+            .foregroundColor(statusColor)
+            .font(.body) // Make it bigger
+            .frame(width: 24, height: 24) // Fixed frame for consistent centering
+            .background(statusColor.opacity(0.1))
+            .clipShape(Circle())
+    }
+    
+    private var statusIcon: String {
+        if authService.isSignedIn && !authService.isAnonymous {
+            return "person.crop.circle.fill"
+        } else if authService.isAnonymous {
+            return "person.crop.circle"
+        } else {
+            return "person.crop.circle.badge.xmark"
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.green.opacity(0.1))
-        .clipShape(Circle())
+    }
+    
+    private var statusColor: Color {
+        if authService.isSignedIn && !authService.isAnonymous {
+            return .green
+        } else if authService.isAnonymous {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
+    private var statusText: String {
+        if authService.isSignedIn && !authService.isAnonymous {
+            return authService.userRole.displayName
+        } else if authService.isAnonymous {
+            return "Guest"
+        } else {
+            return "Not Signed In"
+        }
     }
 }
 
@@ -73,28 +102,10 @@ struct GameListToolbar: View {
         HStack(spacing: 12) {
             // Filter button with badge
             Button(action: onShowFilters) {
-                ZStack {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.title3)
-                        .foregroundColor(.orange)
-                    
-                    if activeFiltersCount > 0 {
-                        VStack {
-                            HStack {
-                                Spacer()
-                                Text("\(activeFiltersCount)")
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                    .padding(2)
-                                    .background(Color.red)
-                                    .clipShape(Circle())
-                                    .offset(x: 8, y: -8)
-                            }
-                            Spacer()
-                        }
-                    }
-                }
+                // Conditionally change the icon based on whether filters are active
+                Image(systemName: activeFiltersCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    .font(.title3)
+                    .foregroundColor(.orange)
             }
             
             if hasLiveGame {

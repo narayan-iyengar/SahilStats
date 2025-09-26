@@ -142,6 +142,9 @@ struct GameDetailView: View {
 }
 
 
+
+
+
 struct GameDetailTimeCard: View {
     let title: String
     let time: Double

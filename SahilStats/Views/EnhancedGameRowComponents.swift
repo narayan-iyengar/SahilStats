@@ -120,9 +120,10 @@ struct EditableGameRowView: View {
             isEditing = true
         }
         
-        // Haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-        impactFeedback.impactOccurred()
+    #if !targetEnvironment(simulator)
+    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+    impactFeedback.impactOccurred()
+    #endif
     }
     
     private func cancelEditing() {
