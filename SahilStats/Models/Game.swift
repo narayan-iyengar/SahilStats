@@ -1103,114 +1103,205 @@ extension LiveGame {
     
     
     func toFirestoreData() -> [String: Any] {
-            var data: [String: Any] = [
-                "teamName": teamName,
-                "opponent": opponent,
-                "gameFormat": gameFormat.rawValue,
-                "periodLength": periodLength,
-                "numPeriods": numPeriods,
-                "isRunning": isRunning,
-                "period": period,
-                "clock": clock,
-                "homeScore": homeScore,
-                "awayScore": awayScore,
-                
-                // Player stats as nested dictionary
-                "playerStats": [
-                    "fg2m": playerStats.fg2m,
-                    "fg2a": playerStats.fg2a,
-                    "fg3m": playerStats.fg3m,
-                    "fg3a": playerStats.fg3a,
-                    "ftm": playerStats.ftm,
-                    "fta": playerStats.fta,
-                    "rebounds": playerStats.rebounds,
-                    "assists": playerStats.assists,
-                    "steals": playerStats.steals,
-                    "blocks": playerStats.blocks,
-                    "fouls": playerStats.fouls,
-                    "turnovers": playerStats.turnovers
-                ],
-                
-                // Time tracking
-                "totalPlayingTimeMinutes": totalPlayingTimeMinutes,
-                "benchTimeMinutes": benchTimeMinutes,
-                "sahilOnBench": sahilOnBench ?? false
+        var data: [String: Any] = [
+            "teamName": teamName,
+            "opponent": opponent,
+            "gameFormat": gameFormat.rawValue,
+            "periodLength": periodLength,
+            "numPeriods": numPeriods,
+            "isRunning": isRunning,
+            "period": period,
+            "clock": clock,
+            "homeScore": homeScore,
+            "awayScore": awayScore,
+            
+            // Player stats as nested dictionary
+            "playerStats": [
+                "fg2m": playerStats.fg2m,
+                "fg2a": playerStats.fg2a,
+                "fg3m": playerStats.fg3m,
+                "fg3a": playerStats.fg3a,
+                "ftm": playerStats.ftm,
+                "fta": playerStats.fta,
+                "rebounds": playerStats.rebounds,
+                "assists": playerStats.assists,
+                "steals": playerStats.steals,
+                "blocks": playerStats.blocks,
+                "fouls": playerStats.fouls,
+                "turnovers": playerStats.turnovers
+            ],
+            
+            // Time tracking
+            "totalPlayingTimeMinutes": totalPlayingTimeMinutes,
+            "benchTimeMinutes": benchTimeMinutes,
+            "sahilOnBench": sahilOnBench ?? false
+        ]
+        
+        // SAFE: Handle optional strings
+        if let location = location, !location.isEmpty {
+            data["location"] = location
+        }
+        
+        if let createdBy = createdBy {
+            data["createdBy"] = createdBy
+        }
+        
+        if let controllingDeviceId = controllingDeviceId {
+            data["controllingDeviceId"] = controllingDeviceId
+        }
+        
+        if let controllingUserEmail = controllingUserEmail {
+            data["controllingUserEmail"] = controllingUserEmail
+        }
+        
+        if let controlRequestedBy = controlRequestedBy {
+            data["controlRequestedBy"] = controlRequestedBy
+        }
+        
+        if let controlRequestingDeviceId = controlRequestingDeviceId {
+            data["controlRequestingDeviceId"] = controlRequestingDeviceId
+        }
+        
+        // CRITICAL: Handle timestamps safely
+        if let createdAt = createdAt {
+            data["createdAt"] = Timestamp(date: createdAt)
+        }
+        
+        if let clockStartTime = clockStartTime {
+            data["clockStartTime"] = Timestamp(date: clockStartTime)
+        }
+        
+        if let clockAtStart = clockAtStart {
+            data["clockAtStart"] = clockAtStart
+        }
+        
+        if let lastClockUpdate = lastClockUpdate {
+            data["lastClockUpdate"] = Timestamp(date: lastClockUpdate)
+        }
+        
+        if let controlRequestTimestamp = controlRequestTimestamp {
+            data["controlRequestTimestamp"] = Timestamp(date: controlRequestTimestamp)
+        }
+        
+        // SAFE: Convert time segments
+        data["timeSegments"] = timeSegments.map { segment in
+            var segmentData: [String: Any] = [
+                "isOnCourt": segment.isOnCourt,
+                "startTime": Timestamp(date: segment.startTime)
             ]
             
-            // SAFE: Handle optional strings
-            if let location = location, !location.isEmpty {
-                data["location"] = location
+            if let endTime = segment.endTime {
+                segmentData["endTime"] = Timestamp(date: endTime)
             }
             
-            if let createdBy = createdBy {
-                data["createdBy"] = createdBy
-            }
-            
-            if let controllingDeviceId = controllingDeviceId {
-                data["controllingDeviceId"] = controllingDeviceId
-            }
-            
-            if let controllingUserEmail = controllingUserEmail {
-                data["controllingUserEmail"] = controllingUserEmail
-            }
-            
-            if let controlRequestedBy = controlRequestedBy {
-                data["controlRequestedBy"] = controlRequestedBy
-            }
-            
-            if let controlRequestingDeviceId = controlRequestingDeviceId {
-                data["controlRequestingDeviceId"] = controlRequestingDeviceId
-            }
-            
-            // CRITICAL: Handle timestamps safely
-            if let createdAt = createdAt {
-                data["createdAt"] = Timestamp(date: createdAt)
-            }
-            
-            if let clockStartTime = clockStartTime {
-                data["clockStartTime"] = Timestamp(date: clockStartTime)
-            }
-            
-            if let clockAtStart = clockAtStart {
-                data["clockAtStart"] = clockAtStart
-            }
-            
-            if let lastClockUpdate = lastClockUpdate {
-                data["lastClockUpdate"] = Timestamp(date: lastClockUpdate)
-            }
-            
-            if let controlRequestTimestamp = controlRequestTimestamp {
-                data["controlRequestTimestamp"] = Timestamp(date: controlRequestTimestamp)
-            }
-            
-            // SAFE: Convert time segments
-            data["timeSegments"] = timeSegments.map { segment in
-                var segmentData: [String: Any] = [
-                    "isOnCourt": segment.isOnCourt,
-                    "startTime": Timestamp(date: segment.startTime)
-                ]
-                
-                if let endTime = segment.endTime {
-                    segmentData["endTime"] = Timestamp(date: endTime)
-                }
-                
-                return segmentData
-            }
-            
-            // SAFE: Handle current time segment
-            if let currentSegment = currentTimeSegment {
-                var currentSegmentData: [String: Any] = [
-                    "isOnCourt": currentSegment.isOnCourt,
-                    "startTime": Timestamp(date: currentSegment.startTime)
-                ]
-                
-                if let endTime = currentSegment.endTime {
-                    currentSegmentData["endTime"] = Timestamp(date: endTime)
-                }
-                
-                data["currentTimeSegment"] = currentSegmentData
-            }
-            
-            return data
+            return segmentData
         }
+        
+        // SAFE: Handle current time segment
+        if let currentSegment = currentTimeSegment {
+            var currentSegmentData: [String: Any] = [
+                "isOnCourt": currentSegment.isOnCourt,
+                "startTime": Timestamp(date: currentSegment.startTime)
+            ]
+            
+            if let endTime = currentSegment.endTime {
+                currentSegmentData["endTime"] = Timestamp(date: endTime)
+            }
+            
+            data["currentTimeSegment"] = currentSegmentData
+        }
+        
+        return data
+    }
+    // Track which device is the recorder (for multi-device setups)
+        var recordingDeviceId: String? {
+              get {
+                  // You can add this as a stored property to your LiveGame struct
+                  // For now, return nil as placeholder
+                  return nil
+              }
+              set {
+                  // Implement setter when you add this as a stored property
+
+              }
+          }
+    
+    var recordingUserEmail: String? {
+        get {
+            // You can add this as a stored property to your LiveGame struct
+            // For now, return nil as placeholder
+            return nil
+        }
+        set {
+            // Implement setter when you add this as a stored property
+
+        }
+    }
+    
+    // Track connected viewers
+    var connectedViewers: [String] {
+        get {
+            // You can add this as a stored property to your LiveGame struct
+            // For now, return nil as placeholder
+            return []
+        }
+        set {
+            // Implement setter when you add this as a stored property
+
+        }
+    }
+    
+    // MARK: - Role Availability Check Methods
+    
+func isControllerRoleAvailable() -> Bool {
+        return controllingDeviceId == nil || controllingUserEmail == nil
+    }
+    
+    func isRecorderRoleAvailable() -> Bool {
+        // Only allow recorder if this is a multi-device setup and no recorder is connected
+        guard isMultiDeviceSetup == true else { return false }
+        return recordingDeviceId == nil || recordingUserEmail == nil
+    }
+    
+    func getAvailableRoles() -> [DeviceRoleManager.DeviceRole] {
+        var roles: [DeviceRoleManager.DeviceRole] = []
+        
+        if isControllerRoleAvailable() {
+            roles.append(.controller)
+        }
+        
+        if isRecorderRoleAvailable() {
+            roles.append(.recorder)
+        }
+        
+        // Viewers are always allowed
+        roles.append(.viewer)
+        
+        return roles
+    }
+    
+    func getRoleStatus() -> String {
+        var status: [String] = []
+        
+        if controllingDeviceId != nil {
+            status.append("Controller: Connected")
+        } else {
+            status.append("Controller: Available")
+        }
+        
+        if isMultiDeviceSetup == true {
+            if recordingDeviceId != nil {
+                status.append("Recorder: Connected")
+            } else {
+                status.append("Recorder: Available")
+            }
+        }
+        
+        if !connectedViewers.isEmpty {
+            status.append("Viewers: \(connectedViewers.count)")
+        }
+        
+        return status.joined(separator: " • ")
+    }
 }
+
