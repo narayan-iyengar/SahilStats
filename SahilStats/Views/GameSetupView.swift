@@ -342,7 +342,7 @@ struct GameSetupView: View {
         }
         .navigationBarBackButtonHidden()
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
                     setupMode = .selection
                     deviceRole = .none

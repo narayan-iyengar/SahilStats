@@ -111,10 +111,6 @@ struct GameListToolbar: View {
             if hasLiveGame {
                 LiveGameButton(action: onShowLiveGame)
             }
-            
-            if canCreateGames {
-                AddGameButton(isIPad: isIPad)
-            }
         }
     }
 }
@@ -145,17 +141,6 @@ struct LiveGameButton: View {
     }
 }
 
-// MARK: - Add Game Button
-struct AddGameButton: View {
-    let isIPad: Bool
-    var body: some View {
-        NavigationLink(destination: GameSetupView()) {
-            Image(systemName: "plus")
-                .fontWeight(.semibold)
-                .foregroundColor(.orange)
-        }
-    }
-}
 
 // MARK: - Game Delete Alert
 struct GameDeleteAlert: View {
