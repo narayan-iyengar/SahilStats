@@ -29,13 +29,6 @@ struct ControlDeviceView: View {
     }
 }
 
-// MARK: - Recording Stats and Components
-
-struct RecordingStats {
-    var totalRecordings: Int = 0
-    var totalDuration: TimeInterval = 0
-    var currentSessionDuration: TimeInterval = 0
-}
 
 struct LiveScoreOverlay: View {
     let game: LiveGame
@@ -98,7 +91,7 @@ struct RecordingDeviceView: View {
     @State private var previewLayer: AVCaptureVideoPreviewLayer?
     @State private var showingControls = true
     @State private var hideControlsTimer: Timer?
-    @State private var recordingStats = RecordingStats()
+    @State private var totalRecordings: Int = 0
     
     // Real-time game data
     private var currentGame: LiveGame {
@@ -120,12 +113,9 @@ struct RecordingDeviceView: View {
                 recordingSetupView
             }
             
-            // Live score overlay (always visible when recording)
+            // REUSE existing ScoreOverlayView when recording
             if recordingManager.isRecording {
-                LiveScoreOverlay(
-                    game: currentGame,
-                    recordingDuration: recordingManager.recordingDuration
-                )
+                ScoreOverlayView(overlayData: createOverlayData())
             }
             
             // Recording controls (hideable)
@@ -133,27 +123,42 @@ struct RecordingDeviceView: View {
                 recordingControlsOverlay
                     .transition(.opacity)
             }
-            
-            // Connection status
-            connectionStatusOverlay
         }
         .navigationBarHidden(true)
         .onAppear {
             setupRecordingDevice()
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            updateRecordingStats()
-        }
-        .alert("Recording Error", isPresented: .constant(recordingManager.error != nil)) {
-            Button("OK") {
-                recordingManager.error = nil
-            }
-        } message: {
-            if let error = recordingManager.error {
-                Text(error.localizedDescription)
-            }
+            updateOverlayData()
         }
     }
+    
+    // REUSE existing overlay system
+    private func createOverlayData() -> ScoreOverlayData {
+        ScoreOverlayData(
+            homeScore: currentGame.homeScore,
+            awayScore: currentGame.awayScore,
+            period: currentGame.period,
+            clock: currentGame.currentClockDisplay,
+            teamName: currentGame.teamName,
+            opponent: currentGame.opponent,
+            timestamp: Date(),
+            isLiveGame: true
+        )
+    }
+    
+    private func updateOverlayData() {
+        // Update recording manager overlay data for live games
+        recordingManager.updateOverlay(
+            homeScore: currentGame.homeScore,
+            awayScore: currentGame.awayScore,
+            period: currentGame.period,
+            clock: currentGame.currentClockDisplay,
+            teamName: currentGame.teamName,
+            opponent: currentGame.opponent
+        )
+    }
+
     
     // MARK: - Recording Setup
     
@@ -264,8 +269,8 @@ struct RecordingDeviceView: View {
                 .monospacedDigit()
             
             // Recording stats
-            if recordingStats.totalRecordings > 0 {
-                Text("\(recordingStats.totalRecordings) clips")
+            if totalRecordings > 0 {
+                Text("\(totalRecordings) clips")
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.7))
             }
@@ -290,9 +295,9 @@ struct RecordingDeviceView: View {
                     .fill(.white.opacity(0.3))
                     .frame(width: 50, height: 50)
                     .overlay {
-                        if recordingStats.totalRecordings > 0 {
+                        if totalRecordings > 0 {
                             VStack(spacing: 2) {
-                                Text("\(recordingStats.totalRecordings)")
+                                Text("\(totalRecordings)")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
@@ -421,12 +426,6 @@ struct RecordingDeviceView: View {
         }
     }
     
-    private func updateRecordingStats() {
-        // Update recording statistics
-        if recordingManager.isRecording {
-            recordingStats.currentSessionDuration = recordingManager.recordingDuration
-        }
-    }
     
     private func disconnect() {
         Task {

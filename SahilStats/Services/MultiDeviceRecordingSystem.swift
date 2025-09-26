@@ -445,7 +445,6 @@ struct DeviceRoleSelectionView: View {
         .opacity(selectedRole == .none ? 0.6 : 1.0)
     }
     
-    // In MultiDeviceRecordingSystem.swift -> DeviceRoleSelectionView
 
     private func connectToGame() {
         guard let gameId = liveGame.id else { return }
@@ -453,16 +452,16 @@ struct DeviceRoleSelectionView: View {
         
         Task {
             do {
-                // This now handles both setting the role AND taking control if needed.
+                // Set the role locally in the app
+                try await roleManager.setDeviceRole(selectedRole, for: gameId)
+                
+                // If this is a controller joining, take control
                 if selectedRole == .controller {
                     try await DeviceControlManager.shared.requestControl(for: liveGame, userEmail: authService.currentUserEmail)
                 }
                 
-                // Set the role locally in the app.
-                try await roleManager.setDeviceRole(selectedRole, for: gameId)
-                
                 await MainActor.run {
-                    // Dismiss the sheet to reveal the new view.
+                    // Dismiss the sheet to reveal the new view
                     dismiss()
                 }
             } catch {

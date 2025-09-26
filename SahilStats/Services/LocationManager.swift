@@ -4,6 +4,8 @@ import Foundation
 import CoreLocation
 import Combine
 import SwiftUI
+import MapKit // Add MapKit import
+import Contacts // Add Contacts import for CNPostalAddress
 
 class LocationManager: NSObject, ObservableObject {
     static let shared = LocationManager()
@@ -15,7 +17,7 @@ class LocationManager: NSObject, ObservableObject {
     @Published var locationName: String = ""
     
     private let locationManager = CLLocationManager()
-    private let geocoder = CLGeocoder()
+    // Replace CLGeocoder with MKLocalSearchCompleter (we'll use MKLocalSearch for reverse geocoding)
     
     // MARK: - Added Properties for GameSetupView compatibility
     
@@ -61,7 +63,6 @@ class LocationManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
-        // We only set the delegate here. We won't check for status until it's requested.
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
@@ -74,16 +75,12 @@ class LocationManager: NSObject, ObservableObject {
         isLoading = true
         error = nil
         
-        // Get the most current authorization status directly from the manager
         let currentStatus = locationManager.authorizationStatus
         
         switch currentStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            // If we already have permission, start the location request.
             startLocationRequest()
         case .notDetermined:
-            // If permission hasn't been asked for, request it now.
-            // The delegate will handle the response.
             locationManager.requestWhenInUseAuthorization()
         case .denied:
             isLoading = false
@@ -106,13 +103,21 @@ class LocationManager: NSObject, ObservableObject {
     }
     
     private func startLocationRequest() {
-        guard CLLocationManager.locationServicesEnabled() else {
-            isLoading = false
-            error = .unavailable
-            return
+        // Move the location services check to a background queue
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard CLLocationManager.locationServicesEnabled() else {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.error = .unavailable
+                }
+                return
+            }
+            
+            // Start location updates on main queue
+            DispatchQueue.main.async {
+                self.locationManager.startUpdatingLocation()
+            }
         }
-        
-        locationManager.requestLocation()
         
         // Timeout after 10 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
@@ -124,15 +129,26 @@ class LocationManager: NSObject, ObservableObject {
         }
     }
     
-    // This is the stable, working version of the function using CLGeocoder
+    // Updated reverse geocoding method using MapKit instead of CLGeocoder
     private func reverseGeocode(_ location: CLLocation) {
-        let geocoder = CLGeocoder()
+        let coordinate = location.coordinate
         
-        geocoder.reverseGeocodeLocation(location) { [weak self] (placemarks, error) in
+        // Create an MKLocalSearch request for reverse geocoding
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = "\(coordinate.latitude), \(coordinate.longitude)"
+        request.region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: 1000,
+            longitudinalMeters: 1000
+        )
+        
+        let search = MKLocalSearch(request: request)
+        
+        search.start { [weak self] (response, error) in
             guard let self = self else { return }
             
             if let error = error {
-                print("CLGeocoder error: \(error)")
+                print("MapKit reverse geocoding error: \(error)")
                 DispatchQueue.main.async {
                     self.error = .geocodingFailed
                     self.isLoading = false
@@ -141,38 +157,43 @@ class LocationManager: NSObject, ObservableObject {
             }
             
             DispatchQueue.main.async {
-                if let placemark = placemarks?.first {
-                    self.locationName = self.formatLocationName(from: placemark)
+                if let mapItem = response?.mapItems.first {
+                    self.locationName = self.formatLocationName(from: mapItem)
+                } else {
+                    // Fallback to coordinate display if no results
+                    self.locationName = String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
                 }
                 self.isLoading = false
             }
         }
     }
 
-    private func formatLocationName(from placemark: CLPlacemark) -> String {
+    // Updated to work with MKMapItem using modern iOS 26+ APIs
+    private func formatLocationName(from mapItem: MKMapItem) -> String {
         var components: [String] = []
         
-        if let name = placemark.name {
+        // Use the map item's name first
+        if let name = mapItem.name {
             components.append(name)
-        } else if let thoroughfare = placemark.thoroughfare {
-            components.append(thoroughfare)
         }
         
-        if let locality = placemark.locality {
-            components.append(locality)
-        }
-        
-        if let administrativeArea = placemark.administrativeArea {
-            components.append(administrativeArea)
+        // Use addressRepresentations for modern iOS 26+ API
+        if let addressReps = mapItem.addressRepresentations {
+            // Use the full address from MKAddressRepresentations
+            let fullAddress = addressReps.fullAddress(includingRegion: true, singleLine: true)
+        } else {
+            // Fallback to placemark for older iOS versions or if addressRepresentations is not available
+            let placemark = mapItem.address
+            
         }
         
         if !components.isEmpty {
             return components.joined(separator: ", ")
         }
         
-        let lat = placemark.location?.coordinate.latitude ?? 0
-        let lon = placemark.location?.coordinate.longitude ?? 0
-        return String(format: "%.4f, %.4f", lat, lon)
+        // Fallback to coordinates using the modern location property
+        let coordinate = mapItem.location.coordinate
+        return String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
     }
 }
 
@@ -196,25 +217,20 @@ extension LocationManager: CLLocationManagerDelegate {
         }
     }
     
-    // This delegate method is now the central point for handling authorization changes.
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         self.authorizationStatus = manager.authorizationStatus
         
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            // If the user just granted permission and we were in the process of loading,
-            // we can now start the location request.
             if isLoading {
                 startLocationRequest()
             }
         case .denied, .restricted:
-            // If the user denied permission, update the state.
             if isLoading {
                 isLoading = false
                 error = .denied
             }
         case .notDetermined:
-            // This state is handled when the requestLocation button is tapped.
             break
         @unknown default:
             if isLoading {

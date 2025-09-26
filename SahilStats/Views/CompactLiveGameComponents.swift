@@ -157,10 +157,10 @@ struct CompactLiveScoreCard: View {
     var body: some View {
         VStack(spacing: isIPad ? 20 : 16) {
             // Title
-            Text("Live Score")
-                .font(isIPad ? .title2 : .title3)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
+            //Text("Live Score")
+             //   .font(isIPad ? .title2 : .title3)
+             //   .fontWeight(.bold)
+             //   .foregroundColor(.primary)
             
             HStack(spacing: isIPad ? 32 : 24) { // Much more spacing between teams
                 // Home team
@@ -287,10 +287,10 @@ struct CompactLiveScoreDisplayCard: View {
     
     var body: some View {
         VStack(spacing: isIPad ? 20 : 16) {
-            Text("Live Score")
-                .font(isIPad ? .title2 : .title3)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
+            //Text("Live Score")
+            //    .font(isIPad ? .title2 : .title3)
+            //    .fontWeight(.bold)
+            //    .foregroundColor(.primary)
             
             HStack(spacing: isIPad ? 40 : 32) { // More spacing for read-only too
                 VStack(spacing: isIPad ? 16 : 12) {
@@ -843,9 +843,9 @@ struct LiveScoreDisplayCard: View {
     
     var body: some View {
         VStack(spacing: isIPad ? 20 : 16) {
-            Text("Live Score")
-                .font(isIPad ? .title2 : .headline)
-                .fontWeight(.bold)
+            //Text("Live Score")
+            //    .font(isIPad ? .title2 : .headline)
+             //   .fontWeight(.bold)
             
             HStack(spacing: isIPad ? 40 : 30) {
                 VStack(spacing: isIPad ? 12 : 8) {
