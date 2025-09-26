@@ -95,8 +95,8 @@ struct SettingsView: View {
                 Section("Game Format") {
                     // Format selection
                     Picker("Format", selection: $settingsManager.gameFormat) {
-                        Text("Periods").tag(GameFormat.periods)
                         Text("Halves").tag(GameFormat.halves)
+                        Text("Periods").tag(GameFormat.periods)
                     }
                     .pickerStyle(.segmented)
                     

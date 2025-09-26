@@ -18,6 +18,7 @@ class RefreshTrigger: ObservableObject {
 struct LiveGameView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var roleManager = DeviceRoleManager.shared
+    
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -44,21 +45,17 @@ struct LiveGameView: View {
             }
         }
         .onAppear {
-            // Auto-reconnect if previously connected
-            if roleManager.isConnectedToGame,
-               let gameId = roleManager.liveGameId,
-               firebaseService.getCurrentLiveGame()?.id == gameId {
-                // Already connected, stay in current role
-            } else if firebaseService.hasLiveGame && !roleManager.isConnectedToGame {
-                // New live game available, show role selection
-                showingRoleSelection = true
+                // This is the logic that runs when the LiveGameView is presented.
+                // If there's a game but this device has no role, show the selection screen.
+                if firebaseService.hasLiveGame && !roleManager.isConnectedToGame && roleManager.deviceRole == .none {
+                    showingRoleSelection = true
+                }
             }
-        }
-        .sheet(isPresented: $showingRoleSelection) {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                DeviceRoleSelectionView(liveGame: liveGame)
+            .sheet(isPresented: $showingRoleSelection) {
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    DeviceRoleSelectionView(liveGame: liveGame)
+                }
             }
-        }
     }
 }
 
@@ -1085,19 +1082,18 @@ struct LiveGameControllerView: View {
         }
     }
     
+
+
     private func requestControl() {
         Task {
             do {
-                let granted = try await deviceControl.requestControl(
+                // This function now directly takes control and doesn't return a value.
+                try await deviceControl.requestControl(
                     for: serverGameState,
                     userEmail: authService.currentUser?.email
                 )
-                
-                if !granted {
-                    await MainActor.run {
-                        print("Control request sent, waiting for approval...")
-                    }
-                }
+                // Since control is taken immediately, we no longer need to check if it was granted.
+                // The UI will update automatically when the game state changes in Firebase.
             } catch {
                 await MainActor.run {
                     self.error = error.localizedDescription

@@ -56,6 +56,9 @@ struct GameListView: View {
                 isIPad: isIPad
             )
         }
+        .fullScreenCover(isPresented: $showingLiveGame) {
+            LiveGameView()
+        }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             GameDeleteAlert(
                 gameToDelete: $gameToDelete,
@@ -146,16 +149,7 @@ struct GameListView: View {
             .listRowSeparator(.hidden)
         }
 
-/*
-        // Live game indicator
-        if firebaseService.hasLiveGame {
-            Section {
-                LiveGameIndicatorView(onTap: { showingLiveGame = true })
-            }
-            .listRowBackground(Color.red.opacity(0.1))
-            .listRowSeparator(.hidden)
-        }
-*/
+
         
         // Games list
         Section {
