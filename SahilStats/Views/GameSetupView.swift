@@ -343,18 +343,21 @@ struct GameSetupView: View {
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
+                // Add Back chevron in top left
                 Button(action: {
-                    setupMode = .selection
-                    deviceRole = .none
-                    gameId = ""
+                    dismiss()
                 }) {
-                    // Include an icon for a better UX
-                    HStack {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
-                    }
+                    Image(systemName: "chevron.left")
+                        .font(isIPad ? .title2 : .title3)
+                        .foregroundColor(.orange)
                 }
-                // Apply the new, compact style
+            }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                // Add Done button in top right
+                Button("Done") {
+                    dismiss()
+                }
                 .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             }
         }

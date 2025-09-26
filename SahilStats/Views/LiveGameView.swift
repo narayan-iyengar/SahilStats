@@ -13,8 +13,6 @@ class RefreshTrigger: ObservableObject {
 }
 
 
-
-
 struct LiveGameView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var roleManager = DeviceRoleManager.shared
@@ -25,40 +23,55 @@ struct LiveGameView: View {
     
     @State private var showingRoleSelection = false
     
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
     var body: some View {
-        Group {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                // 🆕 Route based on device role
-                switch roleManager.deviceRole {
-                case .recorder:
-                    RecordingDeviceView(liveGame: liveGame)
-                case .controller:
-                    ControlDeviceView(liveGame: liveGame)
-                case .viewer:
-                    LiveGameWatchView(liveGame: liveGame)
-                case .none:
-                    // Show role selection
-                    DeviceRoleSelectionView(liveGame: liveGame)
+        NavigationView {
+            Group {
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    // 🆕 Route based on device role
+                    switch roleManager.deviceRole {
+                    case .recorder:
+                        RecordingDeviceView(liveGame: liveGame)
+                    case .controller:
+                        ControlDeviceView(liveGame: liveGame)
+                    case .viewer:
+                        LiveGameWatchView(liveGame: liveGame)
+                    case .none:
+                        // Show role selection
+                        DeviceRoleSelectionView(liveGame: liveGame)
+                    }
+                } else {
+                    NoLiveGameView()
                 }
-            } else {
-                NoLiveGameView()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    // Add Done button in top right
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
+                }
             }
         }
         .onAppear {
-                // This is the logic that runs when the LiveGameView is presented.
-                // If there's a game but this device has no role, show the selection screen.
-                if firebaseService.hasLiveGame && !roleManager.isConnectedToGame && roleManager.deviceRole == .none {
-                    showingRoleSelection = true
-                }
+            // This is the logic that runs when the LiveGameView is presented.
+            // If there's a game but this device has no role, show the selection screen.
+            if firebaseService.hasLiveGame && !roleManager.isConnectedToGame && roleManager.deviceRole == .none {
+                showingRoleSelection = true
             }
-            .sheet(isPresented: $showingRoleSelection) {
-                if let liveGame = firebaseService.getCurrentLiveGame() {
-                    DeviceRoleSelectionView(liveGame: liveGame)
-                }
+        }
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                DeviceRoleSelectionView(liveGame: liveGame)
             }
+        }
     }
 }
-
 
 // MARK: - Live Points Summary Card (Add this to LiveGameView.swift)
 
