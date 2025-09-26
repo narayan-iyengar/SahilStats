@@ -83,10 +83,16 @@ struct CompleteGameDetailView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") {
+                    Button(action: {
                         dismiss()
+                    }) {
+                        // Use an HStack to combine the icon and text
+                        HStack {
+                            Image(systemName: "chevron.left")
+                            Text("Done")
+                        }
                     }
-                    .buttonStyle(PillButtonStyle(isIPad: isIPad))
+                    .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
                 }
             }
         }
