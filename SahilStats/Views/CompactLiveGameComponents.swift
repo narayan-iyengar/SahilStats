@@ -897,12 +897,8 @@ struct PlayerStatusCard: View {
     
     var body: some View {
         HStack(spacing: isIPad ? 16 : 12) {
-            Text("Sahil:")
-                .font(isIPad ? .body : .subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
             
-            Spacer()
+            //Spacer()
             
             if hasControl {
                 // INTERACTIVE: Only show buttons if user has control
@@ -927,9 +923,9 @@ struct PlayerStatusCard: View {
                 }
             } else {
                 // READ-ONLY: Just show the current status
-                Text(sahilOnBench ? "On Bench" : "On Court")
+                Text(sahilOnBench ? "On The Bench" : "On The Court")
                     .font(isIPad ? .body : .subheadline)
-                    .fontWeight(.medium)
+                    .fontWeight(.bold)
                     .foregroundColor(sahilOnBench ? .orange : .green)
                     .padding(.horizontal, isIPad ? 12 : 10)
                     .padding(.vertical, isIPad ? 6 : 5)
@@ -950,12 +946,8 @@ struct PlayerStatusDisplayCard: View {
     
     var body: some View {
         HStack(spacing: isIPad ? 16 : 12) {
-            Text("Sahil:")
-                .font(isIPad ? .body : .subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
             
-            Spacer()
+            //Spacer()
             
             // READ-ONLY status display
             Text(sahilOnBench ? "On Bench" : "On Court")

@@ -84,7 +84,7 @@ struct LivePointsSummaryCard: View {
     }
     
     var body: some View {
-        VStack(spacing: isIPad ? 16 : 12) {
+        VStack(spacing: isIPad ? 8 : 6) {
             HStack {
                 Text("Points Breakdown")
                     .font(isIPad ? .title2 : .headline)
@@ -306,6 +306,14 @@ struct LiveGameControllerView: View {
     @State private var localClockTime: TimeInterval = 0
     @State private var lastServerUpdate: Date = Date()
     
+    
+    // NEW: Header collapse state
+    @State private var headerHeight: CGFloat = 0
+    @State private var isHeaderCollapsed = false
+    @State private var scrollOffset: CGFloat = 0
+    
+    
+    
     // iPad detection
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -319,6 +327,23 @@ struct LiveGameControllerView: View {
     private var isGameRunning: Bool {
         serverGameState.isRunning
     }
+    
+    // NEW: Compute header states
+     private var expandedHeaderHeight: CGFloat {
+         isIPad ? 400 : 320 // Adjust based on your actual header size
+     }
+     
+     private var collapsedHeaderHeight: CGFloat {
+         isIPad ? 120 : 100 // Minimal header size
+     }
+     
+     private var headerProgress: Double {
+         guard expandedHeaderHeight > collapsedHeaderHeight else { return 1.0 }
+         let progress = (headerHeight - collapsedHeaderHeight) / (expandedHeaderHeight - collapsedHeaderHeight)
+         return max(0, min(1, progress))
+     }
+    
+    
     
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
@@ -377,8 +402,8 @@ struct LiveGameControllerView: View {
                         
                         Spacer(minLength: 120)
                     }
-                    .padding(.horizontal, isIPad ? 24 : 16)
-                    .padding(.top, isIPad ? 20 : 16)
+                    .padding(.horizontal, isIPad ? 20 : 16)
+                    .padding(.vertical, isIPad ? 12 : 8)
                 }
             } else {
                 OnBenchMessage(isIPad: isIPad)
@@ -386,17 +411,6 @@ struct LiveGameControllerView: View {
         }
         .background(Color(.white))
         // Keep all your existing alerts and onChange handlers...
-        .alert("Control Request", isPresented: $showingControlRequestAlert) {
-            Button("Grant Control", role: .none) {
-                grantControlToRequester()
-            }
-            Button("Deny", role: .cancel) {
-                denyControlRequest()
-            }
-        } message: {
-            let deviceInfo = requestingDeviceId.suffix(6)
-            Text("Another device (\(deviceInfo)) is requesting control of the game. Grant control?")
-        }
         .alert("Finish Game", isPresented: $showingFinishAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Finish", role: .destructive) {
@@ -459,7 +473,7 @@ struct LiveGameControllerView: View {
     
     @ViewBuilder
     private func fixedGameHeader() -> some View {
-        VStack(spacing: isIPad ? 16 : 12) {
+        VStack(spacing: isIPad ? 8 : 6) {
             // Device Control Status
             CompactDeviceControlStatusCard(
                 hasControl: deviceControl.hasControl,
@@ -524,8 +538,8 @@ struct LiveGameControllerView: View {
                 )
             }
         }
-        .padding(.horizontal, isIPad ? 24 : 16)
-        .padding(.vertical, isIPad ? 16 : 12)
+        .padding(.horizontal, isIPad ? 20 : 16)
+        .padding(.vertical, isIPad ? 12 : 8)
         .background(
             Color(.systemBackground)
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
@@ -553,7 +567,7 @@ struct LiveGameControllerView: View {
                     Spacer()
                 }
                 
-                VStack(spacing: isIPad ? 16 : 12) {
+                VStack(spacing: isIPad ? 8 : 6) {
                     SmartShootingStatCard(
                         title: "2-Point Shots",
                         shotType: .twoPoint,
@@ -658,7 +672,7 @@ struct LiveGameControllerView: View {
                 Spacer()
             }
             
-            VStack(spacing: isIPad ? 16 : 12) {
+            VStack(spacing: isIPad ? 8 : 6) {
                 // FIXED: Reuse existing SmartShootingStatCard WITHOUT score integration
                 SmartShootingStatCard(
                     title: "2-Point Shots",
@@ -782,7 +796,7 @@ struct LiveGameControllerView: View {
                     Spacer()
                 }
                 
-                VStack(spacing: isIPad ? 16 : 12) {
+                VStack(spacing: isIPad ? 8 : 6) {
                     SmartShootingStatCard(
                         title: "2-Point Shots",
                         shotType: .twoPoint,
