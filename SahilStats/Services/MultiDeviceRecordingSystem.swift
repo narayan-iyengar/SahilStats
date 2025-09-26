@@ -183,6 +183,44 @@ class DeviceRoleManager: ObservableObject {
     }
 }
 
+
+extension DeviceRoleManager.DeviceRole {
+    var color: Color {
+        switch self {
+        case .controller: return .blue
+        case .recorder: return .red
+        case .viewer: return .green
+        case .none: return .gray
+        }
+    }
+    
+    
+    var joinDescription: String {
+        switch self {
+        case .controller: return "Control scoring and game clock"
+        case .recorder: return "Record video with live overlay"
+        case .viewer: return "Watch and view stats in real-time"
+        case .none: return ""
+        }
+    }
+}
+
+enum LiveGameError: Error {
+    case gameNotFound
+    case roleNotAvailable
+    case connectionFailed
+    
+    var localizedDescription: String {
+        switch self {
+        case .gameNotFound: return "Live game not found"
+        case .roleNotAvailable: return "This role is not available"
+        case .connectionFailed: return "Failed to connect to game"
+        }
+    }
+}
+
+
+
 // MARK: - Connected Device Model
 
 struct ConnectedDevice: Codable, Identifiable {
@@ -476,64 +514,107 @@ struct DeviceRoleSelectionView: View {
 
 // MARK: - Device Role Card
 
+
+
 struct DeviceRoleCard: View {
-    let role: DeviceRoleManager.DeviceRole
+    let role: GameSetupView.DeviceRole
     let isSelected: Bool
     let isIPad: Bool
-    let onTap: () -> Void
+    let action: () -> Void
     
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 16) {
-                // Role icon
-                Image(systemName: role.icon)
-                    .font(isIPad ? .title2 : .title3)
-                    .foregroundColor(isSelected ? .orange : .secondary)
-                    .frame(width: isIPad ? 40 : 32, height: isIPad ? 40 : 32)
-                    .background(
-                        Circle()
-                            .fill(isSelected ? Color.orange.opacity(0.1) : Color(.systemGray5))
-                    )
+        Button(action: action) {
+            VStack(spacing: isIPad ? 20 : 16) {
+                // Icon
+                Image(systemName: roleIcon)
+                    .font(.system(size: isIPad ? 40 : 32))
+                    .foregroundColor(isSelected ? .white : roleColor)
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(role.displayName)
-                            .font(isIPad ? .headline : .body)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        if !role.preferredDevice.isEmpty {
-                            Text(role.preferredDevice)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(.systemGray5))
-                                .cornerRadius(8)
-                        }
-                    }
+                // Title and description
+                VStack(spacing: isIPad ? 8 : 6) {
+                    Text(roleTitle)
+                        .font(isIPad ? .title2 : .headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(isSelected ? .white : .primary)
                     
-                    Text(role.description)
-                        .font(isIPad ? .subheadline : .caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.leading)
+                    Text(roleDescription)
+                        .font(isIPad ? .body : .subheadline)
+                        .foregroundColor(isSelected ? .white.opacity(0.9) : .secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
                 }
+                
+                // Device recommendation
+                Text(deviceRecommendation)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(isSelected ? .white.opacity(0.8) : roleColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isSelected ? .white.opacity(0.2) : roleColor.opacity(0.1))
+                    )
             }
-            .padding(isIPad ? 20 : 16)
+            .frame(maxWidth: .infinity)
+            .padding(isIPad ? 32 : 24)
             .background(
-                RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
-                    .fill(isSelected ? Color.orange.opacity(0.1) : Color(.systemGray6))
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
+                    .fill(isSelected ? roleColor : Color(.systemGray6))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
-                    .stroke(isSelected ? Color.orange : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
+                    .stroke(isSelected ? roleColor : Color.clear, lineWidth: 2)
             )
             .scaleEffect(isSelected ? 1.02 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isSelected)
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+    
+    private var roleIcon: String {
+        switch role {
+        case .controller: return "gamecontroller.fill"
+        case .recorder: return "video.fill"
+        case .viewer: return "eye.fill"
+        case .none: return "questionmark"
+        }
+    }
+    
+    private var roleColor: Color {
+        switch role {
+        case .controller: return .blue
+        case .recorder: return .red
+        case .viewer: return .green
+        case .none: return .gray
+        }
+    }
+    
+    private var roleTitle: String {
+        switch role {
+        case .controller: return "Controller"
+        case .recorder: return "Recorder"
+        case .viewer: return "Viewer"
+        case .none: return "Unknown"
+        }
+    }
+    
+    private var roleDescription: String {
+        switch role {
+        case .controller: return "Control the scoreboard, game clock, and player stats during the game"
+        case .recorder: return "Record video with live score overlay and connect to the controller's game"
+        case .viewer: return "View the game in real-time with live score and stats"
+        case .none: return ""
+        }
+    }
+    
+    private var deviceRecommendation: String {
+        switch role {
+        case .controller: return "Recommended for iPad"
+        case .recorder: return "Recommended for iPhone"
+        case .viewer: return "Recommended for iPad"
+        case .none: return ""
+        }
     }
 }
 

@@ -7,7 +7,7 @@ import FirebaseAuth
 import CoreLocation
 import UIKit
 
-struct GameSetupView: View {
+struct GameSetupView: View  {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var settingsManager = SettingsManager.shared
     @EnvironmentObject var authService: AuthService
@@ -24,7 +24,7 @@ struct GameSetupView: View {
     @State private var showingPostGameView = false
     @State private var showingLiveGameView = false
     @State private var createdLiveGame: LiveGame?
-    @State private var showingRoleSelection = false // FIXED: Added missing property
+    @State private var showingRoleSelection = false
     @State private var enableMultiDevice = false
     @State private var isCreatingMultiDeviceGame = false
     
@@ -39,13 +39,14 @@ struct GameSetupView: View {
         case selection      // Choose setup type
         case recording      // Recording device role selection
         case gameForm       // Game configuration form
-        case connecting     // Connecting to existing game
+        case smartJoin      // Smart join existing game
     }
     
     enum DeviceRole {
         case none
         case recorder      // iPhone for recording
         case controller    // iPad for scoring/control
+        case viewer
     }
     
     var body: some View {
@@ -57,8 +58,8 @@ struct GameSetupView: View {
                 recordingRoleSelection
             case .gameForm:
                 gameConfigurationForm
-            case .connecting:
-                connectToGameView
+            case .smartJoin:
+                smartJoinGameView
             }
         }
         .navigationTitle("Game Setup")
@@ -77,11 +78,6 @@ struct GameSetupView: View {
                 showingLiveGameView = false
             }
         }
-        .sheet(isPresented: $showingRoleSelection) {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                DeviceRoleSelectionView(liveGame: liveGame)
-            }
-        }
         .onChange(of: locationManager.locationName) { _, newLocation in
             if !newLocation.isEmpty {
                 gameConfig.location = newLocation
@@ -94,73 +90,6 @@ struct GameSetupView: View {
         }
     }
     
-    // MARK: - Setup Mode Selection
-    
-    // In GameSetupView.swift
-
-    @ViewBuilder
-    private var setupModeSelection: some View {
-        VStack(spacing: 16) {
-            // 1. Post-Game Stats
-            SetupOptionCard(
-                title: "Enter Final Stats",
-                subtitle: "For games that are already complete",
-                icon: "chart.bar.fill",
-                color: .green,
-                status: "Quick stat entry after the game",
-                statusColor: .green
-            ) {
-                self.setupMode = .gameForm
-                self.deviceRole = .none
-            }
-
-            // 2. Stats-Only Live Game
-            SetupOptionCard(
-                title: "Track Stats Live",
-                subtitle: "Use this device to score the game",
-                icon: "stopwatch.fill",
-                color: .orange,
-                status: "Single device, no recording",
-                statusColor: .orange
-            ) {
-                self.isCreatingMultiDeviceGame = false
-                self.setupMode = .gameForm
-                self.deviceRole = .controller
-            }
-
-            // 3. UPDATED: Multi-Device Recording Session
-            SetupOptionCard(
-                title: "Multi-Device Recording",
-                subtitle: "Record video + control scoring separately",
-                icon: "video.fill",
-                color: .red,
-                status: "Choose recorder or controller role",
-                statusColor: .red
-            ) {
-                // NEW: Go directly to role selection for multi-device
-                self.isCreatingMultiDeviceGame = true
-                self.setupMode = .recording // Use existing recording mode
-                self.deviceRole = .none
-            }
-
-            // 4. Join an Existing Game
-            if firebaseService.hasLiveGame {
-                SetupOptionCard(
-                    title: "Join Live Game",
-                    subtitle: "Connect as a recorder or viewer",
-                    icon: "antenna.radiowaves.left.and.right",
-                    color: .blue,
-                    status: "A game is in progress!",
-                    statusColor: .blue
-                ) {
-                    self.showingRoleSelection = true
-                }
-            }
-        }
-        .padding()
-    }
-    
-    // MARK: - Game Configuration Form
     
     @ViewBuilder
     private var gameConfigurationForm: some View {
@@ -350,9 +279,146 @@ struct GameSetupView: View {
             Text(error)
         }
     }
+    // MARK: - FIXED: Setup Mode Selection
     
-    // MARK: - 2. Update the recordingRoleSelection in GameSetupView.swift
+    @ViewBuilder
+    private var setupModeSelection: some View {
+        VStack(spacing: 16) {
+            // 1. Post-Game Stats
+            SetupOptionCard(
+                title: "Enter Final Stats",
+                subtitle: "For games that are already complete",
+                icon: "chart.bar.fill",
+                color: .green,
+                status: "Quick stat entry after the game",
+                statusColor: .green
+            ) {
+                self.setupMode = .gameForm
+                self.deviceRole = .none
+                self.isCreatingMultiDeviceGame = false
+            }
 
+            // 2. Stats-Only Live Game
+            SetupOptionCard(
+                title: "Track Stats Live",
+                subtitle: "Use this device to score the game",
+                icon: "stopwatch.fill",
+                color: .orange,
+                status: "Single device, no recording",
+                statusColor: .orange
+            ) {
+                self.isCreatingMultiDeviceGame = false
+                self.setupMode = .gameForm
+                self.deviceRole = .controller
+            }
+
+            // 3. FIXED: Multi-Device Recording Session
+            SetupOptionCard(
+                title: "Multi-Device Recording",
+                subtitle: "Record video + control scoring separately",
+                icon: "video.fill",
+                color: .red,
+                status: "Choose recorder or controller role",
+                statusColor: .red
+            ) {
+                self.isCreatingMultiDeviceGame = true
+                self.setupMode = .recording // Go to role selection first
+                self.deviceRole = .none
+            }
+
+            // 4. FIXED: Smart Join Live Game
+            if firebaseService.hasLiveGame {
+                SetupOptionCard(
+                    title: "Join Live Game",
+                    subtitle: getCurrentLiveGameInfo(),
+                    icon: "antenna.radiowaves.left.and.right",
+                    color: .blue,
+                    status: "A game is in progress!",
+                    statusColor: .blue
+                ) {
+                    self.setupMode = .smartJoin // Go to smart join logic
+                }
+            }
+        }
+        .padding()
+    }
+    // MARK: - NEW: Smart Join Helper Methods
+    
+    private func getCurrentLiveGameInfo() -> String {
+        guard let liveGame = firebaseService.getCurrentLiveGame() else {
+            return "Connect to ongoing game"
+        }
+        return "\(liveGame.teamName) vs \(liveGame.opponent)"
+    }
+    
+    private func getAvailableRoles() -> [DeviceRoleManager.DeviceRole] {
+        guard let liveGame = firebaseService.getCurrentLiveGame() else {
+            return []
+        }
+        
+        var availableRoles: [DeviceRoleManager.DeviceRole] = []
+        
+        // Check if controller slot is available
+        if liveGame.controllingDeviceId == nil || liveGame.controllingUserEmail == nil {
+            availableRoles.append(.controller)
+        }
+        
+        // Always allow viewers
+        availableRoles.append(.viewer)
+        
+        // Check if this is a multi-device game that needs a recorder
+        if liveGame.isMultiDeviceSetup == true {
+            // Check if recorder slot is available (you'd need to track this in your LiveGame model)
+            // For now, always allow recorder if it's multi-device
+            availableRoles.append(.recorder)
+        }
+        
+        return availableRoles
+    }
+    
+    private func joinGameWithRole(_ role: DeviceRoleManager.DeviceRole) {
+        Task {
+            do {
+                guard let liveGame = firebaseService.getCurrentLiveGame(),
+                      let gameId = liveGame.id else {
+                    throw LiveGameError.gameNotFound
+                }
+                
+                try await DeviceRoleManager.shared.setDeviceRole(role, for: gameId)
+                
+                await MainActor.run {
+                    showingLiveGameView = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = "Failed to join game: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    private func joinAsRecorder() {
+        Task {
+            do {
+                guard let liveGame = firebaseService.getCurrentLiveGame(),
+                      let gameId = liveGame.id else {
+                    throw LiveGameError.gameNotFound
+                }
+                
+                try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                
+                await MainActor.run {
+                    showingLiveGameView = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = "Failed to join as recorder: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    // MARK: - FIXED: Multi-Device Role Selection
+    
     @ViewBuilder
     private var recordingRoleSelection: some View {
         VStack(spacing: 30) {
@@ -365,37 +431,36 @@ struct GameSetupView: View {
                     .font(.title)
                     .fontWeight(.bold)
                 
-                Text("Choose your device's role in this recording session")
+                Text("Choose your device's role for this multi-device recording session")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.top, 40)
             
-            // Role selection cards - REUSE existing DeviceRoleCard components
             VStack(spacing: 16) {
-                // Controller role
+                // Controller role - CREATE the game
                 DeviceRoleCard(
                     role: .controller,
                     isSelected: deviceRole == .controller,
                     isIPad: isIPad
                 ) {
                     deviceRole = .controller
-                    setupMode = .gameForm // Go to game form to set up the game
+                    setupMode = .gameForm // Go to game form to CREATE the game
                 }
                 
-                // Recorder role
+                // Recorder role - JOIN existing game
                 DeviceRoleCard(
                     role: .recorder,
                     isSelected: deviceRole == .recorder,
                     isIPad: isIPad
                 ) {
                     deviceRole = .recorder
-                    // For recorder, we need an existing game to join
+                    // For recorder in multi-device setup, they need to wait for controller to create game
                     if firebaseService.hasLiveGame {
-                        showingRoleSelection = true
+                        // Join existing game as recorder
+                        joinAsRecorder()
                     } else {
-                        // Show message that controller needs to create game first
-                        error = "A controller needs to create the game first. Ask them to start the live game, then try joining as a recorder."
+                        error = "No live game found. Ask the controller to start the game first, then try joining as a recorder."
                     }
                 }
             }
@@ -404,6 +469,7 @@ struct GameSetupView: View {
             
             Button("Back to Setup Options") {
                 setupMode = .selection
+                deviceRole = .none
             }
             .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             
@@ -412,25 +478,49 @@ struct GameSetupView: View {
         .padding()
     }
     
-    // MARK: - Connect to Game View (FIXED)
+    // MARK: - NEW: Smart Join Game View
     
     @ViewBuilder
-    private var connectToGameView: some View {
+    private var smartJoinGameView: some View {
         VStack(spacing: 30) {
             VStack(spacing: 16) {
-                Image(systemName: "link")
+                Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: 60))
                     .foregroundColor(.blue)
                 
-                Text("Connect to Live Game")
+                Text("Join Live Game")
                     .font(.title)
                     .fontWeight(.bold)
                 
-                Text("Multi-device connection coming soon!")
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
             }
             .padding(.top, 40)
+            
+            // SMART: Show available roles based on what's already taken
+            VStack(spacing: 16) {
+                let availableRoles = getAvailableRoles()
+                
+                ForEach(availableRoles, id: \.self) { role in
+                    SmartJoinRoleCard(
+                        role: role,
+                        isIPad: isIPad,
+                        onSelect: {
+                            joinGameWithRole(role)
+                        }
+                    )
+                }
+                
+                if availableRoles.isEmpty {
+                    Text("All roles are currently filled")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+            }
             
             Spacer()
             
@@ -558,6 +648,46 @@ struct GameSetupView: View {
             .filter { $0.localizedCaseInsensitiveContains(gameConfig.location) }
             .prefix(3)
             .map { $0 }
+    }
+}
+
+//MARK: smart join role card
+struct SmartJoinRoleCard: View {
+    let role: DeviceRoleManager.DeviceRole
+    let isIPad: Bool
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 16) {
+                Image(systemName: role.icon)
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
+                    .background(role.color)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Join as \(role.displayName)")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(role.joinDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }
 
