@@ -424,7 +424,7 @@ struct CompactGameControlsCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 16 : 12)
-        .background(Color(.systemGray6))
+        .background(Color(.white))
         .cornerRadius(isIPad ? 12 : 8)
     }
 }
@@ -558,23 +558,7 @@ struct LiveGameWatchView: View {
                         isIPad: isIPad
                     )
                 } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "figure.basketball")
-                            .font(.system(size: isIPad ? 80 : 60))
-                            .foregroundColor(.secondary)
-                        
-                        Text("Sahil is on the bench")
-                            .font(isIPad ? .title : .title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                        
-                        Text("Stats tracking is paused")
-                            .font(isIPad ? .title3 : .body)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(isIPad ? 32 : 24)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(isIPad ? 16 : 12)
+                     onBenchMessage()
                 }
             }
             .padding(isIPad ? 24 : 16)
@@ -904,21 +888,21 @@ struct PlayerStatusCard: View {
             if hasControl {
                 // INTERACTIVE: Only show buttons if user has control
                 HStack(spacing: isIPad ? 8 : 6) {
-                    Button("Court") {
-                        print("🔥 DEBUG: Court button tapped - before: \(sahilOnBench)")
+                    // --- REPLACEMENT FOR "Court" BUTTON ---
+                    Button(action: {
                         sahilOnBench = false
-                        print("🔥 DEBUG: Court button tapped - after: \(sahilOnBench)")
                         onStatusChange()
-                        print("🔥 DEBUG: onStatusChange() called")
+                    }) {
+                        Image(systemName: "figure.basketball") // <-- Icon instead of text
                     }
                     .buttonStyle(CompactStatusButtonStyle(isSelected: !sahilOnBench, isIPad: isIPad))
                     
-                    Button("Bench") {
-                        print("🔥 DEBUG: Bench button tapped - before: \(sahilOnBench)")
+                    // --- REPLACEMENT FOR "Bench" BUTTON ---
+                    Button(action: {
                         sahilOnBench = true
-                        print("🔥 DEBUG: Bench button tapped - after: \(sahilOnBench)")
                         onStatusChange()
-                        print("🔥 DEBUG: onStatusChange() called")
+                    }) {
+                        Image(systemName: "pause.circle") // <-- Icon instead of text
                     }
                     .buttonStyle(CompactStatusButtonStyle(isSelected: sahilOnBench, isIPad: isIPad))
                 }
