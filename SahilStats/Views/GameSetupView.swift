@@ -342,7 +342,7 @@ struct GameSetupView: View {
         }
         .navigationBarBackButtonHidden()
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {
                     setupMode = .selection
                     deviceRole = .none
@@ -390,7 +390,7 @@ struct GameSetupView: View {
             Button("Back to Setup Options") {
                 setupMode = .selection
             }
-            .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
+            .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             
             Spacer()
         }
@@ -422,7 +422,7 @@ struct GameSetupView: View {
             Button("Back to Setup Options") {
                 setupMode = .selection
             }
-            .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
+            .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             
             Spacer()
         }

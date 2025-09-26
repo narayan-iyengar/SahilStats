@@ -368,7 +368,7 @@ struct LiveGameControllerView: View {
                     .padding(.top, isIPad ? 20 : 16)
                 }
             } else {
-                onBenchMessage()
+                OnBenchMessage(isIPad: isIPad)
             }
         }
         .background(Color(.white))
@@ -524,23 +524,107 @@ struct LiveGameControllerView: View {
     @ViewBuilder
     private func detailedStatsEntryView() -> some View {
         VStack(spacing: isIPad ? 24 : 20) {
-            // Header
             HStack {
-                Text("Live Stats Entry")
+                Text("Detailed Stats")
                     .font(isIPad ? .title2 : .headline)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                Spacer()
             }
             
-            // FIXED: Shooting Stats Section (NO score integration here)
-            shootingStatsSection()
+            // Shooting Stats with Smart Logic
+            VStack(spacing: isIPad ? 20 : 16) {
+                HStack {
+                    Text("Shooting")
+                        .font(isIPad ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                    Spacer()
+                }
+                
+                VStack(spacing: isIPad ? 16 : 12) {
+                    SmartShootingStatCard(
+                        title: "2-Point Shots",
+                        shotType: .twoPoint,
+                        made: $currentStats.fg2m,
+                        attempted: $currentStats.fg2a,
+                        liveScore: $currentHomeScore,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    
+                    SmartShootingStatCard(
+                        title: "3-Point Shots",
+                        shotType: .threePoint,
+                        made: $currentStats.fg3m,
+                        attempted: $currentStats.fg3a,
+                        liveScore: $currentHomeScore,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    
+                    SmartShootingStatCard(
+                        title: "Free Throws",
+                        shotType: .freeThrow,
+                        made: $currentStats.ftm,
+                        attempted: $currentStats.fta,
+                        liveScore: $currentHomeScore,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                }
+            }
             
-            // FIXED: Other Stats Section
-            otherStatsSection()
+            // Other Stats Section
+            VStack(spacing: isIPad ? 20 : 16) {
+                HStack {
+                    Text("Other Stats")
+                        .font(isIPad ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.purple)
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                    RegularStatCard(
+                        title: "Rebounds",
+                        value: $currentStats.rebounds,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Assists",
+                        value: $currentStats.assists,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Steals",
+                        value: $currentStats.steals,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Blocks",
+                        value: $currentStats.blocks,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Fouls",
+                        value: $currentStats.fouls,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                    RegularStatCard(
+                        title: "Turnovers",
+                        value: $currentStats.turnovers,
+                        isIPad: isIPad,
+                        onStatChange: scheduleUpdate
+                    )
+                }
+            }
             
-            // FIXED: Points Summary (calculated from stats, not editable)
-            pointsSummarySection()
+            // Points summary for live game
+            LivePointsSummaryCard(stats: currentStats, isIPad: isIPad)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, isIPad ? 24 : 20)
@@ -664,25 +748,6 @@ struct LiveGameControllerView: View {
     }
     
 
-    @ViewBuilder
-    private func onBenchMessage() -> some View {
-        VStack(spacing: 0) {
-            LottieView(name: "bench-animation")
-                //.frame(width: isIPad ? 150 : 120, height: isIPad ? 150 : 120)
-            
-            Text("Sahil is on the bench")
-                .font(isIPad ? .title : .title2)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-            
-            Text("Stats tracking is paused")
-                .font(isIPad ? .title3 : .body)
-                .foregroundColor(.secondary)
-        }
-        .padding(isIPad ? 32 : 24)
-        .background(Color.white) // Add this back
-        .cornerRadius(isIPad ? 16 : 12)
-    }
     
     // MARK: - Clean Detailed Stats Entry (COMPLETE)
     

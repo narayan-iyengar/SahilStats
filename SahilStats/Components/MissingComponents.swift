@@ -124,7 +124,7 @@ struct GameFiltersSheet: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .buttonStyle(PillButtonStyle(isIPad: isIPad))
+                    .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
                 }
             }
         }
