@@ -16,7 +16,7 @@ struct CleanVideoRecordingView: View {
     
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
-        // Fix: Use the proper initializer
+        // Initialize overlayData with data from liveGame
         self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
     }
     
@@ -214,8 +214,7 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOverlayData() {
-        // For now, create overlay data from the current liveGame state
-        // You'll need to update this to fetch from Firebase if that's where your live data comes from
+        // Update the overlay data with current liveGame state
         overlayData = SimpleScoreOverlayData(
             from: liveGame,
             isRecording: recordingManager.isRecording,
@@ -249,10 +248,13 @@ struct CleanVideoRecordingView: View {
 
 // MARK: - Preview
 #Preview {
-    CleanVideoRecordingView(liveGame: LiveGame(
+    let sampleLiveGame = LiveGame(
         teamName: "Warriors",
         opponent: "Lakers",
         gameFormat: .halves,
-        periodLength: 20
-    ))
+        quarterLength: 20,
+        createdBy: "preview"
+    )
+    
+    CleanVideoRecordingView(liveGame: sampleLiveGame)
 }

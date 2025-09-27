@@ -13,8 +13,8 @@ struct Game: Identifiable, Codable, Equatable {
     var location: String?
     //var timestamp: Date
     var gameFormat: GameFormat
-    var periodLength: Int
-    var numPeriods: Int
+    var quarterLength: Int
+    var numQuarter: Int
     var status: GameStatus
     
     // Scores
@@ -56,7 +56,7 @@ struct Game: Identifiable, Codable, Equatable {
     
     // Custom coding keys for date handling
     enum CodingKeys: String, CodingKey {
-        case teamName, opponent, location, timestamp, gameFormat, periodLength, numPeriods, status
+        case teamName, opponent, location, timestamp, gameFormat, quarterLength, numQuarter, status
         case myTeamScore, opponentScore, outcome
         case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
         case createdAt, adminName, editedAt, editedBy, achievements
@@ -135,22 +135,22 @@ struct Game: Identifiable, Codable, Equatable {
         
         gameFormat = try container.decode(GameFormat.self, forKey: .gameFormat)
         
-        // Handle periodLength - can be stored as string or int
-        if let periodLengthInt = try? container.decode(Int.self, forKey: .periodLength) {
-            periodLength = periodLengthInt
-        } else if let periodLengthString = try? container.decode(String.self, forKey: .periodLength) {
-            periodLength = Int(periodLengthString) ?? 20
+        // Handle quarterLength - can be stored as string or int
+        if let quarterLengthInt = try? container.decode(Int.self, forKey: .quarterLength) {
+            quarterLength = quarterLengthInt
+        } else if let quarterLengthString = try? container.decode(String.self, forKey: .quarterLength) {
+            quarterLength = Int(quarterLengthString) ?? 20
         } else {
-            periodLength = 20 // default fallback
+            quarterLength = 20 // default fallback
         }
         
-        // Handle numPeriods - can be stored as string or int
-        if let numPeriodsInt = try? container.decode(Int.self, forKey: .numPeriods) {
-            numPeriods = numPeriodsInt
-        } else if let numPeriodsString = try? container.decode(String.self, forKey: .numPeriods) {
-            numPeriods = Int(numPeriodsString) ?? (gameFormat == .halves ? 2 : 4)
+        // Handle numQuarter - can be stored as string or int
+        if let numQuarterInt = try? container.decode(Int.self, forKey: .numQuarter) {
+            numQuarter = numQuarterInt
+        } else if let numQuartersString = try? container.decode(String.self, forKey: .numQuarter) {
+            numQuarter = Int(numQuartersString) ?? (gameFormat == .halves ? 2 : 4)
         } else {
-            numPeriods = gameFormat == .halves ? 2 : 4 // calculate from format
+            numQuarter = gameFormat == .halves ? 2 : 4 // calculate from format
         }
         
         status = try container.decode(GameStatus.self, forKey: .status)
@@ -302,70 +302,8 @@ struct Game: Identifiable, Codable, Equatable {
         
         return customFormatterNoMs.date(from: dateString)
     }
-    // MARK: - ALSO: Add better encoding to preserve dates correctly
 
-    /*
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        
-        // Encode basic properties
-        try container.encode(teamName, forKey: .teamName)
-        try container.encode(opponent, forKey: .opponent)
-        try container.encodeIfPresent(location, forKey: .location)
-        
-        // IMPORTANT: Encode timestamp as Firestore Timestamp for proper storage
-        try container.encode(Timestamp(date: timestamp), forKey: .timestamp)
-        
-        try container.encode(gameFormat, forKey: .gameFormat)
-        try container.encode(periodLength, forKey: .periodLength)
-        try container.encode(numPeriods, forKey: .numPeriods)
-        try container.encode(status, forKey: .status)
-        
-        // Encode scores
-        try container.encode(myTeamScore, forKey: .myTeamScore)
-        try container.encode(opponentScore, forKey: .opponentScore)
-        try container.encode(outcome, forKey: .outcome)
-        
-        // Encode stats
-        try container.encode(points, forKey: .points)
-        try container.encode(fg2m, forKey: .fg2m)
-        try container.encode(fg2a, forKey: .fg2a)
-        try container.encode(fg3m, forKey: .fg3m)
-        try container.encode(fg3a, forKey: .fg3a)
-        try container.encode(ftm, forKey: .ftm)
-        try container.encode(fta, forKey: .fta)
-        try container.encode(rebounds, forKey: .rebounds)
-        try container.encode(assists, forKey: .assists)
-        try container.encode(steals, forKey: .steals)
-        try container.encode(blocks, forKey: .blocks)
-        try container.encode(fouls, forKey: .fouls)
-        try container.encode(turnovers, forKey: .turnovers)
-        
-        // IMPORTANT: Encode createdAt as Firestore Timestamp
-        try container.encode(Timestamp(date: createdAt), forKey: .createdAt)
-        
-        // Optional metadata
-        try container.encodeIfPresent(adminName, forKey: .adminName)
-        if let editedAt = editedAt {
-            try container.encode(Timestamp(date: editedAt), forKey: .editedAt)
-        }
-        try container.encodeIfPresent(editedBy, forKey: .editedBy)
-        try container.encode(achievements, forKey: .achievements)
-        try container.encode(totalPlayingTimeMinutes, forKey: .totalPlayingTimeMinutes)
-        try container.encode(benchTimeMinutes, forKey: .benchTimeMinutes)
-        try container.encode(gameTimeTracking, forKey: .gameTimeTracking)
-    }
-    */
-    
-    // Computed properties
- /*
-    var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: timestamp)
-    }
- */
+
     var formattedDate: String {
         // First, check if the optional 'timestamp' contains a valid date.
         guard let date = timestamp else {
@@ -403,7 +341,7 @@ struct Game: Identifiable, Codable, Equatable {
         return turnovers > 0 ? Double(assists) / Double(turnovers) : Double(assists)
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, timestamp: Date = Date(), gameFormat: GameFormat = .halves, periodLength: Int = 20, myTeamScore: Int = 0, opponentScore: Int = 0, fg2m: Int = 0, fg2a: Int = 0, fg3m: Int = 0, fg3a: Int = 0, ftm: Int = 0, fta: Int = 0, rebounds: Int = 0, assists: Int = 0, steals: Int = 0, blocks: Int = 0, fouls: Int = 0, turnovers: Int = 0, adminName: String? = nil,     totalPlayingTimeMinutes: Double = 0.0,
+    init(teamName: String, opponent: String, location: String? = nil, timestamp: Date = Date(), gameFormat: GameFormat = .halves, quarterLength: Int = 20, myTeamScore: Int = 0, opponentScore: Int = 0, fg2m: Int = 0, fg2a: Int = 0, fg3m: Int = 0, fg3a: Int = 0, ftm: Int = 0, fta: Int = 0, rebounds: Int = 0, assists: Int = 0, steals: Int = 0, blocks: Int = 0, fouls: Int = 0, turnovers: Int = 0, adminName: String? = nil,     totalPlayingTimeMinutes: Double = 0.0,
          benchTimeMinutes: Double = 0.0,
          gameTimeTracking: [GameTimeSegment] = []) {
         self.teamName = teamName
@@ -411,8 +349,8 @@ struct Game: Identifiable, Codable, Equatable {
         self.location = location
         self.timestamp = timestamp
         self.gameFormat = gameFormat
-        self.periodLength = periodLength
-        self.numPeriods = gameFormat == .halves ? 2 : 4
+        self.quarterLength = quarterLength
+        self.numQuarter = gameFormat == .halves ? 2 : 4
         self.status = .final
         self.myTeamScore = myTeamScore
         self.opponentScore = opponentScore
@@ -465,8 +403,8 @@ extension Game {
             "teamName": teamName,
             "opponent": opponent,
             "gameFormat": gameFormat.rawValue,
-            "periodLength": periodLength,
-            "numPeriods": numPeriods,
+            "quarterLength": quarterLength,
+            "numQuarter": numQuarter,
             "status": status.rawValue,
             "myTeamScore": myTeamScore,
             "opponentScore": opponentScore,
@@ -628,26 +566,26 @@ struct Team: Identifiable, Codable {
 
 enum GameFormat: String, Codable, CaseIterable {
     case halves = "halves"
-    case periods = "periods"
+    case quarters = "quarters"
     
     var displayName: String {
         switch self {
         case .halves: return "Halves"
-        case .periods: return "Periods"
+        case .quarters: return "Quarters"
         }
     }
     
-    var periodCount: Int {
+    var quarterCount: Int {
         switch self {
         case .halves: return 2
-        case .periods: return 4
+        case .quarters: return 4
         }
     }
     
-    var periodName: String {
+    var quarterName: String {
         switch self {
         case .halves: return "Half"
-        case .periods: return "Period"
+        case .quarters: return "Quarter"
         }
     }
 }
@@ -786,12 +724,12 @@ struct LiveGame: Identifiable, Codable, Equatable {
     var opponent: String
     var location: String?
     var gameFormat: GameFormat
-    var periodLength: Int
-    var numPeriods: Int
+    var quarterLength: Int
+    var numQuarter: Int
     
     // Live game state
     var isRunning: Bool
-    var period: Int
+    var quarter: Int
     var clock: TimeInterval
     var clockStartTime: Date? // When the clock was last started
     var clockAtStart: TimeInterval? // Clock value when started
@@ -850,7 +788,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
     
     // Computed properties (existing ones)
     var isGameOver: Bool {
-        period >= numPeriods && clock <= 0 && !isRunning
+        quarter >= numQuarter && clock <= 0 && !isRunning
     }
     
     // Calculate current clock based on server time (prevents drift)
@@ -886,22 +824,22 @@ struct LiveGame: Identifiable, Codable, Equatable {
         }
     }
     
-    var periodName: String {
-        gameFormat == .halves ? "Half" : "Period"
+    var quarterName: String {
+        gameFormat == .halves ? "Half" : "Quarter"
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, periodLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
+    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
         self.teamName = teamName
         self.opponent = opponent
         self.location = location
         self.gameFormat = gameFormat
-        self.periodLength = periodLength
-        self.numPeriods = gameFormat == .halves ? 2 : 4
+        self.quarterLength = quarterLength
+        self.numQuarter = gameFormat == .halves ? 2 : 4
         self.isRunning = false
-        self.period = 1
-        self.clock = TimeInterval(periodLength * 60)
+        self.quarter = 1
+        self.clock = TimeInterval(quarterLength * 60)
         self.clockStartTime = nil
-        self.clockAtStart = TimeInterval(periodLength * 60)
+        self.clockAtStart = TimeInterval(quarterLength * 60)
         
         // AUTO-GRANT CONTROL: Set the creating device as the controller
         self.controllingDeviceId = deviceId
@@ -1054,13 +992,13 @@ extension LiveGame {
         self.opponent = data["opponent"] as? String ?? ""
         self.location = data["location"] as? String
         self.gameFormat = GameFormat(rawValue: data["gameFormat"] as? String ?? "halves") ?? .halves
-        self.periodLength = data["periodLength"] as? Int ?? 20
-        self.numPeriods = self.gameFormat == .halves ? 2 : 4
+        self.quarterLength = data["quarterLength"] as? Int ?? 20
+        self.numQuarter = self.gameFormat == .halves ? 2 : 4
         self.isRunning = data["isRunning"] as? Bool ?? false
-        self.period = data["period"] as? Int ?? 1
-        self.clock = data["clock"] as? TimeInterval ?? TimeInterval(self.periodLength * 60)
+        self.quarter = data["quarter"] as? Int ?? 1
+        self.clock = data["clock"] as? TimeInterval ?? TimeInterval(self.quarterLength * 60)
         self.clockStartTime = clockStartTime
-        self.clockAtStart = data["clockAtStart"] as? TimeInterval ?? TimeInterval(self.periodLength * 60)
+        self.clockAtStart = data["clockAtStart"] as? TimeInterval ?? TimeInterval(self.quarterLength * 60)
         
         // Enhanced control fields
         self.controllingDeviceId = data["controllingDeviceId"] as? String
@@ -1107,10 +1045,10 @@ extension LiveGame {
             "teamName": teamName,
             "opponent": opponent,
             "gameFormat": gameFormat.rawValue,
-            "periodLength": periodLength,
-            "numPeriods": numPeriods,
+            "quarterLength": quarterLength,
+            "numQuarter": numQuarter,
             "isRunning": isRunning,
-            "period": period,
+            "quarter": quarter,
             "clock": clock,
             "homeScore": homeScore,
             "awayScore": awayScore,

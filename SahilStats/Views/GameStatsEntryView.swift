@@ -222,7 +222,7 @@ struct PostGameStatsView: View {
                     location: gameConfig.location,
                     timestamp: gameConfig.date,
                     gameFormat: gameConfig.gameFormat,
-                    periodLength: gameConfig.periodLength,
+                    quarterLength: gameConfig.quarterLength,
                     myTeamScore: gameStats.myTeamScore,
                     opponentScore: gameStats.opponentScore,
                     fg2m: gameStats.playerStats.fg2m,

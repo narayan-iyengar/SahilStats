@@ -390,7 +390,7 @@ struct ModernCareerTrendsView: View {
                     Chart {
                         ForEach(Array(trendData.enumerated()), id: \.offset) { index, dataPoint in
                             LineMark(
-                                x: .value("Period", dataPoint.label),
+                                x: .value("Quarter", dataPoint.label),
                                 y: .value(selectedStat.rawValue, dataPoint.value)
                             )
                             .foregroundStyle(selectedStat.color)
@@ -398,7 +398,7 @@ struct ModernCareerTrendsView: View {
                             .lineStyle(StrokeStyle(lineWidth: isIPad ? 4 : 3))
                             
                             PointMark(
-                                x: .value("Period", dataPoint.label),
+                                x: .value("Quarter", dataPoint.label),
                                 y: .value(selectedStat.rawValue, dataPoint.value)
                             )
                             .foregroundStyle(selectedStat.color)
