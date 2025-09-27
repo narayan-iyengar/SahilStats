@@ -60,19 +60,78 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     // MARK: - Camera Session Management
     
-    func startCameraSession() {
-        guard !isRecording else { return }
-        
-        if _previewLayer == nil {
-            _previewLayer = setupCamera()
+    func updatePreviewOrientation() {
+        // 1. Ensure we have a valid preview layer connection
+        guard let connection = self.previewLayer?.connection else {
+            print("No preview layer connection available")
+            return
         }
-        
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.captureSession?.startRunning()
+
+        // 2. Get the current device orientation
+        let orientation = UIDevice.current.orientation
+        let rotationAngle: CGFloat
+
+        // 3. Determine the correct rotation angle based on orientation
+        switch orientation {
+        case .portrait:
+            rotationAngle = 90
+        case .portraitUpsideDown:
+            rotationAngle = 270
+        case .landscapeLeft:
+            // This corresponds to the home button being on the right
+            rotationAngle = 0
+        case .landscapeRight:
+            // This corresponds to the home button being on the left
+            rotationAngle = 180
+        default:
+            // If the orientation is unknown (e.g., face up/down), we don't change the angle
+            return
+        }
+
+        // 4. Check if the *specific* angle is supported before applying it
+        if connection.isVideoRotationAngleSupported(rotationAngle) {
+            connection.videoRotationAngle = rotationAngle
+        } else {
+            print("Rotation angle \(rotationAngle) is not supported.")
         }
     }
     
+    @objc private func handleOrientationChange() {
+        updatePreviewOrientation()
+    }
+
+    func startCameraSession() {
+        guard !isRecording else { return }
+
+        if _previewLayer == nil {
+            // setupCamera() returns the layer, which we already assign to _previewLayer
+            _ = setupCamera()
+        }
+
+        // Start listening for orientation changes ONLY when the session is starting
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOrientationChange),
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.captureSession?.startRunning()
+
+            // Once the session is running, set the initial orientation on the main thread
+            DispatchQueue.main.async {
+                self?.updatePreviewOrientation()
+            }
+        }
+    }
+    
+    // In VideoRecordingManager.swift
+
     func stopCameraSession() {
+        // Stop listening for orientation changes
+        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+
         DispatchQueue.global(qos: .userInitiated).async {
             self.captureSession?.stopRunning()
         }
@@ -211,6 +270,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
             // Create preview layer
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
             previewLayer.videoGravity = .resizeAspectFill
+            updatePreviewOrientation()
             
             self.captureSession = session
             self._previewLayer = previewLayer
@@ -220,6 +280,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 session.startRunning()
             }
             
+            NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.updatePreviewOrientation()
+            }
             return previewLayer
             
         } catch {
