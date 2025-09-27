@@ -90,7 +90,7 @@ struct RecordingDeviceView: View {
     var body: some View {
         ZStack {
             // Use the new clean VideoRecordingView
-            LandscapeVideoRecordingView(liveGame: currentGame)
+            CleanVideoRecordingView(liveGame: currentGame)
             
             // Add recording device specific overlay
             VStack {

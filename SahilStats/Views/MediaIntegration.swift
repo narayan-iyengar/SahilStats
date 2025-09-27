@@ -324,7 +324,7 @@ struct EnhancedLiveGameView: View {
             }
         }
         .fullScreenCover(isPresented: $showingVideoRecording) {
-            LandscapeVideoRecordingView(liveGame: liveGame)
+            CleanVideoRecordingView(liveGame: liveGame)
         }
     }
     
@@ -406,7 +406,7 @@ struct VideoRecordingButton: View {
         }
         .fullScreenCover(isPresented: $showingVideoRecording) {
             // Use the new landscape-native video recording view
-            LandscapeVideoRecordingView(liveGame: liveGame)
+            CleanVideoRecordingView(liveGame: liveGame)
         }
     }
 }

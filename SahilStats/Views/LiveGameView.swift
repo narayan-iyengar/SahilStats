@@ -36,7 +36,7 @@ struct LiveGameView: View {
                 case .recorder:
                     Color.clear
                         .fullScreenCover(isPresented: $showingVideoRecording) {
-                            LandscapeVideoRecordingView(liveGame: liveGame)
+                            CleanVideoRecordingView(liveGame: liveGame)
                                 .navigationBarHidden(true)
                         }
                         .onAppear {
