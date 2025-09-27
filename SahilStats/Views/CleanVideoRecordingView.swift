@@ -1,10 +1,4 @@
-//
-//  CleanRecordingView.swift
-//  SahilStats
-//
-//  Created by Narayan Iyengar on 9/27/25.
-//
-// CleanVideoRecordingView.swift - Create this as a new file
+// CleanVideoRecordingView.swift - Fixed version
 
 import SwiftUI
 import AVFoundation
@@ -20,6 +14,7 @@ struct CleanVideoRecordingView: View {
     
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
+        // Fix: Use the proper initializer
         self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
     }
     
@@ -139,6 +134,7 @@ struct CleanVideoRecordingView: View {
     private func updateOverlayData() {
         // Get the latest live game data from Firebase
         if let currentGame = FirebaseService.shared.getCurrentLiveGame() {
+            // Fix: Use the proper initializer with all required parameters
             overlayData = SimpleScoreOverlayData(
                 from: currentGame,
                 isRecording: recordingManager.isRecording,
