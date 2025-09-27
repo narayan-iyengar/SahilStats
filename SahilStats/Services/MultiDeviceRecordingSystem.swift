@@ -273,15 +273,9 @@ struct ConnectedDevice: Codable, Identifiable {
 // MARK: - Device Role Selection View
 
 struct DeviceRoleSelectionView: View {
-    @StateObject private var roleManager = DeviceRoleManager.shared
-    @EnvironmentObject var authService: AuthService
+    let liveGame: LiveGame
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
-    let liveGame: LiveGame
-    @State private var selectedRole: DeviceRoleManager.DeviceRole = .none
-    @State private var isConnecting = false
-    @State private var error: String = ""
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -289,224 +283,73 @@ struct DeviceRoleSelectionView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Header
-                headerSection
-                
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Game info
-                        gameInfoCard
-                        
-                        // Role selection
-                        roleSelectionSection
-                        
-                        // Connected devices
-                        if !roleManager.connectedDevices.isEmpty {
-                            connectedDevicesSection
-                        }
-                        
-                        // Connection button
-                        connectionButton
-                        
-                        Spacer(minLength: 100)
-                    }
-                    .padding()
-                }
-            }
-            .navigationBarHidden(true)
-        }
-        .alert("Connection Error", isPresented: .constant(!error.isEmpty)) {
-            Button("OK") { error = "" }
-        } message: {
-            Text(error)
-        }
-    }
-    
-    // MARK: - View Components
-    
-    @ViewBuilder
-    private var headerSection: some View {
-        HStack {
-            Button("Cancel") {
-                dismiss()
-            }
-            .foregroundColor(.orange)
-            
-            Spacer()
-            
-            Text("Choose Device Role")
-                .font(.headline)
-                .fontWeight(.semibold)
-            
-            Spacer()
-            
-            // Placeholder for balance
-            Text("Cancel")
-                .foregroundColor(.clear)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 16)
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-        )
-    }
-    
-    @ViewBuilder
-    private var gameInfoCard: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 12, height: 12)
-                    .opacity(0.8)
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
-                Text("LIVE GAME")
-                    .font(.headline)
+            VStack(spacing: 20) {
+                Text("Select Device Role")
+                    .font(.title)
                     .fontWeight(.bold)
-                    .foregroundColor(.red)
+                
+                Text("Choose how this device will participate in the game")
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                VStack(spacing: 16) {
+                    DeviceRoleSelectionCard(
+                        title: "Controller",
+                        description: "Control game scoring and timing",
+                        icon: "gamecontroller.fill",
+                        color: .blue,
+                        action: {
+                            selectRole(.controller)
+                        }
+                    )
+                    
+                    DeviceRoleSelectionCard(
+                        title: "Recorder",
+                        description: "Record video with score overlay",
+                        icon: "video.fill",
+                        color: .red,
+                        action: {
+                            selectRole(.recorder)
+                        }
+                    )
+                    
+                    DeviceRoleSelectionCard(
+                        title: "Viewer",
+                        description: "Watch game progress",
+                        icon: "eye.fill",
+                        color: .green,
+                        action: {
+                            selectRole(.viewer)
+                        }
+                    )
+                }
                 
                 Spacer()
             }
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    if let location = liveGame.location {
-                        Text(location)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+            .padding()
+            .navigationTitle("Device Role")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
                     }
                 }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(liveGame.homeScore) - \(liveGame.awayScore)")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.orange)
-                    
-                    Text("Period \(liveGame.period)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
-    }
-    
-
-    @ViewBuilder
-    private var roleSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Select Your Device Role")
-                .font(.title2)
-                .fontWeight(.bold)
-
-
-            let hasRecorderAlready = roleManager.connectedDevices.contains { $0.role == .recorder }
-            let isMultiDeviceSession = liveGame.isMultiDeviceSetup ?? hasRecorderAlready
-
-            VStack(spacing: 12) {
-                // Show "Recording Device" option ONLY if:
-                // 1. It's a multi-device session.
-                // 2. A recorder has NOT already joined.
-                if isMultiDeviceSession && !hasRecorderAlready {
-                    DeviceRoleCard(role: .recorder, isSelected: selectedRole == .recorder, isIPad: isIPad) {
-                        selectedRole = .recorder
-                    }
-                }
-
-                // "Control Device" option is always available for someone to take over.
-                DeviceRoleCard(role: .controller, isSelected: selectedRole == .controller, isIPad: isIPad) {
-                    selectedRole = .controller
-                }
-
-                // "Viewer" option is always available.
-                DeviceRoleCard(role: .viewer, isSelected: selectedRole == .viewer, isIPad: isIPad) {
-                    selectedRole = .viewer
-                }
             }
         }
     }
     
-    @ViewBuilder
-    private var connectedDevicesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Connected Devices")
-                .font(.headline)
-                .fontWeight(.semibold)
-            
-            ForEach(roleManager.connectedDevices) { device in
-                ConnectedDeviceRow(device: device, isIPad: isIPad)
-            }
-        }
-        .padding()
-        .background(Color.blue.opacity(0.05))
-        .cornerRadius(12)
-    }
-    
-    @ViewBuilder
-    private var connectionButton: some View {
-        Button(action: connectToGame) {
-            HStack {
-                if isConnecting {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(0.8)
-                } else {
-                    Image(systemName: selectedRole.icon)
-                        .font(.headline)
-                }
-                
-                Text(isConnecting ? "Connecting..." : "Join as \(selectedRole.displayName)")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: isIPad ? 56 : 50)
-            .background(
-                selectedRole == .none ? Color.gray : Color.orange
-            )
-            .cornerRadius(isIPad ? 16 : 12)
-        }
-        .disabled(selectedRole == .none || isConnecting)
-        .opacity(selectedRole == .none ? 0.6 : 1.0)
-    }
-    
-
-    private func connectToGame() {
-        guard let gameId = liveGame.id else { return }
-        isConnecting = true
-        
+    private func selectRole(_ role: DeviceRoleManager.DeviceRole) {
         Task {
             do {
-                // Set the role locally in the app
-                try await roleManager.setDeviceRole(selectedRole, for: gameId)
-                
-                // If this is a controller joining, take control
-                if selectedRole == .controller {
-                    try await DeviceControlManager.shared.requestControl(for: liveGame, userEmail: authService.currentUserEmail)
+                if let gameId = liveGame.id {
+                    try await DeviceRoleManager.shared.setDeviceRole(role, for: gameId)
                 }
-                
                 await MainActor.run {
-                    // Dismiss the sheet to reveal the new view
                     dismiss()
                 }
             } catch {
-                await MainActor.run {
-                    self.error = error.localizedDescription
-                    isConnecting = false
-                }
+                print("Failed to set device role: \(error)")
             }
         }
     }
@@ -516,96 +359,7 @@ struct DeviceRoleSelectionView: View {
 
 
 
-struct DeviceRoleCard: View {
-    let role: GameSetupView.DeviceRole
-    let isSelected: Bool
-    let isIPad: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: isIPad ? 20 : 16) {
-                // Icon
-                Image(systemName: roleIcon)
-                    .font(.system(size: isIPad ? 40 : 32))
-                    .foregroundColor(isSelected ? .white : roleColor)
-                
-                // Title and description
-                VStack(spacing: isIPad ? 8 : 6) {
-                    Text(roleTitle)
-                        .font(isIPad ? .title2 : .headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(isSelected ? .white : .primary)
-                    
-                    Text(roleDescription)
-                        .font(isIPad ? .body : .subheadline)
-                        .foregroundColor(isSelected ? .white.opacity(0.9) : .secondary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                }
-                
-            }
-            .frame(maxWidth: .infinity)
-            .padding(isIPad ? 32 : 24)
-            .background(
-                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
-                    .fill(isSelected ? roleColor : Color(.systemGray6))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
-                    .stroke(isSelected ? roleColor : Color.clear, lineWidth: 2)
-            )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-    }
-    
-    private var roleIcon: String {
-        switch role {
-        case .controller: return "gamecontroller.fill"
-        case .recorder: return "video.fill"
-        case .viewer: return "eye.fill"
-        case .none: return "questionmark"
-        }
-    }
-    
-    private var roleColor: Color {
-        switch role {
-        case .controller: return .blue
-        case .recorder: return .red
-        case .viewer: return .green
-        case .none: return .gray
-        }
-    }
-    
-    private var roleTitle: String {
-        switch role {
-        case .controller: return "Controller"
-        case .recorder: return "Recorder"
-        case .viewer: return "Viewer"
-        case .none: return "Unknown"
-        }
-    }
-    
-    private var roleDescription: String {
-        switch role {
-        case .controller: return "Control the scoreboard"
-        case .recorder: return "Record video"
-        case .viewer: return "View the game in real-time"
-        case .none: return ""
-        }
-    }
-    
-    private var deviceRecommendation: String {
-        switch role {
-        case .controller: return "Recommended for iPad"
-        case .recorder: return "Recommended for iPhone"
-        case .viewer: return "Recommended for iPad"
-        case .none: return ""
-        }
-    }
-}
+
 
 // MARK: - Connected Device Row
 
