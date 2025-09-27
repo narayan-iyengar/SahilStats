@@ -200,8 +200,8 @@ struct ESPNStyleScoreboard: View {
     @ViewBuilder
     private var gameInfoSection: some View {
         VStack(spacing: 6) {
-            // Period
-            Text(formatPeriod(liveGame.period, format: liveGame.gameFormat))
+            // Quarter
+            Text(formatQuarter(liveGame.quarter, format: liveGame.gameFormat))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.orange)
             
@@ -257,15 +257,28 @@ struct ESPNStyleScoreboard: View {
         .padding(.trailing, 24)
     }
     
-    private func formatPeriod(_ period: Int, format: GameFormat) -> String {
-        let periodName = format == .halves ? "HALF" : "QTR"
-        return "\(period)\(getOrdinalSuffix(period)) \(periodName)"
+    private func formatQuarter(_ quarter: Int, format: GameFormat) -> String {
+        let quarterName = format == .halves ? "HALF" : "QTR"
+        return "\(quarter)\(getOrdinalSuffix(quarter)) \(quarterName)"
+    }
+    
+    private func formatQuarterLong(_ quarter: Int, format: GameFormat) -> String {
+        let quarterName = format == .halves ? "Half" : "Quarter"
+        return "\(quarter)\(getOrdinalSuffix(quarter)) \(quarterName)"
     }
     
     private func getOrdinalSuffix(_ number: Int) -> String {
-        switch number {
+        let lastDigit = number % 10
+        let lastTwoDigits = number % 100
+        
+        // Handle special cases for 11th, 12th, 13th
+        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
+            return "TH"
+        }
+        
+        switch lastDigit {
         case 1: return "ST"
-        case 2: return "ND"
+        case 2: return "ND" 
         case 3: return "RD"
         default: return "TH"
         }
@@ -340,7 +353,7 @@ struct RotationPromptView: View {
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("Period \(liveGame.period) • \(liveGame.currentClockDisplay)")
+                    Text("\(formatQuarterLong(liveGame.quarter, format: liveGame.gameFormat)) • \(liveGame.currentClockDisplay)")
                         .font(.headline)
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -362,5 +375,27 @@ struct RotationPromptView: View {
         }
         .navigationBarHidden(true)
         .statusBarHidden()
+    }
+    
+    private func formatQuarterLong(_ quarter: Int, format: GameFormat) -> String {
+        let quarterName = format == .halves ? "Half" : "Quarter"
+        return "\(quarter)\(getOrdinalSuffix(quarter)) \(quarterName)"
+    }
+    
+    private func getOrdinalSuffix(_ number: Int) -> String {
+        let lastDigit = number % 10
+        let lastTwoDigits = number % 100
+        
+        // Handle special cases for 11th, 12th, 13th
+        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
+            return "th"
+        }
+        
+        switch lastDigit {
+        case 1: return "st"
+        case 2: return "nd" 
+        case 3: return "rd"
+        default: return "th"
+        }
     }
 }

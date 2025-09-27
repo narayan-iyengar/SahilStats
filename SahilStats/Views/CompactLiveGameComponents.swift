@@ -78,7 +78,7 @@ struct CompactDeviceControlStatusCard: View {
 // MARK: - Compact Clock Card
 
 struct CompactClockCard: View {
-    let period: Int
+    let quarter: Int
     let clockTime: TimeInterval
     let isGameRunning: Bool
     let gameFormat: GameFormat // NEW: Add game format
@@ -86,12 +86,12 @@ struct CompactClockCard: View {
     
     var body: some View {
         HStack(spacing: isIPad ? 16 : 12) {
-            // Period/Half with correct label
+            // quarter/Half with correct label
             VStack(spacing: 2) {
-                Text(gameFormat.periodName) // "Period" or "Half"
+                Text(gameFormat.quarterName) // "quarter" or "Half"
                     .font(isIPad ? .caption : .caption2)
                     .foregroundColor(.secondary)
-                Text("\(period)")
+                Text("\(quarter)")
                     .font(isIPad ? .title2 : .title3)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
@@ -364,14 +364,14 @@ struct SmallerScoreButtonStyle: ButtonStyle {
 // MARK: - Compact Game Controls
 
 struct CompactGameControlsCard: View {
-    let currentPeriod: Int
-    let maxPeriods: Int
+    let currentQuarter: Int
+    let maxQuarter: Int
     let gameFormat: GameFormat
     let isGameRunning: Bool
     let isIPad: Bool
     let onStartPause: () -> Void
     let onAddMinute: () -> Void
-    let onAdvancePeriod: () -> Void
+    let onAdvanceQuarter: () -> Void
     let onFinishGame: () -> Void
     
     private var startPauseText: String {
@@ -382,16 +382,16 @@ struct CompactGameControlsCard: View {
         isGameRunning ? .orange : .green
     }
     
-    private var advancePeriodText: String {
-        if currentPeriod < maxPeriods {
-            return "End \(gameFormat.periodName)" // "End Period" or "End Half"
+    private var advanceQuarterText: String {
+        if currentQuarter < maxQuarter {
+            return "End \(gameFormat.quarterName)" // "End quarter" or "End Half"
         } else {
             return "End Game"
         }
     }
     
-    private var advancePeriodColor: Color {
-        currentPeriod < maxPeriods ? .blue : .red
+    private var advanceQuarterColor: Color {
+        currentQuarter < maxQuarter ? .blue : .red
     }
     
     var body: some View {
@@ -412,14 +412,14 @@ struct CompactGameControlsCard: View {
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: .purple, isIPad: isIPad))
                 
-                Button(advancePeriodText) {
-                    if currentPeriod < maxPeriods {
-                        onAdvancePeriod()
+                Button(advanceQuarterText) {
+                    if currentQuarter < maxQuarter {
+                        onAdvanceQuarter()
                     } else {
                         onFinishGame()
                     }
                 }
-                .buttonStyle(BiggerCompactControlButtonStyle(color: advancePeriodColor, isIPad: isIPad))
+                .buttonStyle(BiggerCompactControlButtonStyle(color: advanceQuarterColor, isIPad: isIPad))
             }
         }
         .padding(.horizontal, isIPad ? 16 : 12)
@@ -543,7 +543,7 @@ struct LiveGameWatchView: View {
                 
                 // Game info (read-only)
                 FixedSynchronizedClockCard(
-                    period: liveGame.period,
+                    quarter: liveGame.quarter,
                     clockTime: localClockTime,
                     isGameRunning: liveGame.isRunning,
                     gameFormat: liveGame.gameFormat, // ADD THIS
@@ -797,7 +797,7 @@ struct TimeStatItem: View {
 // MARK: - Fixed Synchronized Clock Card
 
 struct FixedSynchronizedClockCard: View {
-    let period: Int
+    let quarter: Int
     let clockTime: TimeInterval
     let isGameRunning: Bool
     let gameFormat: GameFormat // NEW: Add game format
@@ -805,7 +805,7 @@ struct FixedSynchronizedClockCard: View {
     
     var body: some View {
         VStack(spacing: isIPad ? 12 : 8) {
-            Text("\(gameFormat.periodName) \(period)") // "Period 1" or "Half 1"
+            Text(formatPeriodWithOrdinal(quarter, gameFormat: gameFormat)) // "1st Quarter" or "1st Half"
                 .font(isIPad ? .title2 : .headline)
                 .foregroundColor(.secondary)
             
@@ -828,6 +828,28 @@ struct FixedSynchronizedClockCard: View {
             let minutes = Int(time) / 60
             let seconds = Int(time) % 60
             return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+    
+    private func formatPeriodWithOrdinal(_ quarter: Int, gameFormat: GameFormat) -> String {
+        let periodName = gameFormat == .halves ? "Half" : "Quarter"
+        return "\(quarter)\(getOrdinalSuffix(quarter)) \(periodName)"
+    }
+    
+    private func getOrdinalSuffix(_ number: Int) -> String {
+        let lastDigit = number % 10
+        let lastTwoDigits = number % 100
+        
+        // Handle special cases for 11th, 12th, 13th
+        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
+            return "th"
+        }
+        
+        switch lastDigit {
+        case 1: return "st"
+        case 2: return "nd" 
+        case 3: return "rd"
+        default: return "th"
         }
     }
 }

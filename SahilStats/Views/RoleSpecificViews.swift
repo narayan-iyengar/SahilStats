@@ -46,7 +46,7 @@ struct LiveScoreOverlay: View {
             }
             
             HStack {
-                Text("Period \(game.period)")
+                Text("Quarter \(game.quarter)")
                 Text("•")
                 Text(game.currentClockDisplay)
                 Text("•")

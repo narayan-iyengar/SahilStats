@@ -10,8 +10,9 @@ struct SimpleScoreOverlayData {
     let awayTeam: String
     let homeScore: Int
     let awayScore: Int
-    let period: Int
+    let quarter: Int
     let clockTime: String
+    let gameFormat: GameFormat
     let isRecording: Bool
     let recordingDuration: String
     
@@ -21,20 +22,22 @@ struct SimpleScoreOverlayData {
         self.awayTeam = liveGame.opponent
         self.homeScore = liveGame.homeScore
         self.awayScore = liveGame.awayScore
-        self.period = liveGame.period
+        self.quarter = liveGame.quarter
         self.clockTime = liveGame.currentClockDisplay
+        self.gameFormat = liveGame.gameFormat
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
     }
     
     // Manual initializer for custom data
-    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, period: Int, clockTime: String, isRecording: Bool = false, recordingDuration: String = "00:00") {
+    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, quarter: Int, clockTime: String, gameFormat: GameFormat = .halves, isRecording: Bool = false, recordingDuration: String = "00:00") {
         self.homeTeam = homeTeam
         self.awayTeam = awayTeam
         self.homeScore = homeScore
         self.awayScore = awayScore
-        self.period = period
+        self.quarter = quarter
         self.clockTime = clockTime
+        self.gameFormat = gameFormat
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
     }
@@ -46,8 +49,9 @@ struct SimpleScoreOverlayData {
             awayTeam: "AWAY",
             homeScore: 0,
             awayScore: 0,
-            period: 1,
+            quarter: 1,
             clockTime: "20:00",
+            gameFormat: .halves,
             isRecording: false,
             recordingDuration: "00:00"
         )

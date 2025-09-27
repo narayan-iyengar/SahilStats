@@ -319,7 +319,7 @@ struct LiveGameControllerView: View {
     @State private var currentStats: PlayerStats
     @State private var currentHomeScore: Int
     @State private var currentAwayScore: Int
-    @State private var currentPeriod: Int
+    @State private var currentQuarter: Int
     @State private var currentClock: TimeInterval
     @State private var sahilOnBench: Bool
     
@@ -386,7 +386,7 @@ struct LiveGameControllerView: View {
         _currentStats = State(initialValue: liveGame.playerStats)
         _currentHomeScore = State(initialValue: liveGame.homeScore)
         _currentAwayScore = State(initialValue: liveGame.awayScore)
-        _currentPeriod = State(initialValue: liveGame.period)
+        _currentQuarter = State(initialValue: liveGame.quarter)
         _currentClock = State(initialValue: liveGame.clock)
         _sahilOnBench = State(initialValue: liveGame.sahilOnBench ?? false)
         _localClockTime = State(initialValue: liveGame.getCurrentClock())
@@ -522,7 +522,7 @@ struct LiveGameControllerView: View {
             
             // Clock Display
             CompactClockCard(
-                period: currentPeriod,
+                quarter: currentQuarter,
                 clockTime: localClockTime,
                 isGameRunning: isGameRunning,
                 gameFormat: serverGameState.gameFormat,
@@ -562,14 +562,14 @@ struct LiveGameControllerView: View {
             // Game Controls
             if deviceControl.hasControl {
                 CompactGameControlsCard(
-                    currentPeriod: currentPeriod,
-                    maxPeriods: serverGameState.numPeriods,
+                    currentQuarter: currentQuarter,
+                    maxQuarter: serverGameState.numQuarter,
                     gameFormat: serverGameState.gameFormat,
                     isGameRunning: serverGameState.isRunning,
                     isIPad: isIPad,
                     onStartPause: toggleGameClock,
                     onAddMinute: addMinuteToClock,
-                    onAdvancePeriod: nextPeriod,
+                    onAdvanceQuarter: nextQuarter,
                     onFinishGame: { showingFinishAlert = true }
                 )
             }
@@ -1084,8 +1084,8 @@ struct LiveGameControllerView: View {
                     
                     localClockTime = calculatedTime
                     
-                    if calculatedTime <= 0 && currentPeriod < serverGameState.numPeriods && deviceControl.hasControl {
-                        nextPeriodAutomatically()
+                    if calculatedTime <= 0 && currentQuarter < serverGameState.numQuarter && deviceControl.hasControl {
+                        nextQuarterAutomatically()
                     }
                 } else {
                     localClockTime = game.clock
@@ -1115,7 +1115,7 @@ struct LiveGameControllerView: View {
         currentStats = game.playerStats
         currentHomeScore = game.homeScore
         currentAwayScore = game.awayScore
-        currentPeriod = game.period
+        currentQuarter = game.quarter
         sahilOnBench = game.sahilOnBench ?? false
         
         if !deviceControl.hasControl ||
@@ -1138,7 +1138,7 @@ struct LiveGameControllerView: View {
         currentStats = game.playerStats
         currentHomeScore = game.homeScore
         currentAwayScore = game.awayScore
-        currentPeriod = game.period
+        currentQuarter = game.quarter
         sahilOnBench = game.sahilOnBench ?? false
         localClockTime = game.getCurrentClock()
         
@@ -1326,7 +1326,7 @@ struct LiveGameControllerView: View {
         }
     }
     
-    private func nextPeriod() {
+    private func nextQuarter() {
         guard deviceControl.hasControl else { return }
         
         Task {
@@ -1334,8 +1334,8 @@ struct LiveGameControllerView: View {
                 var updatedGame = serverGameState
                 let now = Date()
                 
-                updatedGame.period += 1
-                let newClockTime = TimeInterval(updatedGame.periodLength * 60)
+                updatedGame.quarter += 1
+                let newClockTime = TimeInterval(updatedGame.quarterLength * 60)
                 updatedGame.clock = newClockTime
                 updatedGame.isRunning = false
                 updatedGame.clockStartTime = nil
@@ -1343,7 +1343,7 @@ struct LiveGameControllerView: View {
                 updatedGame.lastClockUpdate = now
                 
                 localClockTime = newClockTime
-                currentPeriod = updatedGame.period
+                currentQuarter = updatedGame.quarter
                 
                 try await firebaseService.updateLiveGame(updatedGame)
             } catch {
@@ -1352,13 +1352,13 @@ struct LiveGameControllerView: View {
         }
     }
     
-    private func nextPeriodAutomatically() {
+    private func nextQuarterAutomatically() {
         guard deviceControl.hasControl,
-              currentPeriod < serverGameState.numPeriods else {
+              currentQuarter < serverGameState.numQuarter else {
             return
         }
         
-        nextPeriod()
+        nextQuarter()
     }
     
     private func scheduleUpdate() {
@@ -1470,7 +1470,7 @@ struct LiveGameControllerView: View {
                     location: finalServerState.location,
                     timestamp: finalServerState.createdAt ?? Date(),
                     gameFormat: finalServerState.gameFormat,
-                    periodLength: finalServerState.periodLength,
+                    quarterLength: finalServerState.quarterLength,
                     myTeamScore: currentHomeScore,
                     opponentScore: currentAwayScore,
                     fg2m: currentStats.fg2m,

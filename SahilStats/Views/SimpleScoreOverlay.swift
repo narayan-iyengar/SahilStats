@@ -19,6 +19,35 @@ struct SimpleScoreOverlay: View {
         orientation == .landscapeLeft || orientation == .landscapeRight
     }
     
+    // Helper function to get ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+    private func getOrdinalSuffix(_ number: Int) -> String {
+        let lastDigit = number % 10
+        let lastTwoDigits = number % 100
+        
+        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
+            return "th"
+        }
+        
+        switch lastDigit {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
+        }
+    }
+    
+    // Helper function to format quarter/half display
+    private func formatPeriod() -> String {
+        let periodName = overlayData.gameFormat == .halves ? "HALF" : "QUARTER"
+        let ordinal = "\(overlayData.quarter)\(getOrdinalSuffix(overlayData.quarter))"
+        return "\(ordinal) \(periodName)"
+    }
+    
+    // Helper function for short period display (landscape)
+    private func formatShortPeriod() -> String {
+        let shortName = overlayData.gameFormat == .halves ? "HALF" : "QTR"
+        return "\(overlayData.quarter)\(getOrdinalSuffix(overlayData.quarter)) \(shortName)"
+    }
     // Helper function to keep text upright in landscape mode
     private func getTextRotation() -> Double {
         switch orientation {
@@ -56,14 +85,14 @@ struct SimpleScoreOverlay: View {
                     .padding(.top, 12)
                     
                     // Center info
-                    VStack(spacing: 2) {
-                        Text("P\(overlayData.period)")
-                            .font(.system(size: 9, weight: .semibold))
+                    VStack(spacing: 6) { // Increased spacing from 4 to 6 to prevent overlap
+                        Text(formatShortPeriod())
+                            .font(.system(size: 10, weight: .semibold)) // Reduced font size from 12 to 10
                             .foregroundColor(.orange)
                             .rotationEffect(.degrees(getTextRotation()))
                         
                         Text(overlayData.clockTime)
-                            .font(.system(size: 12, weight: .black))
+                            .font(.system(size: 13, weight: .black)) // Reduced font size from 14 to 13
                             .foregroundColor(.white)
                             .monospacedDigit()
                             .rotationEffect(.degrees(getTextRotation()))
@@ -95,7 +124,7 @@ struct SimpleScoreOverlay: View {
                     .frame(maxHeight: .infinity)
                     .padding(.bottom, 12)
                 }
-                .frame(width: 80)
+                .frame(width: 90) // Increased from 80 to 90 for better visibility
                 .background(
                     LinearGradient(
                         gradient: Gradient(stops: [
@@ -114,6 +143,7 @@ struct SimpleScoreOverlay: View {
                 )
             }
             .ignoresSafeArea(.all)
+            .padding(.trailing, 10) // Add some padding to ensure visibility in landscape
             
         } else {
             // Portrait overlay - positioned at the bottom (original design)
@@ -138,7 +168,7 @@ struct SimpleScoreOverlay: View {
                     
                     // Center info
                     VStack(spacing: 4) {
-                        Text("PERIOD \(overlayData.period)")
+                        Text(formatPeriod())
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.orange)
                         

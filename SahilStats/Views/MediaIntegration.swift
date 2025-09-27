@@ -209,7 +209,7 @@ struct EnhancedLiveGameView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
             
-            Text("Period \(liveGame.period)")
+            Text("Quarter \(liveGame.quarter)")
                 .font(.headline)
                 .foregroundColor(.secondary)
         }

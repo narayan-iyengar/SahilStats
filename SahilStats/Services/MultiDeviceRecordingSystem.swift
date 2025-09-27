@@ -94,6 +94,23 @@ class DeviceRoleManager: ObservableObject {
         }
     }
     
+    func clearDeviceRole() async {
+        deviceRole = .none
+        liveGameId = nil
+        
+        // Clear saved role from UserDefaults
+        UserDefaults.standard.removeObject(forKey: "deviceRole")
+        UserDefaults.standard.removeObject(forKey: "connectedGameId")
+        
+        // Stop listening for devices
+        stopListeningForDevices()
+        
+        await MainActor.run {
+            isConnectedToGame = false
+            connectedDevices.removeAll()
+        }
+    }
+    
     func disconnectFromGame() async {
         if let gameId = liveGameId {
             try? await removeDeviceFromFirebase(gameId: gameId)

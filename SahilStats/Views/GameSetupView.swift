@@ -232,9 +232,9 @@ struct GameSetupView: View  {
                     .pickerStyle(.segmented)
                     
                     HStack {
-                        Text("\(gameConfig.gameFormat.periodName) Length")
+                        Text("\(gameConfig.gameFormat.quarterName) Length")
                         Spacer()
-                        TextField("Minutes", value: $gameConfig.periodLength, format: .number)
+                        TextField("Minutes", value: $gameConfig.quarterLength, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.numberPad)
                             .frame(width: 80)
@@ -242,7 +242,7 @@ struct GameSetupView: View  {
                             .foregroundColor(.secondary)
                     }
                     
-                    Text("Each \(gameConfig.gameFormat.periodName.lowercased()) will be \(gameConfig.periodLength) minutes long")
+                    Text("Each \(gameConfig.gameFormat.quarterName.lowercased()) will be \(gameConfig.quarterLength) minutes long")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -470,11 +470,11 @@ struct GameSetupView: View  {
             
             Spacer()
             
-            Button("Back to Setup Options") {
+            Button("Cancel") {
                 setupMode = .selection
                 deviceRole = .none
             }
-            .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
+            .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             
             Spacer()
         }
@@ -527,10 +527,10 @@ struct GameSetupView: View  {
             
             Spacer()
             
-            Button("Back to Setup Options") {
+            Button("Cancel") {
                 setupMode = .selection
             }
-            .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
+            .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             
             Spacer()
         }
@@ -542,7 +542,7 @@ struct GameSetupView: View  {
     private func loadDefaultSettings() {
         let settings = settingsManager.getDefaultGameSettings()
         gameConfig.gameFormat = settings.format
-        gameConfig.periodLength = settings.length
+        gameConfig.quarterLength = settings.length
         
         if let firstTeam = firebaseService.teams.first {
             gameConfig.teamName = firstTeam.name
@@ -604,7 +604,7 @@ struct GameSetupView: View  {
             opponent: gameConfig.opponent,
             location: gameConfig.location.isEmpty ? nil : gameConfig.location,
             gameFormat: gameConfig.gameFormat,
-            periodLength: gameConfig.periodLength,
+            quarterLength: gameConfig.quarterLength,
             createdBy: authService.currentUser?.email,
             deviceId: deviceId
         )
@@ -771,7 +771,13 @@ struct LiveGameFullScreenWrapper: View {
                 LiveGameNavigationBar(
                     liveGame: firebaseService.getCurrentLiveGame(),
                     role: roleManager.deviceRole,
-                    onDone: onDismiss,
+                    onDone: {
+                        // Clear the device role when leaving so user can select role again next time
+                        Task {
+                            await roleManager.clearDeviceRole()
+                        }
+                        onDismiss()
+                    },
                     onSelectRole: { showingRoleSelection = true }
                 )
                 .padding(.horizontal)
@@ -848,7 +854,7 @@ struct GameConfig {
     var location = ""
     var date = Date()
     var gameFormat = GameFormat.halves
-    var periodLength = 20
+    var quarterLength = 20
 }
 
 enum GameSubmissionMode {

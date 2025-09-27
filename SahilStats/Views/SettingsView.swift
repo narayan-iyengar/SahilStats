@@ -96,18 +96,18 @@ struct SettingsView: View {
                     // Format selection
                     Picker("Format", selection: $settingsManager.gameFormat) {
                         Text("Halves").tag(GameFormat.halves)
-                        Text("Periods").tag(GameFormat.periods)
+                        Text("Quarters").tag(GameFormat.quarters)
                     }
                     .pickerStyle(.segmented)
                     
-                    // Period/Half length
+                    // Quarter/Half length
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Length (minutes per \(settingsManager.gameFormat.periodName.lowercased()))")
+                        Text("Length (minutes per \(settingsManager.gameFormat.quarterName.lowercased()))")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
                         HStack {
-                            TextField("Minutes", value: $settingsManager.periodLength, format: .number)
+                            TextField("Minutes", value: $settingsManager.quarterLength, format: .number)
                                 .textFieldStyle(.roundedBorder)
                                 .keyboardType(.numberPad)
                             
@@ -276,9 +276,9 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    @Published var periodLength: Int {
+    @Published var quarterLength: Int {
         didSet {
-            UserDefaults.standard.set(periodLength, forKey: "periodLength")
+            UserDefaults.standard.set(quarterLength, forKey: "quarterLength")
         }
     }
     
@@ -303,8 +303,8 @@ class SettingsManager: ObservableObject {
             self.gameFormat = .halves // Default to halves
         }
         
-        let savedLength = UserDefaults.standard.integer(forKey: "periodLength")
-        self.periodLength = savedLength > 0 ? savedLength : 20 // Default to 20 minutes
+        let savedLength = UserDefaults.standard.integer(forKey: "quarterLength")
+        self.quarterLength = savedLength > 0 ? savedLength : 20 // Default to 20 minutes
         
         self.enableMultiDevice = UserDefaults.standard.bool(forKey: "enableMultiDevice")
         self.videoQuality = UserDefaults.standard.string(forKey: "videoQuality") ?? "High"
@@ -312,7 +312,7 @@ class SettingsManager: ObservableObject {
     
     // Helper method to get default game settings for new games
     func getDefaultGameSettings() -> (format: GameFormat, length: Int) {
-        return (gameFormat, periodLength)
+        return (gameFormat, quarterLength)
     }
 }
 
