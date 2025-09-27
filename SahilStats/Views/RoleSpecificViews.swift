@@ -1,11 +1,5 @@
-//
-//  RoleSpecificViews.swift
-//  SahilStats
-//
-//  Created by Narayan Iyengar on 9/23/25.
-//
 // File: SahilStats/Views/RoleSpecificViews.swift
-// Different views for Recording vs Control devices
+// Different views for Recording vs Control devices - Fixed
 
 import SwiftUI
 import AVFoundation
@@ -18,8 +12,6 @@ func formatDuration(_ duration: TimeInterval) -> String {
     let seconds = Int(duration) % 60
     return String(format: "%02d:%02d", minutes, seconds)
 }
-
-
 
 struct LiveScoreOverlay: View {
     let game: LiveGame
@@ -122,7 +114,8 @@ struct RecordingDeviceView: View {
             setupRecordingDevice()
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            updateOverlayData()
+            // Remove the problematic updateOverlayData() call
+            // The CleanVideoRecordingView handles its own overlay updates
         }
         .sheet(isPresented: $showingDeviceManager) {
             DeviceManagerView(liveGame: currentGame)
@@ -136,6 +129,10 @@ struct RecordingDeviceView: View {
             Circle()
                 .fill(.green)
                 .frame(width: 8, height: 8)
+            
+            Text("Recording Device")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.7))
             
             if totalRecordings > 0 {
                 Text("• \(totalRecordings) clips")
@@ -152,22 +149,10 @@ struct RecordingDeviceView: View {
         )
     }
     
-    // MARK: - Setup and Update Methods
+    // MARK: - Setup Methods
     private func setupRecordingDevice() {
         // Any specific setup for recording devices
         print("Setting up recording device for live game")
-    }
-    
-    private func updateOverlayData() {
-        // Update recording manager overlay data for live games
-        recordingManager.updateOverlay(
-            homeScore: currentGame.homeScore,
-            awayScore: currentGame.awayScore,
-            period: currentGame.period,
-            clock: currentGame.currentClockDisplay,
-            teamName: currentGame.teamName,
-            opponent: currentGame.opponent
-        )
     }
 }
 
@@ -187,6 +172,11 @@ struct DeviceManagerView: View {
     let liveGame: LiveGame
     @StateObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
     
     var body: some View {
         NavigationView {
@@ -224,7 +214,7 @@ struct DeviceManagerView: View {
                             .fontWeight(.semibold)
                         
                         ForEach(roleManager.connectedDevices) { device in
-                            ConnectedDeviceRow(device: device, isIPad: true)
+                            ConnectedDeviceRow(device: device, isIPad: isIPad)
                         }
                     }
                 }
@@ -238,7 +228,7 @@ struct DeviceManagerView: View {
                         dismiss()
                     }
                 }
-                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: true))
+                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             }
             .padding()
             .navigationTitle("Device Manager")

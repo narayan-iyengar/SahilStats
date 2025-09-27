@@ -1,10 +1,4 @@
-//
-//  SimpleScoreOverlay..swift
-//  SahilStats
-//
-//  Created by Narayan Iyengar on 9/27/25.
-//
-// SimpleScoreOverlayData.swift - Create this as a new file
+// SimpleScoreOverlayData.swift - Fixed version
 
 import Foundation
 import Combine
@@ -21,7 +15,7 @@ struct SimpleScoreOverlayData {
     let isRecording: Bool
     let recordingDuration: String
     
-    // Create from LiveGame
+    // Create from LiveGame - Fixed initializer
     init(from liveGame: LiveGame, isRecording: Bool = false, recordingDuration: String = "00:00") {
         self.homeTeam = liveGame.teamName
         self.awayTeam = liveGame.opponent
@@ -29,6 +23,18 @@ struct SimpleScoreOverlayData {
         self.awayScore = liveGame.awayScore
         self.period = liveGame.period
         self.clockTime = liveGame.currentClockDisplay
+        self.isRecording = isRecording
+        self.recordingDuration = recordingDuration
+    }
+    
+    // Manual initializer for custom data
+    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, period: Int, clockTime: String, isRecording: Bool = false, recordingDuration: String = "00:00") {
+        self.homeTeam = homeTeam
+        self.awayTeam = awayTeam
+        self.homeScore = homeScore
+        self.awayScore = awayScore
+        self.period = period
+        self.clockTime = clockTime
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
     }
