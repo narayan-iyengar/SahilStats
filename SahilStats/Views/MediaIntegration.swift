@@ -199,7 +199,7 @@ extension UIDeviceOrientation {
 
 
 // MARK: - Landscape-Only Video Recording View
-
+/*
 struct VideoRecordingView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
@@ -332,130 +332,18 @@ struct VideoRecordingView: View {
                 .padding(.bottom, 20)
             }
             
-            // Horizontal scoreboard overlay positioned at bottom edge
+            // ✅ FIXED: Use the working landscape scoreboard from RoleSpecificViews
             VStack {
                 Spacer() // Push to bottom
                 
-                VStack(spacing: 8) {
-                    // Main scoreboard - horizontal layout
-                    HStack(spacing: 40) {
-                        // Away team
-                        VStack(spacing: 4) {
-                            Text(liveGame.opponent)
-                                .font(.caption)
-                                .foregroundColor(.white)
-                            Text("\(liveGame.awayScore)")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.red)
-                        }
-                        
-                        // Center info
-                        VStack(spacing: 2) {
-                            Text("Period \(liveGame.period)")
-                                .font(.caption2)
-                                .foregroundColor(.orange)
-                            Text(liveGame.currentClockDisplay)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        }
-                        
-                        // Home team
-                        VStack(spacing: 4) {
-                            Text(liveGame.teamName)
-                                .font(.caption)
-                                .foregroundColor(.white)
-                            Text("\(liveGame.homeScore)")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.blue)
-                        }
-                    }
-                    
-                    // Recording indicator if recording
-                    if recordingManager.isRecording {
-                        Text("REC \(recordingManager.recordingTimeString)")
-                            .font(.caption2)
-                            .foregroundColor(.red)
-                            .fontWeight(.semibold)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(
-                    Rectangle()
-                        .fill(.black.opacity(0.7))
-                        .ignoresSafeArea(.all, edges: .horizontal)
+                // Reuse the working LiveScoreOverlay that was designed for landscape
+                LandscapeLiveScoreOverlay(
+                    game: liveGame,
+                    recordingDuration: recordingManager.recordingDuration,
+                    isRecording: recordingManager.isRecording
                 )
-                .ignoresSafeArea(.all, edges: .bottom)
             }
         }
-    }
-    
-    @ViewBuilder
-    private var horizontalScoreboard: some View {
-        // Create a horizontal bar that spans the full width at bottom
-        HStack(spacing: 0) {
-            // Away team (left third)
-            HStack(spacing: 12) {
-                Text(String(liveGame.opponent.prefix(3)).uppercased())
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Text("\(liveGame.awayScore)")
-                    .font(.system(size: 28, weight: .black))
-                    .foregroundColor(.white)
-                    .monospacedDigit()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 30)
-            
-            // Center info (middle third)
-            VStack(spacing: 2) {
-                Text(ordinalPeriod(liveGame.period))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.orange)
-                
-                Text(liveGame.currentClockDisplay)
-                    .font(.system(size: 16, weight: .black))
-                    .foregroundColor(.white)
-                    .monospacedDigit()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.orange.opacity(0.6), lineWidth: 1)
-                    )
-            )
-            .frame(maxWidth: .infinity)
-            
-            // Home team (right third)
-            HStack(spacing: 12) {
-                Text("\(liveGame.homeScore)")
-                    .font(.system(size: 28, weight: .black))
-                    .foregroundColor(.white)
-                    .monospacedDigit()
-                
-                Text(String(liveGame.teamName.prefix(3)).uppercased())
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 30)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 60) // Fixed height for consistent appearance
-        .background(
-            Rectangle()
-                .fill(Color.blue.opacity(0.9))
-                .edgesIgnoringSafeArea(.horizontal) // Extend to edges horizontally
-        )
-        .edgesIgnoringSafeArea(.bottom) // Extend to bottom edge
     }
     
     @ViewBuilder
@@ -542,6 +430,112 @@ struct VideoRecordingView: View {
         }
     }
 }
+*/
+
+
+// ✅ NEW: Landscape-optimized score overlay component
+struct LandscapeLiveScoreOverlay: View {
+    let game: LiveGame
+    let recordingDuration: TimeInterval
+    let isRecording: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Main horizontal scoreboard
+            HStack(spacing: 0) {
+                // Away team (left third)
+                HStack(spacing: 12) {
+                    Text(String(game.opponent.prefix(3)).uppercased())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("\(game.awayScore)")
+                        .font(.system(size: 32, weight: .black))
+                        .foregroundColor(.red)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 30)
+                
+                // Center info (middle third)
+                VStack(spacing: 2) {
+                    Text(ordinalPeriod(game.period))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.orange)
+                    
+                    Text(game.currentClockDisplay)
+                        .font(.system(size: 18, weight: .black))
+                        .foregroundColor(.white)
+                        .monospacedDigit()
+                    
+                    // Recording indicator
+                    if isRecording {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 6, height: 6)
+                            Text("REC \(formatDuration(recordingDuration))")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.orange.opacity(0.6), lineWidth: 1)
+                        )
+                )
+                .frame(maxWidth: .infinity)
+                
+                // Home team (right third)
+                HStack(spacing: 12) {
+                    Text("\(game.homeScore)")
+                        .font(.system(size: 32, weight: .black))
+                        .foregroundColor(.blue)
+                        .monospacedDigit()
+                    
+                    Text(String(game.teamName.prefix(3)).uppercased())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 30)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 70) // Fixed height for consistent appearance
+            .background(
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.black.opacity(0.8),
+                                Color.black.opacity(0.6)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .edgesIgnoringSafeArea(.horizontal) // Extend to edges horizontally
+            )
+        }
+        .edgesIgnoringSafeArea(.bottom) // Extend to bottom edge
+    }
+    
+    private func ordinalPeriod(_ period: Int) -> String {
+        switch period {
+        case 1: return "1ST"
+        case 2: return "2ND"
+        case 3: return "3RD"
+        case 4: return "4TH"
+        default: return "\(period)TH"
+        }
+    }
+}
 
 // MARK: - Enhanced Live Game View with Landscape-Only Recording
 
@@ -562,7 +556,7 @@ struct EnhancedLiveGameView: View {
             }
         }
         .fullScreenCover(isPresented: $showingVideoRecording) {
-            VideoRecordingView(liveGame: liveGame)
+            LandscapeVideoRecordingView(liveGame: liveGame)
         }
     }
     
@@ -643,10 +637,12 @@ struct VideoRecordingButton: View {
             .cornerRadius(20)
         }
         .fullScreenCover(isPresented: $showingVideoRecording) {
-            VideoRecordingView(liveGame: liveGame)
+            // Use the new landscape-native video recording view
+            LandscapeVideoRecordingView(liveGame: liveGame)
         }
     }
 }
+
 
 // MARK: - Camera Preview View
 
@@ -720,6 +716,7 @@ struct CameraCapture: UIViewControllerRepresentable {
         }
     }
 }
+
 
 // MARK: - Supporting Views
 
