@@ -6,22 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXAggregateTarget section */
-		8B74A6C92E86690500B76776 /* build all target */ = {
-			isa = PBXAggregateTarget;
-			buildConfigurationList = 8B74A6CA2E86690500B76776 /* Build configuration list for PBXAggregateTarget "build all target" */;
-			buildPhases = (
-				8B74A6CD2E86693D00B76776 /* ShellScript */,
-			);
-			dependencies = (
-			);
-			name = "build all target";
-			packageProductDependencies = (
-			);
-			productName = "build all target";
-		};
-/* End PBXAggregateTarget section */
-
 /* Begin PBXBuildFile section */
 		8B74A6D22E8683C300B76776 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 8B74A6D12E8683C300B76776 /* Lottie */; };
 		8BFE14522E7B60A800CED835 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE14512E7B60A800CED835 /* FirebaseCore */; };
@@ -136,9 +120,6 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
-					8B74A6C92E86690500B76776 = {
-						CreatedOnToolsVersion = 26.0.1;
-					};
 					8BFE142C2E7B5A8E00CED835 = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -164,7 +145,6 @@
 			projectRoot = "";
 			targets = (
 				8BFE142C2E7B5A8E00CED835 /* SahilStats */,
-				8B74A6C92E86690500B76776 /* build all target */,
 			);
 		};
 /* End PBXProject section */
@@ -179,27 +159,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		8B74A6CD2E86693D00B76776 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "#!/bin/sh\n\n# ======== CUSTOMIZE THESE VARIABLES ========\nSCHEME_NAME=\"SahilStats\"\nWORKSPACE_NAME=\"SahilStats.xcworkspace\"\nCONFIGURATION=\"Release\"\n# =========================================\n\nset -e\nset -o pipefail\n\necho \"INFO: Starting build for all platforms...\"\n\n# --- Build for iOS (Generic iOS Device) ---\necho \"INFO: Building for iOS...\"\nxcodebuild archive \\\n  -workspace \"${WORKSPACE_NAME}\" \\\n  -scheme \"${SCHEME_NAME}\" \\\n  -configuration \"${CONFIGURATION}\" \\\n  -destination 'generic/platform=iOS' \\\n  -archivePath \"${BUILD_DIR}/${CONFIGURATION}-iphoneos/${SCHEME_NAME}-iOS.xcarchive\" \\\n  -allowProvisioningUpdates \\\n  SKIP_INSTALL=NO \\\n  BUILD_LIBRARY_FOR_DISTRIBUTION=YES\n\n# --- Build for iPadOS (Generic iOS Device targeting iPad) ---\necho \"INFO: Building for iPadOS...\"\nxcodebuild archive \\\n  -workspace \"${WORKSPACE_NAME}\" \\\n  -scheme \"${SCHEME_NAME}\" \\\n  -configuration \"${CONFIGURATION}\" \\\n  -destination 'generic/platform=iOS,name=Any iOS Device (iPad)' \\\n  -archivePath \"${BUILD_DIR}/${CONFIGURATION}-iphoneos/${SCHEME_NAME}-iPad.xcarchive\" \\\n  -allowProvisioningUpdates \\\n  SKIP_INSTALL=NO \\\n  BUILD_LIBRARY_FOR_DISTRIBUTION=YES\n\necho \"SUCCESS: All platforms built successfully.\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		8BFE14292E7B5A8E00CED835 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -211,24 +170,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		8B74A6CB2E86690500B76776 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TTV9QQRD5H;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		8B74A6CC2E86690500B76776 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TTV9QQRD5H;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
 		8BFE143B2E7B5A9000CED835 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -443,15 +384,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8B74A6CA2E86690500B76776 /* Build configuration list for PBXAggregateTarget "build all target" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8B74A6CB2E86690500B76776 /* Debug */,
-				8B74A6CC2E86690500B76776 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		8BFE14282E7B5A8E00CED835 /* Build configuration list for PBXProject "SahilStats" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

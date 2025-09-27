@@ -19,15 +19,6 @@ func formatDuration(_ duration: TimeInterval) -> String {
     return String(format: "%02d:%02d", minutes, seconds)
 }
 
-// MARK: - Control Device View (Main Controller)
-
-struct ControlDeviceView: View {
-    let liveGame: LiveGame
-    
-    var body: some View {
-        LiveGameControllerView(liveGame: liveGame)
-    }
-}
 
 
 struct LiveScoreOverlay: View {
@@ -79,7 +70,7 @@ struct LiveScoreOverlay: View {
     }
 }
 
-// MARK: - Recording Device View
+// MARK: - Updated Recording Device View
 
 struct RecordingDeviceView: View {
     let liveGame: LiveGame
@@ -88,9 +79,7 @@ struct RecordingDeviceView: View {
     @StateObject private var firebaseService = FirebaseService.shared
     @Environment(\.dismiss) private var dismiss
     
-    @State private var previewLayer: AVCaptureVideoPreviewLayer?
-    @State private var showingControls = true
-    @State private var hideControlsTimer: Timer?
+    @State private var showingDeviceManager = false
     @State private var totalRecordings: Int = 0
     
     // Real-time game data
@@ -100,51 +89,73 @@ struct RecordingDeviceView: View {
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Use the new clean VideoRecordingView
+            VideoRecordingView(liveGame: currentGame)
             
-            // Camera preview
-            if let previewLayer = previewLayer {
-                CameraPreviewView(previewLayer: previewLayer)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        toggleControlsVisibility()
+            // Add recording device specific overlay
+            VStack {
+                // Top connection status
+                HStack {
+                    connectionStatusIndicator
+                    
+                    Spacer()
+                    
+                    // Device manager button
+                    Button(action: {
+                        showingDeviceManager = true
+                    }) {
+                        Image(systemName: "gear")
+                            .font(.title2)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(12)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
                     }
-            } else {
-                recordingSetupView
-            }
-            
-            // REUSE existing ScoreOverlayView when recording
-            if recordingManager.isRecording {
-                ScoreOverlayView(overlayData: createOverlayData())
-            }
-            
-            // Recording controls (hideable)
-            if showingControls {
-                recordingControlsOverlay
-                    .transition(.opacity)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                
+                Spacer()
             }
         }
-        .navigationBarHidden(true)
         .onAppear {
             setupRecordingDevice()
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             updateOverlayData()
         }
+        .sheet(isPresented: $showingDeviceManager) {
+            DeviceManagerView(liveGame: currentGame)
+        }
     }
     
-    // REUSE existing overlay system
-    private func createOverlayData() -> ScoreOverlayData {
-        ScoreOverlayData(
-            homeScore: currentGame.homeScore,
-            awayScore: currentGame.awayScore,
-            period: currentGame.period,
-            clock: currentGame.currentClockDisplay,
-            teamName: currentGame.teamName,
-            opponent: currentGame.opponent,
-            timestamp: Date(),
-            isLiveGame: true
+    // MARK: - Connection Status Indicator
+    @ViewBuilder
+    private var connectionStatusIndicator: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(.green)
+                .frame(width: 8, height: 8)
+            
+            if totalRecordings > 0 {
+                Text("• \(totalRecordings) clips")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.black.opacity(0.7))
+                .background(.ultraThinMaterial)
         )
+    }
+    
+    // MARK: - Setup and Update Methods
+    private func setupRecordingDevice() {
+        // Any specific setup for recording devices
+        print("Setting up recording device for live game")
     }
     
     private func updateOverlayData() {
@@ -158,282 +169,15 @@ struct RecordingDeviceView: View {
             opponent: currentGame.opponent
         )
     }
+}
 
+// MARK: - Updated Control Device View (for consistency)
+
+struct ControlDeviceView: View {
+    let liveGame: LiveGame
     
-    // MARK: - Recording Setup
-    
-    @ViewBuilder
-    private var recordingSetupView: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 16) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.white.opacity(0.7))
-                
-                Text("Recording Device")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                
-                Text("Setting up camera for live game recording...")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.center)
-            }
-            
-            if recordingManager.shouldRequestAccess {
-                Button("Enable Camera Access") {
-                    setupRecordingDevice()
-                }
-                .buttonStyle(RecordingButtonStyle())
-            }
-        }
-        .padding()
-    }
-    
-    // MARK: - Recording Controls Overlay
-    
-    @ViewBuilder
-    private var recordingControlsOverlay: some View {
-        VStack {
-            // Top controls
-            HStack {
-                Button(action: {
-                    disconnect()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-                
-                Spacer()
-                
-                // Recording status and stats
-                if recordingManager.isRecording {
-                    recordingStatusView
-                }
-                
-                Spacer()
-                
-                // Settings menu
-                Menu {
-                    Button("Switch Camera") {
-                        // Switch between front/back camera
-                    }
-                    Button("Recording Quality") {
-                        // Quality settings
-                    }
-                    Button("Show Grid") {
-                        // Camera grid overlay
-                    }
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.title2)
-                        .foregroundColor(.white.opacity(0.7))
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 50)
-            
-            Spacer()
-            
-            // Bottom recording controls
-            recordingButtonsOverlay
-        }
-    }
-    
-    @ViewBuilder
-    private var recordingStatusView: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(.red)
-                    .frame(width: 10, height: 10)
-                    .opacity(0.8)
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
-                Text("REC")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(.red)
-            }
-            
-            Text(formatDuration(recordingManager.recordingDuration))
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-                .monospacedDigit()
-            
-            // Recording stats
-            if totalRecordings > 0 {
-                Text("\(totalRecordings) clips")
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.7))
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.7))
-                .background(.ultraThinMaterial)
-        )
-    }
-    
-    @ViewBuilder
-    private var recordingButtonsOverlay: some View {
-        HStack(spacing: 40) {
-            // Gallery/Previous recordings
-            Button(action: {
-                // Show recorded clips
-            }) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.white.opacity(0.3))
-                    .frame(width: 50, height: 50)
-                    .overlay {
-                        if totalRecordings > 0 {
-                            VStack(spacing: 2) {
-                                Text("\(totalRecordings)")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                Image(systemName: "photo.on.rectangle")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                            }
-                        } else {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.title3)
-                                .foregroundColor(.white)
-                        }
-                    }
-            }
-            .disabled(recordingManager.isRecording)
-            
-            Spacer()
-            
-            // Main record button
-            Button(action: toggleRecording) {
-                ZStack {
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 80, height: 80)
-                    
-                    if recordingManager.isRecording {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(.red)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Circle()
-                            .fill(.red)
-                            .frame(width: 65, height: 65)
-                    }
-                }
-            }
-            .scaleEffect(recordingManager.isRecording ? 1.1 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: recordingManager.isRecording)
-            
-            Spacer()
-            
-            // Flip camera
-            Button(action: {
-                // Flip camera
-            }) {
-                Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                    .font(.title2)
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(Color.black.opacity(0.5))
-                    .clipShape(Circle())
-            }
-            .disabled(recordingManager.isRecording)
-        }
-        .padding(.horizontal, 40)
-        .padding(.bottom, 30)
-    }
-    
-    @ViewBuilder
-    private var connectionStatusOverlay: some View {
-        VStack {
-            HStack {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(.green)
-                        .frame(width: 8, height: 8)
-                    
-                    Text("Connected as Recorder")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.black.opacity(0.7))
-                        .background(.ultraThinMaterial)
-                )
-                
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 50)
-            
-            Spacer()
-        }
-    }
-    
-    // MARK: - Actions
-    
-    private func setupRecordingDevice() {
-        Task {
-            let layer = await recordingManager.setupCamera()
-            await MainActor.run {
-                self.previewLayer = layer
-            }
-        }
-    }
-    
-    private func toggleRecording() {
-        Task {
-            if recordingManager.isRecording {
-                await recordingManager.stopRecording()
-            } else {
-                await recordingManager.startRecording()
-            }
-        }
-    }
-    
-    private func toggleControlsVisibility() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showingControls.toggle()
-        }
-        
-        // Auto-hide after 3 seconds if showing
-        if showingControls {
-            hideControlsTimer?.invalidate()
-            hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    showingControls = false
-                }
-            }
-        } else {
-            hideControlsTimer?.invalidate()
-        }
-    }
-    
-    
-    private func disconnect() {
-        Task {
-            await roleManager.disconnectFromGame()
-            await MainActor.run {
-                dismiss()
-            }
-        }
+    var body: some View {
+        LiveGameControllerView(liveGame: liveGame)
     }
 }
 
