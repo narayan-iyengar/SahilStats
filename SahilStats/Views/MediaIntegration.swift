@@ -4,10 +4,10 @@
 //
 //  Created by Narayan Iyengar on 9/23/25.
 //
-// File: SahilStats/Views/MediaIntegration.swift
 
 import SwiftUI
 import AVFoundation
+import Combine
 
 // MARK: - Enhanced Game Detail View with Media
 
@@ -16,9 +16,7 @@ struct EnhancedGameDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var firebaseService = FirebaseService.shared
     @EnvironmentObject var authService: AuthService
-
     
-    // State for media features
     @State private var showingCameraCapture = false
     @State private var showingVideoRecording = false
     
@@ -31,16 +29,9 @@ struct EnhancedGameDetailView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Existing header
                     headerView
-                    
-                    // NEW: Media Section
                     mediaSection
-                    
-                    // Existing player stats
                     playerStatsSection
-                    
-                    // Existing shooting percentages
                     shootingPercentagesSection
                 }
                 .padding()
@@ -56,9 +47,6 @@ struct EnhancedGameDetailView: View {
             }
         }
     }
-     
-
-    // MARK: - Media Section
     
     @ViewBuilder
     private var mediaSection: some View {
@@ -88,9 +76,6 @@ struct EnhancedGameDetailView: View {
         .background(Color.orange.opacity(0.05))
         .cornerRadius(isIPad ? 16 : 12)
     }
-    
-    
-    // MARK: - Existing Views (same as your current implementation)
     
     private var headerView: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -154,28 +139,543 @@ struct EnhancedGameDetailView: View {
             }
         }
     }
+}
+
+// MARK: - Orientation Manager
+
+@MainActor
+class OrientationManager: ObservableObject {
+    @Published var orientation = UIDevice.current.orientation
+    @Published var isLandscape = false
     
-    private func shareGameSummary() {
-        let text = """
-        🏀 \(game.teamName) vs \(game.opponent)
-        Final: \(game.myTeamScore) - \(game.opponentScore)
+    init() {
+        updateLandscapeState()
+        startObserving()
+    }
+    
+    private func startObserving() {
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         
-        Sahil's Stats:
-        📊 \(game.points) PTS • \(game.rebounds) REB • \(game.assists) AST
-        🎯 FG: \(String(format: "%.0f%%", game.fieldGoalPercentage * 100))
+        NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateOrientation()
+        }
+    }
+    
+    private func updateOrientation() {
+        let newOrientation = UIDevice.current.orientation
         
-        #SahilStats #Basketball
-        """
-        
-        let activityViewController = UIActivityViewController(
-            activityItems: [text],
-            applicationActivities: nil
+        if newOrientation.isValidInterfaceOrientation {
+            orientation = newOrientation
+            updateLandscapeState()
+            print("Orientation updated: \(orientation.rawValue), isLandscape: \(isLandscape)")
+        }
+    }
+    
+    private func updateLandscapeState() {
+        isLandscape = orientation.isLandscape
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        UIDevice.current.endGeneratingDeviceOrientationNotifications()
+    }
+}
+
+extension UIDeviceOrientation {
+    var isValidInterfaceOrientation: Bool {
+        switch self {
+        case .portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+
+
+// MARK: - Landscape-Only Video Recording View
+
+struct VideoRecordingView: View {
+    let liveGame: LiveGame
+    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @StateObject private var orientationManager = OrientationManager()
+    @Environment(\.dismiss) private var dismiss
+    @State private var isLiveIndicatorVisible = true
+    @State private var screenSize: CGSize = .zero
+    
+    private var isLandscape: Bool {
+        orientationManager.isLandscape
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                CameraPreviewView()
+                    .ignoresSafeArea(.all)
+                
+                if isLandscape {
+                    // Landscape mode - full recording interface
+                    landscapeRecordingInterface
+                } else {
+                    // Portrait mode - rotation prompt
+                    portraitRotationPrompt
+                }
+            }
+            .onAppear {
+                screenSize = geometry.size
+                // Only start camera in landscape mode
+                if isLandscape {
+                    recordingManager.startCameraSession()
+                }
+                isLiveIndicatorVisible = true
+            }
+            .onChange(of: geometry.size) { oldSize, newSize in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    screenSize = newSize
+                }
+            }
+            .onChange(of: isLandscape) { oldValue, newValue in
+                if newValue {
+                    // Switched to landscape - start camera
+                    recordingManager.startCameraSession()
+                } else {
+                    // Switched to portrait - stop camera and recording
+                    if recordingManager.isRecording {
+                        Task { await recordingManager.stopRecording() }
+                    }
+                    recordingManager.stopCameraSession()
+                }
+            }
+        }
+        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .preferredColorScheme(.dark)
+        .statusBarHidden()
+        .onDisappear {
+            recordingManager.stopCameraSession()
+        }
+    }
+    
+    @ViewBuilder
+    private var landscapeRecordingInterface: some View {
+        ZStack {
+            VStack {
+                // Top bar
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    
+                    Spacer()
+                    
+                    if recordingManager.isRecording {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .opacity(isLiveIndicatorVisible ? 1.0 : 0.3)
+                                .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isLiveIndicatorVisible)
+                            
+                            Text("REC")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.red)
+                            
+                            Text(recordingManager.recordingTimeString)
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    
+                    Spacer()
+                    
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: 44, height: 44)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                Spacer()
+                
+                // Record button at bottom
+                Button(action: toggleRecording) {
+                    ZStack {
+                        Circle()
+                            .stroke(.white, lineWidth: 4)
+                            .frame(width: 80, height: 80)
+                        
+                        Circle()
+                            .fill(recordingManager.isRecording ? .red : .white)
+                            .frame(width: recordingManager.isRecording ? 32 : 68)
+                            .scaleEffect(recordingManager.isRecording ? 0.8 : 1.0)
+                            .animation(.easeInOut(duration: 0.2), value: recordingManager.isRecording)
+                        
+                        if recordingManager.isRecording {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(.white)
+                                .frame(width: 24, height: 24)
+                        }
+                    }
+                }
+                .padding(.bottom, 20)
+            }
+            
+            // Horizontal scoreboard overlay positioned at bottom edge
+            VStack {
+                Spacer() // Push to bottom
+                
+                VStack(spacing: 8) {
+                    // Main scoreboard - horizontal layout
+                    HStack(spacing: 40) {
+                        // Away team
+                        VStack(spacing: 4) {
+                            Text(liveGame.opponent)
+                                .font(.caption)
+                                .foregroundColor(.white)
+                            Text("\(liveGame.awayScore)")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                        }
+                        
+                        // Center info
+                        VStack(spacing: 2) {
+                            Text("Period \(liveGame.period)")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                            Text(liveGame.currentClockDisplay)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                        
+                        // Home team
+                        VStack(spacing: 4) {
+                            Text(liveGame.teamName)
+                                .font(.caption)
+                                .foregroundColor(.white)
+                            Text("\(liveGame.homeScore)")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
+                    // Recording indicator if recording
+                    if recordingManager.isRecording {
+                        Text("REC \(recordingManager.recordingTimeString)")
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    Rectangle()
+                        .fill(.black.opacity(0.7))
+                        .ignoresSafeArea(.all, edges: .horizontal)
+                )
+                .ignoresSafeArea(.all, edges: .bottom)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var horizontalScoreboard: some View {
+        // Create a horizontal bar that spans the full width at bottom
+        HStack(spacing: 0) {
+            // Away team (left third)
+            HStack(spacing: 12) {
+                Text(String(liveGame.opponent.prefix(3)).uppercased())
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("\(liveGame.awayScore)")
+                    .font(.system(size: 28, weight: .black))
+                    .foregroundColor(.white)
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 30)
+            
+            // Center info (middle third)
+            VStack(spacing: 2) {
+                Text(ordinalPeriod(liveGame.period))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.orange)
+                
+                Text(liveGame.currentClockDisplay)
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundColor(.white)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.orange.opacity(0.6), lineWidth: 1)
+                    )
+            )
+            .frame(maxWidth: .infinity)
+            
+            // Home team (right third)
+            HStack(spacing: 12) {
+                Text("\(liveGame.homeScore)")
+                    .font(.system(size: 28, weight: .black))
+                    .foregroundColor(.white)
+                    .monospacedDigit()
+                
+                Text(String(liveGame.teamName.prefix(3)).uppercased())
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 30)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 60) // Fixed height for consistent appearance
+        .background(
+            Rectangle()
+                .fill(Color.blue.opacity(0.9))
+                .edgesIgnoringSafeArea(.horizontal) // Extend to edges horizontally
         )
+        .edgesIgnoringSafeArea(.bottom) // Extend to bottom edge
+    }
+    
+    @ViewBuilder
+    private var portraitRotationPrompt: some View {
+        ZStack {
+            // Semi-transparent overlay
+            Rectangle()
+                .fill(.black.opacity(0.8))
+                .ignoresSafeArea(.all)
+            
+            VStack(spacing: 24) {
+                // Rotation icon with animation
+                Image(systemName: "rotate.right")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundColor(.white)
+                    .rotationEffect(.degrees(90))
+                    .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: isLiveIndicatorVisible)
+                
+                VStack(spacing: 12) {
+                    Text("Rotate to Landscape")
+                        .font(.title)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Text("Video recording is only available in landscape mode for the best experience")
+                        .font(.body)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+                
+                // Game info preview
+                VStack(spacing: 8) {
+                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                    
+                    Text("\(liveGame.homeScore) - \(liveGame.awayScore)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("\(ordinalPeriod(liveGame.period)) • \(liveGame.currentClockDisplay)")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .padding(.top, 20)
+                
+                // Dismiss button
+                Button(action: { dismiss() }) {
+                    Text("Cancel")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(.white.opacity(0.3), lineWidth: 1)
+                        )
+                }
+                .padding(.top, 20)
+            }
+        }
+    }
+    
+    private func ordinalPeriod(_ period: Int) -> String {
+        switch period {
+        case 1: return "1ST"
+        case 2: return "2ND"
+        case 3: return "3RD"
+        case 4: return "4TH"
+        default: return "\(period)TH"
+        }
+    }
+    
+    private func toggleRecording() {
+        // Only allow recording in landscape mode
+        guard isLandscape else { return }
         
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootViewController = window.rootViewController {
-            rootViewController.present(activityViewController, animated: true)
+        if recordingManager.isRecording {
+            Task { await recordingManager.stopRecording() }
+        } else {
+            Task { await recordingManager.startRecording() }
+        }
+    }
+}
+
+// MARK: - Enhanced Live Game View with Landscape-Only Recording
+
+struct EnhancedLiveGameView: View {
+    let liveGame: LiveGame
+    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @State private var showingVideoRecording = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            enhancedLiveGameHeader()
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    existingLiveGameContent()
+                }
+                .padding()
+            }
+        }
+        .fullScreenCover(isPresented: $showingVideoRecording) {
+            VideoRecordingView(liveGame: liveGame)
+        }
+    }
+    
+    @ViewBuilder
+    private func enhancedLiveGameHeader() -> some View {
+        VStack(spacing: 16) {
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 12, height: 12)
+                        .opacity(0.8)
+                        .animation(.easeInOut(duration: 1).repeatForever(), value: true)
+                    
+                    Text("LIVE GAME")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.red)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    VideoRecordingButton(liveGame: liveGame)
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 12)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+        )
+    }
+    
+    @ViewBuilder
+    private func existingLiveGameContent() -> some View {
+        VStack(spacing: 20) {
+            Text("Live Game Content")
+                .font(.title2)
+                .foregroundColor(.secondary)
+            
+            Text("Score: \(liveGame.homeScore) - \(liveGame.awayScore)")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            Text("Period \(liveGame.period)")
+                .font(.headline)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Updated Video Recording Button
+
+struct VideoRecordingButton: View {
+    let liveGame: LiveGame
+    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @State private var showingVideoRecording = false
+    
+    var body: some View {
+        Button(action: {
+            showingVideoRecording = true
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "video.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.white)
+                
+                Text("Record")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.blue.opacity(0.9))
+            .cornerRadius(20)
+        }
+        .fullScreenCover(isPresented: $showingVideoRecording) {
+            VideoRecordingView(liveGame: liveGame)
+        }
+    }
+}
+
+// MARK: - Camera Preview View
+
+struct CameraPreviewView: UIViewRepresentable {
+    @StateObject private var recordingManager = VideoRecordingManager.shared
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .black
+        
+        if let previewLayer = recordingManager.previewLayer {
+            previewLayer.frame = view.bounds
+            previewLayer.videoGravity = .resizeAspectFill
+            view.layer.addSublayer(previewLayer)
+        } else {
+            if let newPreviewLayer = recordingManager.setupCamera() {
+                newPreviewLayer.frame = view.bounds
+                view.layer.addSublayer(newPreviewLayer)
+            }
+        }
+        
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {
+        if let previewLayer = recordingManager.previewLayer {
+            DispatchQueue.main.async {
+                previewLayer.frame = uiView.bounds
+            }
         }
     }
 }
@@ -221,170 +721,7 @@ struct CameraCapture: UIViewControllerRepresentable {
     }
 }
 
-struct EnhancedLiveGameView: View {
-    let liveGame: LiveGame
-    @StateObject private var recordingManager = VideoRecordingManager.shared
-    @State private var showingVideoRecording = false
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // Enhanced live game header with recording button
-            enhancedLiveGameHeader()
-            
-            // Existing live game content
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Your existing live game content here
-                    existingLiveGameContent()
-                }
-                .padding()
-            }
-        }
-        .fullScreenCover(isPresented: $showingVideoRecording) {
-            VideoRecordingView(liveGame: liveGame)
-        }
-    }
-    
-    @ViewBuilder
-    private func enhancedLiveGameHeader() -> some View {
-        VStack(spacing: 16) {
-            // Existing header content
-            HStack {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 12, height: 12)
-                        .opacity(0.8)
-                        .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                    
-                    Text("LIVE GAME")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.red)
-                }
-                
-                Spacer()
-                
-                // NEW: Recording controls
-                HStack(spacing: 12) {
-                    // Video recording button
-                    VideoRecordingButton(liveGame: liveGame)
-                }
-            }
-            .padding(.horizontal)
-        }
-        .padding(.vertical, 12)
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-        )
-    }
-    
-    @ViewBuilder
-    private func existingLiveGameContent() -> some View {
-        // Your existing live game content would go here
-        // This is just a placeholder - use your actual LiveGameView content
-        VStack(spacing: 20) {
-            Text("Live Game Content")
-                .font(.title2)
-                .foregroundColor(.secondary)
-            
-            Text("Score: \(liveGame.homeScore) - \(liveGame.awayScore)")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Period \(liveGame.period)")
-                .font(.headline)
-                .foregroundColor(.secondary)
-        }
-    }
-    
-    @ViewBuilder
-    private var liveGameScreenshotView: some View {
-        VStack(spacing: 20) {
-            // Live game header for screenshot
-            VStack(spacing: 12) {
-                HStack {
-                    Text("🔴 LIVE")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.red)
-                    Spacer()
-                    Text(Date().formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Text("\(liveGame.teamName) vs \(liveGame.opponent)")
-                    .font(.title)
-                    .fontWeight(.bold)
-            }
-            
-            // Score display
-            HStack(spacing: 40) {
-                VStack {
-                    Text(liveGame.teamName)
-                        .font(.headline)
-                        .foregroundColor(.blue)
-                    Text("\(liveGame.homeScore)")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(.blue)
-                }
-                
-                Text("-")
-                    .font(.title)
-                    .foregroundColor(.secondary)
-                
-                VStack {
-                    Text(liveGame.opponent)
-                        .font(.headline)
-                        .foregroundColor(.red)
-                    Text("\(liveGame.awayScore)")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(.red)
-                }
-            }
-            
-            // Game info
-            VStack(spacing: 8) {
-                Text("Period \(liveGame.period)")
-                    .font(.headline)
-                Text(liveGame.currentClockDisplay)
-                    .font(.title2)
-                    .fontWeight(.medium)
-                    .monospacedDigit()
-            }
-            
-            // Player stats if available - FIXED: Compare to 0 instead of using as boolean
-            if liveGame.playerStats.points != 0 || liveGame.playerStats.rebounds != 0 {
-                VStack(spacing: 12) {
-                    Text("Sahil's Stats")
-                        .font(.headline)
-                        .foregroundColor(.orange)
-                    
-                    HStack(spacing: 20) {
-                        StatItem(title: "PTS", value: liveGame.playerStats.points, color: .purple)
-                        StatItem(title: "REB", value: liveGame.playerStats.rebounds, color: .mint)
-                        StatItem(title: "AST", value: liveGame.playerStats.assists, color: .cyan)
-                    }
-                }
-            }
-            
-            // Watermark
-            HStack {
-                Spacer()
-                Text("SahilStats • Live Game")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .opacity(0.7)
-            }
-        }
-        .padding(24)
-        .background(Color(.systemBackground))
-    }
-}
-
-// MARK: - Stat Item for Screenshots
+// MARK: - Supporting Views
 
 struct StatItem: View {
     let title: String
@@ -408,9 +745,6 @@ struct StatItem: View {
     }
 }
 
-
-// MARK: - Media Access Status
-
 struct MediaAccessStatus: View {
     @StateObject private var recordingManager = VideoRecordingManager.shared
     
@@ -418,8 +752,7 @@ struct MediaAccessStatus: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Permissions")
                 .font(.headline)
-                        
-            // Camera access status
+            
             HStack {
                 Image(systemName: recordingManager.canRecordVideo ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundColor(recordingManager.canRecordVideo ? .green : .orange)

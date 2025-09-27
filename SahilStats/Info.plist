@@ -23,5 +23,10 @@
 		<string>background-processing</string>
 		<string>fetch</string>
 	</array>
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs camera access to record game footage with live stats overlay</string>
+
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app needs microphone access to record game audio along with video</string>
 </dict>
 </plist>

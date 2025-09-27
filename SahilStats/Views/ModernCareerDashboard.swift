@@ -153,7 +153,7 @@ struct ModernOverviewStatsView: View {
                 ModernStatCard(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
                 ModernStatCard(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
                 ModernStatCard(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
-                ModernStatCard(title: "True Shooting", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
+                ModernStatCard(title: "Shooting", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
             }
             
             // --- Advanced Analytics Section ---
