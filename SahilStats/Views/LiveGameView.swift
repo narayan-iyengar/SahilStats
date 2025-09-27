@@ -20,7 +20,6 @@ struct LiveGameView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    @State private var showingVideoRecording = false
     
     // REMOVED: @State private var showingRoleSelection = false
     
@@ -34,14 +33,10 @@ struct LiveGameView: View {
                 // FIXED: Don't show role selection here - it's handled in GameSetup
                 switch roleManager.deviceRole {
                 case .recorder:
-                    Color.clear
-                        .fullScreenCover(isPresented: $showingVideoRecording) {
-                            CleanVideoRecordingView(liveGame: liveGame)
-                                .navigationBarHidden(true)
-                        }
-                        .onAppear {
-                            showingVideoRecording = true
-                        }
+                    CleanVideoRecordingView(liveGame: liveGame)
+                        .ignoresSafeArea(.all)
+                        .navigationBarHidden(true)
+                        .statusBarHidden(true)
                 case .controller:
                     ControlDeviceView(liveGame: liveGame)
                 case .viewer:
@@ -60,6 +55,8 @@ struct LiveGameView: View {
             // FIXED: Remove automatic role selection logic
             print("LiveGameView appeared - Role: \(roleManager.deviceRole)")
         }
+        .navigationBarHidden(true)
+        .statusBarHidden(true)
     }
 }
 

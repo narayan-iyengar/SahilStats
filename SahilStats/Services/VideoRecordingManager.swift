@@ -55,7 +55,8 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.captureSession?.startRunning()
-            DispatchQueue.main.async {
+            // Wait a bit longer for the session to fully initialize
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self?.updatePreviewOrientation()
             }
         }
@@ -73,8 +74,22 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
     
     func updatePreviewOrientation() {
+        // Add a small delay and retry mechanism to ensure connection is available
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.performOrientationUpdate()
+        }
+    }
+    
+    private func performOrientationUpdate(retryCount: Int = 0) {
         guard let connection = self.previewLayer?.connection else {
-            print("No preview layer connection available")
+            // Retry up to 5 times with increasing delays
+            if retryCount < 5 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2 * Double(retryCount + 1)) {
+                    self.performOrientationUpdate(retryCount: retryCount + 1)
+                }
+            } else {
+                print("Preview layer connection not available after retries")
+            }
             return
         }
 
@@ -173,13 +188,16 @@ class VideoRecordingManager: NSObject, ObservableObject {
             
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
             previewLayer.videoGravity = .resizeAspectFill
-            updatePreviewOrientation()
             
             self.captureSession = session
             self._previewLayer = previewLayer
             
             DispatchQueue.global(qos: .userInitiated).async {
                 session.startRunning()
+                // Update orientation after session starts running
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.updatePreviewOrientation()
+                }
             }
             
             return previewLayer

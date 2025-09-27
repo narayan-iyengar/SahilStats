@@ -11,6 +11,8 @@ struct CleanVideoRecordingView: View {
     // Local state for overlay data
     @State private var overlayData: SimpleScoreOverlayData
     @State private var updateTimer: Timer?
+    @State private var isCameraReady = false
+    @State private var orientation = UIDeviceOrientation.portrait
     
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
@@ -21,86 +23,166 @@ struct CleanVideoRecordingView: View {
     var body: some View {
         ZStack {
             // Camera preview fills entire screen
-            SimpleCameraPreviewView()
+            SimpleCameraPreviewView(isCameraReady: $isCameraReady)
                 .ignoresSafeArea(.all)
             
-            // Score overlay
-            SimpleScoreOverlay(overlayData: overlayData)
-            
-            // Recording controls
-            VStack {
-                // Top controls
-                HStack {
-                    // Close button
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    
-                    Spacer()
-                    
-                    // Recording status
-                    if recordingManager.isRecording {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 8, height: 8)
-                                .opacity(0.8)
-                                .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
+            // Only show overlay and controls when camera is ready
+            if isCameraReady {
+                // Score overlay - now orientation-aware
+                SimpleScoreOverlay(overlayData: overlayData, orientation: orientation)
+                
+                // Recording controls - orientation aware
+                if orientation == .landscapeLeft || orientation == .landscapeRight {
+                    // Landscape layout - vertical controls on the left
+                    HStack {
+                        VStack(spacing: 20) {
+                            // Close button
+                            Button(action: { dismiss() }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 40, height: 40)
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
                             
-                            Text("REC")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.red)
+                            Spacer()
                             
-                            Text(recordingManager.recordingTimeString)
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    
-                    Spacer()
-                    
-                    // Record button
-                    Button(action: toggleRecording) {
-                        ZStack {
-                            Circle()
-                                .stroke(.white, lineWidth: 3)
-                                .frame(width: 60, height: 60)
-                            
-                            Circle()
-                                .fill(recordingManager.isRecording ? .red : .white)
-                                .frame(width: recordingManager.isRecording ? 25 : 50)
-                                .scaleEffect(recordingManager.isRecording ? 0.8 : 1.0)
-                                .animation(.easeInOut(duration: 0.2), value: recordingManager.isRecording)
-                            
+                            // Recording status - positioned in middle-left
                             if recordingManager.isRecording {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(.white)
-                                    .frame(width: 16, height: 16)
+                                VStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 8, height: 8)
+                                        .opacity(0.8)
+                                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
+                                    
+                                    Text("REC")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.red)
+                                    
+                                    Text(recordingManager.recordingTimeString)
+                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                        .minimumScaleFactor(0.8)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            }
+                            
+                            Spacer()
+                            
+                            // Record button
+                            Button(action: toggleRecording) {
+                                ZStack {
+                                    Circle()
+                                        .stroke(.white, lineWidth: 3)
+                                        .frame(width: 60, height: 60)
+                                    
+                                    if recordingManager.isRecording {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(.red)
+                                            .frame(width: 20, height: 20)
+                                    } else {
+                                        Circle()
+                                            .fill(.red)
+                                            .frame(width: 50)
+                                    }
+                                }
                             }
                         }
+                        .padding(.leading, 16)
+                        .padding(.vertical, 50) // More space from top/bottom
+                        
+                        Spacer()
+                    }
+                } else {
+                    // Portrait layout - horizontal controls at top
+                    VStack {
+                        HStack {
+                            // Close button
+                            Button(action: { dismiss() }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 40, height: 40)
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
+                            
+                            Spacer()
+                            
+                            // Recording status
+                            if recordingManager.isRecording {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 8, height: 8)
+                                        .opacity(0.8)
+                                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
+                                    
+                                    Text("REC")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.red)
+                                    
+                                    Text(recordingManager.recordingTimeString)
+                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.ultraThinMaterial, in: Capsule())
+                            }
+                            
+                            Spacer()
+                            
+                            // Record button
+                            Button(action: toggleRecording) {
+                                ZStack {
+                                    Circle()
+                                        .stroke(.white, lineWidth: 3)
+                                        .frame(width: 60, height: 60)
+                                    
+                                    if recordingManager.isRecording {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(.red)
+                                            .frame(width: 20, height: 20)
+                                    } else {
+                                        Circle()
+                                            .fill(.red)
+                                            .frame(width: 50)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        
+                        Spacer()
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                
-                Spacer()
+            } else {
+                // Loading state
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(.white)
+                    
+                    Text("Starting Camera...")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
             }
         }
         .navigationBarHidden(true)
         .statusBarHidden()
         .preferredColorScheme(.dark)
         .onAppear {
+            setupOrientationNotifications()
             recordingManager.startCameraSession()
             startOverlayUpdateTimer()
         }
         .onDisappear {
+            removeOrientationNotifications()
             recordingManager.stopCameraSession()
             stopOverlayUpdateTimer()
         }
@@ -132,15 +214,36 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOverlayData() {
-        // Get the latest live game data from Firebase
-        if let currentGame = FirebaseService.shared.getCurrentLiveGame() {
-            // Fix: Use the proper initializer with all required parameters
-            overlayData = SimpleScoreOverlayData(
-                from: currentGame,
-                isRecording: recordingManager.isRecording,
-                recordingDuration: recordingManager.recordingTimeString
-            )
+        // For now, create overlay data from the current liveGame state
+        // You'll need to update this to fetch from Firebase if that's where your live data comes from
+        overlayData = SimpleScoreOverlayData(
+            from: liveGame,
+            isRecording: recordingManager.isRecording,
+            recordingDuration: recordingManager.recordingTimeString
+        )
+    }
+    
+    private func setupOrientationNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            updateOrientation()
         }
+        updateOrientation() // Set initial orientation
+    }
+    
+    private func removeOrientationNotifications() {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
+    }
+    
+    private func updateOrientation() {
+        orientation = UIDevice.current.orientation
     }
 }
 

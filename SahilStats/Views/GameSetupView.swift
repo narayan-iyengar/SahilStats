@@ -766,22 +766,24 @@ struct LiveGameFullScreenWrapper: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 2. The navigation bar is now passed all the data it needs
-            LiveGameNavigationBar(
-                liveGame: firebaseService.getCurrentLiveGame(),
-                role: roleManager.deviceRole,
-                onDone: onDismiss,
-                onSelectRole: { showingRoleSelection = true }
-    
-            )
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.systemBackground).shadow(color: .black.opacity(0.1), radius: 2, y: 1))
+            // 2. Only show navigation bar for non-recorder roles
+            if roleManager.deviceRole != .recorder {
+                LiveGameNavigationBar(
+                    liveGame: firebaseService.getCurrentLiveGame(),
+                    role: roleManager.deviceRole,
+                    onDone: onDismiss,
+                    onSelectRole: { showingRoleSelection = true }
+                )
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemBackground).shadow(color: .black.opacity(0.1), radius: 2, y: 1))
+            }
 
             // 3. The main view receives the data and a binding
             LiveGameView()
         }
         .navigationBarHidden(true)
+        .statusBarHidden(roleManager.deviceRole == .recorder) // Hide status bar for recorder
         .ignoresSafeArea(.all, edges: .bottom)
         .sheet(isPresented: $showingRoleSelection) {
             if let liveGame = firebaseService.getCurrentLiveGame() {
@@ -790,28 +792,7 @@ struct LiveGameFullScreenWrapper: View {
         }
     }
 }
-/*
-struct LiveGameFullScreenWrapper: View {
-    let onDismiss: () -> Void
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
-    private var isIPad: Bool {
-        horizontalSizeClass == .regular
-    }
-    
-    var body: some View {
-        ZStack {
-            Color(.systemBackground).ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                LiveGameNavigationBar(onDismiss: onDismiss, isIPad: isIPad)
-                LiveGameView()
-            }
-        }
-        .navigationBarHidden(true)
-    }
-}
-*/
+
 
 // MARK: - Reusable Navigation Bar
 struct LiveGameNavigationBar: View {
@@ -988,5 +969,141 @@ struct SetupOptionCard: View {
                 .environmentObject(AuthService())
                 .navigationViewStyle(StackNavigationViewStyle())
         }
+    }
+}
+
+// MARK: - Missing Views
+
+struct DeviceRoleCard: View {
+    let role: GameSetupView.DeviceRole
+    let isSelected: Bool
+    let isIPad: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: isIPad ? 20 : 16) {
+                // Icon
+                Image(systemName: roleIcon)
+                    .font(.system(size: isIPad ? 40 : 32))
+                    .foregroundColor(isSelected ? .white : roleColor)
+                
+                // Title and description
+                VStack(spacing: isIPad ? 8 : 6) {
+                    Text(roleTitle)
+                        .font(isIPad ? .title2 : .headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(isSelected ? .white : .primary)
+                    
+                    Text(roleDescription)
+                        .font(isIPad ? .body : .subheadline)
+                        .foregroundColor(isSelected ? .white.opacity(0.9) : .secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                }
+                
+            }
+            .frame(maxWidth: .infinity)
+            .padding(isIPad ? 32 : 24)
+            .background(
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
+                    .fill(isSelected ? roleColor : Color(.systemGray6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
+                    .stroke(isSelected ? roleColor : Color.clear, lineWidth: 2)
+            )
+            .scaleEffect(isSelected ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+    
+    private var roleIcon: String {
+        switch role {
+        case .controller: return "gamecontroller.fill"
+        case .recorder: return "video.fill"
+        case .viewer: return "eye.fill"
+        case .none: return "questionmark"
+        }
+    }
+    
+    private var roleColor: Color {
+        switch role {
+        case .controller: return .blue
+        case .recorder: return .red
+        case .viewer: return .green
+        case .none: return .gray
+        }
+    }
+    
+    private var roleTitle: String {
+        switch role {
+        case .controller: return "Controller"
+        case .recorder: return "Recorder"
+        case .viewer: return "Viewer"
+        case .none: return "Unknown"
+        }
+    }
+    
+    private var roleDescription: String {
+        switch role {
+        case .controller: return "Control the scoreboard"
+        case .recorder: return "Record video"
+        case .viewer: return "View the game in real-time"
+        case .none: return ""
+        }
+    }
+    
+    private var deviceRecommendation: String {
+        switch role {
+        case .controller: return "Recommended for iPad"
+        case .recorder: return "Recommended for iPhone"
+        case .viewer: return "Recommended for iPad"
+        case .none: return ""
+        }
+    }
+}
+
+
+
+struct DeviceRoleSelectionCard: View {
+    let title: String
+    let description: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
+                    .background(color)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }

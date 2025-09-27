@@ -57,8 +57,11 @@ struct GameListView: View {
             )
         }
         .fullScreenCover(isPresented: $showingLiveGame) {
-            LiveGameFullScreenWrapper {
-                showingLiveGame = false  // ← Use the wrapper instead
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                LiveGameView()
+                    .environmentObject(authService)
+                    .navigationBarHidden(true)
+                    .statusBarHidden(true)
             }
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
