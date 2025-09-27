@@ -423,13 +423,16 @@ struct GameSetupView: View  {
     private var recordingRoleSelection: some View {
         VStack(spacing: 30) {
             VStack(spacing: 16) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.red)
-                
-                Text("Multi-Device Setup")
-                    .font(.title)
-                    .fontWeight(.bold)
+                HStack(spacing: 12) {
+                        Image(systemName: "video.fill")
+                            .font(.title) // Match the font size to the text for alignment
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                            
+                        Text("Multi-Device Setup")
+                            .font(.title)
+                            .fontWeight(.bold)
+                    }
                 
                 Text("Choose your device's role for this multi-device recording session")
                     .foregroundColor(.secondary)

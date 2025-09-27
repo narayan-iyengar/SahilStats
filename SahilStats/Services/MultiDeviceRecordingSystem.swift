@@ -544,17 +544,6 @@ struct DeviceRoleCard: View {
                         .lineLimit(3)
                 }
                 
-                // Device recommendation
-                Text(deviceRecommendation)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white.opacity(0.8) : roleColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isSelected ? .white.opacity(0.2) : roleColor.opacity(0.1))
-                    )
             }
             .frame(maxWidth: .infinity)
             .padding(isIPad ? 32 : 24)
@@ -601,9 +590,9 @@ struct DeviceRoleCard: View {
     
     private var roleDescription: String {
         switch role {
-        case .controller: return "Control the scoreboard, game clock, and player stats during the game"
-        case .recorder: return "Record video with live score overlay and connect to the controller's game"
-        case .viewer: return "View the game in real-time with live score and stats"
+        case .controller: return "Control the scoreboard"
+        case .recorder: return "Record video"
+        case .viewer: return "View the game in real-time"
         case .none: return ""
         }
     }
@@ -697,23 +686,6 @@ struct MultiDeviceGameSetup: View {
             Text("Use multiple devices for optimal recording and control experience")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            
-            // Device role recommendations
-            VStack(spacing: 12) {
-                RecommendationCard(
-                    icon: "iphone",
-                    title: "iPhone as Recorder",
-                    description: "Better camera quality for video recording",
-                    color: .red
-                )
-                
-                RecommendationCard(
-                    icon: "ipad",
-                    title: "iPad as Controller",
-                    description: "Larger screen for easier scoring and stats",
-                    color: .blue
-                )
-            }
             
             if FirebaseService.shared.hasLiveGame {
                 Button("Join Live Game") {

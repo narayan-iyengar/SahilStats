@@ -287,7 +287,7 @@ struct VideoRecordingView: View {
     var body: some View {
         if orientationManager.isLandscape {
             // Use the new landscape-native view
-            LandscapeVideoRecordingView(liveGame: liveGame)
+            CleanVideoRecordingView(liveGame: liveGame)
         } else {
             // Show rotation prompt
             RotationPromptView(liveGame: liveGame)
