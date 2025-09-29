@@ -180,10 +180,10 @@ class LocationManager: NSObject, ObservableObject {
         // Use addressRepresentations for modern iOS 26+ API
         if let addressReps = mapItem.addressRepresentations {
             // Use the full address from MKAddressRepresentations
-            let fullAddress = addressReps.fullAddress(includingRegion: true, singleLine: true)
+            let _ = addressReps.fullAddress(includingRegion: true, singleLine: true)
         } else {
             // Fallback to placemark for older iOS versions or if addressRepresentations is not available
-            let placemark = mapItem.address
+            let _ = mapItem.address
             
         }
         

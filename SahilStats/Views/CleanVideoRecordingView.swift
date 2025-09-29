@@ -22,6 +22,7 @@ struct CleanVideoRecordingView: View {
     }
     
     var body: some View {
+        let _ = print("🟠 CleanVideoRecordingView: body called, orientation = \(orientation)")
         ZStack {
             // Camera preview fills entire screen
             SimpleCameraPreviewView(isCameraReady: $isCameraReady)

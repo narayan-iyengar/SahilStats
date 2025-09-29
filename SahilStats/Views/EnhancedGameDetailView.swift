@@ -28,6 +28,11 @@ struct CompleteGameDetailView: View {
     @State private var editingMyTeamScore = ""
     @State private var editingOpponentScore = ""
     
+    // State for editing team names
+    @State private var isEditingTeamNames = false
+    @State private var editingTeamName = ""
+    @State private var editingOpponentName = ""
+    
     // State for media features
     @State private var showingShareSheet = false
     
@@ -101,6 +106,14 @@ struct CompleteGameDetailView: View {
                 saveScoreChange()
             }
         }
+        .alert("Edit Team Names", isPresented: $isEditingTeamNames) {
+            TextField("Your Team", text: $editingTeamName)
+            TextField("Opponent Team", text: $editingOpponentName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                saveTeamNameChange()
+            }
+        }
     }
     
     // MARK: - Header Section
@@ -111,10 +124,29 @@ struct CompleteGameDetailView: View {
             // Game matchup and outcome
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(game.teamName) vs \(game.opponent)")
-                        .font(isIPad ? .largeTitle : .title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                    // Team names with edit capability
+                    Button(action: {
+                        if authService.canEditGames {
+                            editingTeamName = game.teamName
+                            editingOpponentName = game.opponent
+                            isEditingTeamNames = true
+                        }
+                    }) {
+                        HStack {
+                            Text("\(game.teamName) vs \(game.opponent)")
+                                .font(isIPad ? .largeTitle : .title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                            
+                            if authService.canEditGames {
+                                Image(systemName: "pencil.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!authService.canEditGames)
                     
                     Text(game.formattedDate)
                         .font(isIPad ? .body : .subheadline)
@@ -216,29 +248,42 @@ struct CompleteGameDetailView: View {
                 .fontWeight(.bold)
                 .foregroundColor(.teal)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
-                GameDetailTimeCard(
-                    title: "Minutes Played",
-                    time: game.totalPlayingTimeMinutes,
-                    color: .green,
-                    isIPad: isIPad
-                )
-                GameDetailTimeCard(
-                    title: "Bench Time",
-                    time: game.benchTimeMinutes,
-                    color: .orange,
-                    isIPad: isIPad
-                )
-                DetailStatCard(
-                    title: "Court Time %",
-                    value: "\(Int(game.playingTimePercentage))%",
-                    color: .teal
-                )
-                DetailStatCard(
-                    title: "Points/Min",
-                    value: String(format: "%.1f", calculatePointsPerMinute()),
-                    color: .red
-                )
+            // Time cards in a 2x2 + 1 layout
+            VStack(spacing: isIPad ? 16 : 12) {
+                // First row - actual times
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: isIPad ? 16 : 12) {
+                    GameDetailTimeCard(
+                        title: "Minutes Played",
+                        time: game.totalPlayingTimeMinutes,
+                        color: .green,
+                        isIPad: isIPad
+                    )
+                    GameDetailTimeCard(
+                        title: "Bench Time",
+                        time: game.calculatedBenchTime,
+                        color: .orange,
+                        isIPad: isIPad
+                    )
+                }
+                
+                // Second row - calculated stats
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: isIPad ? 16 : 12) {
+                    DetailStatCard(
+                        title: "Total Game Time",
+                        value: "\(Int(game.totalGameTimeMinutes))m",
+                        color: .gray
+                    )
+                    DetailStatCard(
+                        title: "Court Time %",
+                        value: "\(Int(game.playingTimePercentage))%",
+                        color: .teal
+                    )
+                    DetailStatCard(
+                        title: "Points/Min",
+                        value: String(format: "%.1f", calculatePointsPerMinute()),
+                        color: .red
+                    )
+                }
             }
         }
     }
@@ -455,6 +500,25 @@ struct CompleteGameDetailView: View {
                 try await firebaseService.updateGame(game)
             } catch {
                 print("Failed to save score change: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func saveTeamNameChange() {
+        // Trim whitespace and ensure names aren't empty
+        let newTeamName = editingTeamName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newOpponentName = editingOpponentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !newTeamName.isEmpty && !newOpponentName.isEmpty else { return }
+        
+        game.teamName = newTeamName
+        game.opponent = newOpponentName
+        
+        Task {
+            do {
+                try await firebaseService.updateGame(game)
+            } catch {
+                print("Failed to save team name changes: \(error.localizedDescription)")
             }
         }
     }

@@ -184,15 +184,17 @@ struct ModernStatCard: View {
                 .font(isIPad ? .system(size: 32, weight: .bold) : .title2)
                 .fontWeight(.bold)
                 .foregroundColor(color)
-                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6) // Allow more aggressive scaling for values
             
             Text(title)
                 .font(isIPad ? .body : .caption)
                 .fontWeight(.medium)
                 .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7) // Allow title to scale down if needed
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: isIPad ? 120 : 80, maxHeight: isIPad ? 120 : 80) // Fixed height for consistency
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 16 : 12)
         .background(
@@ -644,9 +646,9 @@ struct ModernCareerTrendsView: View {
         case .avgPlayingTime:
             return Double(games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }) / gameCount
         case .playingTimePercentage:
-            let totalPlaying = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }
-            let totalTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes + $1.benchTimeMinutes }
-            return totalTime > 0 ? (totalPlaying / totalTime) * 100 : 0
+            let totalPlayingTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }
+            let totalPossibleGameTime = games.reduce(0) { $0 + $1.totalGameTimeMinutes }
+            return totalPossibleGameTime > 0 ? (totalPlayingTime / totalPossibleGameTime) * 100 : 0
         case .efficiencyRating:
             let totalPositive = games.reduce(0) { $0 + $1.points + $1.rebounds + $1.assists + $1.steals + $1.blocks }
             let totalMissedFG = games.reduce(0) { $0 + ($1.fg2a + $1.fg3a) - ($1.fg2m + $1.fg3m) }

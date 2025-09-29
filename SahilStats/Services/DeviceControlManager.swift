@@ -134,7 +134,7 @@ class DeviceControlManager: ObservableObject {
     
     // ENHANCED: Grant control to requesting device (clear timestamp)
     func grantControl(for liveGame: LiveGame, to userEmail: String) async throws {
-        guard let gameId = liveGame.id else {
+        guard let _ = liveGame.id else {
             throw DeviceControlError.invalidRequest
         }
         
@@ -156,7 +156,7 @@ class DeviceControlManager: ObservableObject {
     
     // ENHANCED: Release control properly (clear timestamp)
     func releaseControl(for liveGame: LiveGame) async throws {
-        guard let gameId = liveGame.id else {
+        guard let _ = liveGame.id else {
             throw DeviceControlError.invalidRequest
         }
         
@@ -177,7 +177,7 @@ class DeviceControlManager: ObservableObject {
     
     // ENHANCED: Deny control request (clear timestamp)
     func denyControlRequest(for liveGame: LiveGame) async throws {
-        guard let gameId = liveGame.id else {
+        guard let _ = liveGame.id else {
             throw DeviceControlError.invalidRequest
         }
         
