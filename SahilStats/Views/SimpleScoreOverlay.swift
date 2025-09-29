@@ -4,7 +4,7 @@
 //
 //  Created by Narayan Iyengar on 9/27/25.
 //
-// SimpleScoreOverlay.swift - Create this as a new file
+// SimpleScoreOverlay.swift - Enhanced with full team names, better layout, and fancy graphics
 
 import SwiftUI
 import Combine
@@ -16,7 +16,9 @@ struct SimpleScoreOverlay: View {
     let orientation: UIDeviceOrientation
     
     private var isLandscape: Bool {
-        orientation == .landscapeLeft || orientation == .landscapeRight
+        let result = orientation == .landscapeLeft || orientation == .landscapeRight
+        let _ = print("🟣 isLandscape check: orientation=\(orientation), landscapeLeft=\(UIDeviceOrientation.landscapeLeft), landscapeRight=\(UIDeviceOrientation.landscapeRight), result=\(result)")
+        return result
     }
     
     // Helper function to get ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
@@ -43,93 +45,125 @@ struct SimpleScoreOverlay: View {
         return "\(ordinal) \(periodName)"
     }
     
-    // Helper function for short period display (landscape)
+    // Helper function for short period display
     private func formatShortPeriod() -> String {
         let shortName = overlayData.gameFormat == .halves ? "HALF" : "QTR"
         return "\(overlayData.quarter)\(getOrdinalSuffix(overlayData.quarter)) \(shortName)"
     }
+    
     // Helper function to keep text upright in landscape mode
     private func getTextRotation() -> Double {
+        let rotation: Double
         switch orientation {
         case .landscapeLeft:
-            return 90  // Rotate text to stay upright
+            rotation = 90  // Rotate text to stay upright
         case .landscapeRight:
-            return -90 // Rotate text to stay upright
+            rotation = -90 // Rotate text to stay upright
         default:
-            return 0   // No rotation needed in portrait
+            rotation = 0   // No rotation needed in portrait
         }
+        let _ = print("🟣 getTextRotation: orientation=\(orientation), returning rotation=\(rotation)")
+        return rotation
     }
     
-    var body: some View {
+    // Helper function to truncate team name smartly for landscape
+    private func formatTeamName(_ teamName: String, maxLength: Int = 8) -> String {
+        if teamName.count <= maxLength {
+            return teamName.uppercased()
+        }
+        // Try to find a good break point
+        let words = teamName.components(separatedBy: " ")
+        if words.count > 1 {
+            let firstWord = words[0]
+            if firstWord.count <= maxLength {
+                return firstWord.uppercased()
+            }
+        }
+        return String(teamName.prefix(maxLength)).uppercased()
+    }
+    
+      var body: some View {
         if isLandscape {
-            // Landscape overlay - positioned on the side
+            // FIXED: Landscape overlay - NO rotation, native vertical layout
             HStack {
                 Spacer()
                 
-                // Vertical overlay on the right side
+                // Vertical side scoreboard (naturally vertical, no rotation needed)
                 VStack(spacing: 0) {
-                    // Away team (top)
-                    VStack(spacing: 4) {
-                        Text(String(overlayData.awayTeam.prefix(3)).uppercased())
-                            .font(.system(size: 12, weight: .bold))
+                    // Away team section
+                    VStack(spacing: 8) {
+                        Text(String(overlayData.awayTeam.prefix(5)).uppercased())
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
-                            .rotationEffect(.degrees(getTextRotation()))
+                            .lineLimit(1)
                         
                         Text("\(overlayData.awayScore)")
-                            .font(.system(size: 24, weight: .black))
+                            .font(.system(size: 32, weight: .black))
                             .foregroundColor(.white)
                             .monospacedDigit()
-                            .rotationEffect(.degrees(getTextRotation()))
+                        
                     }
                     .frame(maxHeight: .infinity)
-                    .padding(.top, 12)
+                    .padding(.top, 20)
+                    .rotationEffect(.degrees(-90))
                     
-                    // Center info
-                    VStack(spacing: 6) { // Increased spacing from 4 to 6 to prevent overlap
+                    // Divider
+                    Rectangle()
+                        .fill(.orange.opacity(0.5))
+                        .frame(height: 2)
+                        .padding(.horizontal, 12)
+                    
+                    // Game info section
+                    VStack(spacing: 8) {
                         Text(formatShortPeriod())
-                            .font(.system(size: 10, weight: .semibold)) // Reduced font size from 12 to 10
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.orange)
-                            .rotationEffect(.degrees(getTextRotation()))
+                            .lineLimit(1)
                         
                         Text(overlayData.clockTime)
-                            .font(.system(size: 13, weight: .black)) // Reduced font size from 14 to 13
+                            .font(.system(size: 32, weight: .black))
                             .foregroundColor(.white)
                             .monospacedDigit()
-                            .rotationEffect(.degrees(getTextRotation()))
                         
                         if overlayData.isRecording {
-                            VStack(spacing: 2) {
-                                Circle()
-                                    .fill(Color.red)
-                                    .frame(width: 4, height: 4)
-                                // Removed "REC" text from scorecard overlay
-                            }
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 6, height: 6)
                         }
                     }
                     .frame(maxHeight: .infinity)
+                    .rotationEffect(.degrees(-90))
                     
-                    // Home team (bottom)
-                    VStack(spacing: 4) {
+                    // Divider
+                    Rectangle()
+                        .fill(.orange.opacity(0.5))
+                        .frame(height: 2)
+                        .padding(.horizontal, 12)
+                    
+                    // Home team section
+                    VStack(spacing: 8) {
+                        Text(String(overlayData.homeTeam.prefix(5)).uppercased())
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
                         Text("\(overlayData.homeScore)")
-                            .font(.system(size: 24, weight: .black))
+                            .font(.system(size: 32, weight: .black))
                             .foregroundColor(.white)
                             .monospacedDigit()
-                            .rotationEffect(.degrees(getTextRotation()))
                         
-                        Text(String(overlayData.homeTeam.prefix(3)).uppercased())
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                            .rotationEffect(.degrees(getTextRotation()))
+
                     }
                     .frame(maxHeight: .infinity)
-                    .padding(.bottom, 12)
+                    .padding(.top, 20)
+                    .rotationEffect(.degrees(-90))
                 }
-                .frame(width: 90) // Increased from 80 to 90 for better visibility
+                .frame(width: 100)
                 .background(
                     LinearGradient(
                         gradient: Gradient(stops: [
-                            .init(color: .black.opacity(0.9), location: 0.0),
-                            .init(color: .black.opacity(0.7), location: 1.0)
+                            .init(color: .black.opacity(0.95), location: 0.0),
+                            .init(color: .black.opacity(0.85), location: 1.0)
                         ]),
                         startPoint: .leading,
                         endPoint: .trailing
@@ -137,90 +171,14 @@ struct SimpleScoreOverlay: View {
                 )
                 .overlay(
                     Rectangle()
-                        .frame(width: 2)
-                        .foregroundColor(.orange.opacity(0.8)),
+                        .frame(width: 3)
+                        .foregroundColor(.orange.opacity(0.6)),
                     alignment: .leading
                 )
             }
             .ignoresSafeArea(.all)
-            .padding(.trailing, 10) // Add some padding to ensure visibility in landscape
-            
-        } else {
-            // Portrait overlay - positioned at the bottom (original design)
-            VStack {
-                Spacer()
-                
-                // Bottom overlay bar
-                HStack(spacing: 0) {
-                    // Away team (left)
-                    HStack(spacing: 8) {
-                        Text(String(overlayData.awayTeam.prefix(3)).uppercased())
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        Text("\(overlayData.awayScore)")
-                            .font(.system(size: 28, weight: .black))
-                            .foregroundColor(.white)
-                            .monospacedDigit()
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 16)
-                    
-                    // Center info
-                    VStack(spacing: 4) {
-                        Text(formatPeriod())
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.orange)
-                        
-                        Text(overlayData.clockTime)
-                            .font(.system(size: 16, weight: .black))
-                            .foregroundColor(.white)
-                            .monospacedDigit()
-                        
-                        if overlayData.isRecording {
-                            HStack(spacing: 3) {
-                                Circle()
-                                    .fill(Color.red)
-                                    .frame(width: 4, height: 4)
-                                // Only show dot, no "REC" text in scorecard
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    
-                    // Home team (right)
-                    HStack(spacing: 8) {
-                        Text("\(overlayData.homeScore)")
-                            .font(.system(size: 28, weight: .black))
-                            .foregroundColor(.white)
-                            .monospacedDigit()
-                        
-                        Text(String(overlayData.homeTeam.prefix(3)).uppercased())
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 16)
-                }
-                .frame(height: 60)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: .black.opacity(0.9), location: 0.0),
-                            .init(color: .black.opacity(0.7), location: 1.0)
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    Rectangle()
-                        .frame(height: 2)
-                        .foregroundColor(.orange.opacity(0.8)),
-                    alignment: .top
-                )
-            }
-            .ignoresSafeArea(.all)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
     }
 }

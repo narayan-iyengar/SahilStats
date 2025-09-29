@@ -20,6 +20,7 @@ struct LandscapeVideoRecordingView: View {
     @State private var screenSize: CGSize = .zero
     
     var body: some View {
+        let _ = print("🔵 LandscapeVideoRecordingView: body called")
         GeometryReader { geometry in
             ZStack {
                 // Camera preview fills entire screen
@@ -146,6 +147,7 @@ struct ESPNStyleScoreboard: View {
     let isRecording: Bool
     
     var body: some View {
+        let _ = print("🔴 ESPNStyleScoreboard: body called")
         // Full-width bottom bar - ESPN style
         HStack(spacing: 0) {
             // Left side - Away team
@@ -157,104 +159,224 @@ struct ESPNStyleScoreboard: View {
             // Right side - Home team
             homeTeamSection
         }
-        .frame(height: 80)
+        .frame(height: 110) // Increased height from 100 to 110 for separated center content
         .background(
-            LinearGradient(
-                gradient: Gradient(stops: [
-                    .init(color: .black.opacity(0.9), location: 0.0),
-                    .init(color: .black.opacity(0.7), location: 1.0)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            ZStack {
+                // Enhanced base gradient
+                LinearGradient(
+                    gradient: Gradient(stops: [
+                        .init(color: .black.opacity(0.95), location: 0.0),
+                        .init(color: .black.opacity(0.85), location: 0.5),
+                        .init(color: .black.opacity(0.9), location: 1.0)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                // Subtle texture overlay
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        .white.opacity(0.08),
+                        .clear,
+                        .white.opacity(0.05)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
         )
         .overlay(
-            Rectangle()
-                .frame(height: 2)
-                .foregroundColor(.orange.opacity(0.8)),
-            alignment: .top
+            // Enhanced top border with glow
+            VStack(spacing: 0) {
+                Rectangle()
+                    .frame(height: 3)
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                .orange.opacity(0.9),
+                                .orange,
+                                .orange.opacity(0.9)
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: .orange.opacity(0.4), radius: 4, x: 0, y: 0)
+                
+                Spacer()
+            }
         )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: -4)
     }
     
     @ViewBuilder
     private var awayTeamSection: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(String(liveGame.opponent.prefix(3)).uppercased())
-                    .font(.system(size: 16, weight: .bold))
+        HStack(spacing: 18) { // Increased spacing
+            VStack(alignment: .leading, spacing: 6) { // Increased spacing
+                Text(formatTeamName(liveGame.opponent))
+                    .font(.system(size: 20, weight: .bold, design: .rounded)) // Increased from 16 to 20
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
                 Text("AWAY")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 12, weight: .medium, design: .rounded)) // Increased from 10 to 12
                     .foregroundColor(.gray)
+                    .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
             }
             
             Text("\(liveGame.awayScore)")
-                .font(.system(size: 36, weight: .black))
+                .font(.system(size: 48, weight: .black, design: .rounded)) // Increased from 40 to 48
                 .foregroundColor(.white)
                 .monospacedDigit()
+                .shadow(color: .black.opacity(0.8), radius: 4, x: 0, y: 3) // Enhanced shadow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, 24)
+        .padding(.leading, 28) // Increased padding
     }
     
     @ViewBuilder
     private var gameInfoSection: some View {
-        VStack(spacing: 6) {
-            // Quarter
-            Text(formatQuarter(liveGame.quarter, format: liveGame.gameFormat))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.orange)
+        VStack(spacing: 8) { // Reduced spacing for tighter layout
+            // Quarter info - more compact
+            VStack(spacing: 2) {
+                Text("\(liveGame.quarter)\(getOrdinalSuffix(liveGame.quarter))")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.orange)
+                    .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                
+                Text(liveGame.gameFormat == .halves ? "HALF" : "QUARTER")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(.orange.opacity(0.8))
+                    .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
+            }
             
-            // Game clock
+            // Game clock with proper separation
             Text(liveGame.currentClockDisplay)
-                .font(.system(size: 20, weight: .black))
+                .font(.system(size: 28, weight: .black, design: .rounded)) // Slightly smaller to fit better
                 .foregroundColor(.white)
                 .monospacedDigit()
+                .shadow(color: .black.opacity(0.8), radius: 4, x: 0, y: 3)
+                .padding(.vertical, 4) // Add vertical padding for breathing room
             
             // Recording indicator (smaller, integrated)
             if isRecording {
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(Color.red)
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: [.red, .red.opacity(0.8)]),
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 3
+                            )
+                        )
                         .frame(width: 6, height: 6)
+                        .shadow(color: .red.opacity(0.5), radius: 2, x: 0, y: 1)
                     Text("REC \(formatRecordingTime(recordingDuration))")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(.red)
+                        .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 28) // Increased padding
+        .padding(.vertical, 14) // Increased padding
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.black.opacity(0.3))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(.orange.opacity(0.5), lineWidth: 1)
-                )
+            ZStack {
+                // Enhanced glass-like background
+                RoundedRectangle(cornerRadius: 15) // Increased corner radius
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                .black.opacity(0.4),
+                                .black.opacity(0.2),
+                                .black.opacity(0.4)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3) // Enhanced shadow
+                
+                // Subtle highlight
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                .orange.opacity(0.6),
+                                .orange.opacity(0.3),
+                                .orange.opacity(0.6)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2 // Increased stroke width
+                    )
+            }
         )
         .frame(maxWidth: .infinity)
     }
     
     @ViewBuilder
     private var homeTeamSection: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 18) { // Increased spacing
             Text("\(liveGame.homeScore)")
-                .font(.system(size: 36, weight: .black))
+                .font(.system(size: 48, weight: .black, design: .rounded)) // Increased from 40 to 48
                 .foregroundColor(.white)
                 .monospacedDigit()
+                .shadow(color: .black.opacity(0.8), radius: 4, x: 0, y: 3) // Enhanced shadow
             
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(String(liveGame.teamName.prefix(3)).uppercased())
-                    .font(.system(size: 16, weight: .bold))
+            VStack(alignment: .trailing, spacing: 6) { // Increased spacing
+                Text(formatTeamName(liveGame.teamName))
+                    .font(.system(size: 20, weight: .bold, design: .rounded)) // Increased from 16 to 20
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
                 Text("HOME")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 12, weight: .medium, design: .rounded)) // Increased from 10 to 12
                     .foregroundColor(.gray)
+                    .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.trailing, 24)
+        .padding(.trailing, 28) // Increased padding
+    }
+    
+    // Helper function to format team names intelligently for landscape
+    private func formatTeamName(_ teamName: String) -> String {
+        // Allow much longer team names in landscape - we have more space
+        if teamName.count <= 18 { // Increased from 12 to 18
+            return teamName.uppercased()
+        }
+        // Try to find a good break point
+        let words = teamName.components(separatedBy: " ")
+        if words.count > 1 {
+            let firstWord = words[0]
+            if firstWord.count <= 18 { // Increased from 12 to 18
+                return firstWord.uppercased()
+            }
+        }
+        return String(teamName.prefix(18)).uppercased() // Increased from 12 to 18
+    }
+    
+    // Helper function to get ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+    private func getOrdinalSuffix(_ number: Int) -> String {
+        let lastDigit = number % 10
+        let lastTwoDigits = number % 100
+        
+        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
+            return "TH"
+        }
+        
+        switch lastDigit {
+        case 1: return "ST"
+        case 2: return "ND" 
+        case 3: return "RD"
+        default: return "TH"
+        }
     }
     
     private func formatQuarter(_ quarter: Int, format: GameFormat) -> String {
@@ -267,22 +389,7 @@ struct ESPNStyleScoreboard: View {
         return "\(quarter)\(getOrdinalSuffix(quarter)) \(quarterName)"
     }
     
-    private func getOrdinalSuffix(_ number: Int) -> String {
-        let lastDigit = number % 10
-        let lastTwoDigits = number % 100
-        
-        // Handle special cases for 11th, 12th, 13th
-        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
-            return "TH"
-        }
-        
-        switch lastDigit {
-        case 1: return "ST"
-        case 2: return "ND" 
-        case 3: return "RD"
-        default: return "TH"
-        }
-    }
+
     
     private func formatRecordingTime(_ duration: TimeInterval) -> String {
         let minutes = Int(duration) / 60
@@ -300,9 +407,11 @@ struct VideoRecordingView: View {
     var body: some View {
         if orientationManager.isLandscape {
             // Use the new landscape-native view
-            CleanVideoRecordingView(liveGame: liveGame)
+            let _ = print("🟢 VideoRecordingView: Using LandscapeVideoRecordingView")
+            LandscapeVideoRecordingView(liveGame: liveGame)
         } else {
             // Show rotation prompt
+            let _ = print("🟡 VideoRecordingView: Using RotationPromptView")
             RotationPromptView(liveGame: liveGame)
         }
     }

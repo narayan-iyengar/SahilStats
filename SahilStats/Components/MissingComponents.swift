@@ -111,20 +111,24 @@ struct GameDetailTimeCard: View {
     let isIPad: Bool
     
     var body: some View {
-        VStack(spacing: isIPad ? 8 : 6) {
+        VStack(spacing: isIPad ? 12 : 8) {
+            Text(title)
+                .font(isIPad ? .body : .caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7) // Allow text to scale down
+            
             Text(formatTime(time))
-                .font(isIPad ? .title2 : .title3)
+                .font(isIPad ? .largeTitle : .title2)
                 .fontWeight(.bold)
                 .foregroundColor(color)
-            
-            Text(title)
-                .font(isIPad ? .caption : .caption2)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6) // Allow value to scale down
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, isIPad ? 16 : 12)
-        .background(color.opacity(0.08))
+        .frame(maxWidth: .infinity, minHeight: isIPad ? 120 : 80, maxHeight: isIPad ? 120 : 80) // Fixed height
+        .padding(isIPad ? 20 : 16)
+        .background(color.opacity(0.1))
         .cornerRadius(isIPad ? 16 : 12)
     }
     
@@ -244,21 +248,31 @@ struct DetailStatCard: View {
     let value: String
     let color: Color
     
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: isIPad ? 12 : 8) {
+            Text(title)
+                .font(isIPad ? .body : .caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7) // Allow text to scale down to 70% if needed
+            
             Text(value)
-                .font(.title2)
+                .font(isIPad ? .largeTitle : .title2)
                 .fontWeight(.bold)
                 .foregroundColor(color)
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6) // Allow value to scale down more aggressively
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(color.opacity(0.08))
-        .cornerRadius(12)
+        .frame(maxWidth: .infinity, minHeight: isIPad ? 120 : 80, maxHeight: isIPad ? 120 : 80) // Fixed height
+        .padding(isIPad ? 20 : 16)
+        .background(color.opacity(0.1))
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }
 
@@ -269,22 +283,36 @@ struct ShootingPercentageCard: View {
     let fraction: String
     let color: Color
     
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: isIPad ? 8 : 6) {
             Text(title)
-                .font(.caption)
+                .font(isIPad ? .body : .caption)
+                .fontWeight(.medium)
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7) // Allow text to scale down
+            
             Text(percentage)
-                .font(.title2)
+                .font(isIPad ? .largeTitle : .title2)
                 .fontWeight(.bold)
                 .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6) // Allow percentage to scale down
+            
             Text(fraction)
-                .font(.caption2)
+                .font(isIPad ? .caption : .caption2)
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8) // Allow fraction to scale down slightly
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(color.opacity(0.08))
-        .cornerRadius(12)
+        .frame(maxWidth: .infinity, minHeight: isIPad ? 120 : 80, maxHeight: isIPad ? 120 : 80) // Fixed height
+        .padding(isIPad ? 20 : 16)
+        .background(color.opacity(0.1))
+        .cornerRadius(isIPad ? 16 : 12)
     }
 }

@@ -46,10 +46,10 @@ class OrientationManager: ObservableObject {
         // Check both device orientation and interface orientation
         let deviceIsLandscape = orientation.isLandscape
         
-        // Also check interface orientation as backup
+        // Also check interface orientation as backup using the new API
         let interfaceIsLandscape: Bool
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            interfaceIsLandscape = windowScene.interfaceOrientation.isLandscape
+            interfaceIsLandscape = windowScene.effectiveGeometry.interfaceOrientation.isLandscape
         } else {
             interfaceIsLandscape = false
         }
@@ -59,7 +59,9 @@ class OrientationManager: ObservableObject {
     
     deinit {
         NotificationCenter.default.removeObserver(self)
-        UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        Task { @MainActor in
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        }
     }
 }
 

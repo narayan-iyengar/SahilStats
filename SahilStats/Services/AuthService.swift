@@ -113,7 +113,7 @@ class AuthService: ObservableObject {
             return
         }
         
-        guard let app = FirebaseApp.app() else {
+        guard FirebaseApp.app() != nil else {
             print("Error: Firebase not configured")
             return
         }
@@ -192,7 +192,11 @@ class AuthService: ObservableObject {
     
     func signInWithGoogle() async throws {
         guard let presentingViewController = await MainActor.run(body: {
-            return UIApplication.shared.windows.first?.rootViewController
+            // Find the first active UIWindowScene, get its key window, and then the rootViewController.
+            (UIApplication.shared.connectedScenes.first as? UIWindowScene)?
+                .windows
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
         }) else {
             throw AuthError.unknownError("Could not find presenting view controller")
         }

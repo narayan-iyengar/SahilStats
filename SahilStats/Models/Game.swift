@@ -49,9 +49,18 @@ struct Game: Identifiable, Codable, Equatable {
     var benchTimeMinutes: Double = 0.0 // Total minutes on bench
     var gameTimeTracking: [GameTimeSegment] = [] // Detailed time tracking
     
+    // Computed properties for proper time calculations
+    var totalGameTimeMinutes: Double {
+        return Double(quarterLength * numQuarter)
+    }
+    
     var playingTimePercentage: Double {
-        let totalGameTime = totalPlayingTimeMinutes + benchTimeMinutes
-        return totalGameTime > 0 ? (totalPlayingTimeMinutes / totalGameTime) * 100 : 0
+        return totalGameTimeMinutes > 0 ? (totalPlayingTimeMinutes / totalGameTimeMinutes) * 100 : 0
+    }
+    
+    // Computed property to ensure bench time is calculated correctly
+    var calculatedBenchTime: Double {
+        return max(0, totalGameTimeMinutes - totalPlayingTimeMinutes)
     }
     
     // Custom coding keys for date handling

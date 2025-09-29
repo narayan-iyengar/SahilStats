@@ -530,8 +530,8 @@ class FirebaseService: ObservableObject {
         let totalFTA = games.reduce(0) { $0 + $1.fta }
         let totalPlayingTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes }
         let avgPlayingTime = totalGames > 0 ? totalPlayingTime / Double(totalGames) : 0.0
-        let totalGameTime = games.reduce(0) { $0 + $1.totalPlayingTimeMinutes + $1.benchTimeMinutes }
-        let playingPercentage = totalGameTime > 0 ? (totalPlayingTime / totalGameTime) * 100 : 0
+        let totalPossibleGameTime = games.reduce(0) { $0 + $1.totalGameTimeMinutes }
+        let playingPercentage = totalPossibleGameTime > 0 ? (totalPlayingTime / totalPossibleGameTime) * 100 : 0
 
         
         return CareerStats(
