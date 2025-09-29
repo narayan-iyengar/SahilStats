@@ -14,6 +14,9 @@ import UIKit
 struct SimpleScoreOverlay: View {
     let overlayData: SimpleScoreOverlayData
     let orientation: UIDeviceOrientation
+    let recordingDuration: String
+    
+    @State private var rotationAnimation = false
     
     private var isLandscape: Bool {
         let result = orientation == .landscapeLeft || orientation == .landscapeRight
@@ -82,7 +85,7 @@ struct SimpleScoreOverlay: View {
         return String(teamName.prefix(maxLength)).uppercased()
     }
     
-      var body: some View {
+    var body: some View {
         if isLandscape {
             // FIXED: Landscape overlay - NO rotation, native vertical layout
             HStack {
@@ -92,7 +95,7 @@ struct SimpleScoreOverlay: View {
                 VStack(spacing: 0) {
                     // Away team section
                     VStack(spacing: 8) {
-                        Text(String(overlayData.awayTeam.prefix(5)).uppercased())
+                        Text(formatTeamName(overlayData.awayTeam, maxLength: 8))
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                             .lineLimit(1)
@@ -105,7 +108,7 @@ struct SimpleScoreOverlay: View {
                     }
                     .frame(maxHeight: .infinity)
                     .padding(.top, 20)
-                    .rotationEffect(.degrees(-90))
+                    .rotationEffect(.degrees(getTextRotation()))
                     
                     // Divider
                     Rectangle()
@@ -114,25 +117,38 @@ struct SimpleScoreOverlay: View {
                         .padding(.horizontal, 12)
                     
                     // Game info section
-                    VStack(spacing: 8) {
+                    VStack(spacing: 6) {
                         Text(formatShortPeriod())
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.orange)
                             .lineLimit(1)
                         
                         Text(overlayData.clockTime)
-                            .font(.system(size: 32, weight: .black))
+                            .font(.system(size: 28, weight: .black))
                             .foregroundColor(.white)
                             .monospacedDigit()
                         
+                        // Recording info in its own compact section
                         if overlayData.isRecording {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 6, height: 6)
+                            VStack(spacing: 2) {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 6, height: 6)
+                                
+                                Text("REC")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundColor(.red)
+                                
+                                Text(recordingDuration)
+                                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .minimumScaleFactor(0.7)
+                            }
+                            .padding(.top, 4)
                         }
                     }
                     .frame(maxHeight: .infinity)
-                    .rotationEffect(.degrees(-90))
+                    .rotationEffect(.degrees(getTextRotation()))
                     
                     // Divider
                     Rectangle()
@@ -142,7 +158,7 @@ struct SimpleScoreOverlay: View {
                     
                     // Home team section
                     VStack(spacing: 8) {
-                        Text(String(overlayData.homeTeam.prefix(5)).uppercased())
+                        Text(String(formatTeamName(overlayData.homeTeam)))
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                             .lineLimit(1)
@@ -151,24 +167,12 @@ struct SimpleScoreOverlay: View {
                             .font(.system(size: 32, weight: .black))
                             .foregroundColor(.white)
                             .monospacedDigit()
-                        
-
                     }
                     .frame(maxHeight: .infinity)
                     .padding(.top, 20)
-                    .rotationEffect(.degrees(-90))
+                    .rotationEffect(.degrees(getTextRotation()))
                 }
                 .frame(width: 100)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: .black.opacity(0.95), location: 0.0),
-                            .init(color: .black.opacity(0.85), location: 1.0)
-                        ]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
                 .overlay(
                     Rectangle()
                         .frame(width: 3)
@@ -179,6 +183,52 @@ struct SimpleScoreOverlay: View {
             .ignoresSafeArea(.all)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
+        } else {
+            // Portrait mode - show rotation prompt
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                VStack(spacing: 32) {
+                    // Animated rotation icon
+                    Image(systemName: "rotate.right")
+                        .font(.system(size: 80, weight: .light))
+                        .foregroundColor(.white)
+                        .rotationEffect(.degrees(rotationAnimation ? 90 : 0))
+                        .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: rotationAnimation)
+                        .onAppear { rotationAnimation = true }
+                    
+                    VStack(spacing: 16) {
+                        Text("Rotate to Landscape")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        Text("Professional video recording requires landscape orientation for the best scoreboard experience")
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
+                    
+                    // Game preview
+                    VStack(spacing: 12) {
+                        Text("\(overlayData.homeTeam) vs \(overlayData.awayTeam)")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                        
+                        Text("\(overlayData.homeScore) - \(overlayData.awayScore)")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        Text("\(formatPeriod()) • \(overlayData.clockTime)")
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding(.top, 24)
+                }
+            }
         }
     }
 }

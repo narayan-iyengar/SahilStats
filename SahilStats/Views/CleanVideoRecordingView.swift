@@ -31,7 +31,7 @@ struct CleanVideoRecordingView: View {
             // Only show overlay and controls when camera is ready
             if isCameraReady {
                 // Score overlay - now orientation-aware
-                SimpleScoreOverlay(overlayData: overlayData, orientation: orientation)
+                SimpleScoreOverlay(overlayData: overlayData, orientation: orientation, recordingDuration: recordingManager.recordingTimeString)
                 
                 // Recording controls - orientation aware
                 if orientation == .landscapeLeft || orientation == .landscapeRight {
@@ -49,28 +49,7 @@ struct CleanVideoRecordingView: View {
                             
                             Spacer()
                             
-                            // Recording status - positioned in middle-left
-                            if recordingManager.isRecording {
-                                VStack(spacing: 6) {
-                                    Circle()
-                                        .fill(Color.red)
-                                        .frame(width: 8, height: 8)
-                                        .opacity(0.8)
-                                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
-                                    
-                                    Text("REC")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.red)
-                                    
-                                    Text(recordingManager.recordingTimeString)
-                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                        .foregroundColor(.white)
-                                        .minimumScaleFactor(0.8)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 12)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                            }
+                            Spacer()
                             
                             Spacer()
                             
