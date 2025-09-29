@@ -574,6 +574,20 @@ struct LiveGameControllerView: View {
                     onFinishGame: { showingFinishAlert = true }
                 )
             }
+            if DeviceRoleManager.shared.deviceRole == .controller {
+                BluetoothStatusIndicator()
+                
+                if MultipeerConnectivityManager.shared.isConnected {
+                    Button(recordingManager.isRecording ? "Stop Recording" : "Start Recording") {
+                        if recordingManager.isRecording {
+                            MultipeerConnectivityManager.shared.sendStopRecording()
+                        } else {
+                            MultipeerConnectivityManager.shared.sendStartRecording()
+                        }
+                    }
+                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
+                }
+            }
         }
         .padding(.horizontal, isIPad ? 20 : 16)
         .padding(.vertical, isIPad ? 12 : 8)

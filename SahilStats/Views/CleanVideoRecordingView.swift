@@ -15,6 +15,8 @@ struct CleanVideoRecordingView: View {
     @State private var isCameraReady = false
     @State private var orientation = UIDeviceOrientation.portrait
     
+    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
         // Initialize overlayData with data from liveGame
@@ -161,6 +163,7 @@ struct CleanVideoRecordingView: View {
             setupOrientationNotifications()
             recordingManager.startCameraSession()
             startOverlayUpdateTimer()
+            setupBluetoothCallbacks()
         }
         .onDisappear {
             removeOrientationNotifications()
@@ -170,6 +173,20 @@ struct CleanVideoRecordingView: View {
     }
     
     // MARK: - Private Methods
+    private func setupBluetoothCallbacks() {
+            multipeer.onRecordingStartRequested = {
+                Task {
+                    await recordingManager.startRecording()
+                }
+            }
+            
+            multipeer.onRecordingStopRequested = {
+                Task {
+                    await recordingManager.stopRecording()
+                }
+            }
+        }
+    }
     
     private func toggleRecording() {
         if recordingManager.isRecording {
