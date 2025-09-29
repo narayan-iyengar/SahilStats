@@ -28,12 +28,45 @@ struct GameSetupView: View  {
     @State private var enableMultiDevice = false
     @State private var isCreatingMultiDeviceGame = false
     
+    
+    // 🔵 ADD THIS - Connection method state
+    @State private var connectionMethod: ConnectionMethod = .bluetooth
+    @State private var showingBluetoothConnection = false
+    @State private var bluetoothConnectionRequired = false
+    
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
         horizontalSizeClass == .regular
     }
     
     @StateObject private var locationManager = LocationManager.shared
+    
+    // 🔵 ADD THIS - Connection method enum
+    enum ConnectionMethod {
+        case bluetooth
+        case firebase
+    }
+        var displayName: String {
+            switch self {
+            case .bluetooth: return "Bluetooth (Direct)"
+            case .firebase: return "WiFi/Internet"
+            }
+        }
+        
+        var description: String {
+            switch self {
+            case .bluetooth: return "Direct device-to-device connection (no WiFi required)"
+            case .firebase: return "Requires internet connection"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .bluetooth: return "antenna.radiowaves.left.and.right"
+            case .firebase: return "wifi"
+            }
+        }
+    }
     
     enum SetupMode {
         case selection      // Choose setup type
@@ -67,6 +100,13 @@ struct GameSetupView: View  {
         .onAppear {
             firebaseService.startListening()
             loadDefaultSettings()
+            
+            // 🔵 ADD THIS - Setup Bluetooth callbacks
+            setupBluetoothCallbacks()
+        }
+        // 🔵 ADD THIS - Bluetooth connection sheet
+        .sheet(isPresented: $showingBluetoothConnection) {
+            BluetoothConnectionView()
         }
         .fullScreenCover(isPresented: $showingPostGameView) {
             PostGameFullScreenWrapper(gameConfig: gameConfig) {
@@ -87,6 +127,24 @@ struct GameSetupView: View  {
             if let error = error {
                 self.error = error.localizedDescription
             }
+        }
+        // 🔵 ADD THIS - Alert for Bluetooth connection requirement
+        .alert("Bluetooth Connection Required", isPresented: $bluetoothConnectionRequired) {
+            Button("Connect Now") {
+                showingBluetoothConnection = true
+            }
+            Button("Cancel", role: .cancel) {
+                // Stay on current screen
+            }
+        } message: {
+            Text("You need to establish a Bluetooth connection with the recorder device before starting the game.")
+        }
+    }
+    
+    // 🔵 ADD THIS - Bluetooth callbacks setup method
+    private func setupBluetoothCallbacks() {
+        multipeer.onPeerDiscovered = { peer in
+            print("📱 Discovered peer: \(peer.displayName)")
         }
     }
     
@@ -220,6 +278,90 @@ struct GameSetupView: View  {
                     }
                 }
             }
+            // 🔵 ADD THIS ENTIRE SECTION - Connection Method Section
+            if isCreatingMultiDeviceGame {
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Connection Method")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        // Connection method picker
+                        Picker("Connection", selection: $connectionMethod) {
+                            Text("🔵 Bluetooth").tag(ConnectionMethod.bluetooth)
+                            Text("📡 WiFi/Internet").tag(ConnectionMethod.firebase)
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        // Description card
+                        HStack(spacing: 12) {
+                            Image(systemName: connectionMethod.icon)
+                                .font(.title2)
+                                .foregroundColor(connectionMethod == .bluetooth ? .blue : .orange)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(connectionMethod.displayName)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                
+                                Text(connectionMethod.description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding()
+                        .background(connectionMethod == .bluetooth ?
+                                  Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                        
+                        // Bluetooth connection status
+                        if connectionMethod == .bluetooth {
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Text("Bluetooth Status")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    
+                                    Spacer()
+                                    
+                                    BluetoothStatusIndicator()
+                                }
+                                
+                                if !multipeer.isConnected {
+                                    Button("Connect Bluetooth Devices") {
+                                        showingBluetoothConnection = true
+                                    }
+                                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
+                                } else {
+                                    HStack {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                        
+                                        Text("Connected to \(multipeer.connectedPeers.first?.displayName ?? "recorder")")
+                                            .font(.caption)
+                                            .foregroundColor(.green)
+                                        
+                                        Spacer()
+                                        
+                                        Button("Change") {
+                                            showingBluetoothConnection = true
+                                        }
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                    }
+                                    .padding()
+                                    .background(Color.green.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Device Connection")
+                }
+            }
             
             // Game Format (for live games only)
             if deviceRole == .controller {
@@ -252,6 +394,14 @@ struct GameSetupView: View  {
             Section {
                 if deviceRole == .controller {
                     Button("Start Live Game") {
+                        // 🔵 ADD THIS - Bluetooth validation
+                        if isCreatingMultiDeviceGame && connectionMethod == .bluetooth {
+                            if !multipeer.isConnected {
+                                bluetoothConnectionRequired = true
+                                return
+                            }
+                        }
+                        
                         handleSubmit(mode: .live, isMultiDevice: isCreatingMultiDeviceGame)
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
@@ -437,6 +587,33 @@ struct GameSetupView: View  {
             }
             .padding(.top, 40)
             
+            // 🔵 ADD THIS - Connection method selection
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Connection Type")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                HStack(spacing: 12) {
+                    ConnectionMethodCard(
+                        method: .bluetooth,
+                        isSelected: connectionMethod == .bluetooth,
+                        isIPad: isIPad
+                    ) {
+                        connectionMethod = .bluetooth
+                    }
+                    
+                    ConnectionMethodCard(
+                        method: .firebase,
+                        isSelected: connectionMethod == .firebase,
+                        isIPad: isIPad
+                    ) {
+                        connectionMethod = .firebase
+                    }
+                }
+            }
+            .padding(.horizontal)
+
+            
             VStack(spacing: 16) {
                 // Controller role - CREATE the game
                 DeviceRoleCard(
@@ -455,8 +632,11 @@ struct GameSetupView: View  {
                     isIPad: isIPad
                 ) {
                     deviceRole = .recorder
-                    // For recorder in multi-device setup, they need to wait for controller to create game
-                    if firebaseService.hasLiveGame {
+                    if connectionMethod == .bluetooth {
+                        // For Bluetooth, show connection screen
+                        showingBluetoothConnection = true
+                    } else {
+                        firebaseService.hasLiveGame {
                         // Join existing game as recorder
                         joinAsRecorder()
                     } else {
@@ -691,6 +871,40 @@ struct SmartJoinRoleCard: View {
     }
 }
 
+    
+struct ConnectionMethodCard: View {
+        let method: GameSetupView.ConnectionMethod
+        let isSelected: Bool
+        let isIPad: Bool
+        let action: () -> Void
+        
+        var body: some View {
+            Button(action: action) {
+                VStack(spacing: 8) {
+                    Image(systemName: method.icon)
+                        .font(.title2)
+                        .foregroundColor(isSelected ? .white : (method == .bluetooth ? .blue : .orange))
+                    
+                    Text(method.displayName)
+                        .font(isIPad ? .body : .caption)
+                        .fontWeight(isSelected ? .semibold : .regular)
+                        .foregroundColor(isSelected ? .white : .primary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, isIPad ? 20 : 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isSelected ? (method == .bluetooth ? Color.blue : Color.orange) : Color(.systemGray6))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.clear : Color(.systemGray4), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
 // MARK: - Supporting Views
 
 struct PostGameFullScreenWrapper: View {
@@ -1110,3 +1324,5 @@ struct DeviceRoleSelectionCard: View {
         .buttonStyle(.plain)
     }
 }
+
+
