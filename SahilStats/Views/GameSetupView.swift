@@ -366,12 +366,9 @@ struct GameSetupView: View  {
         // Always allow viewers
         availableRoles.append(.viewer)
         
-        // Check if this is a multi-device game that needs a recorder
-        if liveGame.isMultiDeviceSetup == true {
-            // Check if recorder slot is available (you'd need to track this in your LiveGame model)
-            // For now, always allow recorder if it's multi-device
-            availableRoles.append(.recorder)
-        }
+        // Always allow recorder - anyone should be able to join as recorder
+        // (The original multi-device setup restriction was too limiting)
+        availableRoles.append(.recorder)
         
         return availableRoles
     }

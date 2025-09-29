@@ -6,6 +6,7 @@ import AVFoundation
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
+    @StateObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
     
     // Local state for overlay data
@@ -37,7 +38,7 @@ struct CleanVideoRecordingView: View {
                     HStack {
                         VStack(spacing: 20) {
                             // Close button
-                            Button(action: { dismiss() }) {
+                            Button(action: handleDismiss) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 18, weight: .semibold))
                                     .foregroundColor(.white)
@@ -101,7 +102,7 @@ struct CleanVideoRecordingView: View {
                     VStack {
                         HStack {
                             // Close button
-                            Button(action: { dismiss() }) {
+                            Button(action: handleDismiss) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 18, weight: .semibold))
                                     .foregroundColor(.white)
@@ -243,6 +244,14 @@ struct CleanVideoRecordingView: View {
     
     private func updateOrientation() {
         orientation = UIDevice.current.orientation
+    }
+    
+    private func handleDismiss() {
+        // Clear the device role when recorder exits so they can select role again next time
+        Task {
+            await roleManager.clearDeviceRole()
+        }
+        dismiss()
     }
 }
 
