@@ -34,6 +34,7 @@ struct LiveGameView: View {
                 switch roleManager.deviceRole {
                 case .recorder:
                     CleanVideoRecordingView(liveGame: liveGame)
+                    
                         .ignoresSafeArea(.all)
                         .navigationBarHidden(true)
                         .statusBarHidden(true)
