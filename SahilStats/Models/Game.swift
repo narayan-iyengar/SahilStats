@@ -1196,9 +1196,9 @@ func isControllerRoleAvailable() -> Bool {
     }
     
     func isRecorderRoleAvailable() -> Bool {
-        // Only allow recorder if this is a multi-device setup and no recorder is connected
-        guard isMultiDeviceSetup == true else { return false }
-        return recordingDeviceId == nil || recordingUserEmail == nil
+        // Always allow recorder - anyone should be able to join as recorder
+        // (The original multi-device setup restriction was too limiting)
+        return true
     }
     
     func getAvailableRoles() -> [DeviceRoleManager.DeviceRole] {
@@ -1227,12 +1227,11 @@ func isControllerRoleAvailable() -> Bool {
             status.append("Controller: Available")
         }
         
-        if isMultiDeviceSetup == true {
-            if recordingDeviceId != nil {
-                status.append("Recorder: Connected")
-            } else {
-                status.append("Recorder: Available")
-            }
+        // Always show recorder status since recorder role is always available
+        if recordingDeviceId != nil {
+            status.append("Recorder: Connected")
+        } else {
+            status.append("Recorder: Available")
         }
         
         if !connectedViewers.isEmpty {

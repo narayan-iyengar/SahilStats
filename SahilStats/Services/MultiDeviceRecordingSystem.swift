@@ -95,6 +95,9 @@ class DeviceRoleManager: ObservableObject {
     }
     
     func clearDeviceRole() async {
+        // Set flag to indicate this was an explicit exit
+        UserDefaults.standard.set(true, forKey: "roleWasExplicitlyCleared")
+        
         deviceRole = .none
         liveGameId = nil
         
@@ -135,14 +138,28 @@ class DeviceRoleManager: ObservableObject {
            let savedRole = DeviceRole(rawValue: savedRoleString),
            let gameId = UserDefaults.standard.string(forKey: "connectedGameId") {
             
-            deviceRole = savedRole
-            liveGameId = gameId
-            isConnectedToGame = true
+            // Check if there's a flag indicating explicit exit (role was cleared intentionally)
+            let wasExplicitlyCleared = UserDefaults.standard.bool(forKey: "roleWasExplicitlyCleared")
             
-            // Reconnect to game
-            Task {
-                try? await updateDeviceInFirebase(role: savedRole, gameId: gameId)
-                startListeningForDevices(gameId: gameId)
+            if !wasExplicitlyCleared {
+                // Only auto-reconnect if the role wasn't explicitly cleared
+                deviceRole = savedRole
+                liveGameId = gameId
+                isConnectedToGame = true
+                
+                // Reconnect to game
+                Task {
+                    try? await updateDeviceInFirebase(role: savedRole, gameId: gameId)
+                    startListeningForDevices(gameId: gameId)
+                }
+            } else {
+                // Role was explicitly cleared, clean up and start fresh
+                UserDefaults.standard.removeObject(forKey: "roleWasExplicitlyCleared")
+                UserDefaults.standard.removeObject(forKey: "deviceRole")
+                UserDefaults.standard.removeObject(forKey: "connectedGameId")
+                deviceRole = .none
+                liveGameId = nil
+                isConnectedToGame = false
             }
         }
     }
