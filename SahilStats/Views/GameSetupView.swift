@@ -6,10 +6,16 @@ import Combine
 import FirebaseAuth
 import CoreLocation
 import UIKit
+import FirebaseCore
+import MultipeerConnectivity
+
+// MARK: - Connection Method Enum (Move outside the view)
+
 
 struct GameSetupView: View  {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var settingsManager = SettingsManager.shared
+    @StateObject private var multipeer = MultipeerConnectivityManager.shared // ADD THIS
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     
@@ -28,8 +34,7 @@ struct GameSetupView: View  {
     @State private var enableMultiDevice = false
     @State private var isCreatingMultiDeviceGame = false
     
-    
-    // 🔵 ADD THIS - Connection method state
+    // Connection method state
     @State private var connectionMethod: ConnectionMethod = .bluetooth
     @State private var showingBluetoothConnection = false
     @State private var bluetoothConnectionRequired = false
@@ -41,11 +46,24 @@ struct GameSetupView: View  {
     
     @StateObject private var locationManager = LocationManager.shared
     
-    // 🔵 ADD THIS - Connection method enum
+    enum SetupMode {
+        case selection      // Choose setup type
+        case recording      // Recording device role selection
+        case gameForm       // Game configuration form
+        case smartJoin      // Smart join existing game
+    }
+    
+    enum DeviceRole {
+        case none
+        case recorder      // iPhone for recording
+        case controller    // iPad for scoring/control
+        case viewer
+    }
+    
     enum ConnectionMethod {
         case bluetooth
         case firebase
-    }
+        
         var displayName: String {
             switch self {
             case .bluetooth: return "Bluetooth (Direct)"
@@ -68,20 +86,6 @@ struct GameSetupView: View  {
         }
     }
     
-    enum SetupMode {
-        case selection      // Choose setup type
-        case recording      // Recording device role selection
-        case gameForm       // Game configuration form
-        case smartJoin      // Smart join existing game
-    }
-    
-    enum DeviceRole {
-        case none
-        case recorder      // iPhone for recording
-        case controller    // iPad for scoring/control
-        case viewer
-    }
-    
     var body: some View {
         Group {
             switch setupMode {
@@ -100,11 +104,8 @@ struct GameSetupView: View  {
         .onAppear {
             firebaseService.startListening()
             loadDefaultSettings()
-            
-            // 🔵 ADD THIS - Setup Bluetooth callbacks
             setupBluetoothCallbacks()
         }
-        // 🔵 ADD THIS - Bluetooth connection sheet
         .sheet(isPresented: $showingBluetoothConnection) {
             BluetoothConnectionView()
         }
@@ -128,27 +129,24 @@ struct GameSetupView: View  {
                 self.error = error.localizedDescription
             }
         }
-        // 🔵 ADD THIS - Alert for Bluetooth connection requirement
         .alert("Bluetooth Connection Required", isPresented: $bluetoothConnectionRequired) {
             Button("Connect Now") {
                 showingBluetoothConnection = true
             }
-            Button("Cancel", role: .cancel) {
-                // Stay on current screen
-            }
+            Button("Cancel", role: .cancel) {}
         } message: {
             Text("You need to establish a Bluetooth connection with the recorder device before starting the game.")
         }
     }
     
-    // 🔵 ADD THIS - Bluetooth callbacks setup method
+    // MARK: - Bluetooth callbacks setup method
     private func setupBluetoothCallbacks() {
         multipeer.onPeerDiscovered = { peer in
             print("📱 Discovered peer: \(peer.displayName)")
         }
     }
     
-    
+    // MARK: - Game Configuration Form
     @ViewBuilder
     private var gameConfigurationForm: some View {
         Form {
@@ -160,7 +158,6 @@ struct GameSetupView: View  {
             
             // Teams
             Section("Teams") {
-                // Team name input
                 if showAddTeamInput {
                     HStack {
                         TextField("New team name", text: $newTeamName)
@@ -195,11 +192,9 @@ struct GameSetupView: View  {
                     }
                 }
                 
-                // Opponent
                 TextField("Opponent Team", text: $gameConfig.opponent)
                     .autocapitalization(.words)
                 
-                // Opponent suggestions
                 if !gameConfig.opponent.isEmpty {
                     let suggestions = getOpponentSuggestions()
                     ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
@@ -238,28 +233,6 @@ struct GameSetupView: View  {
                     .disabled(locationManager.isLoading || !locationManager.canRequestLocation)
                 }
                 
-/*
-                // Location suggestions
-                if !gameConfig.location.isEmpty {
-                    let suggestions = getLocationSuggestions()
-                    ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
-                        Button(action: {
-                            gameConfig.location = suggestion
-                        }) {
-                            HStack {
-                                Text(suggestion)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Text("Use")
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
- */
-                
-                // Show location status/error if needed
                 if let error = locationManager.error {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
@@ -278,7 +251,8 @@ struct GameSetupView: View  {
                     }
                 }
             }
-            // 🔵 ADD THIS ENTIRE SECTION - Connection Method Section
+            
+            // Connection Method Section (only for multi-device games)
             if isCreatingMultiDeviceGame {
                 Section {
                     VStack(alignment: .leading, spacing: 16) {
@@ -286,14 +260,12 @@ struct GameSetupView: View  {
                             .font(.headline)
                             .foregroundColor(.primary)
                         
-                        // Connection method picker
                         Picker("Connection", selection: $connectionMethod) {
                             Text("🔵 Bluetooth").tag(ConnectionMethod.bluetooth)
                             Text("📡 WiFi/Internet").tag(ConnectionMethod.firebase)
                         }
                         .pickerStyle(.segmented)
                         
-                        // Description card
                         HStack(spacing: 12) {
                             Image(systemName: connectionMethod.icon)
                                 .font(.title2)
@@ -316,7 +288,6 @@ struct GameSetupView: View  {
                                   Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
                         .cornerRadius(8)
                         
-                        // Bluetooth connection status
                         if connectionMethod == .bluetooth {
                             VStack(spacing: 12) {
                                 HStack {
@@ -394,14 +365,12 @@ struct GameSetupView: View  {
             Section {
                 if deviceRole == .controller {
                     Button("Start Live Game") {
-                        // 🔵 ADD THIS - Bluetooth validation
                         if isCreatingMultiDeviceGame && connectionMethod == .bluetooth {
                             if !multipeer.isConnected {
                                 bluetoothConnectionRequired = true
                                 return
                             }
                         }
-                        
                         handleSubmit(mode: .live, isMultiDevice: isCreatingMultiDeviceGame)
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
@@ -429,12 +398,11 @@ struct GameSetupView: View  {
             Text(error)
         }
     }
-    // MARK: - FIXED: Setup Mode Selection
     
+    // MARK: - Setup Mode Selection
     @ViewBuilder
     private var setupModeSelection: some View {
         VStack(spacing: 16) {
-            // 1. Post-Game Stats
             SetupOptionCard(
                 title: "Enter Final Stats",
                 subtitle: "For games that are already complete",
@@ -448,7 +416,6 @@ struct GameSetupView: View  {
                 self.isCreatingMultiDeviceGame = false
             }
 
-            // 2. Stats-Only Live Game
             SetupOptionCard(
                 title: "Track Stats Live",
                 subtitle: "Use this device to score the game",
@@ -462,7 +429,6 @@ struct GameSetupView: View  {
                 self.deviceRole = .controller
             }
 
-            // 3. FIXED: Multi-Device Recording Session
             SetupOptionCard(
                 title: "Multi-Device Recording",
                 subtitle: "Record video + control scoring separately",
@@ -472,11 +438,10 @@ struct GameSetupView: View  {
                 statusColor: .red
             ) {
                 self.isCreatingMultiDeviceGame = true
-                self.setupMode = .recording // Go to role selection first
+                self.setupMode = .recording
                 self.deviceRole = .none
             }
 
-            // 4. FIXED: Smart Join Live Game
             if firebaseService.hasLiveGame {
                 SetupOptionCard(
                     title: "Join Live Game",
@@ -486,100 +451,28 @@ struct GameSetupView: View  {
                     status: "A game is in progress!",
                     statusColor: .blue
                 ) {
-                    self.setupMode = .smartJoin // Go to smart join logic
+                    self.setupMode = .smartJoin
                 }
             }
         }
         .padding()
     }
-    // MARK: - NEW: Smart Join Helper Methods
     
-    private func getCurrentLiveGameInfo() -> String {
-        guard let liveGame = firebaseService.getCurrentLiveGame() else {
-            return "Connect to ongoing game"
-        }
-        return "\(liveGame.teamName) vs \(liveGame.opponent)"
-    }
-    
-    private func getAvailableRoles() -> [DeviceRoleManager.DeviceRole] {
-        guard let liveGame = firebaseService.getCurrentLiveGame() else {
-            return []
-        }
-        
-        var availableRoles: [DeviceRoleManager.DeviceRole] = []
-        
-        // Check if controller slot is available
-        if liveGame.controllingDeviceId == nil || liveGame.controllingUserEmail == nil {
-            availableRoles.append(.controller)
-        }
-        
-        // Always allow viewers
-        availableRoles.append(.viewer)
-        
-        // Always allow recorder - anyone should be able to join as recorder
-        // (The original multi-device setup restriction was too limiting)
-        availableRoles.append(.recorder)
-        
-        return availableRoles
-    }
-    
-    private func joinGameWithRole(_ role: DeviceRoleManager.DeviceRole) {
-        Task {
-            do {
-                guard let liveGame = firebaseService.getCurrentLiveGame(),
-                      let gameId = liveGame.id else {
-                    throw LiveGameError.gameNotFound
-                }
-                
-                try await DeviceRoleManager.shared.setDeviceRole(role, for: gameId)
-                
-                await MainActor.run {
-                    showingLiveGameView = true
-                }
-            } catch {
-                await MainActor.run {
-                    self.error = "Failed to join game: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
-    
-    private func joinAsRecorder() {
-        Task {
-            do {
-                guard let liveGame = firebaseService.getCurrentLiveGame(),
-                      let gameId = liveGame.id else {
-                    throw LiveGameError.gameNotFound
-                }
-                
-                try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                
-                await MainActor.run {
-                    showingLiveGameView = true
-                }
-            } catch {
-                await MainActor.run {
-                    self.error = "Failed to join as recorder: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
-    // MARK: - FIXED: Multi-Device Role Selection
-    
+    // MARK: - Recording Role Selection
     @ViewBuilder
     private var recordingRoleSelection: some View {
         VStack(spacing: 30) {
             VStack(spacing: 16) {
                 HStack(spacing: 12) {
-                        Image(systemName: "video.fill")
-                            .font(.title) // Match the font size to the text for alignment
-                            .fontWeight(.semibold)
-                            .foregroundColor(.red)
-                            
-                        Text("Multi-Device Setup")
-                            .font(.title)
-                            .fontWeight(.bold)
-                    }
+                    Image(systemName: "video.fill")
+                        .font(.title)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.red)
+                    
+                    Text("Multi-Device Setup")
+                        .font(.title)
+                        .fontWeight(.bold)
+                }
                 
                 Text("Choose your device's role for this multi-device recording session")
                     .foregroundColor(.secondary)
@@ -587,7 +480,6 @@ struct GameSetupView: View  {
             }
             .padding(.top, 40)
             
-            // 🔵 ADD THIS - Connection method selection
             VStack(alignment: .leading, spacing: 12) {
                 Text("Connection Type")
                     .font(.headline)
@@ -612,20 +504,17 @@ struct GameSetupView: View  {
                 }
             }
             .padding(.horizontal)
-
             
             VStack(spacing: 16) {
-                // Controller role - CREATE the game
                 DeviceRoleCard(
                     role: .controller,
                     isSelected: deviceRole == .controller,
                     isIPad: isIPad
                 ) {
                     deviceRole = .controller
-                    setupMode = .gameForm // Go to game form to CREATE the game
+                    setupMode = .gameForm
                 }
                 
-                // Recorder role - JOIN existing game
                 DeviceRoleCard(
                     role: .recorder,
                     isSelected: deviceRole == .recorder,
@@ -633,14 +522,13 @@ struct GameSetupView: View  {
                 ) {
                     deviceRole = .recorder
                     if connectionMethod == .bluetooth {
-                        // For Bluetooth, show connection screen
                         showingBluetoothConnection = true
                     } else {
-                        firebaseService.hasLiveGame {
-                        // Join existing game as recorder
-                        joinAsRecorder()
-                    } else {
-                        error = "No live game found. Ask the controller to start the game first, then try joining as a recorder."
+                        if firebaseService.hasLiveGame {
+                            joinAsRecorder()
+                        } else {
+                            error = "No live game found. Ask the controller to start the game first."
+                        }
                     }
                 }
             }
@@ -658,8 +546,7 @@ struct GameSetupView: View  {
         .padding()
     }
     
-    // MARK: - NEW: Smart Join Game View
-    
+    // MARK: - Smart Join Game View
     @ViewBuilder
     private var smartJoinGameView: some View {
         VStack(spacing: 30) {
@@ -680,7 +567,6 @@ struct GameSetupView: View  {
             }
             .padding(.top, 40)
             
-            // SMART: Show available roles based on what's already taken
             VStack(spacing: 16) {
                 let availableRoles = getAvailableRoles()
                 
@@ -739,8 +625,72 @@ struct GameSetupView: View  {
         locationManager.requestLocation()
     }
     
-    // MARK: - 3. Update handleSubmit in GameSetupView.swift to support multi-device
-
+    private func getCurrentLiveGameInfo() -> String {
+        guard let liveGame = firebaseService.getCurrentLiveGame() else {
+            return "Connect to ongoing game"
+        }
+        return "\(liveGame.teamName) vs \(liveGame.opponent)"
+    }
+    
+    private func getAvailableRoles() -> [DeviceRoleManager.DeviceRole] {
+        guard let liveGame = firebaseService.getCurrentLiveGame() else {
+            return []
+        }
+        
+        var availableRoles: [DeviceRoleManager.DeviceRole] = []
+        
+        if liveGame.controllingDeviceId == nil || liveGame.controllingUserEmail == nil {
+            availableRoles.append(.controller)
+        }
+        
+        availableRoles.append(.viewer)
+        availableRoles.append(.recorder)
+        
+        return availableRoles
+    }
+    
+    private func joinGameWithRole(_ role: DeviceRoleManager.DeviceRole) {
+        Task {
+            do {
+                guard let liveGame = firebaseService.getCurrentLiveGame(),
+                      let gameId = liveGame.id else {
+                    throw LiveGameError.gameNotFound
+                }
+                
+                try await DeviceRoleManager.shared.setDeviceRole(role, for: gameId)
+                
+                await MainActor.run {
+                    showingLiveGameView = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = "Failed to join game: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    private func joinAsRecorder() {
+        Task {
+            do {
+                guard let liveGame = firebaseService.getCurrentLiveGame(),
+                      let gameId = liveGame.id else {
+                    throw LiveGameError.gameNotFound
+                }
+                
+                try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                
+                await MainActor.run {
+                    showingLiveGameView = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = "Failed to join as recorder: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
     private func handleSubmit(mode: GameSubmissionMode, isMultiDevice: Bool) {
         guard !gameConfig.teamName.isEmpty && !gameConfig.opponent.isEmpty else {
             error = "Please enter team name and opponent"
@@ -753,7 +703,6 @@ struct GameSetupView: View  {
                 case .live:
                     let liveGame = try await createLiveGame(isMultiDevice: isMultiDevice)
                     if let gameId = liveGame.id {
-                        // Set device role based on selection
                         let selectedRole: DeviceRoleManager.DeviceRole = deviceRole == .controller ? .controller : .controller
                         try await DeviceRoleManager.shared.setDeviceRole(selectedRole, for: gameId)
                     }
@@ -813,15 +762,6 @@ struct GameSetupView: View  {
             }
         }
     }
-    
-    private func getOpponentSuggestions() -> [String] {
-        let allOpponents = Set(firebaseService.games.compactMap { $0.opponent })
-        return Array(allOpponents)
-            .filter { $0.localizedCaseInsensitiveContains(gameConfig.opponent) }
-            .prefix(3)
-            .map { $0 }
-    }
-    
     private func getLocationSuggestions() -> [String] {
         let allLocations = Set(firebaseService.games.compactMap { $0.location })
         return Array(allLocations)
@@ -829,7 +769,16 @@ struct GameSetupView: View  {
             .prefix(3)
             .map { $0 }
     }
+    private func getOpponentSuggestions() -> [String] {
+        let allOpponents = Set(firebaseService.games.compactMap { $0.opponent })
+        return Array(allOpponents)
+            .filter { $0.localizedCaseInsensitiveContains(gameConfig.opponent) }
+            .prefix(3)
+            .map { $0 }
+    }
 }
+
+
 
 //MARK: smart join role card
 struct SmartJoinRoleCard: View {
@@ -1283,7 +1232,7 @@ struct DeviceRoleCard: View {
 }
 
 
-
+/*
 struct DeviceRoleSelectionCard: View {
     let title: String
     let description: String
@@ -1324,5 +1273,6 @@ struct DeviceRoleSelectionCard: View {
         .buttonStyle(.plain)
     }
 }
+ */
 
 
