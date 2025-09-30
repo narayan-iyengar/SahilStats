@@ -349,6 +349,8 @@ struct LiveGameControllerView: View {
     @State private var isHeaderCollapsed = false
     @State private var scrollOffset: CGFloat = 0
     
+    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @StateObject private var multipeer = MultipeerConnectivityManager.shared
     
     
     // iPad detection

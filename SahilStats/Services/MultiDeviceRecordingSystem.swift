@@ -15,6 +15,7 @@ import AVFoundation
 
 // MARK: - Device Role Manager
 
+
 class DeviceRoleManager: ObservableObject {
     static let shared = DeviceRoleManager()
     
@@ -439,13 +440,60 @@ struct ConnectedDeviceRow: View {
     }
 }
 
+struct DeviceRoleSelectionCard: View {
+    let title: String
+    let description: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(isIPad ? .largeTitle : .title)
+                    .foregroundColor(.white)
+                    .frame(width: isIPad ? 60 : 50, height: isIPad ? 60 : 50)
+                    .background(color)
+                    .clipShape(RoundedRectangle(cornerRadius: isIPad ? 16 : 12))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(isIPad ? .title2 : .headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text(description)
+                        .font(isIPad ? .body : .caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(isIPad ? 20 : 16)
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: isIPad ? 16 : 12))
+        }
+        .buttonStyle(.plain)
+    }
+}
 // MARK: - Enhanced Game Setup Integration
 
 struct MultiDeviceGameSetup: View {
     @StateObject private var roleManager = DeviceRoleManager.shared
     @EnvironmentObject var authService: AuthService
     @State private var showingRoleSelection = false
-    @State private var gameConfig = GameConfig()
+    //@State private var gameConfig = GameConfig()
     let isIPad: Bool
     
     var body: some View {
