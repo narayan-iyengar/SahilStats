@@ -186,7 +186,6 @@ struct CleanVideoRecordingView: View {
                 }
             }
         }
-    }
     
     private func toggleRecording() {
         if recordingManager.isRecording {
