@@ -137,6 +137,26 @@ struct GameSetupView: View  {
         } message: {
             Text("You need to establish a Bluetooth connection with the recorder device before starting the game.")
         }
+        
+        .onChange(of: showingBluetoothConnection) { _, isShowing in
+            if !isShowing && deviceRole == .recorder && multipeer.isConnected {
+                // Bluetooth sheet was dismissed and we're connected
+                Task {
+                    do {
+                        guard let liveGame = firebaseService.getCurrentLiveGame(),
+                              let gameId = liveGame.id else {
+                            error = "No live game found"
+                            return
+                        }
+                        
+                        try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                        showingLiveGameView = true
+                    } catch {
+                        self.error = "Failed to join as recorder: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Bluetooth callbacks setup method
@@ -365,14 +385,15 @@ struct GameSetupView: View  {
             Section {
                 if deviceRole == .controller {
                     Button("Start Live Game") {
-                        if isCreatingMultiDeviceGame && connectionMethod == .bluetooth {
-                            if !multipeer.isConnected {
-                                bluetoothConnectionRequired = true
-                                return
-                            }
-                        }
+                    //    if isCreatingMultiDeviceGame && connectionMethod == .bluetooth {
+                    //        if !multipeer.isConnected {
+                    //            bluetoothConnectionRequired = true
+                    //            return
+                    //        }
+                    //    }
                         handleSubmit(mode: .live, isMultiDevice: isCreatingMultiDeviceGame)
                     }
+                
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 } else {
                     Button("Enter Game Stats") {
@@ -512,22 +533,91 @@ struct GameSetupView: View  {
                     isIPad: isIPad
                 ) {
                     deviceRole = .controller
+                    // Controller proceeds directly to game form
+                    // No need to wait for recorder
                     setupMode = .gameForm
+                    
+                    // If Bluetooth is selected, start advertising so recorder can find us
+                    if connectionMethod == .bluetooth {
+                        Task.detached {
+                            multipeer.startAdvertising(as: .controller) // Controller becomes discoverable
+                            try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
+                        }
+                    } else {
+                        Task.detached {
+                            try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
+                        }
+                    }
                 }
-                
+/*
                 DeviceRoleCard(
                     role: .recorder,
                     isSelected: deviceRole == .recorder,
                     isIPad: isIPad
                 ) {
                     deviceRole = .recorder
+                    
                     if connectionMethod == .bluetooth {
+                        // Recorder needs to browse and connect to controller
+                        multipeer.startBrowsing()
                         showingBluetoothConnection = true
+                        
+                        // Setup callback for when connection succeeds
+                        multipeer.onConnectionEstablished = {
+                            // Once connected, join the game as recorder
+                            Task {
+                                do {
+                                    // Get the live game from Firebase
+                                    guard let liveGame = firebaseService.getCurrentLiveGame(),
+                                          let gameId = liveGame.id else {
+                                        await MainActor.run {
+                                            error = "No live game found"
+                                        }
+                                        return
+                                    }
+                                    
+                                    // Set device role
+                                    try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                                    
+                                    // Navigate to recording view
+                                    await MainActor.run {
+                                        showingBluetoothConnection = false
+                                        showingLiveGameView = true
+                                    }
+                                } catch {
+                                    await MainActor.run {
+                                        self.error = "Failed to join as recorder: \(error.localizedDescription)"
+                                    }
+                                }
+                            }
+                        }
                     } else {
+                        // Firebase: Recorder joins existing game
                         if firebaseService.hasLiveGame {
                             joinAsRecorder()
                         } else {
-                            error = "No live game found. Ask the controller to start the game first."
+                            error = "No live game found. The controller must start the game first."
+                        }
+                    }
+                }
+ */
+                DeviceRoleCard(
+                    role: .recorder,
+                    isSelected: deviceRole == .recorder,
+                    isIPad: isIPad
+                ) {
+                    deviceRole = .recorder
+                    
+                    if connectionMethod == .bluetooth {
+                        // Recorder needs to browse and connect to controller
+                        multipeer.startBrowsing()
+                        showingBluetoothConnection = true
+                    } else {
+                        // Firebase: Recorder joins existing game
+                        if firebaseService.hasLiveGame {
+                            joinAsRecorder()
+                        } else {
+                            error = "No live game found. The controller must start the game first."
                         }
                     }
                 }
@@ -945,8 +1035,24 @@ struct LiveGameFullScreenWrapper: View {
                 .background(Color(.systemBackground).shadow(color: .black.opacity(0.1), radius: 2, y: 1))
             }
 
-            // 3. The main view receives the data and a binding
-            LiveGameView()
+            if roleManager.deviceRole == .recorder {
+                // Recorder goes straight to camera view
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    CleanVideoRecordingView(liveGame: liveGame)
+                } else {
+                    // Fallback if no live game found
+                    VStack {
+                        Text("No live game found")
+                            .foregroundColor(.secondary)
+                        Button("Go Back") {
+                            onDismiss()
+                        }
+                    }
+                }
+            } else {
+                // Controller and viewer see the stats/scoring view
+                LiveGameView()
+            }
         }
         .navigationBarHidden(true)
         .statusBarHidden(roleManager.deviceRole == .recorder) // Hide status bar for recorder
