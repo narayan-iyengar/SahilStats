@@ -191,10 +191,12 @@ struct CleanVideoRecordingView: View {
         if recordingManager.isRecording {
             Task {
                 await recordingManager.stopRecording()
+                multipeer.sendRecordingStateUpdate(isRecording: false)
             }
         } else {
             Task {
                 await recordingManager.startRecording()
+                multipeer.sendRecordingStateUpdate(isRecording: true)
             }
         }
     }
@@ -211,9 +213,13 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOverlayData() {
-        // Update the overlay data with current liveGame state
+        // Fetch current game state from Firebase
+        guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else {
+            return
+        }
+        
         overlayData = SimpleScoreOverlayData(
-            from: liveGame,
+            from: currentGame,
             isRecording: recordingManager.isRecording,
             recordingDuration: recordingManager.recordingTimeString
         )

@@ -28,6 +28,7 @@ struct CompactDeviceControlStatusCard: View {
     let pendingRequest: String?
     let isIPad: Bool
     let onRequestControl: () -> Void
+    let showBluetoothStatus: Bool
     
     var body: some View {
         HStack(spacing: isIPad ? 12 : 8) {
@@ -43,6 +44,11 @@ struct CompactDeviceControlStatusCard: View {
                 .foregroundColor(hasControl ? .green : .blue)
             
             Spacer()
+            
+            // ADD: Bluetooth status indicator
+            if showBluetoothStatus {
+                BluetoothStatusIndicator()
+            }
             
             // Request control button (compact)
             if !hasControl {
