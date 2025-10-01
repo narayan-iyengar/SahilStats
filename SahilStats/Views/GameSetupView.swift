@@ -93,7 +93,6 @@ struct GameSetupView: View  {
             .onAppear {
                 firebaseService.startListening()
                 loadDefaultSettings()
-                setupBluetoothCallbacks()
             }
             .sheet(isPresented: $showingBluetoothConnection) {
                 BluetoothConnectionView()
@@ -239,12 +238,6 @@ struct GameSetupView: View  {
         }
     }
     
-    // MARK: - Bluetooth callbacks setup method
-    private func setupBluetoothCallbacks() {
-        multipeer.onPeerDiscovered = { peer in
-            print("📱 Discovered peer: \(peer.displayName)")
-        }
-    }
     
     // MARK: - Game Configuration Form
     @ViewBuilder

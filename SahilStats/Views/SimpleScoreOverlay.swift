@@ -127,25 +127,6 @@ struct SimpleScoreOverlay: View {
                             .font(.system(size: 28, weight: .black))
                             .foregroundColor(.white)
                             .monospacedDigit()
-                        
-                        // Recording info in its own compact section
-                        if overlayData.isRecording {
-                            VStack(spacing: 2) {
-                                Circle()
-                                    .fill(Color.red)
-                                    .frame(width: 6, height: 6)
-                                
-                                Text("REC")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundColor(.red)
-                                
-                                Text(recordingDuration)
-                                    .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                    .foregroundColor(.white)
-                                    .minimumScaleFactor(0.7)
-                            }
-                            .padding(.top, 4)
-                        }
                     }
                     .frame(maxHeight: .infinity)
                     .rotationEffect(.degrees(getTextRotation()))

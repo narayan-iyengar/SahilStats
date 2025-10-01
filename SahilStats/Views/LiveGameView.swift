@@ -555,7 +555,6 @@ struct LiveGameControllerView: View {
     }
     
     
-    
     // MARK: - FIXED: Single Game Header (All Info in One Place)
     @ViewBuilder
     private func fixedGameHeader() -> some View {
@@ -568,39 +567,48 @@ struct LiveGameControllerView: View {
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
                 onRequestControl: requestControl,
-                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller
+                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller,
+                isRecording: MultipeerConnectivityManager.shared.isConnected ? isRemoteRecording : nil,
+                onToggleRecording: MultipeerConnectivityManager.shared.isConnected ? {
+                    if isRemoteRecording {
+                        MultipeerConnectivityManager.shared.sendStopRecording()
+                    } else {
+                        MultipeerConnectivityManager.shared.sendStartRecording()
+                    }
+                } : nil
             )
             
-
-                
-                // Clock Display
-                CompactClockCard(
-                    quarter: currentQuarter,
-                    clockTime: localClockTime,
-                    isGameRunning: isGameRunning,
-                    gameFormat: serverGameState.gameFormat,
+            // Clock Display
+            CompactClockCard(
+                quarter: currentQuarter,
+                clockTime: localClockTime,
+                isGameRunning: isGameRunning,
+                gameFormat: serverGameState.gameFormat,
+                isIPad: isIPad
+            )
+            .frame(maxWidth: .infinity)
+            
+            // Score Display
+            if deviceControl.hasControl {
+                CompactLiveScoreCard(
+                    homeScore: $currentHomeScore,
+                    awayScore: $currentAwayScore,
+                    teamName: serverGameState.teamName,
+                    opponent: serverGameState.opponent,
+                    isIPad: isIPad,
+                    onScoreChange: scheduleUpdate
+                )
+                .frame(maxWidth: .infinity)
+            } else {
+                CompactLiveScoreDisplayCard(
+                    homeScore: serverGameState.homeScore,
+                    awayScore: serverGameState.awayScore,
+                    teamName: serverGameState.teamName,
+                    opponent: serverGameState.opponent,
                     isIPad: isIPad
-                ) .frame(maxWidth: .infinity)
-                
-                // FIXED: Score Display ONLY ONCE (not repeated)
-                if deviceControl.hasControl {
-                    CompactLiveScoreCard(
-                        homeScore: $currentHomeScore,
-                        awayScore: $currentAwayScore,
-                        teamName: serverGameState.teamName,
-                        opponent: serverGameState.opponent,
-                        isIPad: isIPad,
-                        onScoreChange: scheduleUpdate
-                    ) .frame(maxWidth: .infinity)
-                } else {
-                    CompactLiveScoreDisplayCard(
-                        homeScore: serverGameState.homeScore,
-                        awayScore: serverGameState.awayScore,
-                        teamName: serverGameState.teamName,
-                        opponent: serverGameState.opponent,
-                        isIPad: isIPad
-                    ) .frame(maxWidth: .infinity)
-                }
+                )
+                .frame(maxWidth: .infinity)
+            }
             
             // Player Status
             PlayerStatusCard(
@@ -608,8 +616,8 @@ struct LiveGameControllerView: View {
                 isIPad: isIPad,
                 hasControl: deviceControl.hasControl,
                 onStatusChange: {
-                        updatePlayingStatus()  // Make sure this calls updatePlayingStatus
-                    }
+                    updatePlayingStatus()
+                }
             )
             
             // Game Controls
@@ -626,17 +634,6 @@ struct LiveGameControllerView: View {
                     onFinishGame: { showingFinishAlert = true }
                 )
             }
-                
-            if MultipeerConnectivityManager.shared.isConnected {
-                    Button(recordingManager.isRecording ? "Stop Recording" : "Start Recording") {
-                        if recordingManager.isRecording {
-                            MultipeerConnectivityManager.shared.sendStopRecording()
-                        } else {
-                            MultipeerConnectivityManager.shared.sendStartRecording()
-                        }
-                    }
-                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
-                }
         }
         .padding(.horizontal, isIPad ? 20 : 16)
         .padding(.vertical, isIPad ? 12 : 8)
@@ -645,7 +642,7 @@ struct LiveGameControllerView: View {
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         )
     }
-    
+
     // MARK: - FIXED: Detailed Stats Entry (NO Score Cards Here)
     
     @ViewBuilder

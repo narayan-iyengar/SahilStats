@@ -19,7 +19,8 @@ import Combine
 
 
 
-// MARK: - Compact Device Control Status
+// MARK: - Compact Device Control Status OLD
+/*
 
 struct CompactDeviceControlStatusCard: View {
     let hasControl: Bool
@@ -80,7 +81,89 @@ struct CompactDeviceControlStatusCard: View {
         .cornerRadius(isIPad ? 12 : 8)
     }
 }
+*/
 
+// MARK: - Compact Device Control Status - NEW
+
+struct CompactDeviceControlStatusCard: View {
+    let hasControl: Bool
+    let controllingUser: String?
+    let canRequestControl: Bool
+    let pendingRequest: String?
+    let isIPad: Bool
+    let onRequestControl: () -> Void
+    let showBluetoothStatus: Bool
+    let isRecording: Bool?  // NEW: Optional recording state
+    let onToggleRecording: (() -> Void)?  // NEW: Optional recording toggle
+    
+    var body: some View {
+        HStack(spacing: isIPad ? 12 : 8) {
+            // Status indicator
+            Image(systemName: hasControl ? "gamecontroller.fill" : "eye.fill")
+                .foregroundColor(hasControl ? .green : .blue)
+                .font(isIPad ? .body : .caption)
+            
+            // Status text
+            Text(hasControl ? "Controlling" : "Viewing")
+                .font(isIPad ? .body : .caption)
+                .fontWeight(.medium)
+                .foregroundColor(hasControl ? .green : .blue)
+            
+            Spacer()
+            
+            // ADD: Recording button (compact) - only if Bluetooth connected and controller
+            if showBluetoothStatus, let isRecording = isRecording, let toggleRecording = onToggleRecording {
+                Button(action: toggleRecording) {
+                    HStack(spacing: 4) {
+                        Image(systemName: isRecording ? "stop.circle.fill" : "record.circle")
+                            .font(.caption)
+                        Text(isRecording ? "Stop" : "Rec")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isRecording ? Color.red : Color.red.opacity(0.8))
+                    .cornerRadius(6)
+                }
+            }
+            
+            // ADD: Bluetooth status indicator
+            if showBluetoothStatus {
+                BluetoothStatusIndicator()
+            }
+            
+            // Request control button (compact)
+            if !hasControl {
+                if let pendingUser = pendingRequest {
+                    Text("Pending...")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(6)
+                } else if canRequestControl {
+                    Button("Request") {
+                        onRequestControl()
+                    }
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+                }
+            }
+        }
+        .padding(.horizontal, isIPad ? 16 : 12)
+        .padding(.vertical, isIPad ? 12 : 8)
+        .background(hasControl ? Color.green.opacity(0.08) : Color.blue.opacity(0.08))
+        .cornerRadius(isIPad ? 12 : 8)
+    }
+}
 // MARK: - Compact Clock Card
 
 struct CompactClockCard: View {

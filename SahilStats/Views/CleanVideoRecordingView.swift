@@ -23,6 +23,8 @@ struct CleanVideoRecordingView: View {
     @State private var showingCameraError = false
     @State private var cameraErrorMessage = ""
     
+    @State private var orientationDebounceTimer: Timer?
+    
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
         self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
@@ -101,26 +103,67 @@ struct CleanVideoRecordingView: View {
                 }
                 
                 Spacer()
-                Spacer()
-                Spacer()
-                
-                // Record button
-                recordButton
             }
             .padding(.leading, 16)
             .padding(.vertical, 50)
             
             Spacer()
         }
+        
+        // Recording indicator in bottom-left
+        VStack {
+            Spacer()
+            
+            HStack {
+                if recordingManager.isRecording {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 12, height: 12)
+                            .opacity(0.8)
+                            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
+                        
+                        Text("Recording")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.red)
+                        
+                        Text(recordingManager.recordingTimeString)
+                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .frame(minWidth: 120)
+                    .padding(.leading, 16)
+                    .padding(.bottom, 50)
+                    .rotationEffect(.degrees(getTextRotation()))
+                }
+                
+                Spacer()
+            }
+        }
     }
     
-    // MARK: - Portrait Controls
+    // Helper function to keep text upright in landscape mode
+    private func getTextRotation() -> Double {
+        let rotation: Double
+        switch orientation {
+        case .landscapeLeft:
+            rotation = 90  // Rotate text to stay upright
+        case .landscapeRight:
+            rotation = -90 // Rotate text to stay upright
+        default:
+            rotation = 0   // No rotation needed in portrait
+        }
+        let _ = print("🟣 getTextRotation: orientation=\(orientation), returning rotation=\(rotation)")
+        return rotation
+    }
     
+    // MARK: - Portrait Controls (Simplified - recording only in landscape)
+
     @ViewBuilder
     private var portraitControls: some View {
         VStack {
             HStack {
-                // Close button
+                // Close button only
                 Button(action: handleDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 18, weight: .semibold))
@@ -130,33 +173,6 @@ struct CleanVideoRecordingView: View {
                 }
                 
                 Spacer()
-                
-                // Recording status
-                if recordingManager.isRecording {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .opacity(0.8)
-                            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
-                        
-                        Text("REC")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.red)
-                        
-                        Text(recordingManager.recordingTimeString)
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                }
-                
-                Spacer()
-                
-                // Record button
-                recordButton
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -166,7 +182,7 @@ struct CleanVideoRecordingView: View {
     }
     
     // MARK: - Record Button
-    
+/*
     @ViewBuilder
     private var recordButton: some View {
         Button(action: toggleRecording) {
@@ -188,6 +204,7 @@ struct CleanVideoRecordingView: View {
         }
         .disabled(!isCameraReady)
     }
+ */
     
     // MARK: - Computed Properties
     
@@ -300,22 +317,34 @@ struct CleanVideoRecordingView: View {
     }
     
     private func setupBluetoothCallbacks() {
-        multipeer.onRecordingStartRequested = {
-            print("📱 Received recording start request from controller")
-            Task {
-                // FIXED: Add delay to ensure camera is ready
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-                await recordingManager.startRecording()
+            multipeer.onRecordingStartRequested = {
+                print("📱 Received recording start request from controller")
+                Task {
+                    // FIXED: Add delay to ensure camera is ready
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+                    await recordingManager.startRecording()
+                    
+                    // CRITICAL: Send state update back to controller
+                    await MainActor.run {
+                        print("✅ Recording started - sending state update to controller")
+                        multipeer.sendRecordingStateUpdate(isRecording: true)
+                    }
+                }
+            }
+            
+            multipeer.onRecordingStopRequested = {
+                print("📱 Received recording stop request from controller")
+                Task {
+                    await recordingManager.stopRecording()
+                    
+                    // CRITICAL: Send state update back to controller
+                    await MainActor.run {
+                        print("✅ Recording stopped - sending state update to controller")
+                        multipeer.sendRecordingStateUpdate(isRecording: false)
+                    }
+                }
             }
         }
-        
-        multipeer.onRecordingStopRequested = {
-            print("📱 Received recording stop request from controller")
-            Task {
-                await recordingManager.stopRecording()
-            }
-        }
-    }
     
     private func toggleRecording() {
         print("🎥 Toggle recording - current state: \(recordingManager.isRecording)")
@@ -362,7 +391,11 @@ struct CleanVideoRecordingView: View {
             object: nil,
             queue: .main
         ) { _ in
-            updateOrientation()
+            // Debounce orientation changes
+            orientationDebounceTimer?.invalidate()
+            orientationDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
+                updateOrientation()
+            }
         }
         updateOrientation()
     }
@@ -376,7 +409,16 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOrientation() {
-        orientation = UIDevice.current.orientation
+        let newOrientation = UIDevice.current.orientation
+        
+        // Only update if it's a valid orientation (not faceUp/faceDown/unknown)
+        switch newOrientation {
+        case .landscapeLeft, .landscapeRight, .portrait, .portraitUpsideDown:
+            orientation = newOrientation
+        default:
+            // Ignore other orientations (faceUp, faceDown, unknown)
+            break
+        }
     }
     
     private func handleDismiss() {
