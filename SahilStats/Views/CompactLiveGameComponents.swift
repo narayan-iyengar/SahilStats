@@ -606,12 +606,17 @@ struct LiveGameWatchView: View {
     }
 }
 
+
 // MARK: - No Live Game View
+
 
 struct NoLiveGameView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    // NEW: Add this to track where we came from
+    @Environment(\.presentationMode) var presentationMode
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -632,7 +637,7 @@ struct NoLiveGameView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
-                Text("There's no live game currently in progress.")
+                Text("The live game has ended or is no longer available.")
                     .font(isIPad ? .title3 : .body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -643,11 +648,12 @@ struct NoLiveGameView: View {
             
             // Action buttons
             VStack(spacing: isIPad ? 20 : 16) {
-                // Back to Dashboard button
+                // FIXED: Back to Dashboard button - dismiss ALL presented views
                 Button("Back to Dashboard") {
-                    dismiss()
+                    // Dismiss all the way back to root
+                    dismissToRoot()
                 }
-                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
+                .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
             }
             .padding(.horizontal, isIPad ? 40 : 24)
             
@@ -656,6 +662,27 @@ struct NoLiveGameView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+    }
+    
+    // MARK: - NEW: Helper to dismiss all presented views
+    private func dismissToRoot() {
+        // Get the key window
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            // Fallback to simple dismiss
+            dismiss()
+            return
+        }
+        
+        // Dismiss all presented view controllers
+        var currentVC = rootViewController
+        while let presented = currentVC.presentedViewController {
+            currentVC = presented
+        }
+        
+        // Dismiss from the topmost presented view controller
+        currentVC.dismiss(animated: true)
     }
 }
 

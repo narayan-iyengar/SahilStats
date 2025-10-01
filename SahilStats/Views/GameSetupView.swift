@@ -40,6 +40,11 @@ struct GameSetupView: View  {
     @State private var bluetoothConnectionRequired = false
     @State private var showingConnectionWaitingRoom = false
     
+    @State private var opponentSuggestions: [String] = []
+    @State private var isLoadingSuggestions = false
+
+    
+    
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -80,88 +85,7 @@ struct GameSetupView: View  {
             }
         }
     }
- 
-    /*
-    var body: some View {
-        Group {
-            switch setupMode {
-            case .selection:
-                setupModeSelection
-            case .recording:
-                recordingRoleSelection
-            case .gameForm:
-                gameConfigurationForm
-            case .smartJoin:
-                smartJoinGameView
-            }
-        }
-        .navigationTitle("Game Setup")
-        .navigationBarTitleDisplayMode(.large)
-        .onAppear {
-            firebaseService.startListening()
-            loadDefaultSettings()
-            setupBluetoothCallbacks()
-        }
-        .sheet(isPresented: $showingBluetoothConnection) {
-            BluetoothConnectionView()
-        }
-        
-        .sheet(isPresented: $showingConnectionWaitingRoom) {
-            ConnectionWaitingRoomView(role: deviceRole) {
-                handleWaitingRoomGameStart()
-            }
-        }
-        
-        .fullScreenCover(isPresented: $showingPostGameView) {
-            PostGameFullScreenWrapper(gameConfig: gameConfig) {
-                showingPostGameView = false
-            }
-        }
-        .fullScreenCover(isPresented: $showingLiveGameView) {
-            LiveGameFullScreenWrapper {
-                showingLiveGameView = false
-            }
-        }
-        .onChange(of: locationManager.locationName) { _, newLocation in
-            if !newLocation.isEmpty {
-                gameConfig.location = newLocation
-            }
-        }
-        .onChange(of: locationManager.error) { _, error in
-            if let error = error {
-                self.error = error.localizedDescription
-            }
-        }
-        .alert("Bluetooth Connection Required", isPresented: $bluetoothConnectionRequired) {
-            Button("Connect Now") {
-                showingBluetoothConnection = true
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You need to establish a Bluetooth connection with the recorder device before starting the game.")
-        }
-        
-        .onChange(of: showingBluetoothConnection) { _, isShowing in
-            if !isShowing && deviceRole == .recorder && multipeer.isConnected {
-                // Bluetooth sheet was dismissed and we're connected
-                Task {
-                    do {
-                        guard let liveGame = firebaseService.getCurrentLiveGame(),
-                              let gameId = liveGame.id else {
-                            error = "No live game found"
-                            return
-                        }
-                        
-                        try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                        showingLiveGameView = true
-                    } catch {
-                        self.error = "Failed to join as recorder: \(error.localizedDescription)"
-                    }
-                }
-            }
-        }
-    }
-*/
+
     var body: some View {
         mainContent
             .navigationTitle("Game Setup")
@@ -174,7 +98,7 @@ struct GameSetupView: View  {
             .sheet(isPresented: $showingBluetoothConnection) {
                 BluetoothConnectionView()
             }
-            .sheet(isPresented: $showingConnectionWaitingRoom) {
+            .fullScreenCover(isPresented: $showingConnectionWaitingRoom) {
                 ConnectionWaitingRoomView(role: deviceRole) {
                     handleWaitingRoomGameStart()
                 }
@@ -201,6 +125,24 @@ struct GameSetupView: View  {
             }
             .onChange(of: showingBluetoothConnection) { _, isShowing in
                 handleBluetoothConnectionChange(isShowing)
+            }
+            .onChange(of: gameConfig.opponent) { _, newValue in
+                if !newValue.isEmpty && newValue.count > 2 {
+                    Task {
+                        opponentSuggestions = getOpponentSuggestions()
+                    }
+                } else {
+                    opponentSuggestions = []
+                }
+            }
+            .onDisappear {
+                // DO NOT cleanup Multipeer connection here if going to live game
+                if !showingLiveGameView {
+                    // Only cleanup if we're actually leaving, not transitioning to game
+                    print("🔵 GameSetupView disappearing - NOT in live game, safe to cleanup")
+                } else {
+                    print("🔵 GameSetupView disappearing - transitioning to live game, keeping connection alive")
+                }
             }
             .alert("Bluetooth Connection Required", isPresented: $bluetoothConnectionRequired) {
                 Button("Connect Now") {
@@ -233,9 +175,14 @@ struct GameSetupView: View  {
     
     private func handleWaitingRoomGameStart() {
         if deviceRole == .controller {
+            // DON'T dismiss yet - keep connection alive
+            print("🎮 Controller proceeding to game form")
+            
+            // Dismiss the waiting room
             showingConnectionWaitingRoom = false
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Short delay before showing game form
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 setupMode = .gameForm
             }
         } else if deviceRole == .recorder {
@@ -348,11 +295,11 @@ struct GameSetupView: View  {
                 TextField("Opponent Team", text: $gameConfig.opponent)
                     .autocapitalization(.words)
                 
-                if !gameConfig.opponent.isEmpty {
-                    let suggestions = getOpponentSuggestions()
-                    ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
+                if !opponentSuggestions.isEmpty {
+                    ForEach(Array(opponentSuggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
                         Button(action: {
                             gameConfig.opponent = suggestion
+                            opponentSuggestions = []
                         }) {
                             HStack {
                                 Text(suggestion)
@@ -541,7 +488,7 @@ struct GameSetupView: View  {
                         .fontWeight(.bold)
                 }
                 
-                Text("Choose your device's role for this multi-device recording session")
+                Text("Choose your device's role")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -787,21 +734,37 @@ struct GameSetupView: View  {
             do {
                 switch mode {
                 case .live:
+                    // CRITICAL: Keep connection info before creating game
+                    let hasBluetoothConnection = multipeer.isConnected
+                    let connectedPeerCount = multipeer.connectedPeers.count
+                    
+                    print("🎮 Creating live game - Bluetooth connected: \(hasBluetoothConnection), peers: \(connectedPeerCount)")
+                    
                     let liveGame = try await createLiveGame(isMultiDevice: isMultiDevice)
+                    
                     if let gameId = liveGame.id {
                         let selectedRole: DeviceRoleManager.DeviceRole = deviceRole == .controller ? .controller : .controller
-                        // Update with the real gameId
                         try await DeviceRoleManager.shared.setDeviceRole(selectedRole, for: gameId)
                         
-                        // If Bluetooth multi-device, send game starting signal
-                        if isMultiDevice && connectionMethod == .bluetooth {
+                        // CRITICAL FIX: Send Bluetooth signal ONLY if we have a stable connection
+                        if isMultiDevice && connectionMethod == .bluetooth && hasBluetoothConnection {
+                            print("📤 Sending game starting signal via Bluetooth - gameId: \(gameId)")
+                            
+                            // Give the signal time to send before transitioning
                             multipeer.sendGameStarting(gameId: gameId)
+                            
+                            // Wait for signal to be sent
+                            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                            
+                            print("✅ Game starting signal sent, now transitioning to game view")
                         }
                     }
+                    
                     await MainActor.run {
                         createdLiveGame = liveGame
                         showingLiveGameView = true
                     }
+                    
                 case .postGame:
                     await MainActor.run {
                         showingPostGameView = true
