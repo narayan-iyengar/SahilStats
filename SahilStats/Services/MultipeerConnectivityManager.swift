@@ -23,6 +23,8 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     @Published var isBrowsing = false
     @Published var connectionState: ConnectionState = .disconnected
     @Published var lastError: String?
+    @Published var pendingInvitation: (peerID: MCPeerID, handler: (Bool) -> Void)?
+    var onRecordingStateChanged: ((Bool) -> Void)?
     
     // MARK: - Connection State
     enum ConnectionState {
@@ -49,6 +51,10 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
         case pong
         case controllerReady
         case recorderReady
+        case gameStarting
+        case approvalRequest
+        case approvalResponse
+        case recordingStateUpdate
     }
     
     struct Message: Codable {
@@ -68,6 +74,8 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     private var session: MCSession!
     private var advertiser: MCNearbyServiceAdvertiser!
     private var browser: MCNearbyServiceBrowser!
+    private let trustedDevices = TrustedDevicesManager.shared
+    private var isProcessingInvitation = false
     
     // Service type must be 15 characters or less, no uppercase
     private let serviceType = "sahilstats"
@@ -77,11 +85,75 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     var onRecordingStopRequested: (() -> Void)?
     var onGameStateReceived: (([String: String]) -> Void)?
     var onPeerDiscovered: ((MCPeerID) -> Void)?
+    var onGameStarting: ((String) -> Void)? // Receives gameId when game starts
+    var onConnectionEstablished: (() -> Void)?
+    var onPendingInvitation: ((MCPeerID) -> Void)? // Triggers approval dialog
     
     // MARK: - Initialization
     override init() {
         super.init()
         setupMultipeer()
+    }
+    
+    func sendRecordingStateUpdate(isRecording: Bool) {
+        let message = Message(
+            type: .recordingStateUpdate,
+            payload: ["isRecording": isRecording ? "true" : "false"]
+        )
+        sendMessage(message)
+    }
+    
+    /// Automatically connect to trusted peer if found
+    func autoConnectIfTrusted(_ peerID: MCPeerID) {
+        if trustedDevices.isTrusted(peerID) {
+            print("🔐 Auto-connecting to trusted peer: \(peerID.displayName)")
+            invitePeer(peerID)
+        } else {
+            print("❓ New peer discovered: \(peerID.displayName) - requires approval")
+            onPendingInvitation?(peerID)
+        }
+    }
+    
+    /// Connect to peer after user approval
+    func connectAfterApproval(_ peerID: MCPeerID, approved: Bool, rememberDevice: Bool = false) {
+        if approved {
+            if rememberDevice {
+                // We'll add role after connection is established
+                print("✅ User approved connection - will remember device")
+            }
+            guard browser != nil else {
+                print("❌ Cannot invite peer - browser not initialized. This device should be receiving invitations, not sending them.")
+                return
+            }
+            invitePeer(peerID)
+        } else {
+            print("❌ User declined connection to: \(peerID.displayName)")
+            nearbyPeers.removeAll { $0 == peerID }
+        }
+    }
+    
+    // MARK: - Game Start Signal Methods
+    
+    /// Send game starting signal with game ID (controller sends this)
+    func sendGameStarting(gameId: String) {
+        let message = Message(
+            type: .gameStarting,
+            payload: ["gameId": gameId]
+        )
+        sendMessage(message)
+        print("🎮 Sent game starting signal with ID: \(gameId)")
+    }
+    
+    /// Send controller ready signal (after controller is in waiting room)
+    func sendControllerReady() {
+        let message = Message(type: .controllerReady)
+        sendMessage(message)
+    }
+    
+    /// Send recorder ready signal (after recorder connects)
+    func sendRecorderReady() {
+        let message = Message(type: .recorderReady)
+        sendMessage(message)
     }
     
     private func setupMultipeer() {
@@ -165,6 +237,12 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     func invitePeer(_ peerID: MCPeerID) {
         guard connectedPeers.isEmpty else {
             print("⚠️ Already connected to a peer")
+            return
+        }
+        
+        // Prevent duplicate invitations if already connecting
+        guard connectionState != .connecting else {
+            print("⚠️ Already connecting to a peer")
             return
         }
         
@@ -257,23 +335,41 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
                     self.onGameStateReceived?(payload)
                 }
                 
+            case .gameStarting:
+                // Recorder receives this when controller starts game
+                if let gameId = message.payload?["gameId"] {
+                    print("🎮 Game starting with ID: \(gameId)")
+                    self.onGameStarting?(gameId)
+                }
+                
             case .ping:
-                // Respond with pong
                 self.sendMessage(Message(type: .pong))
                 
             case .pong:
                 print("🏓 Received pong")
                 
-            case .controllerReady, .recorderReady:
-                print("✅ Peer is ready: \(message.type.rawValue)")
+            case .controllerReady:
+                print("✅ Controller is ready")
+                
+            case .recorderReady:
+                print("✅ Recorder is ready")
                 
             case .deviceRole:
                 if let role = message.payload?["role"] {
                     print("📱 Peer role: \(role)")
                 }
+            case .recordingStateUpdate:
+                if let isRecordingStr = message.payload?["isRecording"] {
+                    self.onRecordingStateChanged?(isRecordingStr == "true")
+                }
+                
+            case .approvalRequest, .approvalResponse:
+                // These are handled in the advertiser delegate
+                break
             }
         }
     }
+    
 }
 
 // MARK: - MCSessionDelegate
@@ -284,12 +380,21 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
             switch state {
             case .connected:
                 print("✅ Connected to: \(peerID.displayName)")
+                self.isProcessingInvitation = false
                 self.connectedPeers.append(peerID)
                 self.isConnected = true
                 self.connectionState = .connected
                 
+                // Update last connected timestamp if trusted
+                if self.trustedDevices.isTrusted(peerID) {
+                    self.trustedDevices.updateLastConnected(peerID)
+                }
+                
                 // Remove from nearby peers
                 self.nearbyPeers.removeAll { $0 == peerID }
+                
+                // Trigger connection established callback
+                self.onConnectionEstablished?()
                 
             case .connecting:
                 print("🔄 Connecting to: \(peerID.displayName)")
@@ -332,16 +437,31 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
 // MARK: - MCNearbyServiceAdvertiserDelegate
 
 extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
+    
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         print("📨 Received invitation from: \(peerID.displayName)")
         
-        // Auto-accept if not connected to anyone
-        if connectedPeers.isEmpty {
-            print("✅ Auto-accepting invitation")
-            invitationHandler(true, session)
-        } else {
-            print("⚠️ Already connected, rejecting invitation")
-            invitationHandler(false, nil)
+        DispatchQueue.main.async {
+            // Already connected or processing
+            guard self.connectedPeers.isEmpty && !self.isProcessingInvitation else {
+                print("⚠️ Already connected or processing, rejecting invitation")
+                invitationHandler(false, nil)
+                return
+            }
+            
+            self.isProcessingInvitation = true
+            
+            if self.trustedDevices.isTrusted(peerID) {
+                print("🔐 Auto-accepting invitation from trusted peer")
+                invitationHandler(true, self.session)
+            } else {
+                print("❓ New peer - storing invitation for user approval")
+                self.pendingInvitation = (peerID, { approved in
+                    invitationHandler(approved, approved ? self.session : nil)
+                    self.isProcessingInvitation = false
+                })
+                self.onPendingInvitation?(peerID)
+            }
         }
     }
 }
@@ -353,9 +473,20 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
         print("🔍 Found peer: \(peerID.displayName)")
         
         DispatchQueue.main.async {
-            if !self.nearbyPeers.contains(peerID) && !self.connectedPeers.contains(peerID) {
-                self.nearbyPeers.append(peerID)
-                self.onPeerDiscovered?(peerID)
+            guard !self.connectedPeers.contains(peerID) && !self.nearbyPeers.contains(peerID) else {
+                return
+            }
+            
+            self.nearbyPeers.append(peerID)
+            self.onPeerDiscovered?(peerID)
+            
+            // If we're browsing and found someone, we should invite them
+            if self.trustedDevices.isTrusted(peerID) {
+                print("🔐 Auto-connecting to trusted peer: \(peerID.displayName)")
+                self.invitePeer(peerID)
+            } else {
+                print("❓ New peer discovered: \(peerID.displayName) - requires approval")
+                self.onPendingInvitation?(peerID)
             }
         }
     }
@@ -366,5 +497,9 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
         DispatchQueue.main.async {
             self.nearbyPeers.removeAll { $0 == peerID }
         }
+    }
+    func markConnectedPeerAsTrusted(role: DeviceRoleManager.DeviceRole) {
+        guard let peer = connectedPeers.first else { return }
+        trustedDevices.addTrustedPeer(peer, role: role)
     }
 }

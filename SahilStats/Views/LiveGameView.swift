@@ -30,30 +30,41 @@ struct LiveGameView: View {
     var body: some View {
         Group {
             if let liveGame = firebaseService.getCurrentLiveGame() {
-                // FIXED: Don't show role selection here - it's handled in GameSetup
-                switch roleManager.deviceRole {
-                case .recorder:
-                    CleanVideoRecordingView(liveGame: liveGame)
-                    
-                        .ignoresSafeArea(.all)
-                        .navigationBarHidden(true)
-                        .statusBarHidden(true)
-                case .controller:
-                    ControlDeviceView(liveGame: liveGame)
-                case .viewer:
-                    LiveGameWatchView(liveGame: liveGame)
-                case .none:
-                    // FIXED: If no role, redirect back to setup instead of showing selection
-                    RoleNotSetView()
+                // Auto-assign role for single-device games with no role
+                if roleManager.deviceRole == .none && !(liveGame.isMultiDeviceSetup ?? false) {
+                    Color.clear
+                        .onAppear {
+                            // Auto-assign controller role for single-device game
+                            Task {
+                                if let gameId = liveGame.id {
+                                    try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
+                                }
+                            }
+                        }
+                } else {
+                    // Show appropriate view based on role
+                    switch roleManager.deviceRole {
+                    case .recorder:
+                        CleanVideoRecordingView(liveGame: liveGame)
+                            .ignoresSafeArea(.all)
+                            .navigationBarHidden(true)
+                            .statusBarHidden(true)
+                    case .controller:
+                        ControlDeviceView(liveGame: liveGame)
+                    case .viewer:
+                        LiveGameWatchView(liveGame: liveGame)
+                    case .none:
+                        // Only show this for multi-device games
+                        RoleNotSetView()
+                    }
                 }
             } else {
                 NoLiveGameView()
             }
             
-            Spacer() // Ensures content is pushed to the top
+            Spacer()
         }
         .onAppear {
-            // FIXED: Remove automatic role selection logic
             print("LiveGameView appeared - Role: \(roleManager.deviceRole)")
         }
         .navigationBarHidden(true)
@@ -66,6 +77,7 @@ struct LiveGameView: View {
 struct RoleNotSetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @StateObject private var firebaseService = FirebaseService.shared
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -107,6 +119,17 @@ struct RoleNotSetView: View {
             .padding(.horizontal, 40)
         }
         .padding()
+        .onAppear {
+            // Auto-assign role for single-device games
+            Task {
+                if let liveGame = firebaseService.getCurrentLiveGame(),
+                           let gameId = liveGame.id,
+                           !(liveGame.isMultiDeviceSetup ?? false) {  // UNWRAP with default false
+                            // Single-device game - auto-assign controller
+                            try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
+                        }
+            }
+        }
     }
 }
 
@@ -353,6 +376,8 @@ struct LiveGameControllerView: View {
     @StateObject private var multipeer = MultipeerConnectivityManager.shared
     
     
+    @State private var isRemoteRecording = false
+    
     // iPad detection
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -477,6 +502,9 @@ struct LiveGameControllerView: View {
             if serverGameState.currentTimeSegment == nil && deviceControl.hasControl {
                 startInitialTimeTracking()
             }
+            multipeer.onRecordingStateChanged = { isRecording in
+                self.isRemoteRecording = isRecording
+            }
         }
         .onDisappear {
             stopFixedClockSync()
@@ -509,10 +537,9 @@ struct LiveGameControllerView: View {
     
     
     // MARK: - FIXED: Single Game Header (All Info in One Place)
-    
     @ViewBuilder
     private func fixedGameHeader() -> some View {
-        VStack(spacing: isIPad ? 8 : 6) {
+        VStack(spacing: isIPad ? 6 : 4) {
             // Device Control Status
             CompactDeviceControlStatusCard(
                 hasControl: deviceControl.hasControl,
@@ -520,37 +547,40 @@ struct LiveGameControllerView: View {
                 canRequestControl: deviceControl.canRequestControl,
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
-                onRequestControl: requestControl
+                onRequestControl: requestControl,
+                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller
             )
             
-            // Clock Display
-            CompactClockCard(
-                quarter: currentQuarter,
-                clockTime: localClockTime,
-                isGameRunning: isGameRunning,
-                gameFormat: serverGameState.gameFormat,
-                isIPad: isIPad
-            )
-            
-            // FIXED: Score Display ONLY ONCE (not repeated)
-            if deviceControl.hasControl {
-                CompactLiveScoreCard(
-                    homeScore: $currentHomeScore,
-                    awayScore: $currentAwayScore,
-                    teamName: serverGameState.teamName,
-                    opponent: serverGameState.opponent,
-                    isIPad: isIPad,
-                    onScoreChange: scheduleUpdate
-                )
-            } else {
-                CompactLiveScoreDisplayCard(
-                    homeScore: serverGameState.homeScore,
-                    awayScore: serverGameState.awayScore,
-                    teamName: serverGameState.teamName,
-                    opponent: serverGameState.opponent,
+
+                
+                // Clock Display
+                CompactClockCard(
+                    quarter: currentQuarter,
+                    clockTime: localClockTime,
+                    isGameRunning: isGameRunning,
+                    gameFormat: serverGameState.gameFormat,
                     isIPad: isIPad
-                )
-            }
+                ) .frame(maxWidth: .infinity)
+                
+                // FIXED: Score Display ONLY ONCE (not repeated)
+                if deviceControl.hasControl {
+                    CompactLiveScoreCard(
+                        homeScore: $currentHomeScore,
+                        awayScore: $currentAwayScore,
+                        teamName: serverGameState.teamName,
+                        opponent: serverGameState.opponent,
+                        isIPad: isIPad,
+                        onScoreChange: scheduleUpdate
+                    ) .frame(maxWidth: .infinity)
+                } else {
+                    CompactLiveScoreDisplayCard(
+                        homeScore: serverGameState.homeScore,
+                        awayScore: serverGameState.awayScore,
+                        teamName: serverGameState.teamName,
+                        opponent: serverGameState.opponent,
+                        isIPad: isIPad
+                    ) .frame(maxWidth: .infinity)
+                }
             
             // Player Status
             PlayerStatusCard(
@@ -576,10 +606,8 @@ struct LiveGameControllerView: View {
                     onFinishGame: { showingFinishAlert = true }
                 )
             }
-            if DeviceRoleManager.shared.deviceRole == .controller {
-                BluetoothStatusIndicator()
                 
-                if MultipeerConnectivityManager.shared.isConnected {
+            if MultipeerConnectivityManager.shared.isConnected {
                     Button(recordingManager.isRecording ? "Stop Recording" : "Start Recording") {
                         if recordingManager.isRecording {
                             MultipeerConnectivityManager.shared.sendStopRecording()
@@ -589,7 +617,6 @@ struct LiveGameControllerView: View {
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
-            }
         }
         .padding(.horizontal, isIPad ? 20 : 16)
         .padding(.vertical, isIPad ? 12 : 8)
