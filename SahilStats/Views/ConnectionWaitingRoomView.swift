@@ -2,14 +2,6 @@
 //  ConnectionWaitingRoomView.swift
 //  SahilStats
 //
-//  Created by Narayan Iyengar on 9/30/25.
-//
-//
-//  ConnectionWaitingRoomView.swift
-//  SahilStats
-//
-//  Waiting room for establishing Bluetooth connection before game starts
-//
 
 import SwiftUI
 import MultipeerConnectivity
@@ -25,11 +17,20 @@ struct ConnectionWaitingRoomView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     let role: DeviceRoleManager.DeviceRole
-    let onGameStart: () -> Void // Called when controller starts game or recorder receives signal
+    let onGameStart: () -> Void
     
     @State private var showingApprovalDialog = false
     @State private var pendingPeer: MCPeerID?
     @State private var rememberDevice = true
+    
+    // Game start protection
+    @State private var hasStartedGame = false
+    @State private var isProcessingGameStart = false
+    
+    // CRITICAL FIX: Track connection stability
+    @State private var connectionStableTime: Date?
+    @State private var isConnectionStable = false
+    @State private var stabilityCheckTimer: Timer?
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -70,19 +71,21 @@ struct ConnectionWaitingRoomView: View {
                     }
                 }
             }
-            
             .onAppear {
                 guard !hasSetupConnection else {
                     print("Connection already setup, skipping")
                     return
                 }
                 hasSetupConnection = true
-                setupConnection()
-                UIApplication.shared.isIdleTimerDisabled = true
+                
+                // REDUCED delay - 0.1s is enough
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    setupConnection()
+                    UIApplication.shared.isIdleTimerDisabled = true
+                }
             }
-            
             .onDisappear {
-                //cleanup()
+                stopStabilityCheck()
                 UIApplication.shared.isIdleTimerDisabled = false
             }
             .alert("Connect to \(pendingPeer?.displayName ?? "Device")?", isPresented: $showingApprovalDialog) {
@@ -115,11 +118,11 @@ struct ConnectionWaitingRoomView: View {
                     .frame(width: 120, height: 120)
                 
                 Circle()
-                    .trim(from: 0, to: multipeer.isConnected ? 1 : 0.3)
+                    .trim(from: 0, to: progressValue)
                     .stroke(statusColor, lineWidth: 8)
                     .frame(width: 120, height: 120)
                     .rotationEffect(.degrees(-90))
-                    .animation(multipeer.isConnected ? .easeIn : .easeInOut(duration: 1.5).repeatForever(autoreverses: false), value: multipeer.isConnected)
+                    .animation(animationType, value: progressValue)
                 
                 Image(systemName: statusIcon)
                     .font(.system(size: 40))
@@ -142,23 +145,29 @@ struct ConnectionWaitingRoomView: View {
             
             // Connected peer info
             if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        Image(systemName: isConnectionStable ? "checkmark.circle.fill" : "hourglass")
+                            .foregroundColor(isConnectionStable ? .green : .orange)
+                        
+                        Text(isConnectionStable ? "Connection Stable" : "Stabilizing...")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        if trustedDevices.isTrusted(peer) {
+                            Image(systemName: "lock.fill")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .padding()
+                    .background((isConnectionStable ? Color.green : Color.orange).opacity(0.1))
+                    .cornerRadius(12)
                     
                     Text("Connected to \(peer.displayName)")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    if trustedDevices.isTrusted(peer) {
-                        Image(systemName: "lock.fill")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                    }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .padding()
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(12)
             }
         }
     }
@@ -169,40 +178,53 @@ struct ConnectionWaitingRoomView: View {
     private var actionButtons: some View {
         VStack(spacing: 16) {
             if role == .controller {
-                // Controller can start game when connected
                 Button("Start Game") {
                     startGameAsController()
                 }
                 .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
-                .disabled(!multipeer.isConnected)
+                // CRITICAL: Only enable when connection is stable
+                .disabled(!isConnectionStable || isProcessingGameStart)
+                .opacity((isConnectionStable && !isProcessingGameStart) ? 1.0 : 0.6)
                 
-                if !multipeer.isConnected {
+                if isProcessingGameStart {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Starting game...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else if !multipeer.isConnected {
                     Text("Waiting for recorder to connect...")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                } else if !isConnectionStable {
+                    Text("Waiting for stable connection...")
+                        .font(.caption)
+                        .foregroundColor(.orange)
                 }
             } else if role == .recorder {
-                // Recorder waits for controller to start
                 if multipeer.isConnected {
                     VStack(spacing: 8) {
-                        ProgressView()
-                        Text("Waiting for controller to start game...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        if isConnectionStable {
+                            ProgressView()
+                            Text("Ready! Waiting for controller to start...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        } else {
+                            ProgressView()
+                            Text("Stabilizing connection...")
+                                .font(.subheadline)
+                                .foregroundColor(.orange)
+                                .multilineTextAlignment(.center)
+                        }
                     }
                 } else {
                     Text("Searching for controller...")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-            }
-            
-            // Manual connection button if auto-connect fails
-            if !multipeer.isConnected && !multipeer.nearbyPeers.isEmpty {
-                Button("Connect Manually") {
-                    // This would open BluetoothConnectionView for manual selection
-                }
-                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
             }
         }
     }
@@ -211,7 +233,7 @@ struct ConnectionWaitingRoomView: View {
     
     private var statusIcon: String {
         if multipeer.isConnected {
-            return "checkmark.circle.fill"
+            return isConnectionStable ? "checkmark.circle.fill" : "hourglass"
         } else if multipeer.connectionState == .connecting {
             return "arrow.triangle.2.circlepath"
         } else {
@@ -220,6 +242,9 @@ struct ConnectionWaitingRoomView: View {
     }
     
     private var statusColor: Color {
+        if multipeer.isConnected {
+            return isConnectionStable ? .green : .orange
+        }
         switch multipeer.connectionState {
         case .connected: return .green
         case .connecting: return .orange
@@ -227,9 +252,25 @@ struct ConnectionWaitingRoomView: View {
         }
     }
     
+    private var progressValue: Double {
+        if multipeer.isConnected {
+            return isConnectionStable ? 1.0 : 0.7
+        } else {
+            return 0.3
+        }
+    }
+    
+    private var animationType: Animation {
+        if multipeer.isConnected && isConnectionStable {
+            return .easeIn
+        } else {
+            return .easeInOut(duration: 1.5).repeatForever(autoreverses: false)
+        }
+    }
+    
     private var statusTitle: String {
         if multipeer.isConnected {
-            return "Connected"
+            return isConnectionStable ? "Ready" : "Stabilizing"
         } else if multipeer.connectionState == .connecting {
             return "Connecting..."
         } else {
@@ -239,9 +280,11 @@ struct ConnectionWaitingRoomView: View {
     
     private var statusDescription: String {
         if multipeer.isConnected {
-            return role == .controller
-                ? "Ready to start the game"
-                : "Connected to controller"
+            if isConnectionStable {
+                return role == .controller ? "Ready to start the game" : "Connected and ready"
+            } else {
+                return "Ensuring stable connection..."
+            }
         } else if multipeer.connectionState == .connecting {
             return "Establishing secure connection"
         } else {
@@ -254,61 +297,103 @@ struct ConnectionWaitingRoomView: View {
     // MARK: - Setup and Cleanup
     
     private func setupConnection() {
-        // Set up callbacks
+        print("🔵 Setting up connection for role: \(role)")
+        
         multipeer.onPendingInvitation = { peer in
+            print("📱 Pending invitation from: \(peer.displayName)")
             pendingPeer = peer
             showingApprovalDialog = true
         }
         
         multipeer.onConnectionEstablished = {
+            print("✅ Connection established - starting stability timer")
+            
             // Mark device as trusted if user chose to remember
             if rememberDevice, let peer = multipeer.connectedPeers.first {
                 let peerRole: DeviceRoleManager.DeviceRole = role == .controller ? .recorder : .controller
                 trustedDevices.addTrustedPeer(peer, role: peerRole)
             }
             
-            // Send ready signal
-            if role == .controller {
-                multipeer.sendControllerReady()
-            } else {
-                multipeer.sendRecorderReady()
-            }
+            // CRITICAL FIX: Start stability monitoring
+            connectionStableTime = Date()
+            isConnectionStable = false
+            startStabilityCheck()
         }
         
         multipeer.onGameStarting = { gameId in
-            // Recorder receives this signal
-            print("🎬 onGameStarting callback fired for role: \(role)")
-                if role == .recorder {
-                    print("🎬 Calling onGameStart closure")
+            print("🎬 onGameStarting callback fired for role: \(role), gameId: \(gameId)")
+            
+            guard !hasStartedGame else {
+                print("⚠️ Game already started, ignoring duplicate call")
+                return
+            }
+            
+            if role == .recorder {
+                hasStartedGame = true
+                print("🎬 Recorder handling game start...")
+                
+                // Small delay for UI transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     onGameStart()
+                }
             }
         }
         
-        // Start appropriate service based on role
+        // Start appropriate service based on role - NO DELAY NEEDED
         if role == .controller {
-            // Controller advertises
+            print("🔵 Controller starting to advertise...")
             multipeer.startAdvertising(as: .controller)
         } else {
-            // Recorder browses
+            print("🔵 Recorder starting to browse...")
             multipeer.startBrowsing()
         }
     }
     
+    // CRITICAL FIX: Stability monitoring
+    private func startStabilityCheck() {
+        stopStabilityCheck()
+        
+        print("⏱️ Starting connection stability check...")
+        
+        stabilityCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
+            guard let startTime = connectionStableTime else {
+                timer.invalidate()
+                return
+            }
+            
+            let elapsed = Date().timeIntervalSince(startTime)
+            
+            // CRITICAL: Wait 2 seconds before allowing game start
+            if elapsed >= 2.0 && !isConnectionStable {
+                print("✅ Connection stable after 2 seconds")
+                isConnectionStable = true
+                
+                // Send ready signals NOW (after stability confirmed)
+                if role == .controller {
+                    multipeer.sendControllerReady()
+                } else {
+                    multipeer.sendRecorderReady()
+                }
+                
+                timer.invalidate()
+            }
+        }
+    }
+    
+    private func stopStabilityCheck() {
+        stabilityCheckTimer?.invalidate()
+        stabilityCheckTimer = nil
+    }
+    
     private func cleanup() {
+        stopStabilityCheck()
         multipeer.onPendingInvitation = nil
         multipeer.onConnectionEstablished = nil
         multipeer.onGameStarting = nil
-        
-        // Don't disconnect - maintain connection for the game
-        // Just stop advertising/browsing
-        //if role == .controller {
-        //    multipeer.stopAdvertising()
-        //} else {
-        //    multipeer.stopBrowsing()
-        //}
     }
     
     private func cleanupAndDismiss() {
+        cleanup()
         multipeer.stopAll()
         dismiss()
     }
@@ -319,13 +404,12 @@ struct ConnectionWaitingRoomView: View {
         rememberDevice = remember
         guard let peer = pendingPeer else { return }
         
-        // Check if this is from a pending invitation (advertiser side)
+        print("✅ Approving connection to: \(peer.displayName), remember: \(remember)")
+        
         if let (invitationPeer, handler) = multipeer.pendingInvitation, invitationPeer == peer {
-            // Accept the invitation using the stored handler
             handler(true)
             multipeer.pendingInvitation = nil
         } else {
-            // This is from discovery (browser side) - send invitation
             multipeer.connectAfterApproval(peer, approved: true, rememberDevice: remember)
         }
         pendingPeer = nil
@@ -333,13 +417,23 @@ struct ConnectionWaitingRoomView: View {
     
     private func declineConnection() {
         guard let peer = pendingPeer else { return }
+        print("❌ Declining connection to: \(peer.displayName)")
         multipeer.connectAfterApproval(peer, approved: false)
         pendingPeer = nil
     }
     
     private func startGameAsController() {
-        // This will be called from GameSetupView to create the game
-        // and send the game starting signal
+        guard !isProcessingGameStart && !hasStartedGame && isConnectionStable else {
+            print("⚠️ Cannot start game - processing:\(isProcessingGameStart) started:\(hasStartedGame) stable:\(isConnectionStable)")
+            return
+        }
+        
+        print("🎮 Controller starting game - connection is stable")
+        print("🔍 Multipeer has \(multipeer.connectedPeers.count) connected peers")
+        isProcessingGameStart = true
+        hasStartedGame = true
+        // NO delay - call immediately
+        isProcessingGameStart = false
         onGameStart()
     }
 }

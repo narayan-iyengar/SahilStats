@@ -21,7 +21,7 @@ struct LiveGameView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
-    // REMOVED: @State private var showingRoleSelection = false
+    @State private var shouldAutoDismissWhenGameEnds = true
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -60,15 +60,35 @@ struct LiveGameView: View {
                 }
             } else {
                 NoLiveGameView()
+                    .onAppear {
+                    // Clear the device role when game ends
+                    Task {
+                        await roleManager.clearDeviceRole()
+                    }
+                }
             }
             
             Spacer()
         }
         .onAppear {
             print("LiveGameView appeared - Role: \(roleManager.deviceRole)")
+            if firebaseService.getCurrentLiveGame() != nil {
+                 shouldAutoDismissWhenGameEnds = true
+             }
         }
         .navigationBarHidden(true)
         .statusBarHidden(true)
+        .onChange(of: firebaseService.getCurrentLiveGame()) { oldGame, newGame in
+             // If game just ended (went from existing to nil)
+             if oldGame != nil && newGame == nil && shouldAutoDismissWhenGameEnds {
+                 print("🎮 Live game ended, auto-dismissing...")
+                 // Clear role first
+                 Task {
+                     await roleManager.clearDeviceRole()
+                 }
+                 // The NoLiveGameView will now show with proper "Back to Dashboard" button
+             }
+         }
     }
 }
 
@@ -123,11 +143,11 @@ struct RoleNotSetView: View {
             // Auto-assign role for single-device games
             Task {
                 if let liveGame = firebaseService.getCurrentLiveGame(),
-                           let gameId = liveGame.id,
-                           !(liveGame.isMultiDeviceSetup ?? false) {  // UNWRAP with default false
-                            // Single-device game - auto-assign controller
-                            try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
-                        }
+                   let gameId = liveGame.id,
+                   !(liveGame.isMultiDeviceSetup ?? false) {
+                    // Single-device game - auto-assign controller
+                    try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
+                }
             }
         }
     }

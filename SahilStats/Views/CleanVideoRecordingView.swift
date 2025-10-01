@@ -1,4 +1,4 @@
-// CleanVideoRecordingView.swift - Fixed version
+// CleanVideoRecordingView.swift - FIXED Camera Initialization
 
 import SwiftUI
 import AVFoundation
@@ -17,14 +17,18 @@ struct CleanVideoRecordingView: View {
     
     @StateObject private var multipeer = MultipeerConnectivityManager.shared
     
+    // NEW: Add state for camera setup
+    @State private var hasCameraSetup = false
+    @State private var cameraSetupAttempts = 0
+    @State private var showingCameraError = false
+    @State private var cameraErrorMessage = ""
+    
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
-        // Initialize overlayData with data from liveGame
         self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
     }
     
     var body: some View {
-        let _ = print("🟠 CleanVideoRecordingView: body called, orientation = \(orientation)")
         ZStack {
             // Camera preview fills entire screen
             SimpleCameraPreviewView(isCameraReady: $isCameraReady)
@@ -32,116 +36,18 @@ struct CleanVideoRecordingView: View {
             
             // Only show overlay and controls when camera is ready
             if isCameraReady {
-                // Score overlay - now orientation-aware
-                SimpleScoreOverlay(overlayData: overlayData, orientation: orientation, recordingDuration: recordingManager.recordingTimeString)
+                // Score overlay - orientation-aware
+                SimpleScoreOverlay(
+                    overlayData: overlayData,
+                    orientation: orientation,
+                    recordingDuration: recordingManager.recordingTimeString
+                )
                 
                 // Recording controls - orientation aware
                 if orientation == .landscapeLeft || orientation == .landscapeRight {
-                    // Landscape layout - vertical controls on the left
-                    HStack {
-                        VStack(spacing: 20) {
-                            // Close button
-                            Button(action: handleDismiss) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(.ultraThinMaterial, in: Circle())
-                            }
-                            
-                            Spacer()
-                            
-                            Spacer()
-                            
-                            Spacer()
-                            
-                            // Record button
-                            Button(action: toggleRecording) {
-                                ZStack {
-                                    Circle()
-                                        .stroke(.white, lineWidth: 3)
-                                        .frame(width: 60, height: 60)
-                                    
-                                    if recordingManager.isRecording {
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(.red)
-                                            .frame(width: 20, height: 20)
-                                    } else {
-                                        Circle()
-                                            .fill(.red)
-                                            .frame(width: 50)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.leading, 16)
-                        .padding(.vertical, 50) // More space from top/bottom
-                        
-                        Spacer()
-                    }
+                    landscapeControls
                 } else {
-                    // Portrait layout - horizontal controls at top
-                    VStack {
-                        HStack {
-                            // Close button
-                            Button(action: handleDismiss) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(.ultraThinMaterial, in: Circle())
-                            }
-                            
-                            Spacer()
-                            
-                            // Recording status
-                            if recordingManager.isRecording {
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(Color.red)
-                                        .frame(width: 8, height: 8)
-                                        .opacity(0.8)
-                                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
-                                    
-                                    Text("REC")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundColor(.red)
-                                    
-                                    Text(recordingManager.recordingTimeString)
-                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                        .foregroundColor(.white)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(.ultraThinMaterial, in: Capsule())
-                            }
-                            
-                            Spacer()
-                            
-                            // Record button
-                            Button(action: toggleRecording) {
-                                ZStack {
-                                    Circle()
-                                        .stroke(.white, lineWidth: 3)
-                                        .frame(width: 60, height: 60)
-                                    
-                                    if recordingManager.isRecording {
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(.red)
-                                            .frame(width: 20, height: 20)
-                                    } else {
-                                        Circle()
-                                            .fill(.red)
-                                            .frame(width: 50)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        
-                        Spacer()
-                    }
+                    portraitControls
                 }
             } else {
                 // Loading state
@@ -150,9 +56,11 @@ struct CleanVideoRecordingView: View {
                         .scaleEffect(1.5)
                         .tint(.white)
                     
-                    Text("Starting Camera...")
+                    Text(loadingMessage)
                         .font(.headline)
                         .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
             }
         }
@@ -160,34 +68,258 @@ struct CleanVideoRecordingView: View {
         .statusBarHidden()
         .preferredColorScheme(.dark)
         .onAppear {
-            setupOrientationNotifications()
-            recordingManager.startCameraSession()
-            startOverlayUpdateTimer()
-            setupBluetoothCallbacks()
+            setupView()
         }
         .onDisappear {
-            removeOrientationNotifications()
-            recordingManager.stopCameraSession()
-            stopOverlayUpdateTimer()
+            cleanupView()
+        }
+        .alert("Camera Error", isPresented: $showingCameraError) {
+            Button("Try Again") {
+                retryCameraSetup()
+            }
+            Button("Cancel") {
+                handleDismiss()
+            }
+        } message: {
+            Text(cameraErrorMessage)
         }
     }
     
-    // MARK: - Private Methods
-    private func setupBluetoothCallbacks() {
-            multipeer.onRecordingStartRequested = {
-                Task {
-                    await recordingManager.startRecording()
+    // MARK: - Landscape Controls
+    
+    @ViewBuilder
+    private var landscapeControls: some View {
+        HStack {
+            VStack(spacing: 20) {
+                // Close button
+                Button(action: handleDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
+                
+                Spacer()
+                Spacer()
+                Spacer()
+                
+                // Record button
+                recordButton
             }
+            .padding(.leading, 16)
+            .padding(.vertical, 50)
             
-            multipeer.onRecordingStopRequested = {
-                Task {
-                    await recordingManager.stopRecording()
+            Spacer()
+        }
+    }
+    
+    // MARK: - Portrait Controls
+    
+    @ViewBuilder
+    private var portraitControls: some View {
+        VStack {
+            HStack {
+                // Close button
+                Button(action: handleDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                
+                Spacer()
+                
+                // Recording status
+                if recordingManager.isRecording {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .opacity(0.8)
+                            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
+                        
+                        Text("REC")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.red)
+                        
+                        Text(recordingManager.recordingTimeString)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+                
+                Spacer()
+                
+                // Record button
+                recordButton
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - Record Button
+    
+    @ViewBuilder
+    private var recordButton: some View {
+        Button(action: toggleRecording) {
+            ZStack {
+                Circle()
+                    .stroke(.white, lineWidth: 3)
+                    .frame(width: 60, height: 60)
+                
+                if recordingManager.isRecording {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.red)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 50)
                 }
             }
         }
+        .disabled(!isCameraReady)
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var loadingMessage: String {
+        if cameraSetupAttempts == 0 {
+            return "Starting Camera..."
+        } else {
+            return "Initializing camera (Attempt \(cameraSetupAttempts))..."
+        }
+    }
+    
+    // MARK: - Setup and Cleanup Methods
+    
+    private func setupView() {
+        print("🎥 CleanVideoRecordingView: Setting up view")
+        
+        // Setup orientation notifications
+        setupOrientationNotifications()
+        
+        // FIXED: Add delay before camera setup to avoid gesture conflicts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            setupCamera()
+        }
+        
+        // Setup overlay update timer
+        startOverlayUpdateTimer()
+        
+        // Setup Bluetooth callbacks
+        setupBluetoothCallbacks()
+        
+        // Disable idle timer
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
+    
+    private func cleanupView() {
+        print("🎥 CleanVideoRecordingView: Cleaning up view")
+        
+        removeOrientationNotifications()
+        recordingManager.stopCameraSession()
+        stopOverlayUpdateTimer()
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+    
+    private func setupCamera() {
+        guard !hasCameraSetup else {
+            print("⚠️ Camera already setup, skipping")
+            return
+        }
+        
+        cameraSetupAttempts += 1
+        print("🎥 Setting up camera (Attempt \(cameraSetupAttempts))")
+        
+        // FIXED: Request permissions first
+        Task {
+            do {
+                // Request camera permission
+                await recordingManager.requestCameraAccess()
+                
+                // Check authorization status
+                let status = AVCaptureDevice.authorizationStatus(for: .video)
+                
+                if status != .authorized {
+                    await MainActor.run {
+                        cameraErrorMessage = "Camera permission is required for recording. Please enable it in Settings."
+                        showingCameraError = true
+                    }
+                    return
+                }
+                
+                // FIXED: Add delay after permission before starting camera
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
+                await MainActor.run {
+                    recordingManager.startCameraSession()
+                    hasCameraSetup = true
+                    
+                    // FIXED: Add delay before marking camera as ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                        if recordingManager.previewLayer != nil {
+                            isCameraReady = true
+                            print("✅ Camera ready!")
+                        } else if cameraSetupAttempts < 3 {
+                            // Retry setup
+                            hasCameraSetup = false
+                            setupCamera()
+                        } else {
+                            cameraErrorMessage = "Failed to start camera after multiple attempts. Please try again."
+                            showingCameraError = true
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    print("❌ Camera setup error: \(error)")
+                    cameraErrorMessage = "Camera setup failed: \(error.localizedDescription)"
+                    showingCameraError = true
+                }
+            }
+        }
+    }
+    
+    private func retryCameraSetup() {
+        hasCameraSetup = false
+        isCameraReady = false
+        cameraSetupAttempts = 0
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            setupCamera()
+        }
+    }
+    
+    private func setupBluetoothCallbacks() {
+        multipeer.onRecordingStartRequested = {
+            print("📱 Received recording start request from controller")
+            Task {
+                // FIXED: Add delay to ensure camera is ready
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+                await recordingManager.startRecording()
+            }
+        }
+        
+        multipeer.onRecordingStopRequested = {
+            print("📱 Received recording stop request from controller")
+            Task {
+                await recordingManager.stopRecording()
+            }
+        }
+    }
     
     private func toggleRecording() {
+        print("🎥 Toggle recording - current state: \(recordingManager.isRecording)")
+        
         if recordingManager.isRecording {
             Task {
                 await recordingManager.stopRecording()
@@ -213,7 +345,6 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOverlayData() {
-        // Fetch current game state from Firebase
         guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else {
             return
         }
@@ -233,7 +364,7 @@ struct CleanVideoRecordingView: View {
         ) { _ in
             updateOrientation()
         }
-        updateOrientation() // Set initial orientation
+        updateOrientation()
     }
     
     private func removeOrientationNotifications() {
@@ -249,10 +380,18 @@ struct CleanVideoRecordingView: View {
     }
     
     private func handleDismiss() {
-        // Clear the device role when recorder exits so they can select role again next time
+        // Stop recording if active
+        if recordingManager.isRecording {
+            Task {
+                await recordingManager.stopRecording()
+            }
+        }
+        
+        // Clear the device role when recorder exits
         Task {
             await roleManager.clearDeviceRole()
         }
+        
         dismiss()
     }
 }
