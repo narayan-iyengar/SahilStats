@@ -42,6 +42,12 @@ struct GameSetupView: View  {
     
     @State private var opponentSuggestions: [String] = []
     @State private var isLoadingSuggestions = false
+    
+    @State private var isAutoConnecting = false
+    @State private var autoConnectStatus = ""
+    @State private var showManualConnection = false
+    
+    
 
     
     
@@ -173,6 +179,8 @@ struct GameSetupView: View  {
 
     
     private func handleWaitingRoomGameStart() {
+        print("🎯 handleWaitingRoomGameStart called - role: \(deviceRole)")
+        
         if deviceRole == .controller {
             // DON'T dismiss yet - keep connection alive
             print("🎮 Controller proceeding to game form")
@@ -182,6 +190,7 @@ struct GameSetupView: View  {
             
             // Short delay before showing game form
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                print("🎮 Controller switching to game form")
                 setupMode = .gameForm
             }
         } else if deviceRole == .recorder {
@@ -487,6 +496,21 @@ struct GameSetupView: View  {
             }
             .padding(.top, 40)
             
+            // Auto-connect status (if connecting in background)
+            if isAutoConnecting {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    
+                    Text(autoConnectStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(12)
+            }
+            
             VStack(alignment: .leading, spacing: 12) {
                 Text("Connection Type")
                     .font(.headline)
@@ -519,20 +543,7 @@ struct GameSetupView: View  {
                     isIPad: isIPad
                 ) {
                     deviceRole = .controller
-                    
-                    if connectionMethod == .bluetooth {
-                        // Bluetooth: Go to waiting room
-                        Task.detached {
-                            try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
-                        }
-                        showingConnectionWaitingRoom = true
-                    } else {
-                        // Firebase: Go directly to game form
-                        Task.detached {
-                            try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
-                        }
-                        setupMode = .gameForm
-                    }
+                    handleRoleSelection(.controller)
                 }
                 
                 DeviceRoleCard(
@@ -541,21 +552,7 @@ struct GameSetupView: View  {
                     isIPad: isIPad
                 ) {
                     deviceRole = .recorder
-                    
-                    if connectionMethod == .bluetooth {
-                        // Bluetooth: Go to waiting room
-                        Task.detached {
-                            try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: "setup-pending")
-                        }
-                        showingConnectionWaitingRoom = true
-                    } else {
-                        // Firebase: Join existing game
-                        if firebaseService.hasLiveGame {
-                            joinAsRecorder()
-                        } else {
-                            error = "No live game found. The controller must start the game first."
-                        }
-                    }
+                    handleRoleSelection(.recorder)
                 }
             }
             
@@ -570,7 +567,187 @@ struct GameSetupView: View  {
             Spacer()
         }
         .padding()
+        .onAppear {
+            setupAutoConnect()
+        }
     }
+    
+    // Add these new methods:
+    private func setupAutoConnect() {
+        print("🔧 Setting up auto-connect callbacks in recordingRoleSelection")
+        
+        // Set up auto-connect callback BEFORE any connection attempt
+        multipeer.onAutoConnectCompleted = {
+            print("✅ Auto-connect completed in setupAutoConnect callback")
+            DispatchQueue.main.async {
+                self.handleAutoConnectCompleted()
+            }
+        }
+        
+        // Don't set up onPendingInvitation here - let ConnectionWaitingRoomView handle it
+        // when it appears
+        
+        // Check current connection state
+        if multipeer.isConnected {
+            print("🔧 Already connected during setup - checking auto-connect state")
+            isAutoConnecting = false
+        }
+        
+        print("🔧 Auto-connect callbacks set up successfully")
+    }
+    
+    
+    
+    
+    private func handleRoleSelection(_ role: DeviceRoleManager.DeviceRole) {
+        print("🎯 handleRoleSelection called with role: \(role)")
+        
+        if connectionMethod == .bluetooth {
+            print("🔵 Using Bluetooth connection method")
+            
+            // Set up auto-connect completion callback
+            multipeer.onAutoConnectCompleted = {
+                print("✅ onAutoConnectCompleted callback fired")
+                DispatchQueue.main.async {
+                    self.isAutoConnecting = false
+                    self.proceedWithConnectedDevice(role: role)
+                }
+            }
+            
+            // Check if we should start auto-connecting
+            isAutoConnecting = multipeer.isAutoConnecting
+            autoConnectStatus = multipeer.autoConnectStatus
+            
+            // If already connected to trusted device, proceed immediately
+            if multipeer.isConnected {
+                print("✅ Already connected to trusted device")
+                proceedWithConnectedDevice(role: role)
+            } else {
+                print("🔄 Starting new connection process")
+                
+                // Start advertising/browsing and wait for auto-connect
+                Task.detached {
+                    try? await DeviceRoleManager.shared.setDeviceRole(role, for: "setup-pending")
+                }
+                
+                // Don't set up onPendingInvitation here - let ConnectionWaitingRoomView handle it
+                // Show waiting room immediately for manual connections
+                showingConnectionWaitingRoom = true
+                
+                if role == .controller {
+                    print("🔍 Controller starting to browse...")
+                    multipeer.startBrowsing()
+                } else {
+                    print("📡 Recorder starting to advertise...")
+                    multipeer.startAdvertising(as: .recorder)
+                }
+                
+                // Wait for auto-connect or timeout
+                startAutoConnectTimeout(role: role)
+            }
+        } else {
+            print("🌐 Using Firebase connection method")
+            // Firebase mode - proceed as before
+            if role == .controller {
+                Task.detached {
+                    try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
+                }
+                setupMode = .gameForm
+            } else {
+                if firebaseService.hasLiveGame {
+                    joinAsRecorder()
+                } else {
+                    error = "No live game found. The controller must start the game first."
+                }
+            }
+        }
+    }
+ /*
+    private func handleRoleSelection(_ role: DeviceRoleManager.DeviceRole) {
+        if connectionMethod == .bluetooth {
+            // Check if we should start auto-connecting
+            isAutoConnecting = multipeer.isAutoConnecting
+            autoConnectStatus = multipeer.autoConnectStatus
+            
+            // If already connected to trusted device, proceed immediately
+            if multipeer.isConnected {
+                proceedWithConnectedDevice(role: role)
+            } else {
+                // Start advertising/browsing and wait for auto-connect
+                Task.detached {
+                    try? await DeviceRoleManager.shared.setDeviceRole(role, for: "setup-pending")
+                }
+                
+                if role == .controller {
+                    multipeer.startBrowsing()
+                } else {
+                    multipeer.startAdvertising(as: .recorder)
+                }
+                
+                // Wait for auto-connect or timeout
+                startAutoConnectTimeout(role: role)
+            }
+        } else {
+            // Firebase mode - proceed as before
+            if role == .controller {
+                Task.detached {
+                    try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
+                }
+                setupMode = .gameForm
+            } else {
+                if firebaseService.hasLiveGame {
+                    joinAsRecorder()
+                } else {
+                    error = "No live game found. The controller must start the game first."
+                }
+            }
+        }
+    }
+    */
+    
+
+    private func proceedWithConnectedDevice(role: DeviceRoleManager.DeviceRole) {
+        Task.detached {
+            try? await DeviceRoleManager.shared.setDeviceRole(role, for: "setup-pending")
+        }
+        
+        if role == .controller {
+            print("🎮 Controller proceeding to game form - already connected")
+            // Controller can proceed to game form
+            setupMode = .gameForm
+        } else {
+            print("🎬 Recorder proceeding to waiting room - already connected")
+            // Recorder should wait in waiting room for controller to start game
+            showingConnectionWaitingRoom = true
+        }
+    }
+
+    private func startAutoConnectTimeout(role: DeviceRoleManager.DeviceRole) {
+        // Wait 5 seconds for auto-connect
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            if !multipeer.isConnected {
+                // Auto-connect didn't happen, show waiting room for manual connection
+                showManualConnection = true
+                showingConnectionWaitingRoom = true
+            }
+        }
+    }
+
+    private func handleAutoConnectCompleted() {
+        // Auto-connect succeeded
+        isAutoConnecting = false
+        
+        if deviceRole == .controller {
+            // Controller proceeds to game form
+            setupMode = .gameForm
+        } else if deviceRole == .recorder {
+            // Recorder shows waiting room (or could auto-proceed if game already started)
+            showingConnectionWaitingRoom = true
+        }
+    }
+
+    
+    
     
     // MARK: - Smart Join Game View
     @ViewBuilder
