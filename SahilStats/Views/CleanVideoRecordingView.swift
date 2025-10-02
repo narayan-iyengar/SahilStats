@@ -132,7 +132,7 @@ struct CleanVideoRecordingView: View {
                             .foregroundColor(.white)
                     }
                     .frame(minWidth: 120)
-                    .padding(.leading, 16)
+                    .padding(.leading, 24)
                     .padding(.bottom, 50)
                     .rotationEffect(.degrees(getTextRotation()))
                 }

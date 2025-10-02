@@ -57,7 +57,7 @@ struct GameListView: View {
             )
         }
         .fullScreenCover(isPresented: $showingLiveGame) {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
+            if firebaseService.getCurrentLiveGame() != nil {
                 LiveGameView()
                     .environmentObject(authService)
                     .navigationBarHidden(true)

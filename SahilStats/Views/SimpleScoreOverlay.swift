@@ -4,7 +4,6 @@
 //
 //  Created by Narayan Iyengar on 9/27/25.
 //
-// SimpleScoreOverlay.swift - Enhanced with full team names, better layout, and fancy graphics
 
 import SwiftUI
 import Combine

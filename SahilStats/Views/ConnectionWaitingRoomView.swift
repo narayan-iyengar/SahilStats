@@ -27,10 +27,19 @@ struct ConnectionWaitingRoomView: View {
     @State private var hasStartedGame = false
     @State private var isProcessingGameStart = false
     
-    // CRITICAL FIX: Track connection stability
+    // Connection stability tracking
     @State private var connectionStableTime: Date?
     @State private var isConnectionStable = false
     @State private var stabilityCheckTimer: Timer?
+    
+    // NEW: Toast notification state
+    @State private var showToast = false
+    @State private var toastMessage = ""
+    @State private var toastIcon = "checkmark.circle.fill"
+    @State private var toastColor = Color.green
+    
+    // NEW: Check if already connected to trusted device
+    @State private var connectedToTrustedDevice = false
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -38,70 +47,79 @@ struct ConnectionWaitingRoomView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 32) {
-                // Role indicator
-                VStack(spacing: 12) {
-                    Image(systemName: role.icon)
-                        .font(.system(size: 60))
-                        .foregroundColor(role.color)
+            ZStack {
+                VStack(spacing: 32) {
+                    // Role indicator
+                    VStack(spacing: 12) {
+                        Image(systemName: role.icon)
+                            .font(.system(size: 60))
+                            .foregroundColor(role.color)
+                        
+                        Text(role.displayName)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                    }
+                    .padding(.top, 40)
                     
-                    Text(role.displayName)
-                        .font(.title2)
-                        .fontWeight(.bold)
+                    // Connection status
+                    connectionStatusSection
+                    
+                    Spacer()
+                    
+                    // Action buttons
+                    actionButtons
+                    
+                    Spacer()
                 }
-                .padding(.top, 40)
-                
-                // Connection status
-                connectionStatusSection
-                
-                Spacer()
-                
-                // Action buttons
-                actionButtons
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Connection")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        cleanupAndDismiss()
+                .padding()
+                .navigationTitle("Connection")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            cleanupAndDismiss()
+                        }
                     }
                 }
-            }
-            .onAppear {
-                guard !hasSetupConnection else {
-                    print("Connection already setup, skipping")
-                    return
+                .onAppear {
+                    guard !hasSetupConnection else {
+                        print("Connection already setup, skipping")
+                        return
+                    }
+                    hasSetupConnection = true
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        setupConnection()
+                        UIApplication.shared.isIdleTimerDisabled = true
+                    }
                 }
-                hasSetupConnection = true
+                .onDisappear {
+                    stopStabilityCheck()
+                    UIApplication.shared.isIdleTimerDisabled = false
+                }
+                .alert("Connect to \(pendingPeer?.displayName ?? "Device")?", isPresented: $showingApprovalDialog) {
+                    Button("Connect Once") {
+                        approveConnection(remember: false)
+                    }
+                    
+                    Button("Connect & Trust") {
+                        approveConnection(remember: true)
+                    }
+                    
+                    Button("Decline", role: .cancel) {
+                        declineConnection()
+                    }
+                } message: {
+                    Text("Do you want to connect to this device? Trusting the device will allow automatic connection in the future.")
+                }
                 
-                // REDUCED delay - 0.1s is enough
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    setupConnection()
-                    UIApplication.shared.isIdleTimerDisabled = true
-                }
-            }
-            .onDisappear {
-                stopStabilityCheck()
-                UIApplication.shared.isIdleTimerDisabled = false
-            }
-            .alert("Connect to \(pendingPeer?.displayName ?? "Device")?", isPresented: $showingApprovalDialog) {
-                Button("Connect Once") {
-                    approveConnection(remember: false)
-                }
-                
-                Button("Connect & Trust") {
-                    approveConnection(remember: true)
-                }
-                
-                Button("Decline", role: .cancel) {
-                    declineConnection()
-                }
-            } message: {
-                Text("Do you want to connect to this device? Trusting the device will allow automatic connection in the future.")
+                // NEW: Toast notification overlay
+                ToastView(
+                    message: toastMessage,
+                    icon: toastIcon,
+                    color: toastColor,
+                    isShowing: $showToast
+                )
             }
         }
     }
@@ -147,10 +165,10 @@ struct ConnectionWaitingRoomView: View {
             if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
                 VStack(spacing: 8) {
                     HStack(spacing: 12) {
-                        Image(systemName: isConnectionStable ? "checkmark.circle.fill" : "hourglass")
-                            .foregroundColor(isConnectionStable ? .green : .orange)
+                        Image(systemName: connectedIcon)
+                            .foregroundColor(connectedColor)
                         
-                        Text(isConnectionStable ? "Connection Stable" : "Stabilizing...")
+                        Text(connectedStatusText)
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
@@ -161,7 +179,7 @@ struct ConnectionWaitingRoomView: View {
                         }
                     }
                     .padding()
-                    .background((isConnectionStable ? Color.green : Color.orange).opacity(0.1))
+                    .background(connectedColor.opacity(0.1))
                     .cornerRadius(12)
                     
                     Text("Connected to \(peer.displayName)")
@@ -182,7 +200,6 @@ struct ConnectionWaitingRoomView: View {
                     startGameAsController()
                 }
                 .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
-                // CRITICAL: Only enable when connection is stable
                 .disabled(!isConnectionStable || isProcessingGameStart)
                 .opacity((isConnectionStable && !isProcessingGameStart) ? 1.0 : 0.6)
                 
@@ -206,7 +223,20 @@ struct ConnectionWaitingRoomView: View {
             } else if role == .recorder {
                 if multipeer.isConnected {
                     VStack(spacing: 8) {
-                        if isConnectionStable {
+                        if connectedToTrustedDevice && isConnectionStable {
+                            // NEW: Better message when already connected to trusted device
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(.green)
+                            
+                            Text("Connected & Ready!")
+                                .font(.headline)
+                            
+                            Text("Waiting for controller to start the game")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        } else if isConnectionStable {
                             ProgressView()
                             Text("Ready! Waiting for controller to start...")
                                 .font(.subheadline)
@@ -269,9 +299,10 @@ struct ConnectionWaitingRoomView: View {
     }
     
     private var statusTitle: String {
-        print("🔍 ConnectionWaitingRoomView status check - isConnected: \(multipeer.isConnected), connectionState: \(multipeer.connectionState), peers: \(multipeer.connectedPeers.count)")
-        
         if multipeer.isConnected {
+            if connectedToTrustedDevice && isConnectionStable {
+                return "Connected!"
+            }
             return isConnectionStable ? "Ready" : "Stabilizing"
         } else if multipeer.connectionState == .connecting {
             return "Connecting..."
@@ -282,6 +313,9 @@ struct ConnectionWaitingRoomView: View {
     
     private var statusDescription: String {
         if multipeer.isConnected {
+            if connectedToTrustedDevice && isConnectionStable {
+                return "Connected to trusted device"
+            }
             if isConnectionStable {
                 return role == .controller ? "Ready to start the game" : "Connected and ready"
             } else {
@@ -293,6 +327,37 @@ struct ConnectionWaitingRoomView: View {
             return role == .controller
                 ? "Make sure the recorder device has selected Recorder mode"
                 : "Make sure the controller has started the setup process"
+        }
+    }
+    
+    // NEW: Computed properties for connected device display
+    private var connectedIcon: String {
+        if connectedToTrustedDevice && isConnectionStable {
+            return "checkmark.circle.fill"
+        } else if isConnectionStable {
+            return "checkmark.circle.fill"
+        } else {
+            return "hourglass"
+        }
+    }
+    
+    private var connectedColor: Color {
+        if connectedToTrustedDevice && isConnectionStable {
+            return .green
+        } else if isConnectionStable {
+            return .green
+        } else {
+            return .orange
+        }
+    }
+    
+    private var connectedStatusText: String {
+        if connectedToTrustedDevice && isConnectionStable {
+            return "Trusted Device Connected"
+        } else if isConnectionStable {
+            return "Connection Stable"
+        } else {
+            return "Stabilizing..."
         }
     }
     
@@ -310,7 +375,6 @@ struct ConnectionWaitingRoomView: View {
             }
         }
         
-        // ✅ CHECK FOR EXISTING PENDING INVITATIONS
         if let existingPending = multipeer.pendingInvitations.first {
             print("📱 Found existing pending invitation for: \(existingPending.peerID.displayName)")
             DispatchQueue.main.async {
@@ -326,6 +390,11 @@ struct ConnectionWaitingRoomView: View {
             if rememberDevice, let peer = multipeer.connectedPeers.first {
                 let peerRole: DeviceRoleManager.DeviceRole = role == .controller ? .recorder : .controller
                 trustedDevices.addTrustedPeer(peer, role: peerRole)
+            }
+            
+            // NEW: Check if this is a trusted device
+            if let peer = multipeer.connectedPeers.first {
+                connectedToTrustedDevice = trustedDevices.isTrusted(peer)
             }
             
             connectionStableTime = Date()
@@ -351,12 +420,9 @@ struct ConnectionWaitingRoomView: View {
             }
         }
         
-        // ✅ REMOVED: Don't start browsing/advertising here - already done in GameSetupView
-        // The connection should already be in progress when we reach this point
         print("🔵 Connection already initiated in GameSetupView")
     }
     
-    // CRITICAL FIX: Stability monitoring
     private func startStabilityCheck() {
         stopStabilityCheck()
         
@@ -370,12 +436,14 @@ struct ConnectionWaitingRoomView: View {
             
             let elapsed = Date().timeIntervalSince(startTime)
             
-            // CRITICAL: Wait 2 seconds before allowing game start
             if elapsed >= 2.0 && !isConnectionStable {
                 print("✅ Connection stable after 2 seconds")
                 isConnectionStable = true
                 
-                // Send ready signals NOW (after stability confirmed)
+                // NEW: Show toast notification
+                showConnectionToast()
+                
+                // Send ready signals
                 if role == .controller {
                     multipeer.sendControllerReady()
                 } else {
@@ -383,6 +451,33 @@ struct ConnectionWaitingRoomView: View {
                 }
                 
                 timer.invalidate()
+            }
+        }
+    }
+    
+    // NEW: Show toast notification method
+    private func showConnectionToast() {
+        guard let peer = multipeer.connectedPeers.first else { return }
+        
+        if role == .controller {
+            toastMessage = "Connected to \(peer.displayName)"
+            toastIcon = "checkmark.circle.fill"
+            toastColor = .green
+        } else {
+            // RECORDER TOAST
+            toastMessage = "Connected to Controller"
+            toastIcon = "checkmark.circle.fill"
+            toastColor = .green
+        }
+        
+        withAnimation {
+            showToast = true
+        }
+        
+        // Auto-hide after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation {
+                showToast = false
             }
         }
     }
@@ -413,7 +508,6 @@ struct ConnectionWaitingRoomView: View {
         
         print("✅ Approving connection to: \(peer.displayName), remember: \(remember)")
         
-        // Use the new pendingInvitations array system
         multipeer.approveConnection(for: peer, remember: remember)
         pendingPeer = nil
     }
@@ -422,7 +516,6 @@ struct ConnectionWaitingRoomView: View {
         guard let peer = pendingPeer else { return }
         print("❌ Declining connection to: \(peer.displayName)")
         
-        // Use the new pendingInvitations array system
         multipeer.declineConnection(for: peer)
         pendingPeer = nil
     }
@@ -438,12 +531,49 @@ struct ConnectionWaitingRoomView: View {
         print("🎮 Calling onGameStart callback...")
         isProcessingGameStart = true
         hasStartedGame = true
-        // NO delay - call immediately
         isProcessingGameStart = false
         onGameStart()
         print("🎮 onGameStart callback completed")
     }
 }
+
+
+struct ToastView: View {
+    let message: String
+    let icon: String
+    let color: Color
+    @Binding var isShowing: Bool
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            
+            if isShowing {
+                HStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.title3)
+                        .foregroundColor(color)
+                    
+                    Text(message)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 50)
+            }
+        }
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isShowing)
+    }
+}
+
 
 // MARK: - Preview
 
