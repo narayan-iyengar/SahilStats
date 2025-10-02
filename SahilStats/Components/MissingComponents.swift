@@ -158,6 +158,33 @@ struct GameDetailTimeCard: View {
     }
 }
 
+struct InlineConnectionStatusBadge: View {
+    let status: String
+    let isConnecting: Bool
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            if isConnecting {
+                ProgressView()
+                    .scaleEffect(0.8)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            }
+            
+            Text(status)
+                .font(.caption)
+                .foregroundColor(isConnecting ? .secondary : .green)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(isConnecting ? Color.blue.opacity(0.1) : Color.green.opacity(0.1))
+        .cornerRadius(8)
+    }
+}
+
+
+
 struct PlayingTimePercentageBar: View {
     let playingTime: Double
     let totalTime: Double

@@ -269,6 +269,8 @@ struct ConnectionWaitingRoomView: View {
     }
     
     private var statusTitle: String {
+        print("🔍 ConnectionWaitingRoomView status check - isConnected: \(multipeer.isConnected), connectionState: \(multipeer.connectionState), peers: \(multipeer.connectedPeers.count)")
+        
         if multipeer.isConnected {
             return isConnectionStable ? "Ready" : "Stabilizing"
         } else if multipeer.connectionState == .connecting {
@@ -300,21 +302,32 @@ struct ConnectionWaitingRoomView: View {
         print("🔵 Setting up connection for role: \(role)")
         
         multipeer.onPendingInvitation = { peer in
-            print("📱 Pending invitation from: \(peer.displayName)")
-            pendingPeer = peer
-            showingApprovalDialog = true
+            print("📱 onPendingInvitation callback fired for: \(peer.displayName)")
+            DispatchQueue.main.async {
+                self.pendingPeer = peer
+                self.showingApprovalDialog = true
+                print("📱 Set showingApprovalDialog = true")
+            }
+        }
+        
+        // ✅ CHECK FOR EXISTING PENDING INVITATIONS
+        if let existingPending = multipeer.pendingInvitations.first {
+            print("📱 Found existing pending invitation for: \(existingPending.peerID.displayName)")
+            DispatchQueue.main.async {
+                self.pendingPeer = existingPending.peerID
+                self.showingApprovalDialog = true
+                print("📱 Set showingApprovalDialog = true for existing invitation")
+            }
         }
         
         multipeer.onConnectionEstablished = {
             print("✅ Connection established - starting stability timer")
             
-            // Mark device as trusted if user chose to remember
             if rememberDevice, let peer = multipeer.connectedPeers.first {
                 let peerRole: DeviceRoleManager.DeviceRole = role == .controller ? .recorder : .controller
                 trustedDevices.addTrustedPeer(peer, role: peerRole)
             }
             
-            // CRITICAL FIX: Start stability monitoring
             connectionStableTime = Date()
             isConnectionStable = false
             startStabilityCheck()
@@ -332,21 +345,15 @@ struct ConnectionWaitingRoomView: View {
                 hasStartedGame = true
                 print("🎬 Recorder handling game start...")
                 
-                // Small delay for UI transition
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     onGameStart()
                 }
             }
         }
         
-        // Start appropriate service based on role - NO DELAY NEEDED
-        if role == .controller {
-            print("🔵 Controller starting to advertise...")
-            multipeer.startAdvertising(as: .controller)
-        } else {
-            print("🔵 Recorder starting to browse...")
-            multipeer.startBrowsing()
-        }
+        // ✅ REMOVED: Don't start browsing/advertising here - already done in GameSetupView
+        // The connection should already be in progress when we reach this point
+        print("🔵 Connection already initiated in GameSetupView")
     }
     
     // CRITICAL FIX: Stability monitoring
@@ -406,19 +413,17 @@ struct ConnectionWaitingRoomView: View {
         
         print("✅ Approving connection to: \(peer.displayName), remember: \(remember)")
         
-        if let (invitationPeer, handler) = multipeer.pendingInvitation, invitationPeer == peer {
-            handler(true)
-            multipeer.pendingInvitation = nil
-        } else {
-            multipeer.connectAfterApproval(peer, approved: true, rememberDevice: remember)
-        }
+        // Use the new pendingInvitations array system
+        multipeer.approveConnection(for: peer, remember: remember)
         pendingPeer = nil
     }
     
     private func declineConnection() {
         guard let peer = pendingPeer else { return }
         print("❌ Declining connection to: \(peer.displayName)")
-        multipeer.connectAfterApproval(peer, approved: false)
+        
+        // Use the new pendingInvitations array system
+        multipeer.declineConnection(for: peer)
         pendingPeer = nil
     }
     
@@ -430,11 +435,13 @@ struct ConnectionWaitingRoomView: View {
         
         print("🎮 Controller starting game - connection is stable")
         print("🔍 Multipeer has \(multipeer.connectedPeers.count) connected peers")
+        print("🎮 Calling onGameStart callback...")
         isProcessingGameStart = true
         hasStartedGame = true
         // NO delay - call immediately
         isProcessingGameStart = false
         onGameStart()
+        print("🎮 onGameStart callback completed")
     }
 }
 

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var settingsManager = SettingsManager.shared
+    @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
     @State private var showingAuth = false
     @State private var newTeamName = ""
     @State private var showingDeleteAlert = false
@@ -149,8 +150,20 @@ struct SettingsView: View {
                         // Clear temporary video files
                         clearRecordingCache()
                     }
+                    
+                    
                     .foregroundColor(.orange)
                 }
+                Section("Bluetooth & Recording") {
+                    NavigationLink("Trusted Devices") {
+                        TrustedDevicesSettingsView()
+                    }
+                    
+                    Toggle("Auto-connect to Trusted Devices", isOn: $settingsManager.autoConnectEnabled)
+                        .disabled(!trustedDevicesManager.hasTrustedDevices)
+                        .toggleStyle(SwitchToggleStyle(tint: .orange))
+                }
+                
             }
             
             // App Info Section
@@ -293,6 +306,12 @@ class SettingsManager: ObservableObject {
             UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
         }
     }
+    @Published var autoConnectEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnectEnabled")
+        }
+    }
+    
     
     private init() {
         // Load saved settings or use defaults
@@ -308,6 +327,7 @@ class SettingsManager: ObservableObject {
         
         self.enableMultiDevice = UserDefaults.standard.bool(forKey: "enableMultiDevice")
         self.videoQuality = UserDefaults.standard.string(forKey: "videoQuality") ?? "High"
+        self.autoConnectEnabled = UserDefaults.standard.bool(forKey: "autoConnectEnabled")
     }
     
     // Helper method to get default game settings for new games

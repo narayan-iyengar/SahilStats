@@ -16,7 +16,7 @@ import MultipeerConnectivity
 import SwiftUI
 import Combine 
 
-class TrustedDevicesManager {
+class TrustedDevicesManager: ObservableObject {
     static let shared = TrustedDevicesManager()
     
     private let userDefaults = UserDefaults.standard
@@ -42,22 +42,34 @@ class TrustedDevicesManager {
     
     // MARK: - Private Properties
     
+    @Published private var _trustedPeers: [TrustedPeer] = []
+    
     private var trustedPeers: [TrustedPeer] {
-        get {
-            guard let data = userDefaults.data(forKey: trustedPeersKey),
-                  let peers = try? JSONDecoder().decode([TrustedPeer].self, from: data) else {
-                return []
-            }
-            return peers
-        }
+        get { _trustedPeers }
         set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                userDefaults.set(data, forKey: trustedPeersKey)
-            }
+            _trustedPeers = newValue
+            saveTrustedPeers()
         }
     }
     
-    private init() {}
+    private func loadTrustedPeers() {
+        guard let data = userDefaults.data(forKey: trustedPeersKey),
+              let peers = try? JSONDecoder().decode([TrustedPeer].self, from: data) else {
+            _trustedPeers = []
+            return
+        }
+        _trustedPeers = peers
+    }
+    
+    private func saveTrustedPeers() {
+        if let data = try? JSONEncoder().encode(_trustedPeers) {
+            userDefaults.set(data, forKey: trustedPeersKey)
+        }
+    }
+    
+    private init() {
+        loadTrustedPeers()
+    }
     
     // MARK: - Public Methods
     
@@ -85,11 +97,19 @@ class TrustedDevicesManager {
     
     /// Remove a peer from trusted devices
     func removeTrustedPeer(_ peerID: MCPeerID) {
-        var peers = trustedPeers
-        peers.removeAll { $0.id == peerID.displayName }
-        trustedPeers = peers
-        
-        print("🗑️ Removed trusted peer: \(peerID.displayName)")
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            var peers = self.trustedPeers
+            let initialCount = peers.count
+            peers.removeAll { $0.id == peerID.displayName }
+            
+            if peers.count < initialCount {
+                self.trustedPeers = peers
+                print("🗑️ Removed trusted peer: \(peerID.displayName)")
+            } else {
+                print("⚠️ Peer not found for removal: \(peerID.displayName)")
+            }
+        }
     }
     
     /// Update last connected timestamp for a peer
@@ -110,8 +130,13 @@ class TrustedDevicesManager {
     }
     
     /// Get all trusted peers
+    var allTrustedPeers: [TrustedPeer] {
+        return _trustedPeers
+    }
+    
+    /// Get all trusted peers (for backwards compatibility)
     func getAllTrustedPeers() -> [TrustedPeer] {
-        return trustedPeers
+        return _trustedPeers
     }
     
     /// Get trusted peers for a specific role
@@ -121,13 +146,20 @@ class TrustedDevicesManager {
     
     /// Clear all trusted devices
     func clearAllTrustedDevices() {
-        trustedPeers = []
-        print("🗑️ Cleared all trusted devices")
+        DispatchQueue.main.async { [weak self] in
+            self?.trustedPeers = []
+            print("🗑️ Cleared all trusted devices")
+        }
     }
     
     /// Get count of trusted devices
     var trustedDeviceCount: Int {
-        return trustedPeers.count
+        return _trustedPeers.count
+    }
+    
+    /// Check if there are any trusted devices
+    var hasTrustedDevices: Bool {
+        return !_trustedPeers.isEmpty
     }
 }
 
@@ -140,5 +172,68 @@ extension TrustedDevicesManager.TrustedPeer {
         self.role = role
         self.dateAdded = dateAdded
         self.lastConnected = lastConnected
+    }
+}
+
+struct TrustedDevicesSettingsView: View {
+    @ObservedObject private var trustedDevices = TrustedDevicesManager.shared
+    @State private var showingClearAlert = false
+    
+    var body: some View {
+        List {
+            Section {
+                if trustedDevices.allTrustedPeers.isEmpty {
+                    Text("No trusted devices")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(trustedDevices.allTrustedPeers) { peer in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(peer.deviceName)
+                                    .font(.headline)
+                                Text(peer.role.capitalized)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                if let lastConnected = peer.lastConnected {
+                                    Text("Last connected: \(lastConnected.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                // Create MCPeerID to remove the peer
+                                let peerID = MCPeerID(displayName: peer.id)
+                                trustedDevices.removeTrustedPeer(peerID)
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            } header: {
+                Text("Trusted Devices")
+            } footer: {
+                Text("Trusted devices will automatically connect without approval")
+            }
+            
+            Section {
+                Button("Clear All Trusted Devices") {
+                    showingClearAlert = true
+                }
+                .foregroundColor(.red)
+            }
+        }
+        .navigationTitle("Trusted Devices")
+        .alert("Clear All Trusted Devices?", isPresented: $showingClearAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear All", role: .destructive) {
+                trustedDevices.clearAllTrustedDevices()
+            }
+        }
     }
 }

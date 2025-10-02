@@ -15,6 +15,9 @@ struct BluetoothConnectionView: View {
     @StateObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @State private var rememberDevice = true
+    
+    
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -25,6 +28,9 @@ struct BluetoothConnectionView: View {
             VStack(spacing: 24) {
                 // Connection Status
                 connectionStatusCard
+                if !multipeer.pendingInvitations.isEmpty {
+                        pendingInvitationsSection
+                }
                 
                 // Role-specific content
                 if roleManager.deviceRole == .controller {
@@ -49,6 +55,86 @@ struct BluetoothConnectionView: View {
             }
         }
     }
+    
+    @ViewBuilder
+        private var pendingInvitationsSection: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Connection Requests")
+                    .font(.headline)
+                
+                ForEach(multipeer.pendingInvitations) { invitation in
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.questionmark")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(invitation.peerID.displayName)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            if let role = invitation.discoveryInfo?["role"] {
+                                Text("Role: \(role)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            if let deviceType = invitation.discoveryInfo?["deviceType"] {
+                                Text(deviceType)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 8) {
+                            Button(action: {
+                                multipeer.approveConnection(
+                                    for: invitation.peerID,
+                                    remember: rememberDevice
+                                )
+                            }) {
+                                HStack {
+                                    Image(systemName: "checkmark")
+                                    Text("Connect")
+                                }
+                                .font(.caption)
+                                .fontWeight(.medium)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                            
+                            Button(action: {
+                                multipeer.declineConnection(for: invitation.peerID)
+                            }) {
+                                HStack {
+                                    Image(systemName: "xmark")
+                                    Text("Decline")
+                                }
+                                .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+                }
+                
+                Toggle("Remember this device for auto-connect", isOn: $rememberDevice)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+        }
     
     // MARK: - Connection Status Card
     
