@@ -218,7 +218,7 @@ struct CompactClockCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 12 : 8)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 12 : 8)
     }
     
@@ -422,7 +422,7 @@ struct CompactLiveScoreDisplayCard: View {
         }
         .padding(.horizontal, isIPad ? 28 : 24)
         .padding(.vertical, isIPad ? 28 : 24)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 20 : 16)
     }
 }
@@ -513,7 +513,7 @@ struct CompactGameControlsCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 16 : 12)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 12 : 8)
     }
 }
@@ -568,12 +568,12 @@ struct CompactControlButtonStyle: ButtonStyle {
 // MARK: - On Bench Message
 struct OnBenchMessage: View {
     let isIPad: Bool
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
             LottieView(name: "bench-animation")
-                //.frame(width: isIPad ? 150 : 120, height: isIPad ? 150 : 120)
-            
+
             Text("Sahil is on the bench")
                 .font(isIPad ? .title : .title2)
                 .fontWeight(.semibold)
@@ -865,7 +865,7 @@ struct PlayingTimeCard: View {
             }
         }
         .padding(isIPad ? 20 : 16)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
@@ -1099,7 +1099,7 @@ struct PlayerStatusDisplayCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 12 : 10)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 12 : 8)
     }
 }
@@ -1460,7 +1460,7 @@ struct SmartShootingStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
     
@@ -1654,7 +1654,7 @@ struct RegularStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
@@ -1716,7 +1716,7 @@ struct CleanStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
 }

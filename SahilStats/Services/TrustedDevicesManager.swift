@@ -14,7 +14,24 @@
 import Foundation
 import MultipeerConnectivity
 import SwiftUI
-import Combine 
+import Combine
+
+// MARK: - Device Role Enum (if not defined elsewhere)
+extension TrustedDevicesManager {
+    // Check if we have any trusted devices for a specific role
+    func hasTrustedDevice(for role: DeviceRoleManager.DeviceRole) -> Bool {
+        return _trustedPeers.contains { $0.role == role.rawValue }
+    }
+    
+    // Get trusted device for auto-connect
+    func getTrustedPeerForAutoConnect(role: DeviceRoleManager.DeviceRole) -> TrustedPeer? {
+        // Return the most recently added trusted device for the given role
+        return _trustedPeers
+            .filter { $0.role == role.rawValue }
+            .sorted { ($0.lastConnected ?? $0.dateAdded) > ($1.lastConnected ?? $1.dateAdded) }
+            .first
+    }
+}
 
 class TrustedDevicesManager: ObservableObject {
     static let shared = TrustedDevicesManager()
@@ -152,6 +169,12 @@ class TrustedDevicesManager: ObservableObject {
         }
     }
     
+    /// Remove a trusted device by TrustedDevice object
+    func removeTrustedDevice(_ device: TrustedDevice) {
+        let peerID = MCPeerID(displayName: device.id)
+        removeTrustedPeer(peerID)
+    }
+    
     /// Get count of trusted devices
     var trustedDeviceCount: Int {
         return _trustedPeers.count
@@ -161,6 +184,26 @@ class TrustedDevicesManager: ObservableObject {
     var hasTrustedDevices: Bool {
         return !_trustedPeers.isEmpty
     }
+    
+    /// Computed property for backwards compatibility
+    var trustedDevices: [TrustedDevice] {
+        return _trustedPeers.map { peer in
+            TrustedDevice(
+                id: peer.id,
+                displayName: peer.deviceName,
+                role: DeviceRoleManager.DeviceRole(rawValue: peer.role) ?? .none,
+                lastConnected: peer.lastConnected ?? peer.dateAdded
+            )
+        }
+    }
+}
+
+// MARK: - TrustedDevice model for compatibility
+struct TrustedDevice: Identifiable {
+    let id: String
+    let displayName: String
+    let role: DeviceRoleManager.DeviceRole
+    let lastConnected: Date
 }
 
 // MARK: - TrustedPeer Extension for updating

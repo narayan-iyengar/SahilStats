@@ -516,11 +516,11 @@ struct MultiDeviceGameSetup: View {
     private var multiDeviceSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Multi-Device Setup")
-                .font(.headline)
+                .font(.subheadline)
                 .fontWeight(.bold)
             
             Text("Use multiple devices for optimal recording and control experience")
-                .font(.subheadline)
+                .font(.footnote)
                 .foregroundColor(.secondary)
             
             if FirebaseService.shared.hasLiveGame {

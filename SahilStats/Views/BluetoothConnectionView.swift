@@ -327,7 +327,7 @@ struct BluetoothConnectionView: View {
                     .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
                 } else {
                     Button("Make Visible to Controller") {
-                        multipeer.startAdvertising(as: .recorder)
+                        multipeer.startAdvertising(as: "recorder")
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }

@@ -493,7 +493,7 @@ struct LiveGameControllerView: View {
                 OnBenchMessage(isIPad: isIPad)
             }
         }
-        .background(Color(.white))
+        .background(Color(.systemGroupedBackground))
         // Keep all your existing alerts and onChange handlers...
         .alert("Finish Game", isPresented: $showingFinishAlert) {
             Button("Cancel", role: .cancel) { }
