@@ -17,7 +17,8 @@ struct ConnectionWaitingRoomView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     let role: DeviceRoleManager.DeviceRole
-    let onGameStart: () -> Void
+    let onGameStart: (String) -> Void
+    let liveGame: LiveGame
     
     @State private var showingApprovalDialog = false
     @State private var pendingPeer: MCPeerID?
@@ -40,6 +41,14 @@ struct ConnectionWaitingRoomView: View {
     
     // NEW: Check if already connected to trusted device
     @State private var connectedToTrustedDevice = false
+    
+    
+    init(role: DeviceRoleManager.DeviceRole, onGameStart: @escaping (String) -> Void, liveGame: LiveGame) {
+        self.role = role
+        self.onGameStart = onGameStart
+        self.liveGame = liveGame
+    }
+    
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -88,11 +97,37 @@ struct ConnectionWaitingRoomView: View {
                     }
                     hasSetupConnection = true
                     
+                    // CRITICAL: Exit early if already connected
+                    if multipeer.isConnected {
+                        print("🔵 Already connected via seamless connect - NOT setting up callbacks")
+                        UIApplication.shared.isIdleTimerDisabled = true
+                        
+                        // Still need the game starting callback for recorder
+                        if role == .recorder {
+                            multipeer.onGameStarting = { gameId in
+                                print("🎬 onGameStarting callback fired for role: \(self.role), gameId: \(gameId)")
+                                guard !self.hasStartedGame else {
+                                    print("⚠️ Game already started, ignoring duplicate call")
+                                    return
+                                }
+                                if self.role == .recorder {
+                                    self.hasStartedGame = true
+                                    print("🎬 Recorder handling game start...")
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        self.onGameStart(gameId)
+                                    }
+                                }
+                            }
+                        }
+                        return  // EXIT - don't call setupConnection()
+                    }
+                    
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         setupConnection()
                         UIApplication.shared.isIdleTimerDisabled = true
                     }
                 }
+                
                 .onDisappear {
                     stopStabilityCheck()
                     UIApplication.shared.isIdleTimerDisabled = false
@@ -366,6 +401,12 @@ struct ConnectionWaitingRoomView: View {
     private func setupConnection() {
         print("🔵 Setting up connection for role: \(role)")
         
+        // Don't re-setup if already connected
+        if multipeer.isConnected {
+            print("🔵 Already connected, skipping connection setup")
+            return
+        }
+        
         multipeer.onPendingInvitation = { peer in
             print("📱 onPendingInvitation callback fired for: \(peer.displayName)")
             DispatchQueue.main.async {
@@ -415,10 +456,26 @@ struct ConnectionWaitingRoomView: View {
                 print("🎬 Recorder handling game start...")
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    onGameStart()
+                    onGameStart(gameId)
                 }
             }
         }
+        
+        multipeer.onGameAlreadyStarted = { gameId in
+            print("🎬 Game already in progress, transitioning recorder immediately. Game ID: \(gameId)")
+            guard !hasStartedGame else {
+                print("⚠️ Game already started, ignoring duplicate call")
+                return
+            }
+
+            if role == .recorder {
+                hasStartedGame = true
+                DispatchQueue.main.async {
+                    onGameStart(gameId) // Pass the gameId
+                }
+            }
+        }
+        
         
         print("🔵 Connection already initiated in GameSetupView")
     }
@@ -526,13 +583,20 @@ struct ConnectionWaitingRoomView: View {
             return
         }
         
+        // Make sure you have access to the gameId from your liveGame object
+         guard let gameId = liveGame.id else {
+             print("❌ Error: Missing gameId when trying to start game")
+             return
+         }
+        
         print("🎮 Controller starting game - connection is stable")
         print("🔍 Multipeer has \(multipeer.connectedPeers.count) connected peers")
         print("🎮 Calling onGameStart callback...")
         isProcessingGameStart = true
         hasStartedGame = true
         isProcessingGameStart = false
-        onGameStart()
+        multipeer.sendGameStarting(gameId: gameId) // Ensure this is being called
+        onGameStart(gameId) // Pass the gameId
         print("🎮 onGameStart callback completed")
     }
 }
@@ -578,7 +642,19 @@ struct ToastView: View {
 // MARK: - Preview
 
 #Preview {
-    ConnectionWaitingRoomView(role: .controller) {
-        print("Game started")
-    }
+    let sampleLiveGame = LiveGame(
+        teamName: "Warriors",
+        opponent: "Lakers",
+        gameFormat: .halves,
+        quarterLength: 20,
+        createdBy: "previewUser"
+    )
+
+    ConnectionWaitingRoomView(
+        role: .controller,
+        onGameStart: { gameId in
+            print("Game started with ID: \(gameId)")
+        },
+        liveGame: sampleLiveGame
+    )
 }

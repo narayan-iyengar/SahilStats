@@ -14,8 +14,8 @@ class RefreshTrigger: ObservableObject {
 
 
 struct LiveGameView: View {
-    @StateObject private var firebaseService = FirebaseService.shared
-    @StateObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
     
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
@@ -97,7 +97,7 @@ struct LiveGameView: View {
 struct RoleNotSetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -392,11 +392,15 @@ struct LiveGameControllerView: View {
     @State private var isHeaderCollapsed = false
     @State private var scrollOffset: CGFloat = 0
     
-    @StateObject private var recordingManager = VideoRecordingManager.shared
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var recordingManager = VideoRecordingManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    
+    @State private var gameStateAnnounceTimer: Timer?
+    @State private var pingTimer: Timer?
     
     
-    @State private var isRemoteRecording = false
+    
+    //@State private var isRemoteRecording = false
     
     // iPad detection
     private var isIPad: Bool {
@@ -518,17 +522,24 @@ struct LiveGameControllerView: View {
             )
             
             autoGrantInitialControl()
-            // FIXED: Start initial time tracking if no current segment exists
+            
             if serverGameState.currentTimeSegment == nil && deviceControl.hasControl {
                 startInitialTimeTracking()
             }
-            multipeer.onRecordingStateChanged = { isRecording in
-                self.isRemoteRecording = isRecording
+            
+            // Request recording state after a brief delay to ensure connection is stable
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                if multipeer.isConnected {
+                    print("📤 Requesting recording state from recorder")
+                    multipeer.sendRequestForRecordingState()
+                }
             }
         }
         .onDisappear {
             stopFixedClockSync()
             updateTimer?.invalidate()
+            stopAnnouncingGameState()
+            stopPinging()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
@@ -554,6 +565,61 @@ struct LiveGameControllerView: View {
         }
     }
     
+    private func startPinging() {
+        stopPinging() // Prevent duplicate timers
+        print("❤️ [Controller] Starting to ping recorder every 2.5 seconds.")
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
+            // Only send pings if this device has control
+            if deviceControl.hasControl {
+                multipeer.sendPing()
+            }
+        }
+    }
+
+    private func stopPinging() {
+        pingTimer?.invalidate()
+        pingTimer = nil
+        print("💔 [Controller] Stopped pinging recorder.")
+    }
+    
+    
+    
+    private func startAnnouncingGameState() {
+        // Invalidate any existing timer to prevent duplicates
+        stopAnnouncingGameState()
+        
+        print("📢 [Controller] Starting to announce game state every 3 seconds.")
+        
+        // Send one announcement immediately upon starting
+        announceGameState()
+        
+        // Schedule the timer to repeat
+        gameStateAnnounceTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            announceGameState()
+        }
+    }
+
+    private func stopAnnouncingGameState() {
+        gameStateAnnounceTimer?.invalidate()
+        gameStateAnnounceTimer = nil
+        print("📢 [Controller] Stopped announcing game state.")
+    }
+
+    private func announceGameState() {
+        // Only send if this device is in control and has a valid game ID
+        guard deviceControl.hasControl, let gameId = serverGameState.id else {
+            return
+        }
+        
+        let gameState: [String: String] = [
+            "gameId": gameId,
+            "isRunning": "true" // Let the recorder know the game is active
+        ]
+        multipeer.sendGameState(gameState)
+        print("📢 [Controller] Sent game state announcement for gameId: \(gameId)")
+    }
+    
+    
     
     // MARK: - FIXED: Single Game Header (All Info in One Place)
     @ViewBuilder
@@ -568,15 +634,17 @@ struct LiveGameControllerView: View {
                 isIPad: isIPad,
                 onRequestControl: requestControl,
                 showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller,
-                isRecording: MultipeerConnectivityManager.shared.isConnected ? isRemoteRecording : nil,
-                onToggleRecording: MultipeerConnectivityManager.shared.isConnected ? {
-                    if isRemoteRecording {
-                        MultipeerConnectivityManager.shared.sendStopRecording()
-                    } else {
-                        MultipeerConnectivityManager.shared.sendStartRecording()
-                    }
-                } : nil
-            )
+                isRecording: multipeer.isRemoteRecording,
+                    onToggleRecording: multipeer.isConnected ? {
+                        // Use a guard to safely unwrap the optional value
+                        guard let isRecording = self.multipeer.isRemoteRecording else { return }
+                        if isRecording {
+                            self.multipeer.sendStopRecording()
+                        } else {
+                            self.multipeer.sendStartRecording()
+                        }
+                    } : nil
+                )
             
             // Clock Display
             CompactClockCard(

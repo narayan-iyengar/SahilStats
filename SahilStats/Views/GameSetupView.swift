@@ -101,9 +101,26 @@ struct GameSetupView: View  {
             .sheet(isPresented: $showingBluetoothConnection) {
                 BluetoothConnectionView()
             }
+            //.fullScreenCover(isPresented: $showingConnectionWaitingRoom) {
+            //    ConnectionWaitingRoomView(role: deviceRole) {
+            //        handleWaitingRoomGameStart()
+            //    }
+            //}
             .fullScreenCover(isPresented: $showingConnectionWaitingRoom) {
-                ConnectionWaitingRoomView(role: deviceRole) {
-                    handleWaitingRoomGameStart()
+                // Ensure you have a valid liveGame object to pass in.
+                // This might come from a state variable or a service.
+                if let liveGame = firebaseService.getCurrentLiveGame() {
+                    ConnectionWaitingRoomView(
+                        role: deviceRole,
+                        onGameStart: { gameId in
+                            // The closure now correctly accepts the gameId
+                            handleWaitingRoomGameStart()
+                        },
+                        liveGame: liveGame // Pass the liveGame object
+                    )
+                } else {
+                    // Optional: Show an error or a placeholder if the game isn't available
+                    Text("Error: Live game not found.")
                 }
             }
             .fullScreenCover(isPresented: $showingPostGameView) {
@@ -213,9 +230,13 @@ struct GameSetupView: View  {
                     
                     await MainActor.run {
                         print("🎬 Showing live game view for recorder")
-                        showingConnectionWaitingRoom = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            showingLiveGameView = true
+                        // CRITICAL: Don't dismiss the waiting room - let it stay in the background
+                        // This preserves the multipeer connection
+                        showingLiveGameView = true
+                        
+                        // Dismiss the waiting room AFTER the live game view is showing
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            showingConnectionWaitingRoom = false
                         }
                     }
                 } catch {
@@ -949,6 +970,14 @@ struct GameSetupView: View  {
                     let connectedPeerCount = multipeer.connectedPeers.count
                     
                     print("🎮 Creating live game - Bluetooth connected: \(hasBluetoothConnection), peers: \(connectedPeerCount)")
+                    
+                    
+                    print("🔍 Game creation debug:")
+                    print("   isMultiDevice: \(isMultiDevice)")
+                    print("   connectionMethod: \(connectionMethod)")
+                    print("   hasBluetoothConnection: \(hasBluetoothConnection)")
+                    print("   multipeer.isConnected: \(multipeer.isConnected)")
+                    
                     
                     let liveGame = try await createLiveGame(isMultiDevice: isMultiDevice)
                     
