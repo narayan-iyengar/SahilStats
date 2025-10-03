@@ -25,6 +25,9 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     @Published var lastError: String?
     @Published var pendingInvitation: (peerID: MCPeerID, handler: (Bool) -> Void)?
     var onRecordingStateChanged: ((Bool) -> Void)?
+    @Published var isRemoteRecording: Bool? = nil
+    
+    
     @Published var isAutoConnecting = false
     @Published var autoConnectStatus: String = "Looking for trusted devices..."
     var onAutoConnectCompleted: (() -> Void)?
@@ -37,6 +40,10 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     var onPeerDiscovered: ((MCPeerID) -> Void)?
     
     @Published var pendingInvitations: [PendingInvitation] = []
+    
+    private var isInCriticalConnectionPhase = false
+    
+    
      
      struct PendingInvitation: Identifiable {
          let id = UUID()
@@ -74,6 +81,7 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
         case approvalRequest
         case approvalResponse
         case recordingStateUpdate
+        case requestRecordingState
     }
     
     struct Message: Codable {
@@ -101,12 +109,14 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     
     // MARK: - Callbacks
     var onRecordingStartRequested: (() -> Void)?
+    var onRecordingStateRequested: (() -> Void)?
     var onRecordingStopRequested: (() -> Void)?
     var onGameStateReceived: (([String: String]) -> Void)?
 
     var onGameStarting: ((String) -> Void)? // Receives gameId when game starts
     var onConnectionEstablished: (() -> Void)?
     var onPendingInvitation: ((MCPeerID) -> Void)? // Triggers approval dialog
+    var onGameAlreadyStarted: ((String) -> Void)?
     
     // MARK: - Initialization
     override init() {
@@ -121,6 +131,13 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
         )
         sendMessage(message)
     }
+    
+    func sendRequestForRecordingState() {
+        print("➡️ [Controller] Sending request for recording state...")
+        let message = Message(type: .requestRecordingState)
+        sendMessage(message)
+    }
+    
     
     private func shouldInvitePeer(_ peerID: MCPeerID) -> Bool {
         // Use alphabetical comparison of display names to determine priority
@@ -517,6 +534,12 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
                 if let payload = message.payload {
                     self.onGameStateReceived?(payload)
                 }
+                if let gameId = message.payload?["gameId"],
+                   let isRunning = message.payload?["isRunning"], isRunning == "true" {
+                    print("🎮 Received game state update, game is running with ID: \(gameId)")
+
+                    self.onGameAlreadyStarted?(gameId)
+                }
                 
             case .gameStarting:
                 // Recorder receives this when controller starts game
@@ -529,6 +552,8 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
                 } else {
                     print("❌ No gameId in gameStarting message")
                 }
+
+
                 
             case .ping:
                 self.sendMessage(Message(type: .pong))
@@ -548,8 +573,17 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
                 }
             case .recordingStateUpdate:
                 if let isRecordingStr = message.payload?["isRecording"] {
-                    self.onRecordingStateChanged?(isRecordingStr == "true")
+                    self.isRemoteRecording = (isRecordingStr == "true")
+                    print("📴 Recording state updated to: \(self.isRemoteRecording ?? false)")
+                    
+                    // NEW: Call the callback
+                    DispatchQueue.main.async {
+                        self.onRecordingStateChanged?(self.isRemoteRecording ?? false)
+                    }
                 }
+            case .requestRecordingState:
+                // When a request is received, trigger the callback for the UI to handle.
+                self.onRecordingStateRequested?()
                 
             case .approvalRequest, .approvalResponse:
                 // These are handled in the advertiser delegate
@@ -665,6 +699,7 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     self.connectionState = .disconnected
                     self.isAutoConnecting = false
                     self.autoConnectStatus = ""
+                    self.isConnected = false
                 }
                 
             case .connecting:
@@ -679,25 +714,18 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 }
                 
                 self.connectionState = .connected
+                self.isConnected = true
                 
-                // ✅ CRITICAL: Stop browsing/advertising ONLY after connection is stable
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    print("🛑 Stopping browsing/advertising after connection stabilized")
-                    //self.browser.stopBrowsingForPeers()
-                    //self.advertiser.stopAdvertisingPeer()
-                    // ✅ FIXED: Use optional chaining to safely stop the browser if it exists.
-                    self.browser?.stopBrowsingForPeers()
-                        
-                        // ✅ FIXED: Use optional chaining to safely stop the advertiser if it exists.
-                    self.advertiser?.stopAdvertisingPeer()
-                    self.isBrowsing = false
-                    self.isAdvertising = false
-                }
-                
-                // Notify that connection was established
                 self.onConnectionEstablished?()
                 
-                // Update last connected time for trusted device
+                // If this was an auto-connect, notify completion
+                if self.isAutoConnecting && TrustedDevicesManager.shared.isTrusted(peerID) {
+                    self.isAutoConnecting = false
+                    DispatchQueue.main.async {
+                        self.onAutoConnectCompleted?()
+                    }
+                }
+                
                 if TrustedDevicesManager.shared.isTrusted(peerID) {
                     TrustedDevicesManager.shared.updateLastConnected(peerID)
                 }

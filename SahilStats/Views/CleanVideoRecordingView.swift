@@ -2,6 +2,7 @@
 
 import SwiftUI
 import AVFoundation
+import MultipeerConnectivity
 
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
@@ -15,7 +16,7 @@ struct CleanVideoRecordingView: View {
     @State private var isCameraReady = false
     @State private var orientation = UIDeviceOrientation.portrait
     
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
     // NEW: Add state for camera setup
     @State private var hasCameraSetup = false
@@ -71,6 +72,8 @@ struct CleanVideoRecordingView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             setupView()
+            print("🔍 CleanVideoRecordingView appeared - Multipeer connected: \(multipeer.isConnected)")
+            print("🔍 Connected peers: \(multipeer.connectedPeers.map { $0.displayName })")
         }
         .onDisappear {
             cleanupView()
@@ -248,6 +251,7 @@ struct CleanVideoRecordingView: View {
         UIApplication.shared.isIdleTimerDisabled = false
     }
     
+    
     private func setupCamera() {
         guard !hasCameraSetup else {
             print("⚠️ Camera already setup, skipping")
@@ -257,49 +261,47 @@ struct CleanVideoRecordingView: View {
         cameraSetupAttempts += 1
         print("🎥 Setting up camera (Attempt \(cameraSetupAttempts))")
         
-        // FIXED: Request permissions first
         Task {
             do {
-                // Request camera permission
-                await recordingManager.requestCameraAccess()
+                // 1. Check for permissions first
+                let hasPermission = await recordingManager.checkForCameraPermission()
                 
-                // Check authorization status
-                let status = AVCaptureDevice.authorizationStatus(for: .video)
-                
-                if status != .authorized {
+                guard hasPermission else {
                     await MainActor.run {
-                        cameraErrorMessage = "Camera permission is required for recording. Please enable it in Settings."
+                        cameraErrorMessage = "Camera permission is required. Please enable it in Settings to record video."
                         showingCameraError = true
                     }
                     return
                 }
                 
-                // FIXED: Add delay after permission before starting camera
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                // 2. Give the UI and network a moment to settle before starting the heavy work
+                try await Task.sleep(for: .seconds(1.0))
                 
+                // 3. Start the session on a background thread
+                await recordingManager.startCameraSession()
+                hasCameraSetup = true
+                
+                // 4. Wait briefly for the preview layer to be ready
+                try await Task.sleep(for: .milliseconds(200))
+
+                // 5. Update the UI on the main thread
                 await MainActor.run {
-                    recordingManager.startCameraSession()
-                    hasCameraSetup = true
-                    
-                    // FIXED: Add delay before marking camera as ready
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                        if recordingManager.previewLayer != nil {
-                            isCameraReady = true
-                            print("✅ Camera ready!")
-                        } else if cameraSetupAttempts < 3 {
-                            // Retry setup
-                            hasCameraSetup = false
-                            setupCamera()
-                        } else {
-                            cameraErrorMessage = "Failed to start camera after multiple attempts. Please try again."
-                            showingCameraError = true
-                        }
+                    if recordingManager.previewLayer != nil {
+                        isCameraReady = true
+                        print("✅ Camera is ready!")
+                    } else if cameraSetupAttempts < 3 {
+                        // Retry if it fails
+                        hasCameraSetup = false
+                        setupCamera()
+                    } else {
+                        cameraErrorMessage = "Failed to initialize the camera after multiple attempts. Please try again."
+                        showingCameraError = true
                     }
                 }
             } catch {
                 await MainActor.run {
-                    print("❌ Camera setup error: \(error)")
-                    cameraErrorMessage = "Camera setup failed: \(error.localizedDescription)"
+                    print("❌ Camera setup failed with error: \(error)")
+                    cameraErrorMessage = "An unexpected error occurred while starting the camera: \(error.localizedDescription)"
                     showingCameraError = true
                 }
             }
@@ -316,35 +318,41 @@ struct CleanVideoRecordingView: View {
         }
     }
     
+    // This is the CORRECT version
+
     private func setupBluetoothCallbacks() {
-            multipeer.onRecordingStartRequested = {
-                print("📱 Received recording start request from controller")
-                Task {
-                    // FIXED: Add delay to ensure camera is ready
-                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-                    await recordingManager.startRecording()
-                    
-                    // CRITICAL: Send state update back to controller
-                    await MainActor.run {
-                        print("✅ Recording started - sending state update to controller")
-                        multipeer.sendRecordingStateUpdate(isRecording: true)
-                    }
-                }
-            }
-            
-            multipeer.onRecordingStopRequested = {
-                print("📱 Received recording stop request from controller")
-                Task {
-                    await recordingManager.stopRecording()
-                    
-                    // CRITICAL: Send state update back to controller
-                    await MainActor.run {
-                        print("✅ Recording stopped - sending state update to controller")
-                        multipeer.sendRecordingStateUpdate(isRecording: false)
-                    }
+        multipeer.onRecordingStartRequested = {
+            print("📱 Received recording start request from controller")
+            Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                await recordingManager.startRecording()
+                
+                await MainActor.run {
+                    print("✅ Recording started - sending state update to controller")
+                    multipeer.sendRecordingStateUpdate(isRecording: true)
                 }
             }
         }
+        
+        multipeer.onRecordingStopRequested = {
+            print("📱 Received recording stop request from controller")
+            Task {
+                await recordingManager.stopRecording()
+
+                await MainActor.run {
+                    print("✅ Recording stopped - sending state update to controller")
+                    multipeer.sendRecordingStateUpdate(isRecording: false)
+                }
+            }
+        }
+        
+        // This block is now correctly inside the function.
+        multipeer.onRecordingStateRequested = {
+            print("📢 [Recorder] Controller requested recording state. Responding with current status.")
+            // By removing 'self', we avoid confusing the compiler's type inference.
+            multipeer.sendRecordingStateUpdate(isRecording: recordingManager.isRecording)
+        }
+    }
     
     private func toggleRecording() {
         print("🎥 Toggle recording - current state: \(recordingManager.isRecording)")

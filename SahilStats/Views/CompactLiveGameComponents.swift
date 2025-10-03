@@ -19,69 +19,6 @@ import Combine
 
 
 
-// MARK: - Compact Device Control Status OLD
-/*
-
-struct CompactDeviceControlStatusCard: View {
-    let hasControl: Bool
-    let controllingUser: String?
-    let canRequestControl: Bool
-    let pendingRequest: String?
-    let isIPad: Bool
-    let onRequestControl: () -> Void
-    let showBluetoothStatus: Bool
-    
-    var body: some View {
-        HStack(spacing: isIPad ? 12 : 8) {
-            // Status indicator
-            Image(systemName: hasControl ? "gamecontroller.fill" : "eye.fill")
-                .foregroundColor(hasControl ? .green : .blue)
-                .font(isIPad ? .body : .caption)
-            
-            // Status text
-            Text(hasControl ? "Controlling" : "Viewing")
-                .font(isIPad ? .body : .caption)
-                .fontWeight(.medium)
-                .foregroundColor(hasControl ? .green : .blue)
-            
-            Spacer()
-            
-            // ADD: Bluetooth status indicator
-            if showBluetoothStatus {
-                BluetoothStatusIndicator()
-            }
-            
-            // Request control button (compact)
-            if !hasControl {
-                if let pendingUser = pendingRequest {
-                    Text("Pending...")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(6)
-                } else if canRequestControl {
-                    Button("Request") {
-                        onRequestControl()
-                    }
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
-                }
-            }
-        }
-        .padding(.horizontal, isIPad ? 16 : 12)
-        .padding(.vertical, isIPad ? 12 : 8)
-        .background(hasControl ? Color.green.opacity(0.08) : Color.blue.opacity(0.08))
-        .cornerRadius(isIPad ? 12 : 8)
-    }
-}
-*/
 
 // MARK: - Compact Device Control Status - NEW
 
@@ -96,6 +33,26 @@ struct CompactDeviceControlStatusCard: View {
     let isRecording: Bool?  // NEW: Optional recording state
     let onToggleRecording: (() -> Void)?  // NEW: Optional recording toggle
     
+    init(hasControl: Bool, controllingUser: String?, canRequestControl: Bool, pendingRequest: String?, isIPad: Bool, onRequestControl: @escaping () -> Void, showBluetoothStatus: Bool, isRecording: Bool?, onToggleRecording: (() -> Void)?) {
+        self.hasControl = hasControl
+        self.controllingUser = controllingUser
+        self.canRequestControl = canRequestControl
+        self.pendingRequest = pendingRequest
+        self.isIPad = isIPad
+        self.onRequestControl = onRequestControl
+        self.showBluetoothStatus = showBluetoothStatus
+        self.isRecording = isRecording
+        self.onToggleRecording = onToggleRecording
+        
+        // DEBUG: Print all the values when this view is created
+        //print("🔍 [DEBUG] CompactDeviceControlStatusCard init:")
+        //print("   hasControl: \(hasControl)")
+        //print("   showBluetoothStatus: \(showBluetoothStatus)")
+        //print("   isRecording: \(isRecording?.description ?? "nil")")
+        //print("   onToggleRecording: \(onToggleRecording != nil ? "provided" : "nil")")
+        //print("   Recording button will show: \(isRecording != nil && onToggleRecording != nil)")
+    }
+    
     var body: some View {
         HStack(spacing: isIPad ? 12 : 8) {
             // Status indicator
@@ -111,9 +68,28 @@ struct CompactDeviceControlStatusCard: View {
             
             Spacer()
             
+            // DEBUG: Show debug info temporarily
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DEBUG:")
+                    .font(.caption2)
+                    .foregroundColor(.red)
+                Text("showBT: \(showBluetoothStatus)")
+                    .font(.caption2)
+                    .foregroundColor(.red)
+                Text("isRec: \(isRecording?.description ?? "nil")")
+                    .font(.caption2)
+                    .foregroundColor(.red)
+                Text("toggleRec: \(onToggleRecording != nil ? "✓" : "nil")")
+                    .font(.caption2)
+                    .foregroundColor(.red)
+            }
+            .padding(4)
+            .background(Color.yellow.opacity(0.3))
+            .cornerRadius(4)
+            
             // ADD: Recording button (compact) - only if Bluetooth connected and controller
             if showBluetoothStatus, let isRecording = isRecording, let toggleRecording = onToggleRecording {
-                Button(action: toggleRecording) {
+               Button(action: toggleRecording) {
                     HStack(spacing: 4) {
                         Image(systemName: isRecording ? "stop.circle.fill" : "record.circle")
                             .font(.caption)
@@ -132,7 +108,7 @@ struct CompactDeviceControlStatusCard: View {
             // ADD: Bluetooth status indicator
             if showBluetoothStatus {
                 BluetoothStatusIndicator()
-            }
+           }
             
             // Request control button (compact)
             if !hasControl {

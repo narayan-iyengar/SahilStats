@@ -222,6 +222,24 @@ class VideoRecordingManager: NSObject, ObservableObject {
         }
     }
     
+    
+
+
+    /// Checks for camera permission without requesting it.
+    func checkForCameraPermission() async -> Bool {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            return true
+        case .notDetermined:
+            // If not determined, we must request it.
+            return await AVCaptureDevice.requestAccess(for: .video)
+        default:
+            // Denied, restricted.
+            return false
+        }
+    }
+    
     // MARK: - Recording Control
     
     func startRecording() async {
