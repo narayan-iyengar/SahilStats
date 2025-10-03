@@ -527,11 +527,20 @@ struct LiveGameControllerView: View {
                 startInitialTimeTracking()
             }
             
-            // Request recording state after a brief delay to ensure connection is stable
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // START KEEP-ALIVE MECHANISMS IMMEDIATELY
+            if deviceControl.hasControl {
+                print("❤️ Starting ping and game state announcement timers")
+                startPinging()
+                startAnnouncingGameState()
+            }
+            
+            // Request recording state after connection is stable
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 if multipeer.isConnected {
                     print("📤 Requesting recording state from recorder")
                     multipeer.sendRequestForRecordingState()
+                } else {
+                    print("⚠️ WARNING: Not connected when requesting recording state!")
                 }
             }
         }
@@ -633,18 +642,19 @@ struct LiveGameControllerView: View {
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
                 onRequestControl: requestControl,
-                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller,
-                isRecording: multipeer.isRemoteRecording,
-                    onToggleRecording: multipeer.isConnected ? {
-                        // Use a guard to safely unwrap the optional value
-                        guard let isRecording = self.multipeer.isRemoteRecording else { return }
-                        if isRecording {
-                            self.multipeer.sendStopRecording()
-                        } else {
-                            self.multipeer.sendStartRecording()
-                        }
-                    } : nil
-                )
+                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller && multipeer.isConnected,
+                isRecording: multipeer.isRemoteRecording ?? false, // DEFAULT to false instead of nil
+                onToggleRecording: multipeer.isConnected ? {
+                    let isRecording = self.multipeer.isRemoteRecording ?? false
+                    if isRecording {
+                        print("🎬 Controller sending STOP recording command")
+                        self.multipeer.sendStopRecording()
+                    } else {
+                        print("🎬 Controller sending START recording command")
+                        self.multipeer.sendStartRecording()
+                    }
+                } : nil
+            )
             
             // Clock Display
             CompactClockCard(

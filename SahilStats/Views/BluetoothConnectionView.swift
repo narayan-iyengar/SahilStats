@@ -301,6 +301,7 @@ struct BluetoothConnectionView: View {
     
     // MARK: - Recorder View
     
+
     @ViewBuilder
     private var recorderView: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -332,18 +333,50 @@ struct BluetoothConnectionView: View {
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
             } else {
-                VStack(spacing: 12) {
+                // CONNECTED - Show simple ready state
+                VStack(spacing: 20) {
+                    // Big checkmark like AirPods
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 60))
+                        .font(.system(size: 80))
                         .foregroundColor(.green)
                     
-                    Text("Connected to Controller")
-                        .font(.headline)
+                    Text("Connected & Ready")
+                        .font(.title2)
+                        .fontWeight(.bold)
                     
-                    Text("Recording will start automatically when the controller begins the game")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    if let peer = multipeer.connectedPeers.first {
+                        Text("Connected to \(peer.displayName)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Divider()
+                        .padding(.vertical)
+                    
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text("Waiting for game to start")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text("The controller will signal when ready")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    Spacer()
+                    
+                    // Disconnect button at the bottom
+                    Button("Disconnect") {
+                        multipeer.disconnect()
+                        dismiss()
+                    }
+                    .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()

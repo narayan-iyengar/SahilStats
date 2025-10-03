@@ -155,24 +155,11 @@ struct GameSetupView: View  {
                     opponentSuggestions = []
                 }
             }
+        
             .onDisappear {
-                if !showingLiveGameView {
-                    print("🔵 GameSetupView disappearing - NOT in live game, safe to cleanup")
-                } else {
-                    print("🔵 GameSetupView disappearing - transitioning to live game, keeping connection alive")
-                }
+                // CRITICAL: Never cleanup Bluetooth here - it needs to persist for live game
+                print("🔵 GameSetupView disappearing - preserving Bluetooth connection")
             }
-            .overlay(alignment: .top) {
-                        if showingConnectionToast {
-                            ConnectionToast(
-                                message: connectionToastMessage,
-                                icon: connectionToastIcon,
-                                isIPad: isIPad
-                            )
-                            .padding(.top, 60)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        }
-                    }
         
             
             .alert("Bluetooth Connection Required", isPresented: $bluetoothConnectionRequired) {
@@ -971,25 +958,29 @@ struct GameSetupView: View  {
                     
                     print("🎮 Creating live game - Bluetooth connected: \(hasBluetoothConnection), peers: \(connectedPeerCount)")
                     
-                    
-                    print("🔍 Game creation debug:")
-                    print("   isMultiDevice: \(isMultiDevice)")
-                    print("   connectionMethod: \(connectionMethod)")
-                    print("   hasBluetoothConnection: \(hasBluetoothConnection)")
-                    print("   multipeer.isConnected: \(multipeer.isConnected)")
-                    
-                    
                     let liveGame = try await createLiveGame(isMultiDevice: isMultiDevice)
                     
                     if let gameId = liveGame.id {
                         let selectedRole: DeviceRoleManager.DeviceRole = deviceRole == .controller ? .controller : .controller
                         try await DeviceRoleManager.shared.setDeviceRole(selectedRole, for: gameId)
                         
+                        // CRITICAL FIX: Send game starting signal and WAIT for confirmation
                         if isMultiDevice && connectionMethod == .bluetooth && hasBluetoothConnection {
                             print("📤 Sending game starting signal via Bluetooth - gameId: \(gameId)")
                             multipeer.sendGameStarting(gameId: gameId)
-                            try await Task.sleep(nanoseconds: 500_000_000)
+                            
+                            // LONGER DELAY to ensure recorder receives signal
+                            try await Task.sleep(nanoseconds: 2_000_000_000) // 1 second
                             print("✅ Game starting signal sent, now transitioning to game view")
+                            
+                            // CRITICAL: Set a flag to prevent cleanup on view disappear
+                            await MainActor.run {
+                                // Don't dismiss GameSetupView - just show LiveGameView on top
+                                createdLiveGame = liveGame
+                                showingLiveGameView = true
+                            }
+                            
+                            return // Don't dismiss the setup view
                         }
                     }
                     
@@ -1010,6 +1001,7 @@ struct GameSetupView: View  {
             }
         }
     }
+
     
     private func createLiveGame(isMultiDevice: Bool) async throws -> LiveGame {
         let deviceId = DeviceControlManager.shared.deviceId
