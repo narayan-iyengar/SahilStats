@@ -11,7 +11,7 @@ struct ConnectionWaitingRoomView: View {
     @StateObject private var multipeer = MultipeerConnectivityManager.shared
     @StateObject private var roleManager = DeviceRoleManager.shared
     @State private var hasSetupConnection = false
-    
+    @StateObject private var firebaseService = FirebaseService.shared
     private let trustedDevices = TrustedDevicesManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -55,108 +55,131 @@ struct ConnectionWaitingRoomView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                VStack(spacing: 32) {
-                    // Role indicator
-                    VStack(spacing: 12) {
-                        Image(systemName: role.icon)
-                            .font(.system(size: 60))
-                            .foregroundColor(role.color)
-                        
-                        Text(role.displayName)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                    }
-                    .padding(.top, 40)
-                    
-                    // Connection status
-                    connectionStatusSection
-                    
-                    Spacer()
-                    
-                    // Action buttons
-                    actionButtons
-                    
-                    Spacer()
-                }
-                .padding()
-                .navigationTitle("Connection")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
-                            cleanupAndDismiss()
+        /*
+        // CRITICAL FIX: If game already exists and we're the recorder, join immediately
+        if role == .recorder,
+           let liveGame = firebaseService.getCurrentLiveGame(),
+           let gameId = liveGame.id,
+           multipeer.isConnected {
+            Color.clear
+                .onAppear {
+                    print("🎬 Live game already exists! Joining immediately as recorder")
+                    Task {
+                        try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                        await MainActor.run {
+                            self.onGameStart(gameId)
                         }
                     }
                 }
-                .onAppear {
-                    guard !hasSetupConnection else {
-                        print("Connection already setup, skipping")
-                        return
-                    }
-                    hasSetupConnection = true
-                    
-                    // CRITICAL: Exit early if already connected
-                    if multipeer.isConnected {
-                        print("🔵 Already connected via seamless connect - NOT setting up callbacks")
-                        UIApplication.shared.isIdleTimerDisabled = true
+        } else {
+         */
+            NavigationView {
+                ZStack {
+                    VStack(spacing: 32) {
+                        // Role indicator
+                        VStack(spacing: 12) {
+                            Image(systemName: role.icon)
+                                .font(.system(size: 60))
+                                .foregroundColor(role.color)
+                            
+                            Text(role.displayName)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                        }
+                        .padding(.top, 40)
                         
-                        // Still need the game starting callback for recorder
-                        if role == .recorder {
-                            multipeer.onGameStarting = { gameId in
-                                print("🎬 onGameStarting callback fired for role: \(self.role), gameId: \(gameId)")
-                                guard !self.hasStartedGame else {
-                                    print("⚠️ Game already started, ignoring duplicate call")
-                                    return
-                                }
-                                if self.role == .recorder {
-                                    self.hasStartedGame = true
-                                    print("🎬 Recorder handling game start...")
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                        self.onGameStart(gameId)
+                        // Connection status
+                        connectionStatusSection
+                        
+                        Spacer()
+                        
+                        // Action buttons
+                        actionButtons
+                        
+                        Spacer()
+                    }
+                    .padding()
+                    .navigationTitle("Connection")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                cleanupAndDismiss()
+                            }
+                        }
+                    }
+                    .onAppear {
+                        guard !hasSetupConnection else {
+                            print("Connection already setup, skipping")
+                            return
+                        }
+                        hasSetupConnection = true
+                        
+                        // CRITICAL: Exit early if already connected
+                        if multipeer.isConnected {
+                            print("🔵 Already connected via seamless connect - NOT setting up callbacks")
+                            UIApplication.shared.isIdleTimerDisabled = true
+                            
+                            // Still need the game starting callback for recorder
+                            if role == .recorder {
+                                multipeer.onGameStarting = { gameId in
+                                    print("🎬 onGameStarting callback fired for role: \(role), gameId: \(gameId)")
+                                    
+                                    guard !hasStartedGame else {
+                                        print("⚠️ Game already started, ignoring duplicate call")
+                                        return
+                                    }
+                                    
+                                    if role == .recorder {
+                                        hasStartedGame = true
+                                        print("🎬 Recorder received game start signal - transitioning to recording...")
+                                        
+                                        // Brief delay for smooth transition
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                            onGameStart(gameId)
+                                        }
                                     }
                                 }
                             }
+                            return  // EXIT - don't call setupConnection()
                         }
-                        return  // EXIT - don't call setupConnection()
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            setupConnection()
+                            UIApplication.shared.isIdleTimerDisabled = true
+                        }
                     }
                     
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        setupConnection()
-                        UIApplication.shared.isIdleTimerDisabled = true
+                    .onDisappear {
+                        stopStabilityCheck()
+                        UIApplication.shared.isIdleTimerDisabled = false
                     }
-                }
-                
-                .onDisappear {
-                    stopStabilityCheck()
-                    UIApplication.shared.isIdleTimerDisabled = false
-                }
-                .alert("Connect to \(pendingPeer?.displayName ?? "Device")?", isPresented: $showingApprovalDialog) {
-                    Button("Connect Once") {
-                        approveConnection(remember: false)
+                    .alert("Connect to \(pendingPeer?.displayName ?? "Device")?", isPresented: $showingApprovalDialog) {
+                        Button("Connect Once") {
+                            approveConnection(remember: false)
+                        }
+                        
+                        Button("Connect & Trust") {
+                            approveConnection(remember: true)
+                        }
+                        
+                        Button("Decline", role: .cancel) {
+                            declineConnection()
+                        }
+                    } message: {
+                        Text("Do you want to connect to this device? Trusting the device will allow automatic connection in the future.")
                     }
                     
-                    Button("Connect & Trust") {
-                        approveConnection(remember: true)
-                    }
-                    
-                    Button("Decline", role: .cancel) {
-                        declineConnection()
-                    }
-                } message: {
-                    Text("Do you want to connect to this device? Trusting the device will allow automatic connection in the future.")
+                    // NEW: Toast notification overlay
+                    ToastView(
+                        message: toastMessage,
+                        icon: toastIcon,
+                        color: toastColor,
+                        isShowing: $showToast
+                    )
                 }
-                
-                // NEW: Toast notification overlay
-                ToastView(
-                    message: toastMessage,
-                    icon: toastIcon,
-                    color: toastColor,
-                    isShowing: $showToast
-                )
-            }
-        }
+            } //nav view
+        //} for the IF
     }
     
     // MARK: - Connection Status Section
@@ -426,21 +449,30 @@ struct ConnectionWaitingRoomView: View {
         }
         
         multipeer.onConnectionEstablished = {
-            print("✅ Connection established - starting stability timer")
+            print("✅ Connection established")
             
             if rememberDevice, let peer = multipeer.connectedPeers.first {
                 let peerRole: DeviceRoleManager.DeviceRole = role == .controller ? .recorder : .controller
                 trustedDevices.addTrustedPeer(peer, role: peerRole)
             }
             
-            // NEW: Check if this is a trusted device
+            // Check if this is a trusted device
             if let peer = multipeer.connectedPeers.first {
                 connectedToTrustedDevice = trustedDevices.isTrusted(peer)
             }
             
-            connectionStableTime = Date()
-            isConnectionStable = false
-            startStabilityCheck()
+            // RECORDER: Just mark as stable immediately - no waiting needed
+            // They'll wait for the controller to start the game
+            if role == .recorder {
+                print("✅ Recorder connected - ready to receive game start signal")
+                isConnectionStable = true
+                connectionStableTime = Date()
+            } else {
+                // CONTROLLER: Still needs stability check before starting game
+                connectionStableTime = Date()
+                isConnectionStable = false
+                startStabilityCheck()
+            }
         }
         
         multipeer.onGameStarting = { gameId in
@@ -484,6 +516,8 @@ struct ConnectionWaitingRoomView: View {
         stopStabilityCheck()
         
         print("⏱️ Starting connection stability check...")
+        
+        let requiredStabilityTime: TimeInterval = connectedToTrustedDevice ? 0.5 : 2.0
         
         stabilityCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
             guard let startTime = connectionStableTime else {

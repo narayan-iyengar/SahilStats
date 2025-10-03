@@ -67,40 +67,20 @@ struct CompactDeviceControlStatusCard: View {
                 .foregroundColor(hasControl ? .green : .blue)
             
             Spacer()
-            
-            // DEBUG: Show debug info temporarily
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DEBUG:")
-                    .font(.caption2)
-                    .foregroundColor(.red)
-                Text("showBT: \(showBluetoothStatus)")
-                    .font(.caption2)
-                    .foregroundColor(.red)
-                Text("isRec: \(isRecording?.description ?? "nil")")
-                    .font(.caption2)
-                    .foregroundColor(.red)
-                Text("toggleRec: \(onToggleRecording != nil ? "✓" : "nil")")
-                    .font(.caption2)
-                    .foregroundColor(.red)
-            }
-            .padding(4)
-            .background(Color.yellow.opacity(0.3))
-            .cornerRadius(4)
-            
             // ADD: Recording button (compact) - only if Bluetooth connected and controller
-            if showBluetoothStatus, let isRecording = isRecording, let toggleRecording = onToggleRecording {
-               Button(action: toggleRecording) {
+            if showBluetoothStatus, let toggleRecording = onToggleRecording {
+                Button(action: toggleRecording) {
                     HStack(spacing: 4) {
-                        Image(systemName: isRecording ? "stop.circle.fill" : "record.circle")
+                        Image(systemName: (isRecording ?? false) ? "stop.circle.fill" : "record.circle")
                             .font(.caption)
-                        Text(isRecording ? "Stop" : "Rec")
+                        Text((isRecording ?? false) ? "Stop" : "Rec")
                             .font(.caption2)
                             .fontWeight(.semibold)
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(isRecording ? Color.red : Color.red.opacity(0.8))
+                    .background((isRecording ?? false) ? Color.red : Color.red.opacity(0.8))
                     .cornerRadius(6)
                 }
             }

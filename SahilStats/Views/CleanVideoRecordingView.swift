@@ -94,53 +94,65 @@ struct CleanVideoRecordingView: View {
     
     @ViewBuilder
     private var landscapeControls: some View {
-        HStack {
-            VStack(spacing: 20) {
-                // Close button
-                Button(action: handleDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
+        ZStack {
+            // Close button at top-left
+            VStack {
+                HStack {
+                    Button(action: handleDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .padding(.leading, 20)
+                    .padding(.top, 40)
+                    
+                    Spacer()
                 }
                 
                 Spacer()
             }
-            .padding(.leading, 16)
-            .padding(.vertical, 50)
             
-            Spacer()
-        }
-        
-        // Recording indicator in bottom-left
-        VStack {
-            Spacer()
-            
-            HStack {
-                if recordingManager.isRecording {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 12, height: 12)
-                            .opacity(0.8)
-                            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
-                        
-                        Text("Recording")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.red)
-                        
-                        Text(recordingManager.recordingTimeString)
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                    }
-                    .frame(minWidth: 120)
-                    .padding(.leading, 24)
-                    .padding(.bottom, 50)
-                    .rotationEffect(.degrees(getTextRotation()))
-                }
-                
+            // Recording indicator at bottom-left
+            VStack {
                 Spacer()
+                
+                HStack {
+                    if recordingManager.isRecording {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 12, height: 12)
+                                .opacity(0.8)
+                                .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: recordingManager.isRecording)
+                            
+                            Text("Recording")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.red)
+                            
+                            Text(recordingManager.recordingTimeString)
+                                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                                .environment(\.colorScheme, .dark)
+                        )
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                        .padding(.leading, 100)
+                        .padding(.bottom, 100)
+                        .rotationEffect(.degrees(getTextRotation()))
+                    }
+                    
+                    Spacer()
+                }
             }
         }
     }
@@ -184,30 +196,6 @@ struct CleanVideoRecordingView: View {
         }
     }
     
-    // MARK: - Record Button
-/*
-    @ViewBuilder
-    private var recordButton: some View {
-        Button(action: toggleRecording) {
-            ZStack {
-                Circle()
-                    .stroke(.white, lineWidth: 3)
-                    .frame(width: 60, height: 60)
-                
-                if recordingManager.isRecording {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(.red)
-                        .frame(width: 20, height: 20)
-                } else {
-                    Circle()
-                        .fill(.red)
-                        .frame(width: 50)
-                }
-            }
-        }
-        .disabled(!isCameraReady)
-    }
- */
     
     // MARK: - Computed Properties
     
@@ -321,6 +309,10 @@ struct CleanVideoRecordingView: View {
     // This is the CORRECT version
 
     private func setupBluetoothCallbacks() {
+        print("📱 Setting up Bluetooth callbacks for recorder")
+         print("📱 Current connection state: \(multipeer.isConnected)")
+         print("📱 Connected peers: \(multipeer.connectedPeers.map { $0.displayName })")
+         
         multipeer.onRecordingStartRequested = {
             print("📱 Received recording start request from controller")
             Task {
