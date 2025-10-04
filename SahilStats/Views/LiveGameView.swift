@@ -59,7 +59,8 @@ struct LiveGameView: View {
                     }
                 }
             } else {
-                NoLiveGameView()
+                //NoLiveGameView()
+                NoLiveGameLottieView()
                     .onAppear {
                     // Clear the device role when game ends
                     Task {

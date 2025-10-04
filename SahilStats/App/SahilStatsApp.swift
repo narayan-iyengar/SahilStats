@@ -3,6 +3,9 @@
 import SwiftUI
 import FirebaseCore
 import FirebaseAuth
+import FirebaseFirestore
+import Network
+
 
 
 @main
@@ -13,7 +16,20 @@ struct SahilStatsApp: App {
     init() {
         // Configure Firebase
         FirebaseApp.configure()
+        
+        // Configure Firestore settings BEFORE any access
+        let settings = FirestoreSettings()
+        settings.cacheSettings = MemoryCacheSettings()
+        Firestore.firestore().settings = settings
+        
         UITabBar.appearance().itemPositioning = .centered
+        
+        // Start network monitoring (these are safe)
+        _ = WifiNetworkMonitor.shared
+        _ = YouTubeUploadManager.shared
+        
+        // DO NOT initialize FirebaseYouTubeAuthManager here
+        // It will be initialized lazily when first accessed
     }
     
     var body: some Scene {
@@ -22,10 +38,11 @@ struct SahilStatsApp: App {
                 .environmentObject(authService)
                 .onAppear {
                     AppDelegate.orientationLock = .portrait
+                    // Initialize FirebaseYouTubeAuthManager after Firestore is configured
+                    _ = FirebaseYouTubeAuthManager.shared
                 }
         }
     }
-    
 }
 
 struct ContentView: View {

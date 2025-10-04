@@ -75,6 +75,13 @@ struct Game: Identifiable, Codable, Equatable {
     @ServerTimestamp var timestamp: Date?
     @ServerTimestamp var createdAt: Date?
     
+    var videoURL: String?
+    var youtubeURL: String?
+    var youtubeVideoId: String?
+    var videoUploadedAt: Date?
+    
+    
+    
     // Custom decoder to handle different date formats
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

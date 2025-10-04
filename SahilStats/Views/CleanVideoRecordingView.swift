@@ -426,6 +426,15 @@ struct CleanVideoRecordingView: View {
         if recordingManager.isRecording {
             Task {
                 await recordingManager.stopRecording()
+                // Queue video for upload
+                if let liveGame = FirebaseService.shared.getCurrentLiveGame(),
+                   let gameId = liveGame.id {
+                    await recordingManager.saveRecordingAndQueueUpload(
+                        gameId: gameId,
+                        teamName: liveGame.teamName,
+                        opponent: liveGame.opponent
+                    )
+                }
             }
         }
         

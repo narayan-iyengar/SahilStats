@@ -140,20 +140,13 @@ struct SettingsView: View {
                 Section("Media & Recording") {
                     MediaAccessStatus()
                     
-                    Button("Manage Connected Devices") {
-                        // Show device manager if in live game
-                        if firebaseService.hasLiveGame {
-                            showingDeviceManager = true
-                        }
-                    }
-                    .disabled(!firebaseService.hasLiveGame)
-                    
+                    YouTubeSettingsSection()
+
                     Button("Clear Recording Cache") {
                         // Clear temporary video files
                         clearRecordingCache()
                     }
-                    
-                    
+
                     .foregroundColor(.orange)
                 }
                 Section("Manage Devices & Pairing") {
@@ -166,6 +159,8 @@ struct SettingsView: View {
                         .disabled(!trustedDevicesManager.hasTrustedDevices)
                         .toggleStyle(SwitchToggleStyle(tint: .orange))
                 }
+                
+                
                 
             }
             

@@ -63,6 +63,8 @@ class AuthService: ObservableObject {
         case weakPassword
         case tooManyRequests
         case userNotFound
+        case invalidConfiguration  // ADD THIS LINE
+        case noViewController      // ADD THIS LINE TOO
         case unknownError(String)
         
         var errorDescription: String? {
@@ -83,6 +85,10 @@ class AuthService: ObservableObject {
                 return "Too many failed attempts. Please try again later."
             case .userNotFound:
                 return "No account found with this email address."
+            case .invalidConfiguration:  // ADD THIS
+                return "App configuration error. Please contact support."
+            case .noViewController:       // ADD THIS
+                return "Unable to present sign-in screen"
             case .unknownError(let message):
                 return "An error occurred: \(message)"
             }
@@ -455,5 +461,27 @@ extension AuthService {
     
     var isAnonymous: Bool {
         return currentUser?.isAnonymous ?? true
+    }
+}
+
+extension AuthService.AuthError {
+    static func == (lhs: AuthService.AuthError, rhs: AuthService.AuthError) -> Bool {
+        switch (lhs, rhs) {
+        case (.signInCancelled, .signInCancelled),
+             (.accessDenied, .accessDenied),
+             (.networkError, .networkError),
+             (.invalidCredentials, .invalidCredentials),
+             (.emailAlreadyInUse, .emailAlreadyInUse),
+             (.weakPassword, .weakPassword),
+             (.tooManyRequests, .tooManyRequests),
+             (.userNotFound, .userNotFound),
+             (.invalidConfiguration, .invalidConfiguration),
+             (.noViewController, .noViewController):
+            return true
+        case (.unknownError(let a), .unknownError(let b)):
+            return a == b
+        default:
+            return false
+        }
     }
 }

@@ -528,7 +528,7 @@ struct OnBenchMessage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LottieView(name: "bench-animation")
+            LottieView(name: "bench-animation2")
 
             Text("Sahil is on the bench")
                 .font(isIPad ? .title : .title2)
@@ -648,7 +648,7 @@ struct LiveGameWatchView: View {
 
 // MARK: - No Live Game View
 
-
+/*
 struct NoLiveGameView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
@@ -704,6 +704,86 @@ struct NoLiveGameView: View {
     }
     
     // MARK: - NEW: Helper to dismiss all presented views
+    private func dismissToRoot() {
+        // Get the key window
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            // Fallback to simple dismiss
+            dismiss()
+            return
+        }
+        
+        // Dismiss all presented view controllers
+        var currentVC = rootViewController
+        while let presented = currentVC.presentedViewController {
+            currentVC = presented
+        }
+        
+        // Dismiss from the topmost presented view controller
+        currentVC.dismiss(animated: true)
+    }
+}
+ */
+struct NoLiveGameView: View {
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.presentationMode) var presentationMode
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
+    var body: some View {
+        ZStack {
+            // Gradient background (more polished than solid color)
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.systemGray6)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: isIPad ? 40 : 32) {
+                Spacer()
+                
+                // UPDATED: Lottie animation instead of static icon
+                LottieView(name: "no-game-animation")
+                    .frame(width: isIPad ? 300 : 200, height: isIPad ? 300 : 200)
+                
+                // Icon and message
+                VStack(spacing: isIPad ? 24 : 20) {
+                    Text("No Live Game")
+                        .font(isIPad ? .largeTitle : .title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Text("The live game has ended or is no longer available.")
+                        .font(isIPad ? .title3 : .body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                Spacer()
+                
+                // Action buttons
+                VStack(spacing: isIPad ? 20 : 16) {
+                    Button("Back to Dashboard") {
+                        dismissToRoot()
+                    }
+                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
+                }
+                .padding(.horizontal, isIPad ? 40 : 24)
+                
+                Spacer()
+            }
+            .padding()
+        }
+    }
+    
+    // MARK: - Helper to dismiss all presented views
     private func dismissToRoot() {
         // Get the key window
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
