@@ -35,5 +35,10 @@
         <string>_sahilstats._tcp</string>
         <string>_sahilstats._udp</string>
     </array>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>We need access to save game recordings</string>
+
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>We need access to your photo library to upload game videos</string>
 </dict>
 </plist>

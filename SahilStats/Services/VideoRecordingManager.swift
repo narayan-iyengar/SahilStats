@@ -5,6 +5,7 @@ import AVFoundation
 import UIKit
 import Combine
 import SwiftUI
+import Photos
 
 class VideoRecordingManager: NSObject, ObservableObject {
     static let shared = VideoRecordingManager()
@@ -15,6 +16,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
     @Published var authorizationStatus: AVAuthorizationStatus = .notDetermined
     @Published var shouldShowSettingsAlert = false
     @Published var error: Error?
+    private var outputURL: URL?
+    private var lastRecordingURL: URL?
+    
     
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
@@ -250,6 +254,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
                                                    in: .userDomainMask)[0]
         let outputURL = documentsPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).mov")
         
+        // Store the URL
+        self.outputURL = outputURL
+        
         videoOutput.startRecording(to: outputURL, recordingDelegate: self)
         
         await MainActor.run {
@@ -258,6 +265,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
             self.startRecordingTimer()
         }
     }
+    
+    func getLastRecordingURL() -> URL? {
+        return outputURL
+    }
+    
     
     func stopRecording() async {
         guard isRecording else { return }
@@ -347,6 +359,66 @@ class VideoRecordingManager: NSObject, ObservableObject {
         _previewLayer = nil
         stopRecordingTimer()
     }
+    
+    func saveAndQueueForUpload(gameId: String, teamName: String, opponent: String) {
+        guard let lastRecordingURL = lastRecordingURL else {
+            print("❌ No recording to queue")
+            return
+        }
+        
+        // Generate title and description
+        let title = "🏀 \(teamName) vs \(opponent) - \(Date().formatted(date: .abbreviated, time: .shortened))"
+        let description = """
+        Game Recording
+        \(teamName) vs \(opponent)
+        Recorded: \(Date().formatted(date: .complete, time: .shortened))
+        Game ID: \(gameId)
+        
+        Automatically uploaded by SahilStats
+        """
+        
+        // Queue for upload
+        YouTubeUploadManager.shared.queueVideoForUpload(
+            videoURL: lastRecordingURL,
+            title: title,
+            description: description,
+            gameId: gameId
+        )
+        
+        print("✅ Video queued for YouTube upload")
+    }
+    
+    /// Saves the last recorded video to the user's photo library (requires user permission).
+    @MainActor
+    func saveToPhotoLibrary() async {
+        guard let url = getLastRecordingURL() else {
+            print("❌ No video to save to photo library")
+            return
+        }
+        let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        if status == .notDetermined {
+            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            if newStatus != .authorized && newStatus != .limited {
+                print("❌ Photo Library access denied")
+                return
+            }
+        } else if status != .authorized && status != .limited {
+            print("❌ Photo Library access denied")
+            return
+        }
+        await withCheckedContinuation { continuation in
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+            }) { success, error in
+                if success {
+                    print("✅ Video saved to photo library")
+                } else {
+                    print("❌ Failed to save video to photo library: \(error?.localizedDescription ?? "Unknown error")")
+                }
+                continuation.resume()
+            }
+        }
+    }
 }
 
 // MARK: - AVCaptureFileOutputRecordingDelegate
@@ -360,6 +432,9 @@ extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
             }
         } else {
             print("Recording saved to: \(outputFileURL)")
+            // Store the last successful recording
+            self.lastRecordingURL = outputFileURL
         }
     }
 }
+

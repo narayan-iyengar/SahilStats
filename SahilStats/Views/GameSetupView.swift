@@ -101,26 +101,22 @@ struct GameSetupView: View  {
             .sheet(isPresented: $showingBluetoothConnection) {
                 BluetoothConnectionView()
             }
-            //.fullScreenCover(isPresented: $showingConnectionWaitingRoom) {
-            //    ConnectionWaitingRoomView(role: deviceRole) {
-            //        handleWaitingRoomGameStart()
-            //    }
-            //}
             .fullScreenCover(isPresented: $showingConnectionWaitingRoom) {
-                // Ensure you have a valid liveGame object to pass in.
-                // This might come from a state variable or a service.
                 if let liveGame = firebaseService.getCurrentLiveGame() {
-                    ConnectionWaitingRoomView(
+                    SeamlessConnectionFlow(
                         role: deviceRole,
                         onGameStart: { gameId in
-                            // The closure now correctly accepts the gameId
                             handleWaitingRoomGameStart()
                         },
-                        liveGame: liveGame // Pass the liveGame object
+                        liveGame: liveGame
                     )
                 } else {
-                    // Optional: Show an error or a placeholder if the game isn't available
-                    Text("Error: Live game not found.")
+                    // Show loading animation while waiting for game to be created
+                    WaitingForGameView(role: deviceRole) {
+                        // Cancel button action
+                        showingConnectionWaitingRoom = false
+                        setupMode = .selection
+                    }
                 }
             }
             .fullScreenCover(isPresented: $showingPostGameView) {
@@ -551,6 +547,47 @@ struct GameSetupView: View  {
         .padding()
     }
     
+    private func seamlessConnect(role: DeviceRoleManager.DeviceRole) {
+        print("🎯 Seamless connect for role: \(role)")
+        
+        // Set device role immediately
+        Task.detached {
+            try? await DeviceRoleManager.shared.setDeviceRole(role, for: "setup-pending")
+        }
+        
+        // Start background connection
+        if role == .controller {
+            print("🎮 Controller: Starting browsing for auto-connect")
+            multipeer.startBrowsing()
+            // Proceed directly to game form
+            setupMode = .gameForm
+        } else {
+            print("📹 Recorder: Starting advertising for auto-connect")
+            multipeer.startAdvertising(as: "recorder")
+            // Show seamless waiting view
+            showingConnectionWaitingRoom = true
+        }
+        multipeer.onAutoConnectCompleted = {
+            print("✅ Auto-connect completed!")
+            DispatchQueue.main.async {
+                if role == .controller {
+                    print("🎮 Controller: Moving to game form")
+                    self.setupMode = .gameForm
+                }
+            }
+        }
+        
+        // Different behavior based on role
+        if role == .controller {
+            print("🎮 Controller: Proceeding to game form, connection in background")
+            setupMode = .gameForm
+        } else {
+            print("📹 Recorder: Showing connection waiting room")
+            showingConnectionWaitingRoom = true
+        }
+
+    }
+    /*
     // NEW: Seamless connect function (no waiting room!)
     private func seamlessConnect(role: DeviceRoleManager.DeviceRole) {
         print("🎯 Seamless connect for role: \(role)")
@@ -589,6 +626,7 @@ struct GameSetupView: View  {
             showingConnectionWaitingRoom = true
         }
     }
+     */
     
     private func setupAutoConnect() {
         print("🔧 Setting up auto-connect callbacks in recordingRoleSelection")
@@ -1226,6 +1264,266 @@ struct PostGameFullScreenWrapper: View {
     }
 }
 
+
+// Add this to GameSetupView.swift or create a new file
+
+struct WaitingForGameView: View {
+    let role: DeviceRoleManager.DeviceRole
+    let onCancel: () -> Void
+    
+    @StateObject private var firebaseService = FirebaseService.shared
+    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var showConnectionNotification = false
+    @State private var connectionStatus: ConnectionStatusNotification.ConnectionStatus = .searching
+    @State private var hasStartedGame = false
+    @State private var shouldTransitionToGame = false
+    
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+    
+    var body: some View {
+        ZStack {
+            // Gradient background
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.systemGray6)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: isIPad ? 40 : 32) {
+                Spacer()
+                
+                // Lottie animation - waiting for game
+                LottieView(name: "connection-animation")
+                    .frame(width: isIPad ? 250 : 180, height: isIPad ? 250 : 180)
+                
+                VStack(spacing: isIPad ? 20 : 16) {
+                    Text("Waiting for Game")
+                        .font(isIPad ? .system(size: 44, weight: .bold) : .largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    VStack(spacing: 8) {
+                        Text("Connected and ready to record")
+                            .font(isIPad ? .title3 : .body)
+                            .foregroundColor(.secondary)
+                        
+                        Text("The controller will start the game shortly")
+                            .font(isIPad ? .body : .subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, isIPad ? 60 : 40)
+                }
+                
+                // Connection status indicator
+                if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connected to Controller")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            Text(peer.displayName)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.green.opacity(0.1))
+                    )
+                } else {
+                    // Still connecting
+                    HStack(spacing: 12) {
+                        ProgressView()
+                            .tint(.orange)
+                        
+                        Text("Connecting to controller...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.orange.opacity(0.1))
+                    )
+                }
+                
+                Spacer()
+                
+                // Cancel button
+                Button("Cancel") {
+                    onCancel()
+                }
+                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
+                .padding(.horizontal, isIPad ? 80 : 40)
+                
+                Spacer()
+            }
+            .padding()
+            
+            // Connection notification overlay (at top)
+            ConnectionStatusNotification(
+                status: connectionStatus,
+                isShowing: $showConnectionNotification
+            )
+            .padding(.top, 8)
+            .zIndex(1000)
+        }
+        .onAppear {
+            print("🎬 [WaitingForGame] View appeared")
+            setupConnectionNotifications()
+            setupGameCallbacks()
+            
+            // IMPORTANT: Check immediately on appear
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                checkForExistingGame()
+            }
+        }
+        .onChange(of: firebaseService.hasLiveGame) { _, hasGame in
+            print("🎮 [WaitingForGame] Live game status changed: \(hasGame)")
+            if hasGame && !hasStartedGame {
+                print("🎬 Game detected, checking if we should transition...")
+                checkForExistingGame()
+            }
+        }
+        // MOVED: fullScreenCover should transition away from this entire view
+        .fullScreenCover(isPresented: $shouldTransitionToGame) {
+            let _ = print("🎬 [fullScreenCover] Triggered, shouldTransitionToGame = \(shouldTransitionToGame)")
+            
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                let _ = print("🎬 [fullScreenCover] Showing CleanVideoRecordingView for game: \(liveGame.id ?? "no-id")")
+                CleanVideoRecordingView(liveGame: liveGame)
+            } else {
+                let _ = print("❌ [fullScreenCover] No live game found!")
+                NoLiveGameLottieView()
+            }
+        }
+    }
+    
+    private func setupGameCallbacks() {
+        print("🎬 [WaitingForGame] Setting up game callbacks for recorder")
+        
+        multipeer.onGameStarting = { gameId in
+            print("🎬 [WaitingForGame] onGameStarting callback fired for: \(gameId)")
+            print("🎬 hasStartedGame before check: \(self.hasStartedGame)")
+            
+            guard !self.hasStartedGame else {
+                print("⚠️ Already transitioning, ignoring")
+                return
+            }
+            
+            self.hasStartedGame = true
+            print("🎬 Setting hasStartedGame = true")
+            
+            Task {
+                try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                
+                await MainActor.run {
+                    print("🎬 About to set shouldTransitionToGame = true")
+                    print("🎬 Live game exists: \(self.firebaseService.getCurrentLiveGame() != nil)")
+                    self.shouldTransitionToGame = true
+                    print("🎬 shouldTransitionToGame is now: \(self.shouldTransitionToGame)")
+                }
+            }
+        }
+        
+        multipeer.onGameAlreadyStarted = { gameId in
+            print("🎬 [WaitingForGame] onGameAlreadyStarted callback fired for: \(gameId)")
+            print("🎬 hasStartedGame before check: \(self.hasStartedGame)")
+            
+            guard !self.hasStartedGame else {
+                print("⚠️ Already transitioning, ignoring")
+                return
+            }
+            
+            self.hasStartedGame = true
+            print("🎬 Setting hasStartedGame = true")
+            
+            Task {
+                try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                
+                await MainActor.run {
+                    print("🎬 About to set shouldTransitionToGame = true (game already started)")
+                    print("🎬 Live game exists: \(self.firebaseService.getCurrentLiveGame() != nil)")
+                    self.shouldTransitionToGame = true
+                    print("🎬 shouldTransitionToGame is now: \(self.shouldTransitionToGame)")
+                }
+            }
+        }
+    }
+    
+    private func checkForExistingGame() {
+        print("🎬 [WaitingForGame] checkForExistingGame called")
+        print("🎬 hasStartedGame: \(hasStartedGame)")
+        print("🎬 Live game exists: \(firebaseService.getCurrentLiveGame() != nil)")
+        
+        if let liveGame = firebaseService.getCurrentLiveGame(),
+           let gameId = liveGame.id,
+           !hasStartedGame {
+            
+            print("🎬 [WaitingForGame] Found existing live game: \(gameId)")
+            hasStartedGame = true
+            
+            Task {
+                try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
+                
+                await MainActor.run {
+                    print("🎬 Transitioning to recording view (existing game)...")
+                    shouldTransitionToGame = true
+                    print("🎬 shouldTransitionToGame set to: \(shouldTransitionToGame)")
+                }
+            }
+        } else {
+            print("🎬 No transition: hasStartedGame=\(hasStartedGame), gameExists=\(firebaseService.getCurrentLiveGame() != nil)")
+        }
+    }
+    
+    private func setupConnectionNotifications() {
+        connectionStatus = .searching
+        showConnectionNotification = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if case .searching = connectionStatus {
+                withAnimation {
+                    showConnectionNotification = false
+                }
+            }
+        }
+        
+        multipeer.onConnectionEstablished = {
+            if let peer = multipeer.connectedPeers.first {
+                print("✅ Connected to \(peer.displayName)")
+                
+                connectionStatus = .connected(
+                    deviceName: peer.displayName,
+                    role: .controller
+                )
+                showConnectionNotification = true
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    withAnimation {
+                        showConnectionNotification = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 struct PostGameNavigationBar: View {
     let onDismiss: () -> Void
     let isIPad: Bool
@@ -1297,13 +1595,7 @@ struct LiveGameFullScreenWrapper: View {
                     CleanVideoRecordingView(liveGame: liveGame)
                 } else {
                     // Fallback if no live game found
-                    VStack {
-                        Text("No live game found")
-                            .foregroundColor(.secondary)
-                        Button("Go Back") {
-                            onDismiss()
-                        }
-                    }
+                    NoLiveGameLottieView()
                 }
             } else {
                 // Controller and viewer see the stats/scoring view

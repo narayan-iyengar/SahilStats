@@ -55,24 +55,6 @@ struct ConnectionWaitingRoomView: View {
     }
     
     var body: some View {
-        /*
-        // CRITICAL FIX: If game already exists and we're the recorder, join immediately
-        if role == .recorder,
-           let liveGame = firebaseService.getCurrentLiveGame(),
-           let gameId = liveGame.id,
-           multipeer.isConnected {
-            Color.clear
-                .onAppear {
-                    print("🎬 Live game already exists! Joining immediately as recorder")
-                    Task {
-                        try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                        await MainActor.run {
-                            self.onGameStart(gameId)
-                        }
-                    }
-                }
-        } else {
-         */
             NavigationView {
                 ZStack {
                     VStack(spacing: 32) {
