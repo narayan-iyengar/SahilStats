@@ -67,6 +67,22 @@ struct CompleteGameDetailView: View {
                         achievementsSection
                     }
                     
+                    if let videoId = game.youtubeVideoId {
+                        Section("Game Video") {
+                            Link(destination: URL(string: "https://www.youtube.com/watch?v=\(videoId)")!) {
+                                HStack {
+                                    Image(systemName: "play.rectangle.fill")
+                                        .foregroundColor(.red)
+                                    Text("Watch on YouTube")
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    
                     Spacer(minLength: 50)
                 }
                 .padding(isIPad ? 24 : 16)

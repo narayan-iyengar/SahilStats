@@ -45,6 +45,9 @@ struct Game: Identifiable, Codable, Equatable {
 
     var achievements: [Achievement]
     
+    var youtubeVideoId: String?
+    var videoUploadedAt: Date?
+    
     var totalPlayingTimeMinutes: Double = 0.0 // Total minutes on court
     var benchTimeMinutes: Double = 0.0 // Total minutes on bench
     var gameTimeTracking: [GameTimeSegment] = [] // Detailed time tracking
@@ -77,8 +80,7 @@ struct Game: Identifiable, Codable, Equatable {
     
     var videoURL: String?
     var youtubeURL: String?
-    var youtubeVideoId: String?
-    var videoUploadedAt: Date?
+
     
     
     
@@ -761,6 +763,11 @@ struct LiveGame: Identifiable, Codable, Equatable {
     // Current scores
     var homeScore: Int
     var awayScore: Int
+    
+    var isActive: Bool = true  // Add this
+    var endedAt: Date?         // Add this too
+    
+    
     
     // Player stats
     var playerStats: PlayerStats

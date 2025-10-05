@@ -17,7 +17,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
     @Published var shouldShowSettingsAlert = false
     @Published var error: Error?
     private var outputURL: URL?
-    private var lastRecordingURL: URL?
+    //private var lastRecordingURL: URL?
+    
+    var onCameraReady: (() -> Void)?
+    
+    
     
     
     private var captureSession: AVCaptureSession?
@@ -42,7 +46,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
     
     // MARK: - Camera Session Management
-    
+
     func startCameraSession() {
         guard !isRecording else { return }
 
@@ -59,8 +63,8 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.captureSession?.startRunning()
-            // Wait a bit longer for the session to fully initialize
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Reduced delay - just enough for initial frame
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self?.updatePreviewOrientation()
             }
         }
@@ -78,9 +82,29 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
     
     func updatePreviewOrientation() {
-        // Add a small delay and retry mechanism to ensure connection is available
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.performOrientationUpdate()
+        guard let connection = previewLayer?.connection else {
+            print("Preview layer connection not available")
+            return
+        }
+
+        let orientation = UIDevice.current.orientation
+        let rotationAngle: CGFloat
+
+        switch orientation {
+        case .portrait:
+            rotationAngle = 90
+        case .portraitUpsideDown:
+            rotationAngle = 270
+        case .landscapeLeft:
+            rotationAngle = 0
+        case .landscapeRight:
+            rotationAngle = 180
+        default:
+            return
+        }
+
+        if connection.isVideoRotationAngleSupported(rotationAngle) {
+            connection.videoRotationAngle = rotationAngle
         }
     }
     
@@ -198,8 +222,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             
             DispatchQueue.global(qos: .userInitiated).async {
                 session.startRunning()
-                // Update orientation after session starts running
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                // Remove this delay - it's redundant with startCameraSession
+                // Just update orientation once
+                DispatchQueue.main.async {
                     self.updatePreviewOrientation()
                 }
             }
@@ -361,7 +386,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
     
     func saveAndQueueForUpload(gameId: String, teamName: String, opponent: String) {
-        guard let lastRecordingURL = lastRecordingURL else {
+        guard let outputURL = outputURL else {
             print("❌ No recording to queue")
             return
         }
@@ -379,7 +404,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
         
         // Queue for upload
         YouTubeUploadManager.shared.queueVideoForUpload(
-            videoURL: lastRecordingURL,
+            videoURL: outputURL,
             title: title,
             description: description,
             gameId: gameId
@@ -433,7 +458,7 @@ extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
         } else {
             print("Recording saved to: \(outputFileURL)")
             // Store the last successful recording
-            self.lastRecordingURL = outputFileURL
+            self.outputURL = outputFileURL
         }
     }
 }

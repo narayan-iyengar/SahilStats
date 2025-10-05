@@ -6,6 +6,7 @@ import FirebaseAuth
 import Combine
 import Network
 
+
 class FirebaseService: ObservableObject {
     static let shared = FirebaseService()
     
@@ -393,6 +394,11 @@ class FirebaseService: ObservableObject {
         for document in snapshot.documents {
             try await document.reference.delete()
         }
+        
+        // Clear device roles after deleting all live games
+        await DeviceRoleManager.shared.clearDeviceRole()
+        
+        print("All live games deleted and device roles cleared")
     }
     
     // MARK: - Real-time Listeners
@@ -507,6 +513,32 @@ class FirebaseService: ObservableObject {
     }
     
     // MARK: - Statistics Helpers
+    
+    func endGame(gameId: String) async throws {
+        // Mark as inactive in live games
+        try await db.collection("liveGames").document(gameId).updateData([
+            "isActive": false,
+            "endedAt": Timestamp()
+        ])
+        
+        // Get the live game data
+        let liveGameDoc = try await db.collection("liveGames").document(gameId).getDocument()
+        guard var liveGameData = liveGameDoc.data() else {
+            throw NSError(domain: "FirebaseService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Live game not found"])
+        }
+        
+        // Update the data
+        liveGameData["isActive"] = false
+        liveGameData["endedAt"] = Timestamp()
+        
+        // Save to completed games collection
+        try await db.collection("games").document(gameId).setData(liveGameData)
+        
+        // Delete from live games
+        try await db.collection("liveGames").document(gameId).delete()
+        
+        print("✅ Game ended: \(gameId)")
+    }
     
     func getCareerStats() -> CareerStats {
         let totalGames = games.count
@@ -706,6 +738,11 @@ class FirestoreRetryManager {
                                   userInfo: [NSLocalizedDescriptionKey: "All retry attempts failed"])
     }
 }
+
+
+
+
+
 
 
 // MARK: - Career Stats Model

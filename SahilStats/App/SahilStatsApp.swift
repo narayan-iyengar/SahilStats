@@ -40,8 +40,30 @@ struct SahilStatsApp: App {
                     AppDelegate.orientationLock = .portrait
                     // Initialize FirebaseYouTubeAuthManager after Firestore is configured
                     _ = FirebaseYouTubeAuthManager.shared
+                    startAutoDiscovery()
                 }
         }
+    }
+}
+
+private func startAutoDiscovery() {
+    let roleManager = DeviceRoleManager.shared
+    let multipeer = MultipeerConnectivityManager.shared
+    
+    print("📱 Checking device role for auto-discovery...")
+    print("📱 Current role: \(roleManager.deviceRole.displayName)")
+    
+    switch roleManager.deviceRole {
+    case .controller:
+        print("🎮 Starting browsing for recorders...")
+        multipeer.startBrowsing()
+    case .recorder:
+        print("📹 Starting advertising as recorder...")
+        multipeer.startAdvertising(as: "recorder")
+        multipeer.startBrowsing()
+    case .none, .viewer:
+        print("ℹ️ No active role - not starting discovery")
+        break
     }
 }
 

@@ -37,26 +37,45 @@ extension AuthService {
         }
         
         // Sign in with YouTube scope included
-        let result = try await GIDSignIn.sharedInstance.signIn(
-            withPresenting: rootViewController,
-            hint: nil,
-            additionalScopes: ["https://www.googleapis.com/auth/youtube.upload"]
-        )
-        
-        guard let idToken = result.user.idToken?.tokenString else {
-            throw AuthError.invalidCredentials
-        }
-        
-        let credential = GoogleAuthProvider.credential(
-            withIDToken: idToken,
-            accessToken: result.user.accessToken.tokenString
-        )
-        
-        _ = try await Auth.auth().signIn(with: credential)
-        
-        // Update YouTube authorization status
-        await MainActor.run {
-            FirebaseYouTubeAuthManager.shared.checkYouTubeAuthorization()
+        do {
+            let result = try await GIDSignIn.sharedInstance.signIn(
+                withPresenting: rootViewController,
+                hint: nil,
+                additionalScopes: [
+                    "https://www.googleapis.com/auth/youtube.upload",
+                    "https://www.googleapis.com/auth/youtube.readonly"
+                ]
+            )
+            
+            guard let idToken = result.user.idToken?.tokenString else {
+                throw AuthError.invalidCredentials
+            }
+            
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: result.user.accessToken.tokenString
+            )
+            
+            _ = try await Auth.auth().signIn(with: credential)
+            
+            // Store YouTube tokens immediately
+            let accessToken = result.user.accessToken.tokenString
+            let refreshToken = result.user.refreshToken.tokenString
+            let channelName = result.user.profile?.name
+            
+            try await FirebaseYouTubeAuthManager.shared.storeYouTubeTokens(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                channelName: channelName
+            )
+            
+            // Update YouTube authorization status
+            await MainActor.run {
+                FirebaseYouTubeAuthManager.shared.checkYouTubeAuthorization()
+            }
+        } catch {
+            print("Google Sign-In error: \(error)")
+            throw error
         }
     }
 }
@@ -203,16 +222,23 @@ struct YouTubeSettingsSection: View {
     private func authorizeYouTube() {
         Task {
             do {
-                if !authService.isSignedIn {
-                    // Need to sign in first with YouTube scope
+                print("🔍 Starting YouTube authorization")
+                print("🔍 GIDSignIn currentUser: \(GIDSignIn.sharedInstance.currentUser?.profile?.email ?? "nil")")
+                
+                // Always use the full Google Sign-In flow to get YouTube scopes
+                // Even if Firebase Auth shows signed in, we need GIDSignIn currentUser
+                if GIDSignIn.sharedInstance.currentUser == nil {
+                    print("📝 Need to sign in with Google for YouTube")
                     try await authService.signInWithGoogleForYouTube()
                 } else {
-                    // Just request additional YouTube scope
+                    print("✅ GIDSignIn user exists, requesting YouTube scope")
                     try await youtubeAuth.requestYouTubeAccess()
                 }
                 print("✅ YouTube authorized successfully")
             } catch {
-                showingError = true
+                await MainActor.run {
+                    showingError = true
+                }
                 print("❌ YouTube authorization failed: \(error.localizedDescription)")
             }
         }
