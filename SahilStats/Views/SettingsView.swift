@@ -14,15 +14,7 @@ import MultipeerConnectivity
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var firebaseService = FirebaseService.shared
-    @StateObject private var settingsManager = SettingsManager.shared
-    @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
     @State private var showingAuth = false
-    @State private var newTeamName = ""
-    @State private var showingDeleteAlert = false
-    @State private var teamToDelete: Team?
-    @State private var showingDeleteLiveGamesAlert = false
-    @State private var showingDeviceManager = false
     
     var body: some View {
         List {
@@ -36,21 +28,9 @@ struct SettingsView: View {
                 }
                 
                 if authService.isSignedIn && !authService.currentUser!.isAnonymous {
-                    if let email = authService.currentUser?.email {
-                        HStack {
-                            Text("Email")
-                            Spacer()
-                            Text(email)
-                                .foregroundColor(.secondary)
-                        }
+                    NavigationLink("Account Details") {
+                        AccountDetailsView()
                     }
-                    
-                    Button("Sign Out") {
-                        Task {
-                            try? await authService.signOut()
-                        }
-                    }
-                    .foregroundColor(.red)
                 } else {
                     Button("Sign In") {
                         showingAuth = true
@@ -59,99 +39,42 @@ struct SettingsView: View {
                 }
             }
             
-            //DevicePairingSection()
-            
-            // Teams Section (Admin only)
+            // Admin Features
             if authService.showAdminFeatures {
-                Section("Teams") {
-                    // Add new team
-                    HStack {
-                        TextField("Add new team", text: $newTeamName)
-                            .textFieldStyle(.roundedBorder)
-                        
-                        Button("Add") {
-                            addTeam()
-                        }
-                        .disabled(newTeamName.isEmpty)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                Section("Game Management") {
+                    NavigationLink("Teams") {
+                        TeamsSettingsView()
                     }
                     
-                    // List existing teams
-                    ForEach(firebaseService.teams) { team in
-                        HStack {
-                            Text(team.name)
-                            Spacer()
-                            Button(action: {
-                                teamToDelete = team
-                                showingDeleteAlert = true
-                            }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
-                            }
-                        }
+                    NavigationLink("Game Format") {
+                        GameFormatSettingsView()
                     }
-                }
-            }
-            
-            // Game Format Section (Admin only)
-            if authService.showAdminFeatures {
-                Section("Game Format") {
-                    // Format selection
-                    Picker("Format", selection: $settingsManager.gameFormat) {
-                        Text("Halves").tag(GameFormat.halves)
-                        Text("Quarters").tag(GameFormat.quarters)
-                    }
-                    .pickerStyle(.segmented)
                     
-                    // Quarter/Half length
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Length (minutes per \(settingsManager.gameFormat.quarterName.lowercased()))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        HStack {
-                            TextField("Minutes", value: $settingsManager.quarterLength, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .keyboardType(.numberPad)
-                            Text("minutes")
-                                .foregroundColor(.secondary)
-                        }
+                    NavigationLink("Live Games") {
+                        LiveGamesSettingsView()
                     }
                 }
                 
-                // Live Games Management
-                Section("Live Games") {
-                    if firebaseService.hasLiveGame {
-                        Text("There is currently a live game in progress")
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("No live games currently running")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Button("Delete All Live Games") {
-                        showingDeleteLiveGamesAlert = true
-                    }
-                    .foregroundColor(.red)
-                }
-                
-                // Media & Recording Section
                 Section("Media & Recording") {
-                    MediaAccessStatus()
-                    
-                    YouTubeSettingsSection()
-
-                    Button("Clear Recording Cache") {
-                        // Clear temporary video files
-                        clearRecordingCache()
+                    NavigationLink("Camera") {
+                        CameraSettingsView()
                     }
-
-                    .foregroundColor(.orange)
+                    
+                    NavigationLink("YouTube") {
+                        YouTubeSettingsView()
+                    }
+                    
+                    NavigationLink("Storage") {
+                        StorageSettingsView()
+                    }
                 }
-                Section("Manage Devices & Pairing") {
-                    DevicePairingSection()
-                    NavigationLink("Manage Trusted Devices") {
+                
+                Section("Devices & Connectivity") {
+                    NavigationLink("Device Pairing") {
+                        DevicePairingMainView()
+                    }
+                    
+                    NavigationLink("Trusted Devices") {
                         TrustedDevicesSettingsView()
                     }
                     
@@ -159,33 +82,12 @@ struct SettingsView: View {
                         .disabled(!trustedDevicesManager.hasTrustedDevices)
                         .toggleStyle(SwitchToggleStyle(tint: .orange))
                 }
-                
-                
-                
             }
             
-            // App Info Section
-            Section("App Info") {
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text("2.0.0")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Build")
-                    Spacer()
-                    Text("2025.1")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Player")
-                    Spacer()
-                    Text("Sahil")
-                        .foregroundColor(.orange)
-                        .fontWeight(.medium)
+            // App Info
+            Section {
+                NavigationLink("About") {
+                    AppInfoView()
                 }
             }
         }
@@ -194,86 +96,10 @@ struct SettingsView: View {
         .sheet(isPresented: $showingAuth) {
             AuthView()
         }
-        .sheet(isPresented: $showingDeviceManager) {
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                DeviceManagerView(liveGame: liveGame)
-            }
-        }
-        .alert("Delete Team", isPresented: $showingDeleteAlert) {
-            Button("Cancel", role: .cancel) {
-                teamToDelete = nil
-            }
-            Button("Delete", role: .destructive) {
-                if let team = teamToDelete {
-                    deleteTeam(team)
-                }
-                teamToDelete = nil
-            }
-        } message: {
-            if let team = teamToDelete {
-                Text("Are you sure you want to delete \(team.name)? This action cannot be undone.")
-            }
-        }
-        .alert("Delete Live Games", isPresented: $showingDeleteLiveGamesAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete All", role: .destructive) {
-                deleteAllLiveGames()
-            }
-        } message: {
-            Text("Are you sure you want to delete all live games? This action cannot be undone.")
-        }
-        .onAppear {
-            firebaseService.startListening()
-        }
     }
     
-    // MARK: - Helper Methods
-    
-    private func clearRecordingCache() {
-        // Implementation to clear video cache
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let videoFiles = try? FileManager.default.contentsOfDirectory(at: documentsPath, includingPropertiesForKeys: nil)
-        
-        videoFiles?.forEach { url in
-            if url.pathExtension == "mov" {
-                try? FileManager.default.removeItem(at: url)
-            }
-        }
-    }
-    
-    private func addTeam() {
-        guard !newTeamName.isEmpty else { return }
-        
-        let team = Team(name: newTeamName)
-        Task {
-            do {
-                try await firebaseService.addTeam(team)
-                newTeamName = ""
-            } catch {
-                print("Failed to add team: \(error)")
-            }
-        }
-    }
-    
-    private func deleteTeam(_ team: Team) {
-        Task {
-            do {
-                try await firebaseService.deleteTeam(team.id ?? "")
-            } catch {
-                print("Failed to delete team: \(error)")
-            }
-        }
-    }
-    
-    private func deleteAllLiveGames() {
-        Task {
-            do {
-                try await firebaseService.deleteAllLiveGames()
-            } catch {
-                print("Failed to delete live games: \(error)")
-            }
-        }
-    }
+    @StateObject private var settingsManager = SettingsManager.shared
+    @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
 }
 
 // MARK: - Settings Manager for Persistent Settings
@@ -344,59 +170,62 @@ extension Team {
     }
 }
 
-struct DevicePairingSection: View {
+struct DevicePairingMainView: View {
     @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
-    @State private var showingPairingSheet = false
     @State private var isPairing = false
     
     var body: some View {
-        Section("Trusted Devices") {
-            // List of trusted devices
-            if trustedDevicesManager.trustedDevices.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("No Trusted Devices")
-                        .foregroundColor(.secondary)
-                    Text("Pair devices to enable instant auto-connect for recording")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } else {
-                ForEach(trustedDevicesManager.trustedDevices) { device in
-                    HStack {
-                        Image(systemName: device.role == .controller ? "gamecontroller.fill" : "video.fill")
-                            .foregroundColor(device.role == .controller ? .blue : .red)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(device.displayName)
-                                .font(.body)
-                            Text(device.role.displayName)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        // Currently connected indicator
-                        if multipeer.connectedPeers.contains(where: { $0.displayName == device.displayName }) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+        List {
+            Section {
+                if trustedDevicesManager.trustedDevices.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No Trusted Devices")
+                            .foregroundColor(.secondary)
+                        Text("Pair devices to enable instant auto-connect for recording")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(trustedDevicesManager.trustedDevices) { device in
+                        HStack {
+                            Image(systemName: device.role == .controller ? "gamecontroller.fill" : "video.fill")
+                                .foregroundColor(device.role == .controller ? .blue : .red)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.displayName)
+                                    .font(.body)
+                                Text(device.role.displayName)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            if multipeer.connectedPeers.contains(where: { $0.displayName == device.displayName }) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
                         }
                     }
                 }
+            } header: {
+                Text("Paired Devices")
             }
             
-            // Pair new device button - FIXED: Use NavigationLink instead of sheet
-                       NavigationLink(destination: DevicePairingView(isPairing: $isPairing)) {
-                           HStack {
-                               Image(systemName: "plus.circle.fill")
-                               Text("Pair New Device")
-                           }
-                           .foregroundColor(.orange)
-                       }
-                   }
-               }
-           }
+            Section {
+                NavigationLink(destination: DevicePairingView(isPairing: $isPairing)) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Pair New Device")
+                    }
+                    .foregroundColor(.orange)
+                }
+            }
+        }
+        .navigationTitle("Device Pairing")
+    }
+}
 
 
 struct DevicePairingView: View {

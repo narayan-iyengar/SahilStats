@@ -47,13 +47,11 @@ class FirebaseYouTubeAuthManager: ObservableObject {
     // MARK: - Request YouTube Access
     
     func requestYouTubeAccess() async throws {
-        // Get the root view controller
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
             throw YouTubeAuthError.noViewController
         }
         
-        // Request additional YouTube scopes
         let scopes = [
             "https://www.googleapis.com/auth/youtube.upload",
             "https://www.googleapis.com/auth/youtube.readonly"
@@ -63,28 +61,42 @@ class FirebaseYouTubeAuthManager: ObservableObject {
             throw YouTubeAuthError.notSignedIn
         }
         
-        let result: GIDSignInResult = try await withCheckedThrowingContinuation { continuation in
-            currentUser.addScopes(scopes, presenting: rootViewController) { signInResult, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let signInResult = signInResult {
-                    continuation.resume(returning: signInResult)
-                } else {
-                    continuation.resume(throwing: YouTubeAuthError.noAccessToken)
-                }
-            }
+        // Check if user already has the required scopes
+        let grantedScopes = currentUser.grantedScopes ?? []
+        let hasAllScopes = scopes.allSatisfy { grantedScopes.contains($0) }
+        
+        if hasAllScopes {
+            print("User already has YouTube scopes")
+            // Just store the existing tokens
+            let accessToken = currentUser.accessToken.tokenString
+            let refreshToken = currentUser.refreshToken.tokenString  // Remove the ?
+            let channelName = currentUser.profile?.name
+            
+            try await storeYouTubeTokens(
+                accessToken: accessToken,
+                refreshToken: refreshToken,  // This is now a String, not String?
+                channelName: channelName
+            )
+            return
         }
-
-        // Get tokens from the result
+        
+        // Need to request additional scopes - use a fresh sign-in with scopes
+        print("Requesting additional YouTube scopes via fresh sign-in")
+        
+        let result = try await GIDSignIn.sharedInstance.signIn(
+            withPresenting: rootViewController,
+            hint: currentUser.profile?.email,
+            additionalScopes: scopes
+        )
+        
+        // Store tokens
         let accessToken = result.user.accessToken.tokenString
-
-        let refreshToken = result.user.refreshToken.tokenString
+        let refreshToken = result.user.refreshToken.tokenString  // Remove the ?
         let channelName = result.user.profile?.name
         
-        // Store in Firebase
         try await storeYouTubeTokens(
             accessToken: accessToken,
-            refreshToken: refreshToken,
+            refreshToken: refreshToken,  // This is now a String, not String?
             channelName: channelName
         )
     }
@@ -93,7 +105,7 @@ class FirebaseYouTubeAuthManager: ObservableObject {
     
     func storeYouTubeTokens(
         accessToken: String,
-        refreshToken: String?,
+        refreshToken: String,  // Changed from String?
         channelName: String?
     ) async throws {
         guard let userId = Auth.auth().currentUser?.uid else {
@@ -103,12 +115,9 @@ class FirebaseYouTubeAuthManager: ObservableObject {
         var data: [String: Any] = [
             "hasYouTubeAuth": true,
             "youtubeAccessToken": accessToken,
+            "youtubeRefreshToken": refreshToken,  // No longer optional
             "youtubeAuthTimestamp": Timestamp()
         ]
-        
-        if let refreshToken = refreshToken {
-            data["youtubeRefreshToken"] = refreshToken
-        }
         
         if let channelName = channelName {
             data["youtubeChannelName"] = channelName

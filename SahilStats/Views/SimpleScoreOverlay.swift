@@ -12,8 +12,10 @@ struct SimpleScoreOverlay: View {
     let overlayData: SimpleScoreOverlayData
     let orientation: UIDeviceOrientation
     let recordingDuration: String
+    let isRecording: Bool
     
     @State private var rotationAnimation = false
+    @State private var borderPulse = false
     
     private var isLandscape: Bool {
         orientation == .landscapeLeft || orientation == .landscapeRight
@@ -78,7 +80,7 @@ struct SimpleScoreOverlay: View {
     }
     
     // MARK: - Glassmorphic Landscape Overlay
-    
+   /*
     private var landscapeOverlay: some View {
         HStack {
             Spacer()
@@ -189,6 +191,119 @@ struct SimpleScoreOverlay: View {
         //.padding(.top, 100) // Move it much closer to bottom
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
+    */
+    //MARK: New landscapeOverlay - more compact
+    private var landscapeOverlay: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Position based on specific landscape orientation
+                if orientation == .landscapeRight {
+                    // Camera on left (dynamic island side), overlay bottom center
+                    VStack {
+                        Spacer()
+                        scoreboardContent
+                            .padding(.bottom, 40)
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                } else if orientation == .landscapeLeft {
+                    // Camera on right, overlay bottom center
+                    VStack {
+                        Spacer()
+                        scoreboardContent
+                            .padding(.bottom, 40)
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var scoreboardContent: some View {
+        HStack(spacing: 12) {
+            // Away team
+            VStack(spacing: 2) {
+                Text(formatTeamName(overlayData.homeTeam, maxLength: 4))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Text("\(overlayData.homeScore)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+            }
+            .frame(width: 50)
+            
+            Rectangle()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 1, height: 30)
+            
+            // Clock & period
+            VStack(spacing: 2) {
+                Text(formatShortPeriod())
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.orange.opacity(0.95))
+                Text(overlayData.clockTime)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+            }
+            .frame(width: 70)
+            
+            Rectangle()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 1, height: 30)
+            
+            // Home team
+            VStack(spacing: 2) {
+                Text(formatTeamName(overlayData.awayTeam, maxLength: 4))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Text("\(overlayData.awayScore)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+            }
+            .frame(width: 50)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+                
+                RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(
+                                    isRecording ? Color.red : Color.white.opacity(0.2),
+                                    lineWidth: isRecording ? 3 : 1
+                                )
+                                .opacity(isRecording ? (borderPulse ? 1.0 : 0.4) : 1.0)
+                        }
+                    )
+                    .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 2)
+                    .onAppear {
+                        if isRecording {
+                            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                                borderPulse = true
+                            }
+                        }
+                    }
+                    .onChange(of: isRecording) { _, newValue in
+                        if newValue {
+                            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                                borderPulse = true
+                            }
+                        } else {
+                            borderPulse = false
+                        }
+                    }
+                }
+    
     
     // MARK: - Glass Section Helper
     

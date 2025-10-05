@@ -3,55 +3,86 @@
 import SwiftUI
 import AVFoundation
 
+/*
+ struct SimpleCameraPreviewView: UIViewRepresentable {
+ @StateObject private var recordingManager = VideoRecordingManager.shared
+ @Binding var isCameraReady: Bool
+ 
+ 
+ func makeUIView(context: Context) -> UIView {
+ let view = UIView()
+ view.backgroundColor = .black
+ 
+ // Request camera permission first
+ Task {
+ await recordingManager.requestCameraAccess()
+ 
+ // Set up the preview layer after permissions are granted
+ DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+ if let previewLayer = recordingManager.setupCamera() {
+ previewLayer.frame = view.bounds
+ previewLayer.videoGravity = .resizeAspectFill
+ view.layer.addSublayer(previewLayer)
+ 
+ // Camera is ready - wait a bit more for everything to initialize
+ DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+ isCameraReady = true
+ }
+ } else {
+ // If camera setup fails, show a placeholder
+ let label = UILabel()
+ label.text = "Camera not available"
+ label.textColor = .white
+ label.textAlignment = .center
+ label.frame = view.bounds
+ label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+ view.addSubview(label)
+ 
+ // Still mark as "ready" so UI shows
+ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+ isCameraReady = true
+ }
+ }
+ }
+ }
+ 
+ return view
+ }
+ 
+ 
+ func updateUIView(_ uiView: UIView, context: Context) {
+ // Update preview layer frame when view size changes
+ if let previewLayer = recordingManager.previewLayer {
+ DispatchQueue.main.async {
+ previewLayer.frame = uiView.bounds
+ }
+ }
+ }
+ 
+ }
+ */
 struct SimpleCameraPreviewView: UIViewRepresentable {
-    @StateObject private var recordingManager = VideoRecordingManager.shared
     @Binding var isCameraReady: Bool
     
     func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+        let view = UIView(frame: .zero)
         view.backgroundColor = .black
-        
-        // Request camera permission first
-        Task {
-            await recordingManager.requestCameraAccess()
-            
-            // Set up the preview layer after permissions are granted
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                if let previewLayer = recordingManager.setupCamera() {
-                    previewLayer.frame = view.bounds
-                    previewLayer.videoGravity = .resizeAspectFill
-                    view.layer.addSublayer(previewLayer)
-                    
-                    // Camera is ready - wait a bit more for everything to initialize
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isCameraReady = true
-                    }
-                } else {
-                    // If camera setup fails, show a placeholder
-                    let label = UILabel()
-                    label.text = "Camera not available"
-                    label.textColor = .white
-                    label.textAlignment = .center
-                    label.frame = view.bounds
-                    label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                    view.addSubview(label)
-                    
-                    // Still mark as "ready" so UI shows
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        isCameraReady = true
-                    }
-                }
-            }
-        }
-        
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Update preview layer frame when view size changes
-        if let previewLayer = recordingManager.previewLayer {
-            DispatchQueue.main.async {
-                previewLayer.frame = uiView.bounds
+        // Remove any existing preview layers
+        uiView.layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+        
+        if let previewLayer = VideoRecordingManager.shared.previewLayer {
+            previewLayer.frame = uiView.bounds
+            previewLayer.videoGravity = .resizeAspectFill
+            uiView.layer.addSublayer(previewLayer)
+            
+            if !isCameraReady {
+                DispatchQueue.main.async {
+                    isCameraReady = true
+                }
             }
         }
     }
