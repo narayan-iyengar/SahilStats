@@ -390,12 +390,17 @@ class FirebaseService: ObservableObject {
     }
     
     func deleteAllLiveGames() async throws {
+        print("Attempting to delete all live games...")
         let snapshot = try await db.collection("liveGames").getDocuments()
+        print("Found \(snapshot.documents.count) live games to delete")
+        
         for document in snapshot.documents {
+            print("Deleting live game: \(document.documentID)")
             try await document.reference.delete()
+            print("Deleted: \(document.documentID)")
         }
         
-        // Clear device roles after deleting all live games
+        // Clear device roles
         await DeviceRoleManager.shared.clearDeviceRole()
         
         print("All live games deleted and device roles cleared")
