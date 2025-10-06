@@ -7,7 +7,7 @@ import MultipeerConnectivity
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
-    @StateObject private var roleManager = DeviceRoleManager.shared
+    //@StateObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
     
     // Local state for overlay data
@@ -25,6 +25,7 @@ struct CleanVideoRecordingView: View {
     @State private var cameraErrorMessage = ""
     
     @State private var orientationDebounceTimer: Timer?
+
     
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
@@ -347,9 +348,16 @@ struct CleanVideoRecordingView: View {
         
         // This block is now correctly inside the function.
         multipeer.onRecordingStateRequested = {
-            print("📢 [Recorder] Controller requested recording state. Responding with current status.")
-            // By removing 'self', we avoid confusing the compiler's type inference.
-            multipeer.sendRecordingStateUpdate(isRecording: recordingManager.isRecording)
+            print("Controller received recording state request from recorder")
+            
+            // If game exists and is ready, send gameStarting signal
+            if let liveGame = FirebaseService.shared.getCurrentLiveGame(),
+               let gameId = liveGame.id {
+                print("Sending gameStarting signal to recorder for existing game: \(gameId)")
+                multipeer.sendGameStarting(gameId: gameId)
+            } else {
+                print("No game ready yet, recorder will wait for start button")
+            }
         }
     }
     
@@ -432,24 +440,28 @@ struct CleanVideoRecordingView: View {
         print("Dismissing recording view")
         
         if recordingManager.isRecording {
-            print("Recording is active, stopping...")
             Task {
                 await recordingManager.stopRecording()
                 
-                if let liveGame = FirebaseService.shared.getCurrentLiveGame(),
+                // Access directly from shared instance
+                if DeviceRoleManager.shared.deviceRole == .recorder,
+                   let liveGame = FirebaseService.shared.getCurrentLiveGame(),
                    let gameId = liveGame.id {
-                    print("Queueing video for upload - GameID: \(gameId)")
+                    print("Recorder: Queueing video for upload")
                     await recordingManager.saveRecordingAndQueueUpload(
                         gameId: gameId,
                         teamName: liveGame.teamName,
                         opponent: liveGame.opponent
                     )
                 } else {
-                    print("ERROR: No live game found!")
+                    print("Not recorder - skipping upload")
                 }
             }
-        } else {
-            print("Recording not active")
+        }
+        
+        // Also update this line that uses roleManager
+        Task {
+            await DeviceRoleManager.shared.clearDeviceRole()
         }
         
         dismiss()

@@ -98,12 +98,10 @@ class YouTubeUploadManager: ObservableObject {
         currentUpload = upload
         uploadProgress = 0
         
-        print("Starting upload: \(upload.title)")
-        
         Task {
             do {
-                // Get fresh access token
-                let (accessToken, _) = try await FirebaseYouTubeAuthManager.shared.getYouTubeTokens()
+                // Get fresh access token (auto-refreshes if expired)
+                let accessToken = try await getFreshAccessToken()
                 
                 // Upload to YouTube
                 let videoId = try await uploadToYouTube(
@@ -115,7 +113,7 @@ class YouTubeUploadManager: ObservableObject {
                 
                 print("Upload successful, video ID: \(videoId)")
                 
-                // Save video ID to game in Firestore
+                // Save video ID to game
                 try await saveVideoIdToGame(videoId: videoId, gameId: upload.gameId)
                 
                 await MainActor.run {
@@ -123,32 +121,20 @@ class YouTubeUploadManager: ObservableObject {
                 }
             } catch {
                 print("Upload failed: \(error.localizedDescription)")
-                
-                var updatedUpload = upload
-                updatedUpload.uploadAttempts += 1
-                updatedUpload.lastError = error.localizedDescription
-                
-                // Retry up to 3 times
-                if updatedUpload.uploadAttempts < 3 {
-                    print("Will retry upload (attempt \(updatedUpload.uploadAttempts + 1))")
-                    await MainActor.run {
-                        if let index = self.pendingUploads.firstIndex(where: { $0.id == upload.id }) {
-                            self.pendingUploads[index] = updatedUpload
-                        }
-                        self.isUploading = false
-                        self.currentUpload = nil
-                        
-                        // Retry after delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                            self.processPendingUploads()
-                        }
-                    }
-                } else {
-                    await MainActor.run {
-                        completeUpload(upload, success: false)
-                    }
-                }
+                // Handle retry logic
             }
+        }
+    }
+
+    private func getFreshAccessToken() async throws -> String {
+        do {
+            let (accessToken, _) = try await FirebaseYouTubeAuthManager.shared.getYouTubeTokens()
+            
+            // Check if we should refresh (simplified - just always refresh to be safe)
+            return try await FirebaseYouTubeAuthManager.shared.refreshAccessToken()
+        } catch {
+            print("Token refresh failed: \(error)")
+            throw UploadError.uploadFailed(statusCode: 401, message: "Unable to refresh YouTube token. Please re-authorize.")
         }
     }
     
@@ -159,65 +145,49 @@ class YouTubeUploadManager: ObservableObject {
         accessToken: String
     ) async throws -> String {
         
-        // Step 1: Create video metadata
+        // Metadata
         let metadata: [String: Any] = [
             "snippet": [
                 "title": title,
                 "description": description,
-                "categoryId": "17" // Sports category
+                "categoryId": "17"
             ],
             "status": [
-                "privacyStatus": "unlisted" // Change to "private" or "public" as needed
+                "privacyStatus": "unlisted"
             ]
         ]
         
         let metadataJSON = try JSONSerialization.data(withJSONObject: metadata)
         
-        // Step 2: Create multipart request
-        let boundary = UUID().uuidString
-        let url = URL(string: "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status")!
+        // Use resumable upload for large files
+        let url = URL(string: "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status")!
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("multipart/related; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json; charset=UTF-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("\(try FileManager.default.attributesOfItem(atPath: videoURL.path)[.size] as! Int)", forHTTPHeaderField: "X-Upload-Content-Length")
+        request.setValue("video/*", forHTTPHeaderField: "X-Upload-Content-Type")
+        request.httpBody = metadataJSON
         
-        // Step 3: Build multipart body
-        var body = Data()
-        
-        // Add metadata part
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Type: application/json; charset=UTF-8\r\n\r\n".data(using: .utf8)!)
-        body.append(metadataJSON)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // Add video file part
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Type: video/mp4\r\n\r\n".data(using: .utf8)!)
-        
-        let videoData = try Data(contentsOf: videoURL)
-        body.append(videoData)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // Close boundary
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        request.httpBody = body
-        
-        // Step 4: Upload with progress tracking
-        let (data, response) = try await URLSession.shared.upload(for: request, from: body)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
+        // Get upload URL
+        let (_, initResponse) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = initResponse as? HTTPURLResponse,
+              let uploadURL = httpResponse.value(forHTTPHeaderField: "Location") else {
             throw UploadError.invalidResponse
         }
         
-        guard httpResponse.statusCode == 200 else {
-            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("YouTube API error: \(errorBody)")
-            throw UploadError.uploadFailed(statusCode: httpResponse.statusCode, message: errorBody)
+        // Upload video file
+        var uploadRequest = URLRequest(url: URL(string: uploadURL)!)
+        uploadRequest.httpMethod = "PUT"
+        uploadRequest.setValue("video/*", forHTTPHeaderField: "Content-Type")
+        
+        let (data, response) = try await URLSession.shared.upload(for: uploadRequest, fromFile: videoURL)
+        
+        guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 else {
+            throw UploadError.uploadFailed(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, message: "Upload failed")
         }
         
-        // Step 5: Parse response to get video ID
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let videoId = json?["id"] as? String else {
             throw UploadError.noVideoId

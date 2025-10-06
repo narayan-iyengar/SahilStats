@@ -587,46 +587,6 @@ struct GameSetupView: View  {
         }
 
     }
-    /*
-    // NEW: Seamless connect function (no waiting room!)
-    private func seamlessConnect(role: DeviceRoleManager.DeviceRole) {
-        print("🎯 Seamless connect for role: \(role)")
-        
-        // Set device role immediately
-        Task.detached {
-            try? await DeviceRoleManager.shared.setDeviceRole(role, for: "setup-pending")
-        }
-        
-        // Start background connection
-        if role == .controller {
-            print("🎮 Controller: Starting browsing for auto-connect")
-            multipeer.startBrowsing()
-        } else {
-            print("📹 Recorder: Starting advertising for auto-connect")
-            multipeer.startAdvertising(as: "recorder")
-        }
-        
-        // Set up auto-connect callback
-        multipeer.onAutoConnectCompleted = {
-            print("✅ Auto-connect completed!")
-            DispatchQueue.main.async {
-                if role == .controller {
-                    print("🎮 Controller: Moving to game form")
-                    self.setupMode = .gameForm
-                }
-            }
-        }
-        
-        // Different behavior based on role
-        if role == .controller {
-            print("🎮 Controller: Proceeding to game form, connection in background")
-            setupMode = .gameForm
-        } else {
-            print("📹 Recorder: Showing connection waiting room")
-            showingConnectionWaitingRoom = true
-        }
-    }
-     */
     
     private func setupAutoConnect() {
         print("🔧 Setting up auto-connect callbacks in recordingRoleSelection")
@@ -1286,130 +1246,139 @@ struct WaitingForGameView: View {
     }
     
     var body: some View {
-        ZStack {
-            // Gradient background
-            LinearGradient(
-                colors: [Color(.systemBackground), Color(.systemGray6)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: isIPad ? 40 : 32) {
-                Spacer()
+        NavigationView {
+            ZStack {
+                // Gradient background
+                LinearGradient(
+                    colors: [Color(.systemBackground), Color(.systemGray6)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
                 
-                // Lottie animation - waiting for game
-                LottieView(name: "connection-animation")
-                    .frame(width: isIPad ? 250 : 180, height: isIPad ? 250 : 180)
-                
-                VStack(spacing: isIPad ? 20 : 16) {
-                    Text("Waiting for Game")
-                        .font(isIPad ? .system(size: 44, weight: .bold) : .largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                VStack(spacing: isIPad ? 40 : 32) {
+                    Spacer()
                     
-                    VStack(spacing: 8) {
-                        Text("Connected and ready to record")
-                            .font(isIPad ? .title3 : .body)
-                            .foregroundColor(.secondary)
+                    // Lottie animation - waiting for game
+                    LottieView(name: "connection-animation")
+                        .frame(width: isIPad ? 250 : 180, height: isIPad ? 250 : 180)
+                    
+                    VStack(spacing: isIPad ? 20 : 16) {
+                        Text("Waiting for Game")
+                            .font(isIPad ? .system(size: 44, weight: .bold) : .largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
                         
-                        Text("The controller will start the game shortly")
-                            .font(isIPad ? .body : .subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.horizontal, isIPad ? 60 : 40)
-                }
-                
-                // Connection status indicator
-                if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Connected to Controller")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                        VStack(spacing: 8) {
+                            Text("Connected and ready to record")
+                                .font(isIPad ? .title3 : .body)
+                                .foregroundColor(.secondary)
                             
-                            Text(peer.displayName)
-                                .font(.caption)
+                            Text("The controller will start the game shortly")
+                                .font(isIPad ? .body : .subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, isIPad ? 60 : 40)
+                    }
+                    
+                    // Connection status indicator
+                    if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Connected to Controller")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                
+                                Text(peer.displayName)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.green.opacity(0.1))
+                        )
+                    } else {
+                        // Still connecting
+                        HStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.orange)
+                            
+                            Text("Connecting to controller...")
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.orange.opacity(0.1))
+                        )
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.green.opacity(0.1))
-                    )
-                } else {
-                    // Still connecting
-                    HStack(spacing: 12) {
-                        ProgressView()
-                            .tint(.orange)
-                        
-                        Text("Connecting to controller...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // Cancel button
+                    Button("Cancel") {
+                        onCancel()
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.orange.opacity(0.1))
-                    )
+                    .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
+                    .padding(.horizontal, isIPad ? 80 : 40)
+                    
+                    Spacer()
                 }
+                .padding()
                 
-                Spacer()
-                
-                // Cancel button
-                Button("Cancel") {
-                    onCancel()
+                // Hidden NavigationLink for programmatic navigation
+                NavigationLink(
+                    destination: destinationView(),
+                    isActive: $shouldTransitionToGame
+                ) {
+                    EmptyView()
                 }
-                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
-                .padding(.horizontal, isIPad ? 80 : 40)
+                .hidden()
                 
-                Spacer()
+                // Connection notification overlay (at top)
+                ConnectionStatusNotification(
+                    status: connectionStatus,
+                    isShowing: $showConnectionNotification
+                )
+                .padding(.top, 8)
+                .zIndex(1000)
             }
-            .padding()
-            
-            // Connection notification overlay (at top)
-            ConnectionStatusNotification(
-                status: connectionStatus,
-                isShowing: $showConnectionNotification
-            )
-            .padding(.top, 8)
-            .zIndex(1000)
-        }
-        .onAppear {
-            print("🎬 [WaitingForGame] View appeared")
-            setupConnectionNotifications()
-            setupGameCallbacks()
-            
-            // IMPORTANT: Check immediately on appear
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                checkForExistingGame()
+            .navigationBarHidden(true)
+            .onAppear {
+                print("View appeared")
+                setupConnectionNotifications()
+                setupGameCallbacks()
+                
+                // Check for existing game
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    checkForExistingGame()
+                }
             }
-        }
-        .onChange(of: firebaseService.hasLiveGame) { _, hasGame in
-            print("🎮 [WaitingForGame] Live game status changed: \(hasGame)")
-            if hasGame && !hasStartedGame {
-                print("🎬 Game detected, checking if we should transition...")
-                checkForExistingGame()
+            .onChange(of: firebaseService.hasLiveGame) { _, hasGame in
+                print("Live game status changed: \(hasGame)")
+                if hasGame && !hasStartedGame {
+                    checkForExistingGame()
+                }
             }
         }
-        // MOVED: fullScreenCover should transition away from this entire view
-        .fullScreenCover(isPresented: $shouldTransitionToGame) {
-            let _ = print("🎬 [fullScreenCover] Triggered, shouldTransitionToGame = \(shouldTransitionToGame)")
-            
-            if let liveGame = firebaseService.getCurrentLiveGame() {
-                let _ = print("🎬 [fullScreenCover] Showing CleanVideoRecordingView for game: \(liveGame.id ?? "no-id")")
-                CleanVideoRecordingView(liveGame: liveGame)
-            } else {
-                let _ = print("❌ [fullScreenCover] No live game found!")
-                NoLiveGameLottieView()
-            }
+        .navigationViewStyle(.stack)
+    }
+    
+    @ViewBuilder
+    private func destinationView() -> some View {
+        if let liveGame = firebaseService.getCurrentLiveGame() {
+            CleanVideoRecordingView(liveGame: liveGame)
+        } else {
+            NoLiveGameLottieView()
         }
     }
     
@@ -1475,19 +1444,17 @@ struct WaitingForGameView: View {
            !hasStartedGame {
             
             print("🎬 [WaitingForGame] Found existing live game: \(gameId)")
-            hasStartedGame = true
+            print("🎬 Requesting game state from controller...")
             
-            Task {
-                try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                
-                await MainActor.run {
-                    print("🎬 Transitioning to recording view (existing game)...")
-                    shouldTransitionToGame = true
-                    print("🎬 shouldTransitionToGame set to: \(shouldTransitionToGame)")
-                }
-            }
+            // Ask the controller if the game has already started
+            multipeer.sendMessage(MultipeerConnectivityManager.Message(
+                type: .requestRecordingState
+            ))
+            
+            // DON'T auto-transition - wait for controller to send gameStarting signal
+            print("🎬 Waiting for controller to send gameStarting signal...")
         } else {
-            print("🎬 No transition: hasStartedGame=\(hasStartedGame), gameExists=\(firebaseService.getCurrentLiveGame() != nil)")
+            print("🎬 No game to check or already started")
         }
     }
     
