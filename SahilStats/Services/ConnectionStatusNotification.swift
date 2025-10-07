@@ -249,6 +249,55 @@ struct SeamlessConnectionFlow: View {
         .onAppear {
             setupSeamlessConnection()
         }
+        .onReceive(multipeer.$discoveredPeers) { peers in
+            // Handle peer discovery
+            if let peer = peers.first, case .searching = connectionStatus {
+                print("👀 Discovered peer: \(peer.displayName)")
+                connectionStatus = .connecting(deviceName: peer.displayName)
+                showNotification = true
+            }
+        }
+        .onReceive(multipeer.$connectionState) { state in
+            // Handle connection state changes
+            switch state {
+            case .connected:
+                if let peer = multipeer.connectedPeers.first {
+                    handleConnectionEstablished(peer: peer)
+                }
+            case .connecting(let peerName):
+                connectionStatus = .connecting(deviceName: peerName)
+                showNotification = true
+            case .disconnected:
+                if showNotification {
+                    connectionStatus = .failed(error: "Connection lost")
+                    showNotification = true
+                }
+            }
+        }
+        .onReceive(multipeer.messagePublisher) { message in
+            // Handle game-related messages for recorder role
+            if role == .recorder && !hasStartedGame {
+                switch message.type {
+                case .gameStarting:
+                    if let gameId = message.payload?["gameId"] {
+                        hasStartedGame = true
+                        print("🎬 Recorder received game start - transitioning...")
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            // Navigate to game or handle game start
+                            // onGameStart(gameId) - if you need this callback
+                        }
+                    }
+                case .gameAlreadyStarted:
+                    if let gameId = message.payload?["gameId"] {
+                        hasStartedGame = true
+                        // onGameStart(gameId) - if you need this callback
+                    }
+                default:
+                    break
+                }
+            }
+        }
         .onDisappear {
             // Keep connection alive - don't cleanup!
         }
@@ -303,52 +352,12 @@ struct SeamlessConnectionFlow: View {
         }
         
         // If already connected, skip to connected state
-        if multipeer.isConnected {
+        if multipeer.connectionState.isConnected {
             if let peer = multipeer.connectedPeers.first {
                 handleConnectionEstablished(peer: peer)
             }
             return
         }
-        
-        // Setup connection callbacks
-        multipeer.onPeerDiscovered = { peer in
-            print("👀 Discovered peer: \(peer.displayName)")
-            connectionStatus = .connecting(deviceName: peer.displayName)
-            showNotification = true
-        }
-        
-        multipeer.onConnectionEstablished = {
-            if let peer = multipeer.connectedPeers.first {
-                handleConnectionEstablished(peer: peer)
-            }
-        }
-        
-        /*
-        multipeer.onGameStarting = { gameId in
-            guard !hasStartedGame else { return }
-            
-            if role == .recorder {
-                hasStartedGame = true
-                print("🎬 Recorder received game start - transitioning...")
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onGameStart(gameId)
-                }
-            }
-        }
-         */
-        /*
-        multipeer.onGameAlreadyStarted = { gameId in
-            guard !hasStartedGame else { return }
-            
-            if role == .recorder {
-                hasStartedGame = true
-                DispatchQueue.main.async {
-                    onGameStart(gameId)
-                }
-            }
-        }
-         */
         
         // Start connection based on role
         startBackgroundConnection()

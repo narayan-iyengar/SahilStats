@@ -72,18 +72,24 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
     
     func updateUIView(_ uiView: UIView, context: Context) {
         // Remove any existing preview layers
-        uiView.layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+        uiView.layer.sublayers?.removeAll { $0 is AVCaptureVideoPreviewLayer }
         
         if let previewLayer = VideoRecordingManager.shared.previewLayer {
+            print("🎥 SimpleCameraPreviewView: Adding preview layer to view")
             previewLayer.frame = uiView.bounds
             previewLayer.videoGravity = .resizeAspectFill
-            uiView.layer.addSublayer(previewLayer)
             
-            if !isCameraReady {
-                DispatchQueue.main.async {
+            // Ensure the preview layer is added on the main thread
+            DispatchQueue.main.async {
+                uiView.layer.addSublayer(previewLayer)
+                
+                if !isCameraReady {
                     isCameraReady = true
+                    print("✅ SimpleCameraPreviewView: Camera marked as ready")
                 }
             }
+        } else {
+            print("⚠️ SimpleCameraPreviewView: No preview layer available yet")
         }
     }
 }

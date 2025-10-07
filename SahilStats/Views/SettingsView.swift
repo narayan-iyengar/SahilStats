@@ -228,6 +228,42 @@ struct DevicePairingMainView: View {
 }
 
 
+struct RoleSelectionCard: View {
+    let role: DeviceRoleManager.DeviceRole
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                Image(systemName: role == .controller ? "gamecontroller.fill" : "video.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(isSelected ? .white : (role == .controller ? .blue : .red))
+                
+                Text(role.displayName)
+                    .font(.headline)
+                    .foregroundColor(isSelected ? .white : .primary)
+                
+                Text(role == .controller ? "Manage games" : "Record games")
+                    .font(.caption)
+                    .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? .orange : Color(.systemGray6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? .orange : .clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct DevicePairingView: View {
     @Binding var isPairing: Bool
     @StateObject private var multipeer = MultipeerConnectivityManager.shared
@@ -236,22 +272,22 @@ struct DevicePairingView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var selectedRole: DeviceRoleManager.DeviceRole = .controller
-    // REMOVED: @State private var nearbyDevices: [MCPeerID] = []
     @State private var showingPairingConfirmation = false
     @State private var deviceToPair: MCPeerID?
+    @State private var cancellables = Set<AnyCancellable>() // Add this for subscriptions
     
-    @State private var peersFromInvitations: [MCPeerID] = []
-    
-    // NEW: Use multipeer.discoveredPeers directly
+    // Use discoveredPeers and pendingInvitations directly from multipeer
     private var nearbyDevices: [MCPeerID] {
-        let allPeers = multipeer.discoveredPeers + peersFromInvitations
-        var uniquePeers: [MCPeerID] = []
-        for peer in allPeers {
-            if !uniquePeers.contains(where: { $0.displayName == peer.displayName }) {
-                uniquePeers.append(peer)
+        var allPeers = multipeer.discoveredPeers
+        
+        // Add peers from pending invitations
+        for invitation in multipeer.pendingInvitations {
+            if !allPeers.contains(where: { $0.displayName == invitation.peerID.displayName }) {
+                allPeers.append(invitation.peerID)
             }
         }
-        return uniquePeers
+        
+        return allPeers
     }
     
     var body: some View {
@@ -293,7 +329,6 @@ struct DevicePairingView: View {
                     
                     Spacer()
                     
-                    // NEW: Show device count
                     if !nearbyDevices.isEmpty {
                         Text("\(nearbyDevices.count) found")
                             .font(.caption)
@@ -308,7 +343,6 @@ struct DevicePairingView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
-                        // NEW: Show scan duration
                         Text("This may take a few seconds...")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -397,13 +431,13 @@ struct DevicePairingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             print("🔵 DevicePairingView appeared")
-            setupInvitationHandler()
+            setupMessageSubscriptions()
             startScanning()
         }
         .onDisappear {
             print("🔵 DevicePairingView disappeared")
             stopScanning()
-            cleanupInvitationHandler()
+            cancellables.removeAll()
         }
         .alert("Pair with \(deviceToPair?.displayName ?? "Device")?", isPresented: $showingPairingConfirmation) {
             Button("Cancel", role: .cancel) {
@@ -417,22 +451,32 @@ struct DevicePairingView: View {
         }
     }
     
-    private func setupInvitationHandler() {
-        multipeer.onPendingInvitation = { peer in
-            print("📨 Received invitation from \(peer.displayName) during pairing")
-            DispatchQueue.main.async {
-                if !self.peersFromInvitations.contains(where: { $0.displayName == peer.displayName }) {
-                    self.peersFromInvitations.append(peer)
-                    print("✅ Added invitation peer to pairing list: \(peer.displayName)")
+    private func setupMessageSubscriptions() {
+        // Subscribe to connection state changes
+        multipeer.$connectionState
+            .receive(on: DispatchQueue.main)
+            .sink { state in
+                if case .connected = state {
+                    handleConnectionEstablished()
                 }
             }
-        }
+            .store(in: &cancellables)
     }
-
-    // ✅ ADD THIS METHOD:
-    private func cleanupInvitationHandler() {
-        multipeer.onPendingInvitation = nil
-        peersFromInvitations.removeAll()
+    
+    private func handleConnectionEstablished() {
+        print("✅ Connection established for pairing")
+        
+        // Get the connected peer
+        guard let peer = multipeer.connectedPeers.first else { return }
+        
+        let peerRole: DeviceRoleManager.DeviceRole = selectedRole == .controller ? .recorder : .controller
+        trustedDevicesManager.addTrustedPeer(peer, role: peerRole)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("✅ Pairing complete, dismissing")
+            stopScanning()
+            dismiss()
+        }
     }
     
     private func startScanning() {
@@ -441,11 +485,10 @@ struct DevicePairingView: View {
         
         // Clear previous discoveries
         multipeer.clearDiscoveredPeers()
-        peersFromInvitations.removeAll()  // ✅ ADD THIS LINE
         
-        // ✅ REPLACE the if/else with these two lines:
         print("🔍📡 Starting BOTH browsing and advertising for pairing")
         multipeer.startBrowsing()
+        
         if selectedRole == .controller {
             multipeer.startAdvertising(as: "controller")
         } else {
@@ -472,7 +515,6 @@ struct DevicePairingView: View {
     private func stopScanning() {
         print("🛑 Stopping scan")
         multipeer.stopAll()
-        multipeer.onPeerDiscovered = nil
     }
     
     private func pairDevice() {
@@ -480,54 +522,14 @@ struct DevicePairingView: View {
         
         print("🔗 Attempting to pair with: \(peer.displayName)")
         
-        // ✅ ADD THIS CHECK:
+        // Check if we have a pending invitation from this peer
         if let invitation = multipeer.pendingInvitations.first(where: { $0.peerID == peer }) {
             print("✅ Found pending invitation from this peer, accepting it")
-            multipeer.approveConnection(for: peer, remember: false)
+            multipeer.approveConnection(for: peer, remember: true)
         } else {
             print("📤 Sending invitation to peer")
             multipeer.invitePeer(peer)
         }
-        
-        // Set up connection callback
-        multipeer.onConnectionEstablished = {
-            print("✅ Connection established for pairing")
-            
-            let peerRole: DeviceRoleManager.DeviceRole = selectedRole == .controller ? .recorder : .controller
-            trustedDevicesManager.addTrustedPeer(peer, role: peerRole)
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("✅ Pairing complete, dismissing")
-                stopScanning()
-                dismiss()
-            }
-        }
-    }
-}
-
-struct RoleSelectionCard: View {
-    let role: DeviceRoleManager.DeviceRole
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: role.icon)
-                    .font(.largeTitle)
-                    .foregroundColor(isSelected ? .white : role.color)
-                
-                Text(role.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .primary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .background(isSelected ? role.color : Color(.systemGray5))
-            .cornerRadius(12)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -540,7 +542,7 @@ struct BackgroundConnectionIndicator: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    if multipeer.isConnected {
+                    if multipeer.connectionState.isConnected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
                         Text("Connected")
@@ -566,7 +568,6 @@ struct BackgroundConnectionIndicator: View {
         }
     }
 }
-
 
 #Preview {
     NavigationView {

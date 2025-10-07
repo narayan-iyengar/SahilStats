@@ -124,6 +124,9 @@ struct CleanVideoRecordingView: View {
     
     private func setupView() {
         print("🎥 CleanVideoRecordingView: Setting up view")
+        print("🔗 CleanVideoRecordingView: Current multipeer connection state: \(multipeer.connectionState)")
+        print("🔗 CleanVideoRecordingView: Connected peers: \(multipeer.connectedPeers.map { $0.displayName })")
+        
         AppDelegate.orientationLock = .landscape
         UIViewController.attemptRotationToDeviceOrientation()
         
@@ -135,6 +138,17 @@ struct CleanVideoRecordingView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.setupCamera()
         }
+        
+        // Monitor connection state changes
+        multipeer.$connectionState
+            .receive(on: DispatchQueue.main)
+            .sink { connectionState in
+                print("🔗 CleanVideoRecordingView: Connection state changed to \(connectionState)")
+                if !connectionState.isConnected {
+                    print("⚠️ CleanVideoRecordingView: Connection lost while in recording view!")
+                }
+            }
+            .store(in: &cancellables)
     }
     
     private func cleanupView() {
@@ -153,35 +167,47 @@ struct CleanVideoRecordingView: View {
         guard !hasCameraSetup else { return }
         cameraSetupAttempts += 1
         
+        print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
+        
         Task {
             let hasPermission = await recordingManager.checkForCameraPermission()
             guard hasPermission else {
-                cameraErrorMessage = "Camera permission is required to record."
-                showingCameraError = true
+                await MainActor.run {
+                    cameraErrorMessage = "Camera permission is required to record."
+                    showingCameraError = true
+                }
                 return
             }
             
-            await recordingManager.startCameraSession()
-            hasCameraSetup = true
-            
-            for _ in 0..<20 {
-                if recordingManager.previewLayer != nil {
-                    isCameraReady = true
-                    print("✅ Camera is ready.")
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(100))
+            // Start the camera session (this is not async)
+            await MainActor.run {
+                recordingManager.startCameraSession()
+                hasCameraSetup = true
             }
             
-            cameraErrorMessage = "Failed to initialize the camera."
-            showingCameraError = true
+            // Wait for the preview layer to be available
+            for attempt in 0..<30 {  // Increased attempts
+                if recordingManager.previewLayer != nil {
+                    await MainActor.run {
+                        print("✅ Camera preview layer is ready (attempt \(attempt + 1))")
+                        isCameraReady = true
+                    }
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(200))  // Increased delay
+            }
+            
+            await MainActor.run {
+                cameraErrorMessage = "Failed to initialize the camera after \(cameraSetupAttempts) attempts."
+                showingCameraError = true
+            }
         }
     }
     
     private func retryCameraSetup() {
+        print("🔄 CleanVideoRecordingView: Retrying camera setup")
         hasCameraSetup = false
         isCameraReady = false
-        cameraSetupAttempts = 0
         setupCamera()
     }
     
