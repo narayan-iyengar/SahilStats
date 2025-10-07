@@ -22,7 +22,7 @@ struct ConnectionWaitingRoomView: View {
                 .frame(width: isIPad ? 250 : 180, height: isIPad ? 250 : 180)
             
             VStack(spacing: 12) {
-                if multipeer.isConnected {
+                if multipeer.connectionState.isConnected {
                     Text("Connected & Ready!")
                         .font(isIPad ? .title : .title2)
                         .fontWeight(.bold)
@@ -41,7 +41,7 @@ struct ConnectionWaitingRoomView: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal)
             
-            if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
+            if multipeer.connectionState.isConnected, let peer = multipeer.connectedPeers.first {
                 Text("Connected to \(peer.displayName)")
                     .font(.caption)
                     .foregroundColor(.secondary)

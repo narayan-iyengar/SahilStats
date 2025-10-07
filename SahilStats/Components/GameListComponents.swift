@@ -96,6 +96,7 @@ struct GameListToolbar: View {
     let canCreateGames: Bool
     let onShowFilters: () -> Void
     let onShowLiveGame: () -> Void
+    let onNewGame: () -> Void
     let isIPad: Bool
     
     var body: some View {
@@ -106,6 +107,15 @@ struct GameListToolbar: View {
                 Image(systemName: activeFiltersCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     .font(.title3)
                     .foregroundColor(.orange)
+            }
+            
+            // New Game button (only shown if user can create games)
+            if canCreateGames {
+                Button(action: onNewGame) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(.orange)
+                }
             }
             
             if hasLiveGame {

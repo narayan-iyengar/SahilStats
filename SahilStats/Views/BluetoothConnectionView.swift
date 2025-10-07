@@ -159,7 +159,7 @@ struct BluetoothConnectionView: View {
                 Spacer()
             }
             
-            if multipeer.isConnected {
+            if multipeer.connectionState.isConnected {
                 ForEach(multipeer.connectedPeers, id: \.displayName) { peer in
                     HStack {
                         Image(systemName: "antenna.radiowaves.left.and.right")
@@ -222,10 +222,10 @@ struct BluetoothConnectionView: View {
             Text("Controller Mode")
                 .font(.headline)
             
-            if !multipeer.isConnected {
+            if !multipeer.connectionState.isConnected {
                 // Browse for recorders
                 if multipeer.isBrowsing {
-                    if multipeer.nearbyPeers.isEmpty {
+                    if multipeer.discoveredPeers.isEmpty {
                         VStack(spacing: 12) {
                             ProgressView()
                             Text("Searching for recorder devices...")
@@ -240,7 +240,7 @@ struct BluetoothConnectionView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             
-                            ForEach(multipeer.nearbyPeers, id: \.displayName) { peer in
+                            ForEach(multipeer.discoveredPeers, id: \.displayName) { peer in
                                 Button(action: {
                                     multipeer.invitePeer(peer)
                                 }) {
@@ -308,7 +308,7 @@ struct BluetoothConnectionView: View {
             Text("Recorder Mode")
                 .font(.headline)
             
-            if !multipeer.isConnected {
+            if !multipeer.connectionState.isConnected {
                 if multipeer.isAdvertising {
                     VStack(spacing: 12) {
                         ProgressView()

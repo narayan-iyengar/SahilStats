@@ -49,6 +49,8 @@ struct GameSetupView: View  {
     @State private var connectionToastMessage = ""
     @State private var connectionToastIcon = ""
     
+    // Add cancellables for message handling
+    @State private var cancellables = Set<AnyCancellable>()
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
@@ -97,6 +99,7 @@ struct GameSetupView: View  {
             .onAppear {
                 firebaseService.startListening()
                 loadDefaultSettings()
+                setupAutoConnect() // Set up message handling
             }
             .sheet(isPresented: $showingBluetoothConnection) {
                 BluetoothConnectionView()
@@ -229,7 +232,7 @@ struct GameSetupView: View  {
     }
     
     private func handleBluetoothConnectionChange(_ isShowing: Bool) {
-        if !isShowing && deviceRole == .recorder && multipeer.isConnected {
+        if !isShowing && deviceRole == .recorder && multipeer.connectionState.isConnected {
             Task {
                 do {
                     guard let liveGame = firebaseService.getCurrentLiveGame(),
@@ -564,15 +567,7 @@ struct GameSetupView: View  {
             // Show seamless waiting view
             showingConnectionWaitingRoom = true
         }
-        multipeer.onAutoConnectCompleted = {
-            print("✅ Auto-connect completed!")
-            DispatchQueue.main.async {
-                if role == .controller {
-                    print("🎮 Controller: Moving to game form")
-                    self.setupMode = .gameForm
-                }
-            }
-        }
+        // Auto-connect completion will be handled through message system and connection state changes
         
         // Different behavior based on role
         if role == .controller {
@@ -585,17 +580,55 @@ struct GameSetupView: View  {
 
     }
     
+    private func handleMultipeerMessage(_ message: MultipeerConnectivityManager.Message) {
+        switch message.type {
+        case .gameStarting:
+            if let gameId = message.payload?["gameId"] {
+                print("🎬 Received gameStarting message for: \(gameId)")
+                // Handle game starting logic here
+            }
+        case .gameAlreadyStarted:
+            if let gameId = message.payload?["gameId"] {
+                print("🎬 Received gameAlreadyStarted message for: \(gameId)")
+                // Handle game already started logic here
+            }
+        case .connectionReady:
+            // Handle connection established
+            if isAutoConnecting {
+                isAutoConnecting = false
+                let peerName = multipeer.connectedPeers.first?.displayName ?? "Device"
+                showConnectionSuccess(role: deviceRole, peerName: peerName)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    self.proceedWithConnectedDevice(role: self.deviceRole)
+                }
+            }
+        default:
+            break
+        }
+    }
+    
     private func setupAutoConnect() {
         print("🔧 Setting up auto-connect callbacks in recordingRoleSelection")
         
-        multipeer.onAutoConnectCompleted = {
-            print("✅ Auto-connect completed in setupAutoConnect callback")
-            DispatchQueue.main.async {
-                self.handleAutoConnectCompleted()
+        // Set up message handling
+        let messageSubscription = multipeer.messagePublisher
+            .sink { message in
+                self.handleMultipeerMessage(message)
             }
-        }
+        messageSubscription.store(in: &cancellables)
         
-        if multipeer.isConnected {
+        // Monitor connection state changes for auto-connect completion
+        let connectionSubscription = multipeer.$connectionState
+            .sink { connectionState in
+                if case .connected = connectionState, self.isAutoConnecting == true {
+                    print("✅ Auto-connect completed via connection state change")
+                    self.handleAutoConnectCompleted()
+                }
+            }
+        connectionSubscription.store(in: &cancellables)
+        
+        if multipeer.connectionState.isConnected {
             print("🔧 Already connected during setup - checking auto-connect state")
             isAutoConnecting = false
         }
@@ -630,7 +663,7 @@ struct GameSetupView: View  {
             print("🔵 Using Bluetooth connection method")
             
             // Check if already connected to trusted device
-            if multipeer.isConnected {
+            if multipeer.connectionState.isConnected {
                 print("✅ Already connected to trusted device - proceeding immediately")
                 showConnectionSuccess(role: role, peerName: multipeer.connectedPeers.first?.displayName ?? "Device")
                 proceedWithConnectedDevice(role: role)
@@ -654,26 +687,16 @@ struct GameSetupView: View  {
             isAutoConnecting = true
             autoConnectStatus = "Looking for trusted devices..."
             
-            // Set up auto-connect completion callback
-            multipeer.onAutoConnectCompleted = {
-                print("✅ Auto-connect completed!")
-                DispatchQueue.main.async {
-                    self.isAutoConnecting = false
-                    
-                    // 🎉 Show connection success toast
-                    let peerName = self.multipeer.connectedPeers.first?.displayName ?? "Device"
-                    self.showConnectionSuccess(role: role, peerName: peerName)
-                    
-                    // Small delay to let user see the toast, then proceed
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        self.proceedWithConnectedDevice(role: role)
-                    }
+            // Set up message handling for connection events and game messages
+            multipeer.messagePublisher
+                .sink { message in
+                    self.handleMultipeerMessage(message)
                 }
-            }
+                .store(in: &cancellables)
             
             // 3-second timeout for auto-connect
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                if !self.multipeer.isConnected && self.isAutoConnecting {
+                if !self.multipeer.connectionState.isConnected && self.isAutoConnecting {
                     // Auto-connect didn't happen - show waiting room for manual approval
                     print("⏰ Auto-connect timeout - showing waiting room for manual approval")
                     self.isAutoConnecting = false
@@ -948,7 +971,7 @@ struct GameSetupView: View  {
             do {
                 switch mode {
                 case .live:
-                    let hasBluetoothConnection = multipeer.isConnected
+                    let hasBluetoothConnection = multipeer.connectionState.isConnected
                     let connectedPeerCount = multipeer.connectedPeers.count
                     
                     print("🎮 Creating live game - Bluetooth connected: \(hasBluetoothConnection), peers: \(connectedPeerCount)")
@@ -1237,6 +1260,7 @@ struct WaitingForGameView: View {
     @State private var connectionStatus: ConnectionStatusNotification.ConnectionStatus = .searching
     @State private var hasStartedGame = false
     @State private var shouldTransitionToGame = false
+    @State private var cancellables = Set<AnyCancellable>()
     
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -1280,7 +1304,7 @@ struct WaitingForGameView: View {
                     }
                     
                     // Connection status indicator
-                    if multipeer.isConnected, let peer = multipeer.connectedPeers.first {
+                    if multipeer.connectionState.isConnected, let peer = multipeer.connectedPeers.first {
                         HStack(spacing: 12) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
@@ -1382,51 +1406,71 @@ struct WaitingForGameView: View {
     private func setupGameCallbacks() {
         print("🎬 [WaitingForGame] Setting up game callbacks for recorder")
         
-        multipeer.onGameStarting = { gameId in
-            print("🎬 [WaitingForGame] onGameStarting callback fired for: \(gameId)")
-            print("🎬 hasStartedGame before check: \(self.hasStartedGame)")
-            
-            guard !self.hasStartedGame else {
-                print("⚠️ Already transitioning, ignoring")
-                return
-            }
-            
-            self.hasStartedGame = true
-            print("🎬 Setting hasStartedGame = true")
-            
-            Task {
-                try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                
-                await MainActor.run {
-                    print("🎬 About to set shouldTransitionToGame = true")
-                    print("🎬 Live game exists: \(self.firebaseService.getCurrentLiveGame() != nil)")
-                    self.shouldTransitionToGame = true
-                    print("🎬 shouldTransitionToGame is now: \(self.shouldTransitionToGame)")
+        // Set up message handling instead of direct callbacks
+        multipeer.messagePublisher
+            .sink { message in
+                switch message.type {
+                case .gameStarting:
+                    if let gameId = message.payload?["gameId"] {
+                        print("🎬 [WaitingForGame] gameStarting message received for: \(gameId)")
+                        self.handleGameStarting(gameId: gameId)
+                    }
+                case .gameAlreadyStarted:
+                    if let gameId = message.payload?["gameId"] {
+                        print("🎬 [WaitingForGame] gameAlreadyStarted message received for: \(gameId)")
+                        self.handleGameAlreadyStarted(gameId: gameId)
+                    }
+                default:
+                    break
                 }
             }
+            .store(in: &cancellables)
+    }
+    
+    private func handleGameStarting(gameId: String) {
+        print("🎬 [WaitingForGame] onGameStarting callback fired for: \(gameId)")
+        print("🎬 hasStartedGame before check: \(self.hasStartedGame)")
+        
+        guard !self.hasStartedGame else {
+            print("⚠️ Already transitioning, ignoring")
+            return
         }
         
-        multipeer.onGameAlreadyStarted = { gameId in
-            print("🎬 [WaitingForGame] onGameAlreadyStarted callback fired for: \(gameId)")
-            print("🎬 hasStartedGame before check: \(self.hasStartedGame)")
+        self.hasStartedGame = true
+        print("🎬 Setting hasStartedGame = true")
+        
+        Task {
+            try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
             
-            guard !self.hasStartedGame else {
-                print("⚠️ Already transitioning, ignoring")
-                return
+            await MainActor.run {
+                print("🎬 About to set shouldTransitionToGame = true")
+                print("🎬 Live game exists: \(self.firebaseService.getCurrentLiveGame() != nil)")
+                self.shouldTransitionToGame = true
+                print("🎬 shouldTransitionToGame is now: \(self.shouldTransitionToGame)")
             }
+        }
+    }
+    
+    private func handleGameAlreadyStarted(gameId: String) {
+        print("🎬 [WaitingForGame] onGameAlreadyStarted callback fired for: \(gameId)")
+        print("🎬 hasStartedGame before check: \(self.hasStartedGame)")
+        
+        guard !self.hasStartedGame else {
+            print("⚠️ Already transitioning, ignoring")
+            return
+        }
+        
+        self.hasStartedGame = true
+        print("🎬 Setting hasStartedGame = true")
+        
+        Task {
+            try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
             
-            self.hasStartedGame = true
-            print("🎬 Setting hasStartedGame = true")
-            
-            Task {
-                try? await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                
-                await MainActor.run {
-                    print("🎬 About to set shouldTransitionToGame = true (game already started)")
-                    print("🎬 Live game exists: \(self.firebaseService.getCurrentLiveGame() != nil)")
-                    self.shouldTransitionToGame = true
-                    print("🎬 shouldTransitionToGame is now: \(self.shouldTransitionToGame)")
-                }
+            await MainActor.run {
+                print("🎬 About to set shouldTransitionToGame = true (game already started)")
+                print("🎬 Live game exists: \(self.firebaseService.getCurrentLiveGame() != nil)")
+                self.shouldTransitionToGame = true
+                print("🎬 shouldTransitionToGame is now: \(self.shouldTransitionToGame)")
             }
         }
     }
@@ -1467,23 +1511,28 @@ struct WaitingForGameView: View {
             }
         }
         
-        multipeer.onConnectionEstablished = {
-            if let peer = multipeer.connectedPeers.first {
-                print("✅ Connected to \(peer.displayName)")
-                
-                connectionStatus = .connected(
-                    deviceName: peer.displayName,
-                    role: .controller
-                )
-                showConnectionNotification = true
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    withAnimation {
-                        showConnectionNotification = false
+        // Monitor connection state changes
+        multipeer.$connectionState
+            .sink { connectionState in
+                if case .connected = connectionState {
+                    if let peer = self.multipeer.connectedPeers.first {
+                        print("✅ Connected to \(peer.displayName)")
+                        
+                        self.connectionStatus = .connected(
+                            deviceName: peer.displayName,
+                            role: .controller
+                        )
+                        self.showConnectionNotification = true
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                            withAnimation {
+                                self.showConnectionNotification = false
+                            }
+                        }
                     }
                 }
             }
-        }
+            .store(in: &cancellables)
     }
 }
 

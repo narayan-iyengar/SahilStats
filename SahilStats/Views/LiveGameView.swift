@@ -537,7 +537,7 @@ struct LiveGameControllerView: View {
             
             // Request recording state after connection is stable
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                if multipeer.isConnected {
+                if multipeer.connectionState.isConnected {
                     print("📤 Requesting recording state from recorder")
                     multipeer.sendRequestForRecordingState()
                 } else {
@@ -643,9 +643,9 @@ struct LiveGameControllerView: View {
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
                 onRequestControl: requestControl,
-                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller && multipeer.isConnected,
+                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller && multipeer.connectionState.isConnected,
                 isRecording: multipeer.isRemoteRecording ?? false, // DEFAULT to false instead of nil
-                onToggleRecording: multipeer.isConnected ? {
+                onToggleRecording: multipeer.connectionState.isConnected ? {
                     let isRecording = self.multipeer.isRemoteRecording ?? false
                     if isRecording {
                         print("🎬 Controller sending STOP recording command")

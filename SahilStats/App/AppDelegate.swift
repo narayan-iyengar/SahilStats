@@ -6,7 +6,7 @@
 //
 import UIKit
 
-
+/*
 class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientationLock = UIInterfaceOrientationMask.portrait
     
@@ -15,3 +15,4 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return AppDelegate.orientationLock
     }
 }
+*/

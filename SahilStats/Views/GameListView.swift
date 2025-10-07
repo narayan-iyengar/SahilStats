@@ -8,6 +8,7 @@ import FirebaseAuth
 
 struct GameListView: View {
     @StateObject private var firebaseService = FirebaseService.shared
+    @StateObject private var navigation = NavigationCoordinator.shared
     @EnvironmentObject var authService: AuthService
     @StateObject private var filterManager = GameFilterManager()
     
@@ -15,10 +16,10 @@ struct GameListView: View {
     @State private var hoveredGameId: String?
     @State private var showingDeleteAlert = false
     @State private var gameToDelete: Game?
-    @State private var showingLiveGame = false
-    @State private var isViewingTrends = false
     @State private var searchText = ""
     @State private var showingFilters = false
+    @State private var isViewingTrends = false
+    @State private var showingNewGame = false
     
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -42,6 +43,12 @@ struct GameListView: View {
         .fullScreenCover(item: $selectedGame) { game in
             GameDetailView(game: game)
         }
+        .alert("Delete Game", isPresented: $showingDeleteAlert) {
+            GameDeleteAlert(
+                gameToDelete: $gameToDelete,
+                onDelete: deleteGame
+            )
+        }
         .sheet(isPresented: $showingFilters) {
             FilterView(
                 selectedTeamFilter: $filterManager.selectedTeamFilter,
@@ -52,23 +59,14 @@ struct GameListView: View {
                 customEndDate: $filterManager.customEndDate,
                 availableTeams: availableTeams,
                 availableOpponents: availableOpponents,
-                onClearAll: filterManager.clearAllFilters,
+                onClearAll: clearAllFilters,
                 isIPad: isIPad
             )
         }
-        .fullScreenCover(isPresented: $showingLiveGame) {
-            if firebaseService.getCurrentLiveGame() != nil {
-                LiveGameView()
-                    .environmentObject(authService)
-                    .navigationBarHidden(true)
-                    .statusBarHidden(true)
+        .fullScreenCover(isPresented: $showingNewGame) {
+            NavigationView {
+                GameSetupView()
             }
-        }
-        .alert("Delete Game", isPresented: $showingDeleteAlert) {
-            GameDeleteAlert(
-                gameToDelete: $gameToDelete,
-                onDelete: deleteGame
-            )
         }
         .refreshable {
             try? await Task.sleep(nanoseconds: 500_000_000)
@@ -77,11 +75,6 @@ struct GameListView: View {
             firebaseService.startListening()
             updateDisplayedGames()
             print("🔍 GameListView appeared - hasLiveGame: \(firebaseService.hasLiveGame)")
-        }
-
-        // And add this to your showingLiveGame state change:
-        .onChange(of: showingLiveGame) { oldValue, newValue in
-            print("🔍 showingLiveGame changed from \(oldValue) to \(newValue)")
         }
         .onDisappear {
             firebaseService.stopListening()
@@ -201,7 +194,8 @@ struct GameListView: View {
                 hasLiveGame: firebaseService.hasLiveGame,
                 canCreateGames: authService.canCreateGames,
                 onShowFilters: { showingFilters = true },
-                onShowLiveGame: { showingLiveGame = true },
+                onShowLiveGame: { navigation.viewLiveGame() },
+                onNewGame: { showingNewGame = true },
                 isIPad: isIPad
             )
         }
