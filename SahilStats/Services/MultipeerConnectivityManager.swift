@@ -24,9 +24,10 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     @Published var connectionState: ConnectionState = .disconnected
     @Published var lastError: String?
     @Published var pendingInvitation: (peerID: MCPeerID, handler: (Bool) -> Void)?
-    var onRecordingStateChanged: ((Bool) -> Void)?
     @Published var isRemoteRecording: Bool? = nil
-    var onGameEnded: ((String) -> Void)?
+    
+    // NEW: A single publisher for all incoming messages
+    let messagePublisher = PassthroughSubject<Message, Never>()
     
     @Published var isAutoConnecting = false
     @Published var autoConnectStatus: String = "Looking for trusted devices..."
@@ -34,7 +35,6 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     @Published var outgoingInvitations: Set<String> = []
     @Published var incomingInvitations: Set<String> = []
     
-    // New property to track auto-connection attempts
     @Published var isAttemptingAutoConnect = false
     @Published var discoveredPeers: [MCPeerID] = []
     var onPeerDiscovered: ((MCPeerID) -> Void)?
@@ -42,25 +42,19 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     @Published var pendingInvitations: [PendingInvitation] = []
     
     private var isInCriticalConnectionPhase = false
-    
     private var lastNotifiedGameId: String?
     private var keepaliveTimer: Timer?
     
-    
-    
-     
-     struct PendingInvitation: Identifiable {
-         let id = UUID()
-         let peerID: MCPeerID
-         let invitationHandler: ((Bool, MCSession?) -> Void)?
-         let discoveryInfo: [String: String]?
-     }
+    struct PendingInvitation: Identifiable {
+        let id = UUID()
+        let peerID: MCPeerID
+        let invitationHandler: ((Bool, MCSession?) -> Void)?
+        let discoveryInfo: [String: String]?
+    }
     
     // MARK: - Connection State
     enum ConnectionState {
-        case disconnected
-        case connecting
-        case connected
+        case disconnected, connecting, connected
         
         var displayName: String {
             switch self {
@@ -73,20 +67,9 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     
     // MARK: - Message Types
     enum MessageType: String, Codable {
-        case startRecording
-        case stopRecording
-        case gameStateUpdate
-        case deviceRole
-        case ping
-        case pong
-        case controllerReady
-        case recorderReady
-        case gameStarting
-        case approvalRequest
-        case approvalResponse
-        case recordingStateUpdate
-        case requestRecordingState
-        case gameEnded
+        case startRecording, stopRecording, gameStateUpdate, deviceRole, ping, pong,
+             controllerReady, recorderReady, gameStarting, approvalRequest, approvalResponse,
+             recordingStateUpdate, requestRecordingState, gameEnded
     }
     
     struct Message: Codable {
@@ -109,19 +92,19 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     private let trustedDevices = TrustedDevicesManager.shared
     private var isProcessingInvitation = false
     
-    // Service type must be 15 characters or less, no uppercase
     private let serviceType = "sahilstats"
     
+    
+////
+    
     // MARK: - Callbacks
-    var onRecordingStartRequested: (() -> Void)?
     var onRecordingStateRequested: (() -> Void)?
-    var onRecordingStopRequested: (() -> Void)?
     var onGameStateReceived: (([String: String]) -> Void)?
 
-    var onGameStarting: ((String) -> Void)? // Receives gameId when game starts
+
     var onConnectionEstablished: (() -> Void)?
     var onPendingInvitation: ((MCPeerID) -> Void)? // Triggers approval dialog
-    var onGameAlreadyStarted: ((String) -> Void)?
+
     
     // MARK: - Initialization
     override init() {
@@ -217,6 +200,7 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
         sendMessage(message)
     }
     
+    /*
     private func setupMultipeer() {
         // Create peer ID with device name
         let deviceName = UIDevice.current.name
@@ -228,6 +212,16 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
             securityIdentity: nil,
             encryptionPreference: .required
         )
+        session.delegate = self
+        
+        print("📱 Multipeer setup complete for: \(deviceName)")
+    }
+     */
+    private func setupMultipeer() {
+        let deviceName = UIDevice.current.name
+        peerID = MCPeerID(displayName: deviceName)
+        
+        session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
         session.delegate = self
         
         print("📱 Multipeer setup complete for: \(deviceName)")
@@ -464,90 +458,12 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     
     private func handleReceivedMessage(_ message: Message) {
         print("📥 Received message: \(message.type.rawValue)")
-        
+        // Simply publish the message. The rest of the app will listen.
         DispatchQueue.main.async {
-            switch message.type {
-            case .startRecording:
-                self.onRecordingStartRequested?()
-                
-            case .stopRecording:
-                self.onRecordingStopRequested?()
-                
-            case .gameStateUpdate:
-                if let payload = message.payload {
-                    self.onGameStateReceived?(payload)
-                }
-                
-                // Only trigger onGameAlreadyStarted if we haven't already processed this game
-                if let gameId = message.payload?["gameId"],
-                   let isRunning = message.payload?["isRunning"],
-                   isRunning == "true" {
-                    
-                    // Add a flag to track if we've already notified about this game
-                    if self.lastNotifiedGameId != gameId {
-                        print("🎮 Game is running with ID: \(gameId) - first notification")
-                        self.lastNotifiedGameId = gameId
-                        self.onGameAlreadyStarted?(gameId)
-                    } else {
-                        print("🔇 Already notified about game: \(gameId), skipping")
-                    }
-                }
-                
-            case .gameStarting:
-                // Recorder receives this when controller starts game
-                print("🎬 Received gameStarting message")
-                if let gameId = message.payload?["gameId"] {
-                    print("🎮 Game starting with ID: \(gameId)")
-                    print("🎬 Calling onGameStarting callback...")
-                    self.onGameStarting?(gameId)
-                    print("🎬 onGameStarting callback completed")
-                } else {
-                    print("❌ No gameId in gameStarting message")
-                }
-
-
-                
-            case .ping:
-                self.sendMessage(Message(type: .pong))
-                
-            case .pong:
-                print("🏓 Received pong")
-                
-            case .controllerReady:
-                print("✅ Controller is ready")
-                
-            case .recorderReady:
-                print("✅ Recorder is ready")
-                
-            case .deviceRole:
-                if let role = message.payload?["role"] {
-                    print("📱 Peer role: \(role)")
-                }
-            case .recordingStateUpdate:
-                if let isRecordingStr = message.payload?["isRecording"] {
-                    self.isRemoteRecording = (isRecordingStr == "true")
-                    print("📴 Recording state updated to: \(self.isRemoteRecording ?? false)")
-                    
-                    // NEW: Call the callback
-                    DispatchQueue.main.async {
-                        self.onRecordingStateChanged?(self.isRemoteRecording ?? false)
-                    }
-                }
-            case .requestRecordingState:
-                // When a request is received, trigger the callback for the UI to handle.
-                self.onRecordingStateRequested?()
-                
-            case .approvalRequest, .approvalResponse:
-                // These are handled in the advertiser delegate
-                break
-            case .gameEnded:
-                if let gameId = message.payload?["gameId"] {
-                    print("Game ended: \(gameId)")
-                    self.onGameEnded?(gameId)
-                }
-            }
+            self.messagePublisher.send(message)
         }
     }
+
     
     func sendGameEnded(gameId: String) {
         let message = Message(

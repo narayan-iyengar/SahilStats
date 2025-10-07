@@ -105,9 +105,6 @@ struct GameSetupView: View  {
                 if let liveGame = firebaseService.getCurrentLiveGame() {
                     SeamlessConnectionFlow(
                         role: deviceRole,
-                        onGameStart: { gameId in
-                            handleWaitingRoomGameStart()
-                        },
                         liveGame: liveGame
                     )
                 } else {
@@ -1549,7 +1546,7 @@ struct LiveGameFullScreenWrapper: View {
                         }
                         onDismiss()
                     },
-                    onSelectRole: { showingRoleSelection = true }
+                    onSelect: { showingRoleSelection = true }
                 )
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -1588,7 +1585,7 @@ struct LiveGameNavigationBar: View {
     let role: DeviceRoleManager.DeviceRole
     // Actions
     let onDone: () -> Void
-    let onSelectRole: () -> Void
+    let onSelect: () -> Void
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
@@ -1613,7 +1610,7 @@ struct LiveGameNavigationBar: View {
 
             if role == .none {
                 Button("Select Role") {
-                    onSelectRole()
+                    onSelect()
                 }
                 .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
             }
@@ -1834,3 +1831,4 @@ struct DeviceRoleCard: View {
         }
     }
 }
+
