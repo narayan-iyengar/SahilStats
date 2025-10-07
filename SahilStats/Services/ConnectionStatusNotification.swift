@@ -205,7 +205,7 @@ struct NoLiveGameLottieView: View {
 
 struct SeamlessConnectionFlow: View {
     let role: DeviceRoleManager.DeviceRole
-    let onGameStart: (String) -> Void
+    //let onGameStart: (String) -> Void
     let liveGame: LiveGame
     
     @StateObject private var multipeer = MultipeerConnectivityManager.shared
@@ -260,7 +260,7 @@ struct SeamlessConnectionFlow: View {
             Spacer()
             
             // Lottie animation
-            LottieView(name: "Loading")
+            LottieView(name: "connection-animation")
                 .frame(width: isIPad ? 200 : 150, height: isIPad ? 200 : 150)
             
             VStack(spacing: 12) {
@@ -323,6 +323,7 @@ struct SeamlessConnectionFlow: View {
             }
         }
         
+        /*
         multipeer.onGameStarting = { gameId in
             guard !hasStartedGame else { return }
             
@@ -335,7 +336,8 @@ struct SeamlessConnectionFlow: View {
                 }
             }
         }
-        
+         */
+        /*
         multipeer.onGameAlreadyStarted = { gameId in
             guard !hasStartedGame else { return }
             
@@ -346,6 +348,7 @@ struct SeamlessConnectionFlow: View {
                 }
             }
         }
+         */
         
         // Start connection based on role
         startBackgroundConnection()

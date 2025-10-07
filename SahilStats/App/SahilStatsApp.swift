@@ -6,30 +6,20 @@ import FirebaseAuth
 import FirebaseFirestore
 import Network
 
-
-
 @main
 struct SahilStatsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var authService = AuthService()
     
     init() {
-        // Configure Firebase
         FirebaseApp.configure()
-        
-        // Configure Firestore settings BEFORE any access
         let settings = FirestoreSettings()
         settings.cacheSettings = MemoryCacheSettings()
         Firestore.firestore().settings = settings
-        
         UITabBar.appearance().itemPositioning = .centered
-        
-        // Start network monitoring (these are safe)
         _ = WifiNetworkMonitor.shared
         _ = YouTubeUploadManager.shared
-        
-        // DO NOT initialize FirebaseYouTubeAuthManager here
-        // It will be initialized lazily when first accessed
+        _ = LiveGameManager.shared // Initialize the new manager
     }
     
     var body: some Scene {
@@ -38,10 +28,63 @@ struct SahilStatsApp: App {
                 .environmentObject(authService)
                 .onAppear {
                     AppDelegate.orientationLock = .portrait
-                    // Initialize FirebaseYouTubeAuthManager after Firestore is configured
                     _ = FirebaseYouTubeAuthManager.shared
-                    startAutoDiscovery()
                 }
+        }
+    }
+}
+
+struct ContentView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var liveGameManager = LiveGameManager.shared // Add this
+    @State private var showingAuth = false
+
+    var body: some View {
+        Group {
+            if authService.isLoading {
+                SplashView()
+            } else {
+                MainTabView()
+            }
+        }
+        .sheet(isPresented: $showingAuth) {
+            AuthView()
+        }
+        // This is the master controller for showing live game views
+        .fullScreenCover(isPresented: .constant(liveGameManager.gameState != .idle)) {
+            LiveGameContainerView()
+        }
+    }
+}
+
+// This new container view decides what to show during a live session
+struct LiveGameContainerView: View {
+    @StateObject private var liveGameManager = LiveGameManager.shared
+    
+    var body: some View {
+        Group {
+            switch liveGameManager.gameState {
+            case .connecting(let role), .connected(let role):
+                // ** THIS IS THE FIX **
+                // Removed the extra 'liveGame' argument from the call below.
+                ConnectionWaitingRoomView(role: role)
+                
+            case .inProgress(let role):
+                if let liveGame = liveGameManager.liveGame {
+                     if role == .recorder {
+                        CleanVideoRecordingView(liveGame: liveGame)
+                     } else {
+                        LiveGameControllerView(liveGame: liveGame)
+                     }
+                } else {
+                    // This shows while the liveGame object is loading from Firebase
+                    ProgressView("Loading Game Data...")
+                }
+            case .idle:
+                // This case is handled by the `isPresented` binding, but it's good practice
+                // to have a fallback.
+                EmptyView()
+            }
         }
     }
 }
@@ -67,6 +110,7 @@ private func startAutoDiscovery() {
     }
 }
 
+/*
 struct ContentView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showingAuth = false
@@ -91,6 +135,7 @@ struct ContentView: View {
         
     }
 }
+ */
 
 struct SplashView: View {
     @State private var rotation: Double = 0
@@ -132,16 +177,12 @@ struct SplashView: View {
     }
 }
 
-// Fixed MainTabView with consistent icons for both iPhone and iPad
-
-
 struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showingAuth = false
     
     var body: some View {
         TabView {
-            // MARK: - Games Tab
             NavigationView {
                 GameListView()
             }
@@ -151,7 +192,6 @@ struct MainTabView: View {
                 Text("Games")
             }
             
-            // MARK: - New Game Tab (Admin Only)
             if authService.showAdminFeatures {
                 NavigationView {
                     GameSetupView()
@@ -163,7 +203,6 @@ struct MainTabView: View {
                 }
             }
             
-            // MARK: - Settings Tab
             NavigationView {
                 SettingsView()
             }
@@ -173,16 +212,13 @@ struct MainTabView: View {
                 Text("Settings")
             }
         }
-        .environment(\.horizontalSizeClass, .compact) // Force compact size class for bottom tabs
+        .environment(\.horizontalSizeClass, .compact)
         .accentColor(.orange)
         .sheet(isPresented: $showingAuth) {
             AuthView()
         }
     }
 }
-
-
-
 
 #Preview {
     ContentView()

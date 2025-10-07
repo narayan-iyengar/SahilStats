@@ -11,6 +11,7 @@ import Foundation
 import Photos
 import Combine
 import FirebaseFirestore
+import FirebaseAuth
 
 class YouTubeUploadManager: ObservableObject {
     static let shared = YouTubeUploadManager()
@@ -127,11 +128,33 @@ class YouTubeUploadManager: ObservableObject {
     }
 
     private func getFreshAccessToken() async throws -> String {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw YouTubeAuthError.notSignedIn
+        }
+
+        let docRef = Firestore.firestore().collection("users").document(userId)
+
         do {
-            let (accessToken, _) = try await FirebaseYouTubeAuthManager.shared.getYouTubeTokens()
-            
-            // Check if we should refresh (simplified - just always refresh to be safe)
-            return try await FirebaseYouTubeAuthManager.shared.refreshAccessToken()
+            let document = try await docRef.getDocument()
+            guard let data = document.data(),
+                  let accessToken = data["youtubeAccessToken"] as? String,
+                  let timestamp = data["youtubeAuthTimestamp"] as? Timestamp else {
+                // If we don't have the necessary data, we have to re-authorize.
+                throw UploadError.uploadFailed(statusCode: 401, message: "YouTube token information is missing. Please re-authorize.")
+            }
+
+            let tokenDate = timestamp.dateValue()
+            let fiftyMinutesInSeconds: TimeInterval = 50 * 60
+
+            // If the token is less than 50 minutes old, use it.
+            if Date().timeIntervalSince(tokenDate) < fiftyMinutesInSeconds {
+                print("✅ Using existing, valid YouTube access token.")
+                return accessToken
+            } else {
+                // Otherwise, refresh the token.
+                print("⌛️ YouTube access token is old, attempting to refresh.")
+                return try await FirebaseYouTubeAuthManager.shared.refreshAccessToken()
+            }
         } catch {
             print("Token refresh failed: \(error)")
             throw UploadError.uploadFailed(statusCode: 401, message: "Unable to refresh YouTube token. Please re-authorize.")
