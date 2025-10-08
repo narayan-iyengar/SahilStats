@@ -390,10 +390,6 @@ struct DeviceRoleSelectionView: View {
     }
 }
 
-// MARK: - Device Role Card
-
-
-
 
 
 // MARK: - Connected Device Row

@@ -82,50 +82,7 @@ extension AuthService {
 
 // MARK: - Convenience Methods for Recording Flow
 
-extension VideoRecordingManager {
-    func saveRecordingAndQueueUpload(
-        gameId: String,
-        teamName: String,
-        opponent: String
-    ) async {
-        // Get the current recording URL from outputURL property
-        // Note: Ensure outputURL and saveToPhotoLibrary() exist on VideoRecordingManager
-        guard let recordingURL = getLastRecordingURL(),
-              FileManager.default.fileExists(atPath: recordingURL.path) else {
-            print("❌ No recording to queue")
-            return
-        }
-        
-        // Save to photo library first
-        await saveToPhotoLibrary()
-        
-        // Generate metadata
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .medium
-        dateFormatter.timeStyle = .short
-        
-        let title = "🏀 \(teamName) vs \(opponent) - \(dateFormatter.string(from: Date()))"
-        let description = """
-        Live game recording
-        \(teamName) vs \(opponent)
-        
-        Recorded: \(dateFormatter.string(from: Date()))
-        Game ID: \(gameId)
-        
-        🏀 SahilStats - Basketball Analytics
-        """
-        
-        // Queue for YouTube upload
-        YouTubeUploadManager.shared.queueVideoForUpload(
-            videoURL: recordingURL,
-            title: title,
-            description: description,
-            gameId: gameId
-        )
-        
-        print("✅ Video saved and queued for YouTube upload")
-    }
-}
+
 
 // MARK: - YouTube Settings Section
 

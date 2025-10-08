@@ -110,12 +110,27 @@ class LiveGameManager: ObservableObject {
 
     func startMultiDeviceSession(role: DeviceRoleManager.DeviceRole) {
         print("🚀 LiveGameManager: Starting multi-device session for role: \(role), current state: \(gameState)")
-        gameState = .connecting(role: role)
+        
+        // Only change state if we're not already in the process
+        if case .idle = gameState {
+            gameState = .connecting(role: role)
+        }
+        
+        // Check if we're already advertising/browsing to avoid "Already advertising" warning
         if role == .controller {
-            multipeer.startBrowsing()
+            // Stop any existing browsing first
+            multipeer.stopBrowsing()
+            // Small delay to ensure cleanup, then start browsing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.multipeer.startBrowsing()
+            }
         } else {
-            // Typo fixed here: multipeer, not multipear
-            multipeer.startAdvertising(as: "recorder")
+            // Stop any existing advertising first
+            multipeer.stopAdvertising()
+            // Small delay to ensure cleanup, then start advertising
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.multipeer.startAdvertising(as: "recorder")
+            }
         }
         print("🚀 LiveGameManager: Multi-device session started, new state: \(gameState)")
     }
@@ -132,9 +147,21 @@ class LiveGameManager: ObservableObject {
                 case .connected(let role) where role == .recorder:
                     print("🎬 Transitioning LiveGameManager from connected to inProgress state for recorder")
                     gameState = .inProgress(role: .recorder)
+                    print("🎬 LiveGameManager: gameState updated to \(gameState)")
+                    
+                    // Force NavigationCoordinator to transition if observers aren't working
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        NavigationCoordinator.shared.forceTransitionToRecording()
+                    }
                 case .idle, .connecting(.recorder):
                     print("🎬 Transitioning LiveGameManager from \(gameState) directly to inProgress state for recorder")
                     gameState = .inProgress(role: .recorder)
+                    print("🎬 LiveGameManager: gameState updated to \(gameState)")
+                    
+                    // Force NavigationCoordinator to transition if observers aren't working
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        NavigationCoordinator.shared.forceTransitionToRecording()
+                    }
                 default:
                     print("⚠️ LiveGameManager: gameStarting received but current state is \(gameState), not transitioning")
                 }

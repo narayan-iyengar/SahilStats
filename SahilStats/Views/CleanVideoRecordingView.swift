@@ -8,13 +8,13 @@ import Combine
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
     @StateObject private var recordingManager = VideoRecordingManager.shared
+    @StateObject private var orientationManager = OrientationManager()
     @Environment(\.dismiss) private var dismiss
     
     // Local state for overlay data
     @State private var overlayData: SimpleScoreOverlayData
     @State private var updateTimer: Timer?
     @State private var isCameraReady = false
-    @State private var orientation = UIDevice.current.orientation
     
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
@@ -40,12 +40,12 @@ struct CleanVideoRecordingView: View {
                 
                 SimpleScoreOverlay(
                     overlayData: overlayData,
-                    orientation: orientation,
+                    orientation: orientationManager.orientation,
                     recordingDuration: recordingManager.recordingTimeString,
                     isRecording: recordingManager.isRecording
                 )
                 
-                if orientation.isLandscape {
+                if orientationManager.isLandscape {
                     landscapeControls
                 } else {
                     portraitControls
@@ -117,7 +117,13 @@ struct CleanVideoRecordingView: View {
     }
     
     private var loadingMessage: String {
-        cameraSetupAttempts == 0 ? "Starting Camera..." : "Initializing camera (Attempt \(cameraSetupAttempts))..."
+        if cameraSetupAttempts == 0 {
+            return "Starting Camera..."
+        } else if cameraSetupAttempts == 1 {
+            return "Initializing Camera..."
+        } else {
+            return "Setting up camera (Attempt \(cameraSetupAttempts))..."
+        }
     }
     
     // MARK: - Setup and Cleanup Methods
@@ -130,14 +136,11 @@ struct CleanVideoRecordingView: View {
         AppDelegate.orientationLock = .landscape
         UIViewController.attemptRotationToDeviceOrientation()
         
-        setupOrientationNotifications()
         startOverlayUpdateTimer()
         setupBluetoothCallbacks()
         UIApplication.shared.isIdleTimerDisabled = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.setupCamera()
-        }
+        setupCameraWithDelay()
         
         // Monitor connection state changes
         multipeer.$connectionState
@@ -156,11 +159,17 @@ struct CleanVideoRecordingView: View {
         AppDelegate.orientationLock = .portrait
         UIViewController.attemptRotationToDeviceOrientation()
         
-        removeOrientationNotifications()
         recordingManager.stopCameraSession()
         stopOverlayUpdateTimer()
         UIApplication.shared.isIdleTimerDisabled = false
         cancellables.removeAll()
+    }
+    
+    private func setupCameraWithDelay() {
+        // Give the view hierarchy time to setup, then initialize camera
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.setupCamera()
+        }
     }
     
     private func setupCamera() {
@@ -179,27 +188,34 @@ struct CleanVideoRecordingView: View {
                 return
             }
             
-            // Start the camera session (this is not async)
             await MainActor.run {
-                recordingManager.startCameraSession()
-                hasCameraSetup = true
-            }
-            
-            // Wait for the preview layer to be available
-            for attempt in 0..<30 {  // Increased attempts
-                if recordingManager.previewLayer != nil {
-                    await MainActor.run {
-                        print("✅ Camera preview layer is ready (attempt \(attempt + 1))")
-                        isCameraReady = true
+                print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
+                
+                // Set up camera ready callback first
+                self.recordingManager.onCameraReady = {
+                    DispatchQueue.main.async {
+                        print("✅ Camera session is ready")
+                        self.isCameraReady = true
                     }
-                    return
                 }
-                try? await Task.sleep(for: .milliseconds(200))  // Increased delay
-            }
-            
-            await MainActor.run {
-                cameraErrorMessage = "Failed to initialize the camera after \(cameraSetupAttempts) attempts."
-                showingCameraError = true
+                
+                // Now setup and start the camera
+                if self.recordingManager.setupCamera() != nil {
+                    print("✅ Camera hardware setup completed, starting session...")
+                    self.recordingManager.startCameraSession()
+                    self.hasCameraSetup = true
+                    
+                    // Fallback timeout in case onCameraReady isn't called
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                        if !self.isCameraReady {
+                            print("⚠️ Camera ready timeout, forcing ready state")
+                            self.isCameraReady = true
+                        }
+                    }
+                } else {
+                    self.cameraErrorMessage = "Failed to set up camera hardware."
+                    self.showingCameraError = true
+                }
             }
         }
     }
@@ -215,7 +231,7 @@ struct CleanVideoRecordingView: View {
     private func setupBluetoothCallbacks() {
         print("📱 [CleanVideoRecordingView] Subscribing to multipeer message publisher.")
         
-        multipeer.messagePublisher
+        self.multipeer.messagePublisher
             .receive(on: DispatchQueue.main)
             .sink { message in // Removed [weak self]
                 self.handleMessage(message)
@@ -227,15 +243,15 @@ struct CleanVideoRecordingView: View {
         switch message.type {
         case .startRecording:
             print("📱 Received startRecording command via publisher.")
-            Task {
-                await recordingManager.startRecording()
-                multipeer.sendRecordingStateUpdate(isRecording: true)
+            Task { @MainActor in
+                await self.recordingManager.startRecording()
+                self.multipeer.sendRecordingStateUpdate(isRecording: true)
             }
         case .stopRecording:
             print("📱 Received stopRecording command via publisher.")
-            Task {
-                await recordingManager.stopRecording()
-                multipeer.sendRecordingStateUpdate(isRecording: false)
+            Task { @MainActor in
+                await self.recordingManager.stopRecording()
+                self.multipeer.sendRecordingStateUpdate(isRecording: false)
             }
         case .gameEnded:
             print("📱 Received gameEnded command via publisher.")
@@ -248,26 +264,35 @@ struct CleanVideoRecordingView: View {
     }
 
     private func handleGameEnd(gameId: String) {
+        print("🎬 CleanVideoRecordingView: handleGameEnd called for gameId: \(gameId)")
+        
         if recordingManager.isRecording {
-            Task {
-                await recordingManager.stopRecording()
-                await recordingManager.saveRecordingAndQueueUpload(
+            print("🎬 Recording is active, stopping and saving...")
+            Task { @MainActor in
+                await self.recordingManager.stopRecording()
+                await self.recordingManager.saveRecordingAndQueueUpload(
                     gameId: gameId,
-                    teamName: liveGame.teamName,
-                    opponent: liveGame.opponent
+                    teamName: self.liveGame.teamName,
+                    opponent: self.liveGame.opponent
                 )
-                // Let the manager handle the state reset
+                
+                print("🎬 Recording saved, dismissing view...")
+                // Reset the state and dismiss
                 LiveGameManager.shared.reset()
+                self.dismiss()
             }
         } else {
+            print("🎬 No recording active, dismissing view...")
             LiveGameManager.shared.reset()
+            dismiss()
         }
     }
     
     private func handleDismiss() {
-        print("Dismissing recording view via user action.")
-        // Use the gameId from the liveGame object
-        handleGameEnd(gameId: liveGame.id ?? "unknown-game-id")
+        print("🎬 CleanVideoRecordingView: handleDismiss called")
+        // Use the gameId from the liveGame object or provide a fallback
+        let gameId = liveGame.id ?? "unknown-game-id"
+        handleGameEnd(gameId: gameId)
     }
     
     // MARK: - Timer and UI Update Methods
@@ -291,15 +316,7 @@ struct CleanVideoRecordingView: View {
             recordingDuration: recordingManager.recordingTimeString
         )
     }
-    
-    private func setupOrientationNotifications() {
-        NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in
-            self.orientation = UIDevice.current.orientation
-        }
-        self.orientation = UIDevice.current.orientation
-    }
-    
-    private func removeOrientationNotifications() {
-        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
-    }
 }
+
+
+

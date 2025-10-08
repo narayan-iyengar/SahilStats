@@ -8,43 +8,143 @@
 import SwiftUI
 
 struct RootNavigationView: View {
-    @StateObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     @EnvironmentObject var authService: AuthService
     
     var body: some View {
         Group {
-            switch navigation.currentFlow {
-            case .dashboard:
-                GameListView()
-                    .environmentObject(authService)
-                
-            case .gameSetup(let role):
-                if role == .none {
-                    RoleSelectionView()
-                } else {
-                    ConnectionFlow(role: role)
+            if authService.isLoading {
+                SplashView()
+            } else {
+                switch navigation.currentFlow {
+                case .dashboard:
+                    MainTabView()
+                        .environmentObject(authService)
+                    
+                case .gameSetup(let role):
+                    if role == .none {
+                        RoleSelectionView()
+                    } else {
+                        ConnectionFlow(role: role)
+                    }
+                    
+                case .liveGame(let liveGame):
+                    LiveGameView()
+                        .environmentObject(authService)
+                        .navigationBarHidden(true)
+                        .statusBarHidden(true)
+                    
+                case .recording(let liveGame, let role):
+                    CleanVideoRecordingView(liveGame: liveGame)
+                        .ignoresSafeArea(.all)
+                        .navigationBarHidden(true)
                 }
-                
-            case .liveGame(let liveGame):
-                LiveGameView()
-                    .environmentObject(authService)
-                    .navigationBarHidden(true)
-                    .statusBarHidden(true)
-                
-            case .recording(let liveGame, let role):
-                CleanVideoRecordingView(liveGame: liveGame)
-                    .ignoresSafeArea(.all)
-                    .navigationBarHidden(true)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: navigation.currentFlow)
+        .onAppear {
+            print("🏠 RootNavigationView: Appeared with currentFlow: \(navigation.currentFlow)")
+            print("🏠 RootNavigationView: NavigationCoordinator instance: \(ObjectIdentifier(navigation))")
+            print("🏠 RootNavigationView: Shared instance: \(ObjectIdentifier(NavigationCoordinator.shared))")
+        }
+        .onChange(of: navigation.currentFlow) { oldValue, newValue in
+            print("🏠 RootNavigationView: currentFlow changed from \(oldValue) to \(newValue)")
+        }
     }
 }
+
+// MARK: - Splash View
+
+struct SplashView: View {
+    @State private var rotation: Double = 0
+    @State private var scale: Double = 1.0
+    
+    var body: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                Image(systemName: "basketball.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.orange)
+                    .rotationEffect(.degrees(rotation))
+                    .scaleEffect(scale)
+                    .onAppear {
+                        withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                            rotation = 360
+                        }
+                        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                            scale = 1.1
+                        }
+                    }
+                
+                Text("Sahil's Stats")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.orange)
+                
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                
+                Text("Loading...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Main Tab View
+
+struct MainTabView: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var showingAuth = false
+    
+    var body: some View {
+        TabView {
+            NavigationView {
+                GameListView()
+            }
+            .navigationViewStyle(.stack)
+            .tabItem {
+                Image(systemName: "chart.bar.fill")
+                Text("Games")
+            }
+            
+            if authService.showAdminFeatures {
+                NavigationView {
+                    GameSetupView()
+                }
+                .navigationViewStyle(.stack)
+                .tabItem {
+                    Image(systemName: "plus.circle.fill")
+                    Text("New Game")
+                }
+            }
+            
+            NavigationView {
+                SettingsView()
+            }
+            .navigationViewStyle(.stack)
+            .tabItem {
+                Image(systemName: "gearshape.fill")
+                Text("Settings")
+            }
+        }
+        .environment(\.horizontalSizeClass, .compact)
+        .accentColor(.orange)
+        .sheet(isPresented: $showingAuth) {
+            AuthView()
+        }
+    }
+}
+
 
 // MARK: - Simplified Role Selection
 
 struct RoleSelectionView: View {
-    @StateObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     private var isIPad: Bool { horizontalSizeClass == .regular }
@@ -143,7 +243,7 @@ struct RoleButton: View {
 
 struct ConnectionFlow: View {
     let role: DeviceRoleManager.DeviceRole
-    @StateObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     private var isIPad: Bool { horizontalSizeClass == .regular }
@@ -167,6 +267,12 @@ struct ConnectionFlow: View {
             .padding(.horizontal, 40)
         }
         .padding()
+        .onAppear {
+            print("🔄 ConnectionFlow: View appeared with role: \(role), currentFlow: \(navigation.currentFlow)")
+        }
+        .onChange(of: navigation.currentFlow) { oldValue, newValue in
+            print("🔄 ConnectionFlow: currentFlow changed from \(oldValue) to \(newValue)")
+        }
     }
 }
 
@@ -176,9 +282,21 @@ struct ConnectionStatusIndicator: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            // Animation
-            LottieView(name: animationName)
-                .frame(width: isIPad ? 200 : 150, height: isIPad ? 200 : 150)
+            // Animation with fallback
+            if Bundle.main.path(forResource: animationName, ofType: "json") != nil {
+                LottieView(name: animationName)
+                    .frame(width: isIPad ? 200 : 150, height: isIPad ? 200 : 150)
+            } else {
+                // Fallback animation using SwiftUI
+                Image(systemName: iconName)
+                    .font(.system(size: isIPad ? 80 : 60))
+                    .foregroundColor(iconColor)
+                    .scaleEffect(animatedScale)
+                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: animatedScale)
+                    .onAppear {
+                        animatedScale = 1.2
+                    }
+            }
             
             VStack(spacing: 8) {
                 Text(title)
@@ -190,6 +308,34 @@ struct ConnectionStatusIndicator: View {
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
+        }
+    }
+    
+    @State private var animatedScale: CGFloat = 1.0
+    
+    private var iconName: String {
+        switch state {
+        case .idle, .selectingRole:
+            return "wifi"
+        case .connecting:
+            return "wifi.circle"
+        case .connected:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "xmark.circle.fill"
+        }
+    }
+    
+    private var iconColor: Color {
+        switch state {
+        case .idle, .selectingRole:
+            return .blue
+        case .connecting:
+            return .orange
+        case .connected:
+            return .green
+        case .failed:
+            return .red
         }
     }
     
