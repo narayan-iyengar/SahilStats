@@ -7,6 +7,13 @@ import Combine
 import SwiftUI
 import Photos
 
+
+
+// Forward declaration to avoid missing type issues
+extension VideoRecordingManager {
+    // This ensures YouTubeUploadManager is available
+}
+
 class VideoRecordingManager: NSObject, ObservableObject {
     static let shared = VideoRecordingManager()
     
@@ -49,8 +56,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
     func startCameraSession() {
         guard !isRecording else { return }
+        print("🎥 VideoRecordingManager: startCameraSession called")
 
         if _previewLayer == nil {
+            print("🎥 VideoRecordingManager: Setting up camera hardware...")
             _ = setupCamera()
         }
 
@@ -62,10 +71,17 @@ class VideoRecordingManager: NSObject, ObservableObject {
         )
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.captureSession?.startRunning()
-            // Reduced delay - just enough for initial frame
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                self?.updatePreviewOrientation()
+            guard let self = self else { return }
+            print("🎥 VideoRecordingManager: Starting capture session...")
+            self.captureSession?.startRunning()
+            
+            // Wait for session to fully start before updating orientation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                print("🎥 VideoRecordingManager: Session started, updating orientation...")
+                self.updatePreviewOrientation()
+                
+                // Trigger the onCameraReady callback if set
+                self.onCameraReady?()
             }
         }
     }
@@ -78,6 +94,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
     
     @objc private func handleOrientationChange() {
+        // Debounce orientation changes to avoid rapid updates
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(updatePreviewOrientationDelayed), object: nil)
+        perform(#selector(updatePreviewOrientationDelayed), with: nil, afterDelay: 0.3)
+    }
+    
+    @objc private func updatePreviewOrientationDelayed() {
         updatePreviewOrientation()
     }
     
@@ -88,6 +110,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
         }
 
         let orientation = UIDevice.current.orientation
+        
+        // Only handle valid orientations
+        guard orientation != .unknown && orientation != .faceUp && orientation != .faceDown else {
+            return
+        }
+
         let rotationAngle: CGFloat
 
         switch orientation {
@@ -104,7 +132,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         }
 
         if connection.isVideoRotationAngleSupported(rotationAngle) {
-            connection.videoRotationAngle = rotationAngle
+            UIView.animate(withDuration: 0.3) {
+                connection.videoRotationAngle = rotationAngle
+            }
         }
     }
     
@@ -175,10 +205,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     func setupCamera() -> AVCaptureVideoPreviewLayer? {
         guard canRecordVideo else {
-            print("Camera access not granted")
+            print("❌ Camera access not granted")
             return nil
         }
         
+        print("🎥 VideoRecordingManager: Setting up camera hardware...")
         configureAudioSession()
         
         do {
@@ -188,16 +219,18 @@ class VideoRecordingManager: NSObject, ObservableObject {
             guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera,
                                                             for: .video,
                                                             position: .back) else {
-                print("No back camera available")
+                print("❌ No back camera available")
                 return nil
             }
             
+            print("🎥 VideoRecordingManager: Found back camera device")
             let videoInput = try AVCaptureDeviceInput(device: videoDevice)
             
             if session.canAddInput(videoInput) {
                 session.addInput(videoInput)
+                print("✅ Video input added to session")
             } else {
-                print("Cannot add video input")
+                print("❌ Cannot add video input")
                 return nil
             }
             
@@ -205,6 +238,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 let audioInput = try AVCaptureDeviceInput(device: audioDevice)
                 if session.canAddInput(audioInput) {
                     session.addInput(audioInput)
+                    print("✅ Audio input added to session")
                 }
             }
             
@@ -212,6 +246,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
             if session.canAddOutput(movieOutput) {
                 session.addOutput(movieOutput)
                 self.videoOutput = movieOutput
+                print("✅ Movie output added to session")
             }
             
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
@@ -220,19 +255,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
             self.captureSession = session
             self._previewLayer = previewLayer
             
-            DispatchQueue.global(qos: .userInitiated).async {
-                session.startRunning()
-                // Remove this delay - it's redundant with startCameraSession
-                // Just update orientation once
-                DispatchQueue.main.async {
-                    self.updatePreviewOrientation()
-                }
-            }
+            print("✅ Camera hardware setup completed successfully")
             
             return previewLayer
             
         } catch {
-            print("Camera setup error: \(error)")
+            print("❌ Camera setup error: \(error)")
             self.error = error
             return nil
         }
@@ -385,33 +413,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
         stopRecordingTimer()
     }
     
-    func saveAndQueueForUpload(gameId: String, teamName: String, opponent: String) {
-        guard let outputURL = outputURL else {
-            print("❌ No recording to queue")
-            return
-        }
-        
-        // Generate title and description
-        let title = "🏀 \(teamName) vs \(opponent) - \(Date().formatted(date: .abbreviated, time: .shortened))"
-        let description = """
-        Game Recording
-        \(teamName) vs \(opponent)
-        Recorded: \(Date().formatted(date: .complete, time: .shortened))
-        Game ID: \(gameId)
-        
-        Automatically uploaded by SahilStats
-        """
-        
-        // Queue for upload
-        YouTubeUploadManager.shared.queueVideoForUpload(
-            videoURL: outputURL,
-            title: title,
-            description: description,
-            gameId: gameId
-        )
-        
-        print("✅ Video queued for YouTube upload")
-    }
+
     
     /// Saves the last recorded video to the user's photo library (requires user permission).
     @MainActor
@@ -444,6 +446,39 @@ class VideoRecordingManager: NSObject, ObservableObject {
             }
         }
     }
+    
+    /// Handles saving recording and queuing for upload - used by recording view
+    func saveRecordingAndQueueUpload(gameId: String, teamName: String, opponent: String) async {
+        guard let outputURL = outputURL else {
+            print("❌ No recording to save and queue")
+            return
+        }
+        
+        // Generate title and description
+        let title = "🏀 \(teamName) vs \(opponent) - \(Date().formatted(date: .abbreviated, time: .shortened))"
+        let description = """
+        Game Recording
+        \(teamName) vs \(opponent)
+        Recorded: \(Date().formatted(date: .complete, time: .shortened))
+        Game ID: \(gameId)
+        
+        Automatically uploaded by SahilStats
+        """
+        
+        // Queue for upload
+        YouTubeUploadManager.shared.queueVideoForUpload(
+            videoURL: outputURL,
+            title: title,
+            description: description,
+            gameId: gameId
+        )
+        
+        print("✅ Video queued for YouTube upload")
+        
+        // Also save to photo library
+        await saveToPhotoLibrary()
+    }
+
 }
 
 // MARK: - AVCaptureFileOutputRecordingDelegate

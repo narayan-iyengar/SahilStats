@@ -8,7 +8,7 @@ import FirebaseAuth
 
 struct GameListView: View {
     @StateObject private var firebaseService = FirebaseService.shared
-    @StateObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     @EnvironmentObject var authService: AuthService
     @StateObject private var filterManager = GameFilterManager()
     
@@ -194,7 +194,7 @@ struct GameListView: View {
                 hasLiveGame: firebaseService.hasLiveGame,
                 canCreateGames: authService.canCreateGames,
                 onShowFilters: { showingFilters = true },
-                onShowLiveGame: { navigation.viewLiveGame() },
+                onShowLiveGame: { navigation.resumeLiveGame() },
                 onNewGame: { showingNewGame = true },
                 isIPad: isIPad
             )

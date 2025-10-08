@@ -12,7 +12,11 @@ import Combine
 class NavigationCoordinator: ObservableObject {
     static let shared = NavigationCoordinator()
     
-    @Published var currentFlow: AppFlow = .dashboard
+    @Published var currentFlow: AppFlow = .dashboard {
+        didSet {
+        //    print("🔄 NavigationCoordinator: currentFlow changed from \(oldValue) to \(currentFlow)")
+        }
+    }
     @Published var connectionState: ConnectionFlow = .idle
     
     enum AppFlow: Equatable {
@@ -153,6 +157,42 @@ class NavigationCoordinator: ObservableObject {
         connectionState = .idle
         multipeer.stopAll()
         liveGameManager.reset()
+        
+        // Clear the device role when canceling - user can choose again if they want to rejoin
+        DeviceRoleManager.shared.deviceRole = .none
+        print("📱 NavigationCoordinator: Cleared device role on return to dashboard")
+    }
+    
+    // Manual method to force re-evaluation of the current state
+    func forceStateEvaluation() {
+        print("📱 NavigationCoordinator: Force evaluating state - currentFlow: \(currentFlow), gameState: \(liveGameManager.gameState)")
+        print("📱 NavigationCoordinator: Device role: \(DeviceRoleManager.shared.deviceRole)")
+        if let liveGame = liveGameManager.liveGame {
+            print("📱 NavigationCoordinator: Force re-evaluating with liveGame: \(liveGame.id ?? "unknown")")
+            handleLiveGameAvailable(liveGame)
+        } else {
+            print("📱 NavigationCoordinator: No liveGame available during force evaluation")
+        }
+    }
+    
+    // Direct method to force transition to recording view
+    func forceTransitionToRecording() {
+        print("📱 NavigationCoordinator: Force transitioning to recording view")
+        print("📱 NavigationCoordinator: Current state - currentFlow: \(currentFlow), gameState: \(liveGameManager.gameState)")
+        
+        guard let liveGame = liveGameManager.liveGame else {
+            print("❌ NavigationCoordinator: Cannot transition - no liveGame available")
+            return
+        }
+        
+        guard DeviceRoleManager.shared.deviceRole == .recorder else {
+            print("❌ NavigationCoordinator: Cannot transition - device role is \(DeviceRoleManager.shared.deviceRole), not recorder")
+            return
+        }
+        
+        print("🎬 NavigationCoordinator: Force transitioning to recording view for game: \(liveGame.id ?? "unknown")")
+        currentFlow = .recording(liveGame, .recorder)
+        print("🎬 NavigationCoordinator: Force transition complete - new currentFlow: \(currentFlow)")
     }
     
     // MARK: - Private Event Handlers
@@ -170,22 +210,39 @@ class NavigationCoordinator: ObservableObject {
         let shouldAutoTransition: Bool
         switch currentFlow {
         case .dashboard:
-            // Only auto-transition from dashboard if the LiveGameManager indicates we're in progress
-            // This handles the case where a recorder device receives a gameStarting signal
-            if case .inProgress = liveGameManager.gameState {
-                shouldAutoTransition = true
-                print("🔄 Auto-transitioning from dashboard due to game in progress state")
+            // Auto-transition from dashboard based on role and game state
+            if role == .recorder {
+                // Recorder should transition when connected or in progress
+                if case .connected(.recorder) = liveGameManager.gameState {
+                    shouldAutoTransition = true
+                    print("🔄 Auto-transitioning from dashboard: recorder connected")
+                } else if case .inProgress(.recorder) = liveGameManager.gameState {
+                    shouldAutoTransition = true
+                    print("🔄 Auto-transitioning from dashboard: recorder in progress")
+                } else {
+                    shouldAutoTransition = false
+                    print("📱 Not auto-transitioning from dashboard: recorder gameState is \(liveGameManager.gameState)")
+                }
             } else {
-                shouldAutoTransition = false
-                print("📱 Not auto-transitioning from dashboard: gameState is \(liveGameManager.gameState)")
+                // Controller and viewer should transition when game is in progress
+                if case .inProgress = liveGameManager.gameState {
+                    shouldAutoTransition = true
+                    print("🔄 Auto-transitioning from dashboard due to game in progress state")
+                } else {
+                    shouldAutoTransition = false
+                    print("📱 Not auto-transitioning from dashboard: gameState is \(liveGameManager.gameState)")
+                }
             }
         case .gameSetup:
             // For gameSetup flow, transition based on the LiveGameManager state and role
             if role == .recorder {
-                // Recorder should transition when game state is inProgress
-                if case .inProgress = liveGameManager.gameState {
+                // Recorder should transition when connected or in progress
+                if case .connected(.recorder) = liveGameManager.gameState {
                     shouldAutoTransition = true
-                    print("🔄 Auto-transitioning from gameSetup for recorder due to inProgress state")
+                    print("🔄 Auto-transitioning from gameSetup: recorder connected")
+                } else if case .inProgress(.recorder) = liveGameManager.gameState {
+                    shouldAutoTransition = true
+                    print("🔄 Auto-transitioning from gameSetup: recorder in progress")
                 } else {
                     shouldAutoTransition = false
                     print("📱 Not auto-transitioning from gameSetup: recorder gameState is \(liveGameManager.gameState)")
@@ -206,16 +263,22 @@ class NavigationCoordinator: ObservableObject {
         }
         
         print("🎬 Transitioning to appropriate view for role: \(role)")
+        print("🎬 Before transition - currentFlow: \(currentFlow)")
         switch role {
         case .controller:
             currentFlow = .liveGame(liveGame)
+            print("🎬 After transition - currentFlow set to: .liveGame(\(liveGame.id ?? "unknown"))")
         case .recorder:
             currentFlow = .recording(liveGame, .recorder)
+            print("🎬 After transition - currentFlow set to: .recording(\(liveGame.id ?? "unknown"), .recorder)")
         case .viewer:
             currentFlow = .liveGame(liveGame)
+            print("🎬 After transition - currentFlow set to: .liveGame(\(liveGame.id ?? "unknown"))")
         case .none:
+            print("🎬 No transition - role is .none")
             break
         }
+        print("🎬 Final currentFlow: \(currentFlow)")
     }
     
     private func handleLiveGameEnded() {
