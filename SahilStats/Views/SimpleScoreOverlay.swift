@@ -72,127 +72,22 @@ struct SimpleScoreOverlay: View {
     }
     
     var body: some View {
-        if isLandscape {
-            landscapeOverlay
-        } else {
-            portraitPrompt
+        Group {
+            if isLandscape {
+                landscapeOverlay
+            } else {
+                portraitPrompt
+            }
+        }
+        .onChange(of: orientation) { _, _ in
+            // Stop animation when orientation changes
+            if isLandscape {
+                rotationAnimation = false
+            }
         }
     }
     
-    // MARK: - Glassmorphic Landscape Overlay
-   /*
-    private var landscapeOverlay: some View {
-        HStack {
-            Spacer()
-            VStack {
-                // Vertical glass scoreboard
-                VStack(spacing: 10) {
-                    // Away team section
-                    glassSection {
-                        VStack(spacing: 3) {
-                            Text(formatTeamName(overlayData.awayTeam, maxLength: 8))
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .opacity(0.9)
-                                .lineLimit(1)
-                            
-                            Text("\(overlayData.awayScore)")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .monospacedDigit()
-                        }
-                        .padding(.vertical, 10)
-                    }
-                    .rotationEffect(.degrees(getTextRotation()))
-                    
-                    // Glass divider
-                    glassDivider
-                    
-                    // Game info section
-                    glassSection {
-                        VStack(spacing: 2) {
-                            Text(formatShortPeriod())
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.orange)
-                                .opacity(0.95)
-                            
-                            Text(overlayData.clockTime)
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .monospacedDigit()
-                        }
-                        .padding(.vertical, 8)
-                    }
-                    .rotationEffect(.degrees(getTextRotation()))
-                    
-                    // Glass divider
-                    glassDivider
-                    
-                    // Home team section
-                    glassSection {
-                        VStack(spacing: 3) {
-                            Text(formatTeamName(overlayData.homeTeam))
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .opacity(0.9)
-                                .lineLimit(1)
-                            
-                            Text("\(overlayData.homeScore)")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .monospacedDigit()
-                        }
-                        .padding(.vertical, 10)
-                    }
-                    .rotationEffect(.degrees(getTextRotation()))
-                }
-                .frame(width: 90)
-                .frame(maxHeight: 500)
-                .background(
-                    // Glassmorphic background
-                    ZStack {
-                        // Dark glass effect
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(.ultraThinMaterial)
-                            .environment(\.colorScheme, .dark)
-                        
-                        // Subtle gradient overlay
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.black.opacity(0.3),
-                                        Color.black.opacity(0.15)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        
-                        // Accent border
-                        RoundedRectangle(cornerRadius: 20)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.3),
-                                        Color.white.opacity(0.1)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1
-                            )
-                    }
-                )
-                .shadow(color: .black.opacity(0.3), radius: 20, x: -5, y: 0)
-            }
-        }
-        //.padding(.trailing, 100)
-        //.padding(.top, 100) // Move it much closer to bottom
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    }
-    */
-    //MARK: New landscapeOverlay - more compact
+    // MARK: - Compact Landscape Overlay
     private var landscapeOverlay: some View {
         GeometryReader { geometry in
             ZStack {
@@ -278,55 +173,30 @@ struct SimpleScoreOverlay: View {
                     .environment(\.colorScheme, .dark)
                 
                 RoundedRectangle(cornerRadius: 14)
-                                .strokeBorder(
-                                    isRecording ? Color.red : Color.white.opacity(0.2),
-                                    lineWidth: isRecording ? 3 : 1
-                                )
-                                .opacity(isRecording ? (borderPulse ? 1.0 : 0.4) : 1.0)
-                        }
+                    .strokeBorder(
+                        isRecording ? Color.red : Color.white.opacity(0.2),
+                        lineWidth: isRecording ? 3 : 1
                     )
-                    .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 2)
-                    .onAppear {
-                        if isRecording {
-                            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                                borderPulse = true
-                            }
-                        }
-                    }
-                    .onChange(of: isRecording) { _, newValue in
-                        if newValue {
-                            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                                borderPulse = true
-                            }
-                        } else {
-                            borderPulse = false
-                        }
-                    }
+                    .opacity(isRecording ? (borderPulse ? 1.0 : 0.4) : 1.0)
+            }
+        )
+        .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 2)
+        .onAppear {
+            if isRecording {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    borderPulse = true
                 }
-    
-    
-    // MARK: - Glass Section Helper
-    
-    private func glassSection<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(maxHeight: .infinity)
-    }
-    
-    private var glassDivider: some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.0),
-                        Color.white.opacity(0.2),
-                        Color.white.opacity(0.0)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .frame(height: 1)
-            .padding(.horizontal, 8)
+            }
+        }
+        .onChange(of: isRecording) { _, newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    borderPulse = true
+                }
+            } else {
+                borderPulse = false
+            }
+        }
     }
     
     // MARK: - Portrait Prompt
@@ -339,13 +209,14 @@ struct SimpleScoreOverlay: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 32) {
-                // Animated rotation icon
-                Image(systemName: "rotate.right")
-                    .font(.system(size: 80, weight: .light))
+                // Animated rotation icon with proper orientation
+                Image(systemName: "iphone")  // Changed to iPhone icon for better portrait representation
+                    .font(.system(size: 60, weight: .light))
                     .foregroundColor(.white)
                     .rotationEffect(.degrees(rotationAnimation ? 90 : 0))
                     .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: rotationAnimation)
                     .onAppear { rotationAnimation = true }
+                    .onDisappear { rotationAnimation = false }  // FIXED: Stop animation when view disappears
                 
                 VStack(spacing: 16) {
                     Text("Rotate to Landscape")

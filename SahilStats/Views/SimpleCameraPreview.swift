@@ -1,134 +1,183 @@
-// SimpleCameraPreviewView.swift - Fixed version with proper camera setup
+// SimpleCameraPreviewView.swift - Fixed version with detailed logging
 
 import SwiftUI
 import AVFoundation
 
-/*
- struct SimpleCameraPreviewView: UIViewRepresentable {
- @StateObject private var recordingManager = VideoRecordingManager.shared
- @Binding var isCameraReady: Bool
- 
- 
- func makeUIView(context: Context) -> UIView {
- let view = UIView()
- view.backgroundColor = .black
- 
- // Request camera permission first
- Task {
- await recordingManager.requestCameraAccess()
- 
- // Set up the preview layer after permissions are granted
- DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
- if let previewLayer = recordingManager.setupCamera() {
- previewLayer.frame = view.bounds
- previewLayer.videoGravity = .resizeAspectFill
- view.layer.addSublayer(previewLayer)
- 
- // Camera is ready - wait a bit more for everything to initialize
- DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
- isCameraReady = true
- }
- } else {
- // If camera setup fails, show a placeholder
- let label = UILabel()
- label.text = "Camera not available"
- label.textColor = .white
- label.textAlignment = .center
- label.frame = view.bounds
- label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
- view.addSubview(label)
- 
- // Still mark as "ready" so UI shows
- DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
- isCameraReady = true
- }
- }
- }
- }
- 
- return view
- }
- 
- 
- func updateUIView(_ uiView: UIView, context: Context) {
- // Update preview layer frame when view size changes
- if let previewLayer = recordingManager.previewLayer {
- DispatchQueue.main.async {
- previewLayer.frame = uiView.bounds
- }
- }
- }
- 
- }
- */
 struct SimpleCameraPreviewView: UIViewRepresentable {
     @Binding var isCameraReady: Bool
+    @StateObject private var recordingManager = VideoRecordingManager.shared
+    
+    class Coordinator: NSObject {
+        var parent: SimpleCameraPreviewView
+        var hasAddedPreviewLayer = false
+        var checkTimer: Timer?
+        
+        init(_ parent: SimpleCameraPreviewView) {
+            self.parent = parent
+        }
+        
+        deinit {
+            checkTimer?.invalidate()
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
     
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
         view.backgroundColor = .black
         
-        // Add a loading indicator while camera initializes
+        print("🎥 SimpleCameraPreviewView: makeUIView called")
+        
+        // Add loading indicator
         let activityIndicator = UIActivityIndicatorView(style: .large)
         activityIndicator.color = .white
         activityIndicator.center = view.center
         activityIndicator.autoresizingMask = [.flexibleTopMargin, .flexibleBottomMargin, .flexibleLeftMargin, .flexibleRightMargin]
         activityIndicator.startAnimating()
         view.addSubview(activityIndicator)
-        activityIndicator.tag = 999 // Tag to identify it later
+        activityIndicator.tag = 999
         
-        // Add a loading label
-        let loadingLabel = UILabel()
-        loadingLabel.text = "Initializing Camera..."
-        loadingLabel.textColor = .white
-        loadingLabel.font = UIFont.systemFont(ofSize: 16, weight: .medium)
-        loadingLabel.textAlignment = .center
-        loadingLabel.sizeToFit()
-        loadingLabel.center = CGPoint(x: view.center.x, y: view.center.y + 50)
-        loadingLabel.autoresizingMask = [.flexibleTopMargin, .flexibleBottomMargin, .flexibleLeftMargin, .flexibleRightMargin]
-        view.addSubview(loadingLabel)
-        loadingLabel.tag = 998 // Tag to identify it later
+        // Start checking for preview layer availability
+        context.coordinator.checkTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            DispatchQueue.main.async {
+                if !context.coordinator.hasAddedPreviewLayer {
+                    self.checkAndAddPreviewLayer(to: view, coordinator: context.coordinator)
+                }
+            }
+        }
+        
+        // Try to add preview layer immediately
+        checkAndAddPreviewLayer(to: view, coordinator: context.coordinator)
         
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Only add preview layer if we don't already have one
-        let hasPreviewLayer = uiView.layer.sublayers?.contains { $0 is AVCaptureVideoPreviewLayer } ?? false
-        
-        if !hasPreviewLayer, let previewLayer = VideoRecordingManager.shared.previewLayer {
-            print("🎥 SimpleCameraPreviewView: Adding preview layer to view")
-            
-            // Configure preview layer
+        // Update the preview layer frame if it exists
+        if let previewLayer = uiView.layer.sublayers?.first(where: { $0 is AVCaptureVideoPreviewLayer }) as? AVCaptureVideoPreviewLayer {
+            print("🎥 SimpleCameraPreviewView: Updating preview layer frame to \(uiView.bounds)")
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             previewLayer.frame = uiView.bounds
-            previewLayer.videoGravity = .resizeAspectFill
-            
-            // Add preview layer
-            uiView.layer.insertSublayer(previewLayer, at: 0)
-            
-            // Remove loading indicator and label
-            if let activityIndicator = uiView.viewWithTag(999) as? UIActivityIndicatorView {
-                activityIndicator.stopAnimating()
-                activityIndicator.removeFromSuperview()
-            }
-            if let loadingLabel = uiView.viewWithTag(998) {
-                loadingLabel.removeFromSuperview()
-            }
-            
-            print("✅ SimpleCameraPreviewView: Preview layer added successfully")
-            
-        } else if hasPreviewLayer {
-            // Update existing preview layer frame
-            if let previewLayer = uiView.layer.sublayers?.first(where: { $0 is AVCaptureVideoPreviewLayer }) as? AVCaptureVideoPreviewLayer {
-                previewLayer.frame = uiView.bounds
-            }
+            CATransaction.commit()
+        } else if !context.coordinator.hasAddedPreviewLayer {
+            print("🎥 SimpleCameraPreviewView: No preview layer in updateUIView, trying to add")
+            checkAndAddPreviewLayer(to: uiView, coordinator: context.coordinator)
+        }
+    }
+    
+    private func checkAndAddPreviewLayer(to view: UIView, coordinator: Coordinator) {
+        print("🔍 SimpleCameraPreviewView: Checking for preview layer...")
+        
+        // Check if preview layer already exists in view
+        if view.layer.sublayers?.contains(where: { $0 is AVCaptureVideoPreviewLayer }) == true {
+            print("✅ SimpleCameraPreviewView: Preview layer already exists in view")
+            coordinator.hasAddedPreviewLayer = true
+            coordinator.checkTimer?.invalidate()
+            return
+        }
+        
+        // Try to get preview layer from recording manager
+        if let previewLayer = recordingManager.previewLayer {
+            print("✅ SimpleCameraPreviewView: Found preview layer in recording manager")
+            addPreviewLayer(previewLayer, to: view, coordinator: coordinator)
         } else {
-            print("⚠️ SimpleCameraPreviewView: No preview layer available yet")
+            print("⚠️ SimpleCameraPreviewView: No preview layer available from recording manager")
             
-            // Update loading label to show we're still waiting
-            if let loadingLabel = uiView.viewWithTag(998) as? UILabel {
-                loadingLabel.text = "Waiting for camera..."
+            // Try to setup camera which will create both session and preview layer
+            if let newPreviewLayer = recordingManager.setupCamera() {
+                print("✅ SimpleCameraPreviewView: Created new preview layer from setupCamera")
+                addPreviewLayer(newPreviewLayer, to: view, coordinator: coordinator)
+            } else {
+                print("❌ SimpleCameraPreviewView: Failed to setup camera")
             }
         }
+    }
+    
+    private func addPreviewLayer(_ previewLayer: AVCaptureVideoPreviewLayer, to view: UIView, coordinator: Coordinator) {
+        print("🎥 SimpleCameraPreviewView: Adding preview layer to view")
+        print("🎥 Preview layer session: \(previewLayer.session != nil ? "exists" : "nil")")
+        print("🎥 Preview layer connection: \(previewLayer.connection != nil ? "exists" : "nil")")
+        
+        // CRITICAL: Ensure session is running before adding preview layer
+        if let session = previewLayer.session {
+            print("🎥 Session running status: \(session.isRunning)")
+            if !session.isRunning {
+                print("⚠️ Session not running, starting it now...")
+                session.startRunning()
+                // Wait for session to start
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.completePreviewLayerSetup(previewLayer, view: view, coordinator: coordinator)
+                }
+                return
+            }
+        }
+        
+        completePreviewLayerSetup(previewLayer, view: view, coordinator: coordinator)
+    }
+    
+    private func completePreviewLayerSetup(_ previewLayer: AVCaptureVideoPreviewLayer, view: UIView, coordinator: Coordinator) {
+        print("🎥 SimpleCameraPreviewView: Completing preview layer setup")
+        
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        
+        // Remove any existing preview layers first
+        view.layer.sublayers?.forEach { sublayer in
+            if sublayer is AVCaptureVideoPreviewLayer {
+                sublayer.removeFromSuperlayer()
+            }
+        }
+        
+        // Configure preview layer
+        previewLayer.frame = view.bounds
+        previewLayer.videoGravity = .resizeAspectFill
+        
+        // Set video orientation for landscape
+        if let connection = previewLayer.connection {
+            print("🎥 Connection is active: \(connection.isActive)")
+            print("🎥 Connection is enabled: \(connection.isEnabled)")
+            print("🎥 Connection has video input: \(connection.inputPorts.first?.mediaType == .video)")
+            if connection.isVideoOrientationSupported {
+                connection.videoOrientation = .landscapeRight
+                print("✅ Set video orientation to landscape")
+            }
+            // Ensure connection is enabled
+            if !connection.isEnabled {
+                connection.isEnabled = true
+                print("✅ Enabled preview connection")
+            }
+        } else {
+            print("⚠️ No connection available on preview layer")
+        }
+        
+        // Add to view
+        view.layer.addSublayer(previewLayer)
+        
+        CATransaction.commit()
+        
+        // Force a layout update
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+        
+        // Remove loading indicator
+        if let activityIndicator = view.viewWithTag(999) as? UIActivityIndicatorView {
+            activityIndicator.stopAnimating()
+            activityIndicator.removeFromSuperview()
+        }
+        
+        coordinator.hasAddedPreviewLayer = true
+        coordinator.checkTimer?.invalidate()
+        
+        // Mark camera as ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.isCameraReady = true
+            print("✅ SimpleCameraPreviewView: Camera marked as ready, session running: \(previewLayer.session?.isRunning ?? false)")
+        }
+        
+        print("✅ SimpleCameraPreviewView: Preview layer added successfully")
     }
 }

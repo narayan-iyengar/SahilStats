@@ -18,6 +18,7 @@ class NavigationCoordinator: ObservableObject {
         }
     }
     @Published var connectionState: ConnectionFlow = .idle
+    @Published var userExplicitlyJoinedGame = false
     
     enum AppFlow: Equatable {
         case dashboard
@@ -50,7 +51,10 @@ class NavigationCoordinator: ObservableObject {
             .sink { [weak self] liveGame in
                 if let game = liveGame {
                     print("📱 NavigationCoordinator: Live game available - \(game.id ?? "unknown")")
-                    self?.handleLiveGameAvailable(game)
+                    // FIXED: Only handle if user explicitly joined
+                    if self?.userExplicitlyJoinedGame == true {
+                        self?.handleLiveGameAvailable(game)
+                    }
                 } else {
                     print("📱 NavigationCoordinator: Live game ended")
                     self?.handleLiveGameEnded()
@@ -104,30 +108,29 @@ class NavigationCoordinator: ObservableObject {
     // MARK: - Public Navigation Methods
     
     func startLiveGame() {
-        currentFlow = .gameSetup(.none) // Will show role selection
+        userExplicitlyJoinedGame = true  // User is explicitly starting
+        currentFlow = .gameSetup(.none)
     }
     
     func resumeLiveGame() {
-        // Check if there's an active live game and go directly to it
+        userExplicitlyJoinedGame = true  // User is explicitly resuming
+        
         if let liveGame = liveGameManager.liveGame {
             let role = DeviceRoleManager.shared.deviceRole
-            print("📱 NavigationCoordinator: resumeLiveGame - role: \(role), gameState: \(liveGameManager.gameState)")
+            print("📱 NavigationCoordinator: resumeLiveGame - role: \(role)")
             
             if role != .none {
-                // If we have a role but LiveGameManager is idle, restart the session
+                // User has a role and explicitly wants to resume
                 if case .idle = liveGameManager.gameState {
                     print("📱 NavigationCoordinator: Restarting multipeer session for role: \(role)")
                     liveGameManager.startMultiDeviceSession(role: role)
                 }
-                
-                // If we already have a role, go directly to the appropriate view
                 handleLiveGameAvailable(liveGame)
             } else {
-                // If no role is set, show role selection to join the existing game
+                // Show role selection for existing game
                 currentFlow = .gameSetup(.none)
             }
         } else {
-            // No live game exists, start the setup flow
             startLiveGame()
         }
     }
@@ -144,21 +147,20 @@ class NavigationCoordinator: ObservableObject {
     
     func selectRole(_ role: DeviceRoleManager.DeviceRole) {
         print("🎯 NavigationCoordinator: selectRole(\(role)) called")
+        userExplicitlyJoinedGame = true  // User explicitly selected a role
         connectionState = .connecting(role)
         
-        // Set the role in DeviceRoleManager immediately for the multipeer connection
         DeviceRoleManager.shared.deviceRole = role
-        
         liveGameManager.startMultiDeviceSession(role: role)
     }
     
     func returnToDashboard() {
         currentFlow = .dashboard
         connectionState = .idle
+        userExplicitlyJoinedGame = false  // Reset explicit join flag
         multipeer.stopAll()
         liveGameManager.reset()
         
-        // Clear the device role when canceling - user can choose again if they want to rejoin
         DeviceRoleManager.shared.deviceRole = .none
         print("📱 NavigationCoordinator: Cleared device role on return to dashboard")
     }
@@ -198,12 +200,18 @@ class NavigationCoordinator: ObservableObject {
     // MARK: - Private Event Handlers
     
     private func handleLiveGameAvailable(_ liveGame: LiveGame) {
-        let role = DeviceRoleManager.shared.deviceRole
-        print("📱 NavigationCoordinator: handleLiveGameAvailable - currentFlow=\(currentFlow), role=\(role), gameState=\(liveGameManager.gameState)")
+        // FIXED: Only transition if user explicitly joined
+        guard userExplicitlyJoinedGame else {
+            print("📱 NavigationCoordinator: Ignoring live game - user didn't explicitly join")
+            return
+        }
         
-        guard role != .none else { 
+        let role = DeviceRoleManager.shared.deviceRole
+        print("📱 NavigationCoordinator: handleLiveGameAvailable - role=\(role)")
+        
+        guard role != .none else {
             print("📱 Not transitioning: device role is .none")
-            return 
+            return
         }
         
         // Check if this device should automatically transition based on game state
