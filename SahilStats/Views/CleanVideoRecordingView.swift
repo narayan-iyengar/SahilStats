@@ -173,52 +173,47 @@ struct CleanVideoRecordingView: View {
     }
     
     private func setupCamera() {
-        guard !hasCameraSetup else { return }
-        cameraSetupAttempts += 1
-        
-        print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
-        
-        Task {
-            let hasPermission = await recordingManager.checkForCameraPermission()
-            guard hasPermission else {
-                await MainActor.run {
-                    cameraErrorMessage = "Camera permission is required to record."
-                    showingCameraError = true
-                }
+            guard !hasCameraSetup else {
+                print("🎥 CleanVideoRecordingView: Camera already setup, skipping")
                 return
             }
+            cameraSetupAttempts += 1
             
-            await MainActor.run {
-                print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
-                
-                // Set up camera ready callback first
-                self.recordingManager.onCameraReady = {
-                    DispatchQueue.main.async {
-                        print("✅ Camera session is ready")
-                        self.isCameraReady = true
+            print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
+            
+            Task {
+                let hasPermission = await recordingManager.checkForCameraPermission()
+                guard hasPermission else {
+                    await MainActor.run {
+                        cameraErrorMessage = "Camera permission is required to record."
+                        showingCameraError = true
                     }
+                    return
                 }
                 
-                // Now setup and start the camera
-                if self.recordingManager.setupCamera() != nil {
-                    print("✅ Camera hardware setup completed, starting session...")
-                    self.recordingManager.startCameraSession()
-                    self.hasCameraSetup = true
+                await MainActor.run {
+                    print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
                     
-                    // Fallback timeout in case onCameraReady isn't called
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                        if !self.isCameraReady {
-                            print("⚠️ Camera ready timeout, forcing ready state")
+                    // IMPORTANT: Start the camera session BEFORE setting up preview
+                    self.recordingManager.startCameraSession()
+                    
+                    // Now setup the camera and get the preview layer
+                    if self.recordingManager.setupCamera() != nil {
+                        print("✅ Camera hardware setup completed")
+                        self.hasCameraSetup = true
+                        
+                        // Give the camera session time to start before marking ready
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            print("✅ Marking camera as ready")
                             self.isCameraReady = true
                         }
+                    } else {
+                        self.cameraErrorMessage = "Failed to set up camera hardware."
+                        self.showingCameraError = true
                     }
-                } else {
-                    self.cameraErrorMessage = "Failed to set up camera hardware."
-                    self.showingCameraError = true
                 }
             }
         }
-    }
     
     private func retryCameraSetup() {
         print("🔄 CleanVideoRecordingView: Retrying camera setup")

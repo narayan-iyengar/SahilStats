@@ -10,45 +10,82 @@ import SwiftUI
 struct RootNavigationView: View {
     @ObservedObject private var navigation = NavigationCoordinator.shared
     @EnvironmentObject var authService: AuthService
+    @StateObject private var firebaseService = FirebaseService.shared
     
     var body: some View {
         Group {
             if authService.isLoading {
                 SplashView()
             } else {
-                switch navigation.currentFlow {
-                case .dashboard:
+                // FIXED: Don't auto-navigate to recording on app start
+                // Check if we should show main dashboard or specific flow
+                if shouldShowMainDashboard() {
                     MainTabView()
                         .environmentObject(authService)
-                    
-                case .gameSetup(let role):
-                    if role == .none {
-                        RoleSelectionView()
-                    } else {
-                        ConnectionFlow(role: role)
+                } else {
+                    // Handle specific navigation flows
+                    switch navigation.currentFlow {
+                    case .dashboard:
+                        MainTabView()
+                            .environmentObject(authService)
+                        
+                    case .gameSetup(let role):
+                        if role == .none {
+                            RoleSelectionView()
+                        } else {
+                            ConnectionFlow(role: role)
+                        }
+                        
+                    case .liveGame(let liveGame):
+                        LiveGameView()
+                            .environmentObject(authService)
+                            .navigationBarHidden(true)
+                            .statusBarHidden(true)
+                        
+                    case .recording(let liveGame, let role):
+                        CleanVideoRecordingView(liveGame: liveGame)
+                            .ignoresSafeArea(.all)
+                            .navigationBarHidden(true)
                     }
-                    
-                case .liveGame(let liveGame):
-                    LiveGameView()
-                        .environmentObject(authService)
-                        .navigationBarHidden(true)
-                        .statusBarHidden(true)
-                    
-                case .recording(let liveGame, let role):
-                    CleanVideoRecordingView(liveGame: liveGame)
-                        .ignoresSafeArea(.all)
-                        .navigationBarHidden(true)
                 }
             }
         }
         .animation(.easeInOut(duration: 0.3), value: navigation.currentFlow)
         .onAppear {
             print("🏠 RootNavigationView: Appeared with currentFlow: \(navigation.currentFlow)")
-            print("🏠 RootNavigationView: NavigationCoordinator instance: \(ObjectIdentifier(navigation))")
-            print("🏠 RootNavigationView: Shared instance: \(ObjectIdentifier(NavigationCoordinator.shared))")
+            
+            // FIXED: Reset to dashboard if there's a live game but no active role
+            if firebaseService.hasLiveGame && DeviceRoleManager.shared.deviceRole == .none {
+                print("🏠 RootNavigationView: Live game exists but no role set, staying on dashboard")
+                navigation.currentFlow = .dashboard
+            }
         }
         .onChange(of: navigation.currentFlow) { oldValue, newValue in
             print("🏠 RootNavigationView: currentFlow changed from \(oldValue) to \(newValue)")
+        }
+    }
+    
+    // FIXED: Helper method to determine if we should show main dashboard
+    private func shouldShowMainDashboard() -> Bool {
+        // Always start at dashboard unless explicitly navigating elsewhere
+        switch navigation.currentFlow {
+        case .dashboard:
+            return true
+        case .recording(_, _):
+            // Only show recording if user explicitly joined as recorder
+            // Check if this is a fresh app start
+            if DeviceRoleManager.shared.deviceRole == .recorder {
+                // User has recorder role, but did they explicitly choose to join?
+                // If there's no active multipeer connection, return to dashboard
+                if !MultipeerConnectivityManager.shared.connectionState.isConnected {
+                    print("🏠 No active connection, returning to dashboard")
+                    return true
+                }
+                return false
+            }
+            return true
+        default:
+            return false
         }
     }
 }
