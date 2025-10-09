@@ -45,12 +45,12 @@ struct CompactDeviceControlStatusCard: View {
         self.onToggleRecording = onToggleRecording
         
         // DEBUG: Print all the values when this view is created
-        //print("🔍 [DEBUG] CompactDeviceControlStatusCard init:")
-        //print("   hasControl: \(hasControl)")
-        //print("   showBluetoothStatus: \(showBluetoothStatus)")
-        //print("   isRecording: \(isRecording?.description ?? "nil")")
-        //print("   onToggleRecording: \(onToggleRecording != nil ? "provided" : "nil")")
-        //print("   Recording button will show: \(isRecording != nil && onToggleRecording != nil)")
+        print("🔍 [DEBUG] CompactDeviceControlStatusCard init:")
+        print("   hasControl: \(hasControl)")
+        print("   showBluetoothStatus: \(showBluetoothStatus)")
+        print("   isRecording: \(isRecording?.description ?? "nil")")
+        print("   onToggleRecording: \(onToggleRecording != nil ? "provided" : "nil")")
+        print("   Recording button will show: \(isRecording != nil && onToggleRecording != nil)")
     }
     
     var body: some View {

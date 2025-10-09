@@ -23,8 +23,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Status")
                     Spacer()
-                    Text(authService.userRole.displayName)
-                        .foregroundColor(.secondary)
+                    UserStatusIndicator()
                 }
                 
                 if authService.isSignedIn && !authService.currentUser!.isAnonymous {
@@ -93,6 +92,11 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                AdminStatusIndicator()
+            }
+        }
         .sheet(isPresented: $showingAuth) {
             AuthView()
         }
@@ -337,18 +341,9 @@ struct DevicePairingView: View {
                 }
                 
                 if isPairing {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                        Text("Searching for \(selectedRole == .controller ? "recorders" : "controllers")...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("This may take a few seconds...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
+                    LoadingView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                 } else if nearbyDevices.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "antenna.radiowaves.left.and.right")

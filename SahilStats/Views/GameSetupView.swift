@@ -12,8 +12,10 @@ import MultipeerConnectivity
 struct GameSetupView: View  {
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var settingsManager = SettingsManager.shared
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @StateObject private var connectionManager = UnifiedConnectionManager.shared
     @StateObject private var trustedDevicesManager = TrustedDevicesManager.shared
+    @StateObject private var liveGameManager = LiveGameManager.shared
+    @StateObject private var multipeer = MultipeerConnectivityManager.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     
@@ -195,7 +197,7 @@ struct GameSetupView: View  {
                 setupMode = .gameForm
             }
         } else if deviceRole == .recorder {
-            print("🎬 handleWaitingRoomGameStart - recorder path")
+            print("🎬 handleWaitingRoomGameStart - recorder path - using Firebase-only approach")
             
             Task {
                 do {
@@ -212,12 +214,11 @@ struct GameSetupView: View  {
                     try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
                     
                     await MainActor.run {
-                        print("🎬 Showing live game view for recorder")
-                        // CRITICAL: Don't dismiss the waiting room - let it stay in the background
-                        // This preserves the multipeer connection
+                        print("🎬 Showing live game view for recorder - Firebase-only")
+                        // Use same approach as "Join Live Game"
                         showingLiveGameView = true
                         
-                        // Dismiss the waiting room AFTER the live game view is showing
+                        // Dismiss the waiting room after the live game view is showing
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             showingConnectionWaitingRoom = false
                         }
@@ -242,7 +243,11 @@ struct GameSetupView: View  {
                     }
                     
                     try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
-                    showingLiveGameView = true
+                    
+                    await MainActor.run {
+                        print("🎬 handleBluetoothConnectionChange: Using Firebase-only approach")
+                        showingLiveGameView = true
+                    }
                 } catch {
                     self.error = "Failed to join as recorder: \(error.localizedDescription)"
                 }
@@ -432,18 +437,8 @@ struct GameSetupView: View  {
                 self.deviceRole = .controller
             }
 
-            SetupOptionCard(
-                title: "Multi-Device Recording",
-                subtitle: "Record video + control scoring separately",
-                icon: "video.fill",
-                color: .red,
-                status: "Choose recorder or controller role",
-                statusColor: .red
-            ) {
-                self.isCreatingMultiDeviceGame = true
-                self.setupMode = .recording
-                self.deviceRole = .none
-            }
+            // Conditional Multi-Device Recording based on background connection
+            multiDeviceRecordingCard
 
             if firebaseService.hasLiveGame {
                 SetupOptionCard(
@@ -482,9 +477,14 @@ struct GameSetupView: View  {
             }
             .padding(.top, 40)
             
-            // Check for trusted devices
-            if trustedDevicesManager.hasTrustedDevices {
-                // SEAMLESS MODE - Auto-connect in background
+            // Background connection status display
+            if connectionManager.connectionStatus.isConnected {
+                connectionStatusCard
+            }
+            
+            // Role selection based on background connection status
+            if connectionManager.connectionStatus.canUseMultiDevice {
+                // INSTANT CONNECTION MODE - Background device is connected
                 VStack(spacing: 16) {
                     DeviceRoleCard(
                         role: .controller,
@@ -492,7 +492,7 @@ struct GameSetupView: View  {
                         isIPad: isIPad
                     ) {
                         deviceRole = .controller
-                        seamlessConnect(role: .controller)
+                        proceedWithInstantConnection(role: .controller)
                     }
                     
                     DeviceRoleCard(
@@ -501,35 +501,73 @@ struct GameSetupView: View  {
                         isIPad: isIPad
                     ) {
                         deviceRole = .recorder
-                        seamlessConnect(role: .recorder)
+                        // Use Firebase-only approach like "Join Live Game"  
+                        if firebaseService.hasLiveGame {
+                            joinAsRecorder()
+                        } else {
+                            error = "No live game found. The controller must start the game first."
+                        }
                     }
                 }
                 
-                Text("Trusted devices will auto-connect")
+                Text("✅ Ready for instant multi-device setup")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.green)
                     .padding(.top, 8)
+                    
+            } else if connectionManager.connectionStatus == .scanning || 
+                      isConnectingStatus(connectionManager.connectionStatus) {
+                // SCANNING MODE - Still looking for devices
+                VStack(spacing: 24) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(.orange)
+                    
+                    VStack(spacing: 8) {
+                        Text("Looking for Trusted Devices")
+                            .font(.headline)
+                        
+                        Text(connectionManager.connectionStatus.displayText)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Button("Use Manual Connection Instead") {
+                        // Fallback to traditional pairing
+                        proceedWithManualConnection()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                
             } else {
-                // NO TRUSTED DEVICES - Show pairing prompt
+                // NO CONNECTION MODE - Show traditional pairing or setup options
                 VStack(spacing: 24) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 60))
                         .foregroundColor(.orange)
                     
-                    Text("No Trusted Devices")
+                    Text("No Trusted Devices Found")
                         .font(.headline)
                     
-                    Text("To use multi-device recording, you need to pair your devices first.")
+                    Text("You can either pair devices first, or proceed with manual connection.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                     
-                    Button("Go to Settings to Pair") {
-                        // Navigate to settings
-                        setupMode = .selection
+                    VStack(spacing: 12) {
+                        Button("Go to Settings to Pair Devices") {
+                            // Navigate to settings for pairing
+                            setupMode = .selection
+                            // TODO: Could navigate directly to trusted devices settings
+                        }
+                        .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
+                        
+                        Button("Use Manual Connection") {
+                            proceedWithManualConnection()
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                     .padding(.horizontal, 40)
                 }
             }
@@ -657,68 +695,20 @@ struct GameSetupView: View  {
     
     
     private func handleRoleSelection(_ role: DeviceRoleManager.DeviceRole) {
-        print("🎯 handleRoleSelection called with role: \(role)")
+        print("🎯 handleRoleSelection called with role: \(role) - using Firebase-only approach")
         
-        if connectionMethod == .bluetooth {
-            print("🔵 Using Bluetooth connection method")
-            
-            // Check if already connected to trusted device
-            if multipeer.connectionState.isConnected {
-                print("✅ Already connected to trusted device - proceeding immediately")
-                showConnectionSuccess(role: role, peerName: multipeer.connectedPeers.first?.displayName ?? "Device")
-                proceedWithConnectedDevice(role: role)
-                return
-            }
-            
-            // Start advertising/browsing
+        // Always use Firebase mode now - no more MultipeerConnectivity
+        print("🌐 Using Firebase connection method")
+        if role == .controller {
             Task.detached {
-                try? await DeviceRoleManager.shared.setDeviceRole(role, for: "setup-pending")
+                try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
             }
-            
-            if role == .controller {
-                print("🔍 Controller starting to browse...")
-                multipeer.startBrowsing()
-            } else {
-                print("📡 Recorder starting to advertise...")
-                multipeer.startAdvertising(as: "recorder")
-            }
-            
-            // 🎯 SEAMLESS AUTO-CONNECT: Wait for trusted device
-            isAutoConnecting = true
-            autoConnectStatus = "Looking for trusted devices..."
-            
-            // Set up message handling for connection events and game messages
-            multipeer.messagePublisher
-                .sink { message in
-                    self.handleMultipeerMessage(message)
-                }
-                .store(in: &cancellables)
-            
-            // 3-second timeout for auto-connect
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                if !self.multipeer.connectionState.isConnected && self.isAutoConnecting {
-                    // Auto-connect didn't happen - show waiting room for manual approval
-                    print("⏰ Auto-connect timeout - showing waiting room for manual approval")
-                    self.isAutoConnecting = false
-                    self.showManualConnection = true
-                    self.showingConnectionWaitingRoom = true
-                }
-            }
-            
+            setupMode = .gameForm
         } else {
-            // Firebase mode - proceed as before
-            print("🌐 Using Firebase connection method")
-            if role == .controller {
-                Task.detached {
-                    try? await DeviceRoleManager.shared.setDeviceRole(.controller, for: "setup-pending")
-                }
-                setupMode = .gameForm
+            if firebaseService.hasLiveGame {
+                joinAsRecorder()
             } else {
-                if firebaseService.hasLiveGame {
-                    joinAsRecorder()
-                } else {
-                    error = "No live game found. The controller must start the game first."
-                }
+                error = "No live game found. The controller must start the game first."
             }
         }
     }
@@ -752,8 +742,8 @@ struct GameSetupView: View  {
                         try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
                         
                         await MainActor.run {
-                            print("🎬 Showing live game view for recorder")
-                            self.showingLiveGameView = true
+                            print("🎬 Using Firebase-only approach for live game recorder")
+                            showingLiveGameView = true
                         }
                     } catch {
                         await MainActor.run {
@@ -831,6 +821,13 @@ struct GameSetupView: View  {
     }
     
     // MARK: - Helper Methods
+    
+    private func isConnectingStatus(_ status: UnifiedConnectionManager.ConnectionStatus) -> Bool {
+        if case .connecting = status {
+            return true
+        }
+        return false
+    }
     
     private func loadDefaultSettings() {
         let settings = settingsManager.getDefaultGameSettings()
@@ -941,6 +938,7 @@ struct GameSetupView: View  {
     }
     
     private func joinAsRecorder() {
+        print("🎬 GameSetupView: joinAsRecorder called - using Firebase-only approach")
         Task {
             do {
                 guard let liveGame = firebaseService.getCurrentLiveGame(),
@@ -948,9 +946,19 @@ struct GameSetupView: View  {
                     throw LiveGameError.gameNotFound
                 }
                 
+                print("🎬 Setting device role to recorder...")
                 try await DeviceRoleManager.shared.setDeviceRole(.recorder, for: gameId)
                 
+                // IMPROVED: Give a small delay to ensure role is properly set
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
                 await MainActor.run {
+                    print("🎬 GameSetupView: Role set, setting userExplicitlyJoinedGame = true")
+                    // CRITICAL FIX: Mark that user explicitly joined to allow handleLiveGameChange to work
+                    NavigationCoordinator.shared.userExplicitlyJoinedGame = true
+                    
+                    print("🎬 GameSetupView: showing LiveGameView directly")
+                    // Use the same approach as "Join Live Game" - no MultipeerConnectivity needed
                     showingLiveGameView = true
                 }
             } catch {
@@ -982,24 +990,8 @@ struct GameSetupView: View  {
                         let selectedRole: DeviceRoleManager.DeviceRole = deviceRole == .controller ? .controller : .controller
                         try await DeviceRoleManager.shared.setDeviceRole(selectedRole, for: gameId)
                         
-                        // CRITICAL FIX: Send game starting signal and WAIT for confirmation
-                        if isMultiDevice && connectionMethod == .bluetooth && hasBluetoothConnection {
-                            print("📤 Sending game starting signal via Bluetooth - gameId: \(gameId)")
-                            multipeer.sendGameStarting(gameId: gameId)
-                            
-                            // LONGER DELAY to ensure recorder receives signal
-                            try await Task.sleep(nanoseconds: 2_000_000_000) // 1 second
-                            print("✅ Game starting signal sent, now transitioning to game view")
-                            
-                            // CRITICAL: Set a flag to prevent cleanup on view disappear
-                            await MainActor.run {
-                                // Don't dismiss GameSetupView - just show LiveGameView on top
-                                createdLiveGame = liveGame
-                                showingLiveGameView = true
-                            }
-                            
-                            return // Don't dismiss the setup view
-                        }
+                        // No need for Bluetooth signals - Firebase handles coordination
+                        print("🎮 Game created successfully - using Firebase coordination")
                     }
                     
                     await MainActor.run {
@@ -1881,3 +1873,113 @@ struct DeviceRoleCard: View {
     }
 }
 
+// MARK: - Multi-Device Recording Card
+extension GameSetupView {
+    @ViewBuilder
+    var multiDeviceRecordingCard: some View {
+        if connectionManager.connectionStatus.canUseMultiDevice {
+            // Connected to trusted device - show enhanced multi-device option
+            SetupOptionCard(
+                title: "Multi-Device Recording",
+                subtitle: "Record video + control scoring separately",
+                icon: "video.fill",
+                color: .red,
+                status: "Connected to \(connectionManager.connectedDevice?.name ?? "trusted device")",
+                statusColor: .green
+            ) {
+                // Skip waiting room - go directly to role selection for instant connection
+                self.isCreatingMultiDeviceGame = true
+                self.deviceRole = .none
+                self.proceedToInstantMultiDevice()
+            }
+        } else {
+            // No connection available - show standard option with disabled state or explanation
+            SetupOptionCard(
+                title: "Multi-Device Recording",
+                subtitle: connectionManager.connectionStatus == .unavailable ? 
+                    "No trusted devices nearby" : "Connecting to trusted devices...",
+                icon: "video.fill",
+                color: .red,
+                status: connectionManager.connectionStatus.displayText,
+                statusColor: connectionManager.connectionStatus.color
+            ) {
+                // Still allow access but will show pairing instructions
+                self.isCreatingMultiDeviceGame = true
+                self.setupMode = .recording
+                self.deviceRole = .none
+            }
+        }
+    }
+    
+    private func proceedToInstantMultiDevice() {
+        // Show role selection directly without waiting room
+        setupMode = .recording
+        
+        // Since we have a background connection, we can skip the connection phase
+        print("🚀 Proceeding to instant multi-device setup with connected device: \(connectionManager.connectedDevice?.name ?? "unknown")")
+    }
+    
+    private func proceedWithInstantConnection(role: DeviceRoleManager.DeviceRole) {
+        print("🚀 GameSetupView: Proceeding with instant connection for role: \(role)")
+        
+        // Set the device role
+        DeviceRoleManager.shared.deviceRole = role
+        self.deviceRole = role
+        
+        // Since we already have a background connection, skip waiting room entirely
+        if role == .controller {
+            // Controller goes directly to game form
+            setupMode = .gameForm
+            print("🎮 Controller: Skipping waiting room, going directly to game form")
+        } else if role == .recorder {
+            // Recorder should prepare for immediate recording when game starts
+            print("🎬 Recorder: Ready for instant recording when controller starts game")
+            
+            // For instant connections, bypass the waiting room entirely
+            // Set up the recorder state and wait for game start signal
+            liveGameManager.startMultiDeviceSession(role: role)
+            
+            // Instead of showing waiting room, go directly to a "ready" state
+            // The recorder will transition automatically when the game starts
+            print("🎬 Recorder: Skipping waiting room - ready for instant game start")
+        }
+    }
+    
+    private func proceedWithManualConnection() {
+        print("🔧 GameSetupView: Proceeding with manual connection")
+        
+        // Fall back to the traditional connection method
+        // This would show the old waiting room experience
+        if trustedDevicesManager.hasTrustedDevices {
+            // Show role selection with traditional seamless connect
+            // The role selection is already shown, we just need to update the actions
+            // This is handled by the existing seamlessConnect method
+        } else {
+            // Navigate to pairing/manual connection flow
+            showingBluetoothConnection = true
+        }
+    }
+    
+    private var connectionStatusCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundColor(.green)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Connected to \(connectionManager.connectedDevice?.name ?? "Device")")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text("Ready for instant multi-device setup")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.green.opacity(0.1))
+        .cornerRadius(12)
+    }
+}

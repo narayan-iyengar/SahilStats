@@ -214,17 +214,67 @@ class VideoRecordingManager: NSObject, ObservableObject {
         
         do {
             let session = AVCaptureSession()
-            session.sessionPreset = .high
             
-            guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera,
-                                                            for: .video,
-                                                            position: .back) else {
-                print("❌ No back camera available")
+            // IMPROVED: Start with a reasonable preset and adjust if needed
+            if session.canSetSessionPreset(.high) {
+                session.sessionPreset = .high
+            } else if session.canSetSessionPreset(.medium) {
+                session.sessionPreset = .medium
+                print("⚠️ Using medium quality preset as fallback")
+            }
+            
+            // IMPROVED: Try multiple camera fallbacks
+            var videoDevice: AVCaptureDevice?
+            
+            // Try back wide angle camera first
+            videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+            
+            // Fall back to any back camera
+            if videoDevice == nil {
+                videoDevice = AVCaptureDevice.default(.builtInDualCamera, for: .video, position: .back)
+                print("⚠️ Using dual camera as fallback")
+            }
+            
+            // Last resort: front camera
+            if videoDevice == nil {
+                videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+                print("⚠️ Using front camera as fallback")
+            }
+            
+            guard let device = videoDevice else {
+                print("❌ No camera device available at all")
                 return nil
             }
             
-            print("🎥 VideoRecordingManager: Found back camera device")
-            let videoInput = try AVCaptureDeviceInput(device: videoDevice)
+            print("🎥 VideoRecordingManager: Found camera device: \(device.localizedName)")
+            
+            // IMPROVED: Configure device settings before creating input
+            do {
+                try device.lockForConfiguration()
+                
+                // Set focus and exposure modes for better video
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                }
+                
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                }
+                
+                // Enable stabilization if available
+                if device.activeFormat.isVideoStabilizationModeSupported(.auto) {
+                    // This will be set on the connection later
+                }
+                
+                device.unlockForConfiguration()
+                print("✅ Camera device configured for optimal video recording")
+                
+            } catch {
+                print("⚠️ Could not configure camera device: \(error)")
+                // Continue anyway - basic functionality should still work
+            }
+            
+            let videoInput = try AVCaptureDeviceInput(device: device)
             
             if session.canAddInput(videoInput) {
                 session.addInput(videoInput)
@@ -269,13 +319,34 @@ class VideoRecordingManager: NSObject, ObservableObject {
     private func configureAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
+            
+            // IMPROVED: Better audio session configuration for video recording
             try audioSession.setCategory(.playAndRecord,
                                        mode: .videoRecording,
-                                       options: [.defaultToSpeaker])
+                                       options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+            
+            // IMPROVED: Set preferred sample rate and buffer duration for better performance
+            try audioSession.setPreferredSampleRate(44100)
+            try audioSession.setPreferredIOBufferDuration(0.01)
+            
             try audioSession.setActive(true)
-        } catch {
-            print("Audio session setup failed: \(error)")
-            self.error = error
+            print("✅ Audio session configured successfully")
+            
+        } catch let error as NSError {
+            print("❌ Audio session setup failed: \(error)")
+            print("   Error code: \(error.code)")
+            print("   Error domain: \(error.domain)")
+            
+            // Try a simpler fallback configuration
+            do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(.record, mode: .videoRecording)
+                try audioSession.setActive(true)
+                print("✅ Audio session configured with fallback settings")
+            } catch {
+                print("❌ Even fallback audio session failed: \(error)")
+                self.error = error
+            }
         }
     }
     

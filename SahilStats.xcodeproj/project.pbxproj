@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		8B74A6D22E8683C300B76776 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 8B74A6D12E8683C300B76776 /* Lottie */; };
+		8B8CEB272E963EE600B14319 /* RefactoredSystemTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8CEB262E963EE600B14319 /* RefactoredSystemTestView.swift */; };
+		8B8CEB292E963F7A00B14319 /* UnifiedConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8CEB282E963F7A00B14319 /* UnifiedConnectionManager.swift */; };
+		8B8CEB2B2E963FEC00B14319 /* UnifiedConnectionStatusIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8CEB2A2E963FEC00B14319 /* UnifiedConnectionStatusIndicator.swift */; };
+		8B8CEB2D2E96406E00B14319 /* UnifiedSystemTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8CEB2C2E96406E00B14319 /* UnifiedSystemTestView.swift */; };
 		8BFE14522E7B60A800CED835 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE14512E7B60A800CED835 /* FirebaseCore */; };
 		8BFE145A2E7B622E00CED835 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE14592E7B622E00CED835 /* FirebaseAuth */; };
 		8BFE145C2E7B622E00CED835 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE145B2E7B622E00CED835 /* FirebaseFirestore */; };
@@ -17,6 +21,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8B8CEB262E963EE600B14319 /* RefactoredSystemTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefactoredSystemTestView.swift; sourceTree = "<group>"; };
+		8B8CEB282E963F7A00B14319 /* UnifiedConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedConnectionManager.swift; sourceTree = "<group>"; };
+		8B8CEB2A2E963FEC00B14319 /* UnifiedConnectionStatusIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedConnectionStatusIndicator.swift; sourceTree = "<group>"; };
+		8B8CEB2C2E96406E00B14319 /* UnifiedSystemTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedSystemTestView.swift; sourceTree = "<group>"; };
 		8BFE142D2E7B5A8E00CED835 /* SahilStats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SahilStats.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -64,6 +72,10 @@
 			children = (
 				8BFE142F2E7B5A8E00CED835 /* SahilStats */,
 				8BFE142E2E7B5A8E00CED835 /* Products */,
+				8B8CEB262E963EE600B14319 /* RefactoredSystemTestView.swift */,
+				8B8CEB282E963F7A00B14319 /* UnifiedConnectionManager.swift */,
+				8B8CEB2A2E963FEC00B14319 /* UnifiedConnectionStatusIndicator.swift */,
+				8B8CEB2C2E96406E00B14319 /* UnifiedSystemTestView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -164,6 +176,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B8CEB292E963F7A00B14319 /* UnifiedConnectionManager.swift in Sources */,
+				8B8CEB2D2E96406E00B14319 /* UnifiedSystemTestView.swift in Sources */,
+				8B8CEB272E963EE600B14319 /* RefactoredSystemTestView.swift in Sources */,
+				8B8CEB2B2E963FEC00B14319 /* UnifiedConnectionStatusIndicator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

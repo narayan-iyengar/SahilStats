@@ -17,9 +17,11 @@ struct RootNavigationView: View {
             if authService.isLoading {
                 SplashView()
             } else {
+                let shouldShowDashboard = shouldShowMainDashboard()
+                
                 // FIXED: Don't auto-navigate to recording on app start
                 // Check if we should show main dashboard or specific flow
-                if shouldShowMainDashboard() {
+                if shouldShowDashboard {
                     MainTabView()
                         .environmentObject(authService)
                 } else {
@@ -29,12 +31,8 @@ struct RootNavigationView: View {
                         MainTabView()
                             .environmentObject(authService)
                         
-                    case .gameSetup(let role):
-                        if role == .none {
-                            RoleSelectionView()
-                        } else {
-                            ConnectionFlow(role: role)
-                        }
+                    case .gameSetup:
+                        RoleSelectionView()
                         
                     case .liveGame(let liveGame):
                         LiveGameView()
@@ -42,7 +40,7 @@ struct RootNavigationView: View {
                             .navigationBarHidden(true)
                             .statusBarHidden(true)
                         
-                    case .recording(let liveGame, let role):
+                    case .recording(let liveGame):
                         CleanVideoRecordingView(liveGame: liveGame)
                             .ignoresSafeArea(.all)
                             .navigationBarHidden(true)
@@ -71,19 +69,12 @@ struct RootNavigationView: View {
         switch navigation.currentFlow {
         case .dashboard:
             return true
-        case .recording(_, _):
-            // Only show recording if user explicitly joined as recorder
-            // Check if this is a fresh app start
-            if DeviceRoleManager.shared.deviceRole == .recorder {
-                // User has recorder role, but did they explicitly choose to join?
-                // If there's no active multipeer connection, return to dashboard
-                if !MultipeerConnectivityManager.shared.connectionState.isConnected {
-                    print("🏠 No active connection, returning to dashboard")
-                    return true
-                }
-                return false
-            }
-            return true
+        case .recording:
+            // Show recording if user explicitly joined as recorder
+            let hasRole = DeviceRoleManager.shared.deviceRole == .recorder
+            let userExplicitlyJoined = navigation.userExplicitlyJoinedGame
+            // Don't require connection check for recording - let the recording view handle connection issues
+            return !(hasRole && userExplicitlyJoined)
         default:
             return false
         }
@@ -139,40 +130,55 @@ struct MainTabView: View {
     @State private var showingAuth = false
     
     var body: some View {
-        TabView {
-            NavigationView {
-                GameListView()
-            }
-            .navigationViewStyle(.stack)
-            .tabItem {
-                Image(systemName: "chart.bar.fill")
-                Text("Games")
-            }
-            
-            if authService.showAdminFeatures {
+        ZStack(alignment: .top) {
+            TabView {
                 NavigationView {
-                    GameSetupView()
+                    GameListView()
                 }
                 .navigationViewStyle(.stack)
                 .tabItem {
-                    Image(systemName: "plus.circle.fill")
-                    Text("New Game")
+                    Image(systemName: "chart.bar.fill")
+                    Text("Games")
+                }
+                
+                if authService.showAdminFeatures {
+                    NavigationView {
+                        GameSetupView()
+                    }
+                    .navigationViewStyle(.stack)
+                    .tabItem {
+                        Image(systemName: "plus.circle.fill")
+                        Text("New Game")
+                    }
+                }
+                
+                NavigationView {
+                    SettingsView()
+                }
+                .navigationViewStyle(.stack)
+                .tabItem {
+                    Image(systemName: "gearshape.fill")
+                    Text("Settings")
                 }
             }
+            .environment(\.horizontalSizeClass, .compact)
+            .accentColor(.orange)
+            .sheet(isPresented: $showingAuth) {
+                AuthView()
+            }
             
-            NavigationView {
-                SettingsView()
+            // Status bar connection indicator
+            /*
+            VStack {
+                HStack {
+                    Spacer()
+                    UnifiedConnectionStatusIndicator()
+                        .padding(.trailing, 16)
+                        .padding(.top, 8)
+                }
+                Spacer()
             }
-            .navigationViewStyle(.stack)
-            .tabItem {
-                Image(systemName: "gearshape.fill")
-                Text("Settings")
-            }
-        }
-        .environment(\.horizontalSizeClass, .compact)
-        .accentColor(.orange)
-        .sheet(isPresented: $showingAuth) {
-            AuthView()
+             */
         }
     }
 }
@@ -289,11 +295,20 @@ struct ConnectionFlow: View {
         VStack(spacing: 32) {
             Spacer()
             
-            // Connection status indicator
-            ConnectionStatusIndicator(
-                state: navigation.connectionState,
-                isIPad: isIPad
-            )
+            // Show simple "Ready to connect" message instead of complex status indicator
+            VStack(spacing: 16) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 60))
+                    .foregroundColor(.orange)
+                
+                Text("Ready to Connect")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("Setting up connection for \(role.rawValue)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
             
             Spacer()
             
@@ -313,9 +328,9 @@ struct ConnectionFlow: View {
     }
 }
 
-struct ConnectionStatusIndicator: View {
-    let state: NavigationCoordinator.ConnectionFlow
-    let isIPad: Bool
+ struct ConnectionStatusIndicator: View {
+     let state: UnifiedConnectionManager.ConnectionStatus
+     let isIPad: Bool
     
     var body: some View {
         VStack(spacing: 20) {
@@ -352,70 +367,82 @@ struct ConnectionStatusIndicator: View {
     
     private var iconName: String {
         switch state {
-        case .idle, .selectingRole:
+        case .scanning, .foundTrustedDevice:
             return "wifi"
         case .connecting:
             return "wifi.circle"
         case .connected:
             return "checkmark.circle.fill"
-        case .failed:
+        case .unavailable, .disabled:
+            return "wifi.slash"
+        case .error:
             return "xmark.circle.fill"
         }
     }
     
     private var iconColor: Color {
         switch state {
-        case .idle, .selectingRole:
-            return .blue
-        case .connecting:
+        case .scanning, .foundTrustedDevice, .connecting:
             return .orange
         case .connected:
             return .green
-        case .failed:
+        case .unavailable, .disabled:
+            return .gray
+        case .error:
             return .red
         }
     }
     
     private var animationName: String {
         switch state {
-        case .idle, .selectingRole:
+        case .scanning, .foundTrustedDevice:
             return "connection-animation"
         case .connecting:
             return "connection-animation"
         case .connected:
             return "success-animation"
-        case .failed:
+        case .unavailable, .disabled:
+            return "connection-animation"
+        case .error:
             return "error-animation"
         }
     }
     
     private var title: String {
         switch state {
-        case .idle:
-            return "Ready"
-        case .selectingRole:
-            return "Choose Role"
-        case .connecting(let role):
+        case .scanning:
+            return "Scanning..."
+        case .foundTrustedDevice(let name):
+            return "Found \(name)"
+        case .connecting(let name):
             return "Connecting..."
-        case .connected(let role):
+        case .connected(let name):
             return "Connected!"
-        case .failed:
+        case .unavailable:
+            return "No Devices"
+        case .disabled:
+            return "Disabled"
+        case .error:
             return "Connection Failed"
         }
     }
     
     private var subtitle: String {
         switch state {
-        case .idle:
+        case .scanning:
+            return "Looking for devices..."
+        case .foundTrustedDevice(let name):
+            return "Ready to connect to \(name)"
+        case .connecting(let name):
+            return "Establishing connection with \(name)"
+        case .connected(let name):
             return "Ready to start"
-        case .selectingRole:
-            return "Select your role to continue"
-        case .connecting(let role):
-            return role == .controller ? "Searching for recorder..." : "Waiting for controller..."
-        case .connected(let role):
-            return role == .controller ? "Ready to start game" : "Waiting for game to start"
-        case .failed(let error):
-            return error
+        case .unavailable:
+            return "No trusted devices found"
+        case .disabled:
+            return "Connection disabled"
+        case .error(let message):
+            return message
         }
     }
 }

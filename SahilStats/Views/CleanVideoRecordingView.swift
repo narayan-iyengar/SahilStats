@@ -51,11 +51,8 @@ struct CleanVideoRecordingView: View {
                     portraitControls
                 }
             } else {
-                VStack(spacing: 16) {
-                    ProgressView().scaleEffect(1.5).tint(.white)
-                    Text(loadingMessage).font(.headline).foregroundColor(.white)
-                        .multilineTextAlignment(.center).padding(.horizontal)
-                }
+                LoadingView()
+                    .preferredColorScheme(.dark)
             }
         }
         .navigationBarHidden(true)
@@ -68,7 +65,11 @@ struct CleanVideoRecordingView: View {
             cleanupView()
         }
         .alert("Camera Error", isPresented: $showingCameraError) {
-            Button("Try Again", action: retryCameraSetup)
+            Button("Try Again") {
+                Task {
+                    await retryCameraSetup()
+                }
+            }
             Button("Cancel", role: .cancel, action: handleDismiss)
         } message: {
             Text(cameraErrorMessage)
@@ -81,15 +82,9 @@ struct CleanVideoRecordingView: View {
         ZStack {
             VStack {
                 HStack {
-                    Button(action: handleDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .padding(.leading, 20)
-                    .padding(.top, 40)
+                    DismissButton(action: handleDismiss, isIPad: false)
+                        .padding(.leading, 20)
+                        .padding(.top, 40)
                     
                     Spacer()
                 }
@@ -101,13 +96,7 @@ struct CleanVideoRecordingView: View {
     private var portraitControls: some View {
         VStack {
             HStack {
-                Button(action: handleDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
+                DismissButton(action: handleDismiss, isIPad: false)
                 Spacer()
             }
             .padding(.horizontal, 16)
@@ -142,13 +131,31 @@ struct CleanVideoRecordingView: View {
         
         setupCameraWithDelay()
         
-        // Monitor connection state changes
+        // IMPROVED: Enhanced connection state monitoring
         multipeer.$connectionState
             .receive(on: DispatchQueue.main)
             .sink { connectionState in
                 print("🔗 CleanVideoRecordingView: Connection state changed to \(connectionState)")
-                if !connectionState.isConnected {
-                    print("⚠️ CleanVideoRecordingView: Connection lost while in recording view!")
+                
+                switch connectionState {
+                case .connected:
+                    print("✅ CleanVideoRecordingView: Successfully connected to controller")
+                case .connecting(let peerName):
+                    print("🔄 CleanVideoRecordingView: Attempting to connect to controller: \(peerName)")
+                case .disconnected:
+                    print("⚠️ CleanVideoRecordingView: Disconnected from controller")
+                    // Don't immediately exit - the connection might recover
+                }
+            }
+            .store(in: &cancellables)
+        
+        // IMPROVED: Monitor connected peers changes
+        multipeer.$connectedPeers
+            .receive(on: DispatchQueue.main)
+            .sink { peers in
+                print("🔗 CleanVideoRecordingView: Connected peers changed: \(peers.map { $0.displayName })")
+                if peers.isEmpty {
+                    print("⚠️ CleanVideoRecordingView: No peers connected - recorder may be isolated")
                 }
             }
             .store(in: &cancellables)
@@ -166,60 +173,75 @@ struct CleanVideoRecordingView: View {
     }
     
     private func setupCameraWithDelay() {
-        // Give the view hierarchy time to setup, then initialize camera
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.setupCamera()
+        // IMPROVED: Give more time for connection to stabilize before starting heavy camera operations
+        print("🎥 CleanVideoRecordingView: Scheduling camera setup with delay to avoid connection interference")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { // Increased from 0.5 to 1.5 seconds
+            Task {
+                await self.setupCamera()
+            }
         }
     }
     
-    private func setupCamera() {
-            guard !hasCameraSetup else {
-                print("🎥 CleanVideoRecordingView: Camera already setup, skipping")
+    private func setupCamera() async {
+        guard !hasCameraSetup else {
+            print("🎥 CleanVideoRecordingView: Camera already setup, skipping")
+            return
+        }
+        
+        // IMPROVED: Don't start camera setup if we're already in the middle of attempts and failing
+        guard cameraSetupAttempts < 3 else {
+            print("❌ CleanVideoRecordingView: Too many camera setup attempts, giving up")
+            await MainActor.run {
+                cameraErrorMessage = "Camera setup failed after multiple attempts. Please check camera permissions and try again."
+                showingCameraError = true
+            }
+            return
+        }
+        
+        cameraSetupAttempts += 1
+        print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
+        
+        // IMPROVED: Move camera setup to background thread to avoid blocking UI and connection handling
+        Task.detached(priority: .userInitiated) {
+            let hasPermission = await self.recordingManager.checkForCameraPermission()
+            
+            guard hasPermission else {
+                await MainActor.run {
+                    self.cameraErrorMessage = "Camera permission is required to record."
+                    self.showingCameraError = true
+                }
                 return
             }
-            cameraSetupAttempts += 1
             
-            print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
-            
-            Task {
-                let hasPermission = await recordingManager.checkForCameraPermission()
-                guard hasPermission else {
-                    await MainActor.run {
-                        cameraErrorMessage = "Camera permission is required to record."
-                        showingCameraError = true
-                    }
-                    return
-                }
+            await MainActor.run {
+                print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
                 
-                await MainActor.run {
-                    print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
+                // IMPORTANT: Start the camera session BEFORE setting up preview
+                self.recordingManager.startCameraSession()
+                
+                // Now setup the camera and get the preview layer
+                if self.recordingManager.setupCamera() != nil {
+                    print("✅ Camera hardware setup completed")
+                    self.hasCameraSetup = true
                     
-                    // IMPORTANT: Start the camera session BEFORE setting up preview
-                    self.recordingManager.startCameraSession()
-                    
-                    // Now setup the camera and get the preview layer
-                    if self.recordingManager.setupCamera() != nil {
-                        print("✅ Camera hardware setup completed")
-                        self.hasCameraSetup = true
-                        
-                        // Give the camera session time to start before marking ready
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            print("✅ Marking camera as ready")
-                            self.isCameraReady = true
-                        }
-                    } else {
-                        self.cameraErrorMessage = "Failed to set up camera hardware."
-                        self.showingCameraError = true
+                    // Give the camera session time to start before marking ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        print("✅ Marking camera as ready")
+                        self.isCameraReady = true
                     }
+                } else {
+                    self.cameraErrorMessage = "Failed to set up camera hardware."
+                    self.showingCameraError = true
                 }
             }
         }
+        }
     
-    private func retryCameraSetup() {
+    private func retryCameraSetup() async {
         print("🔄 CleanVideoRecordingView: Retrying camera setup")
         hasCameraSetup = false
         isCameraReady = false
-        setupCamera()
+        await setupCamera()
     }
     
     // ** THIS IS THE CORRECTED VERSION **
