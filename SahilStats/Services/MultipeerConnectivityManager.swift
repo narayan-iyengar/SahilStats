@@ -126,11 +126,41 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     private var messageRetryQueue: [Message] = []
     private let serviceType = "sahilstats"
     
+    // IMPROVED: Connection health monitoring
+    private var connectionHealthTimer: Timer?
+    private var lastPongReceived: Date?
+    private var missedPongCount = 0
+    private let maxMissedPongs = 3
+    
     // MARK: - Initialization
     
     override init() {
         super.init()
         setupMultipeer()
+        setupNetworkMonitoring()
+    }
+    
+    private func setupNetworkMonitoring() {
+        // Monitor for network changes that might affect connectivity
+        NotificationCenter.default.addObserver(
+            forName: .NSProcessInfoPowerStateDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handlePowerStateChange()
+        }
+    }
+    
+    private func handlePowerStateChange() {
+        print("🔋 Power state changed - checking connections")
+        
+        // Give the system a moment to settle, then check connection health
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if self.connectionState.isConnected && self.connectedPeers.isEmpty {
+                print("⚠️ Connection state mismatch after power change - resetting")
+                self.connectionState = .disconnected
+            }
+        }
     }
     
     private func setupMultipeer() {
@@ -320,30 +350,52 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
         
         do {
             let data = try JSONEncoder().encode(message)
-            try session.send(data, toPeers: actuallyConnectedPeers, with: .reliable)
             
-            print("📤 Sent message: \(message.type.rawValue) to \(actuallyConnectedPeers.count) peer(s)")
+            // IMPROVED: Use unreliable mode for ping messages to reduce network congestion
+            let deliveryMode: MCSessionSendDataMode = (message.type == .ping || message.type == .pong) ? .unreliable : .reliable
             
-            // Log payload for debugging
-            if let payload = message.payload {
-                print("📤 Payload: \(payload)")
+            try session.send(data, toPeers: actuallyConnectedPeers, with: deliveryMode)
+            
+            // Only log non-ping messages to reduce console spam
+            if message.type != .ping && message.type != .pong {
+                print("📤 Sent message: \(message.type.rawValue) to \(actuallyConnectedPeers.count) peer(s)")
+                
+                if let payload = message.payload {
+                    print("📤 Payload: \(payload)")
+                }
             }
             
         } catch let error as NSError {
-            print("❌ Failed to send message: \(error)")
-            print("   Error code: \(error.code), domain: \(error.domain)")
-            print("   Connected peers: \(connectedPeers.map { $0.displayName })")
-            print("   Session connected peers: \(session.connectedPeers.map { $0.displayName })")
+            // IMPROVED: More detailed error handling for different error types
+            let errorDescription = handleSendError(error, messageType: message.type)
+            print("❌ Failed to send message: \(errorDescription)")
             
             DispatchQueue.main.async {
                 self.lastError = error.localizedDescription
             }
             
-            // Only queue for retry if it's a temporary connection issue
-            if error.code == 1 { // MCSession peer not connected error
+            // Only queue non-ping messages for retry to avoid ping spam
+            if error.code == 1 && message.type != .ping && message.type != .pong {
                 print("🔄 Queuing message for retry due to connection issue")
                 messageRetryQueue.append(message)
             }
+        }
+    }
+    
+    private func handleSendError(_ error: NSError, messageType: MessageType) -> String {
+        switch error.code {
+        case 1:
+            return "Peers not connected (network issue)"
+        case 2:
+            return "Data too large"
+        case 3:
+            return "Session not connected"
+        case -1004:
+            return "Could not connect to host"
+        case -1009:
+            return "Internet connection offline"
+        default:
+            return "Error \(error.code): \(error.localizedDescription)"
         }
     }
     
@@ -414,13 +466,21 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     // MARK: - Private Helper Methods
     
     private func handleReceivedMessage(_ message: Message) {
-        print("📥 Received: \(message.type.rawValue)")
+        // Only log non-ping/pong messages to reduce console spam
+        if message.type != .ping && message.type != .pong {
+            print("📥 Received: \(message.type.rawValue)")
+        }
         
         // Special handling for certain message types
         switch message.type {
         case .ping:
             // Auto-respond to pings
             sendMessage(Message(type: .pong))
+            
+        case .pong:
+            // Track pong responses for connection health
+            lastPongReceived = Date()
+            missedPongCount = 0
             
         case .recordingStateUpdate:
             if let isRecording = message.payload?["isRecording"] {
@@ -442,11 +502,60 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     private func startKeepAlive() {
         stopKeepAlive()
         
-        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.sendPing()
+        // IMPROVED: Less aggressive keep-alive to reduce network load during camera operations
+        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            
+            // Only send ping if we have connected peers and no recent message activity
+            if !self.connectedPeers.isEmpty && self.connectionState.isConnected {
+                self.sendPing()
+                self.checkConnectionHealth()
+            } else {
+                print("⚠️ Skip ping - no connected peers or connection issue")
+            }
         }
         
-        print("💓 Keep-alive started")
+        lastPongReceived = Date()
+        missedPongCount = 0
+        print("💓 Keep-alive started (10s interval)")
+    }
+    
+    private func checkConnectionHealth() {
+        guard let lastPong = lastPongReceived else {
+            missedPongCount += 1
+            print("⚠️ No pong received yet, missed count: \(missedPongCount)")
+            return
+        }
+        
+        let timeSinceLastPong = Date().timeIntervalSince(lastPong)
+        
+        if timeSinceLastPong > 15.0 { // 15 seconds without pong
+            missedPongCount += 1
+            print("⚠️ Connection health check failed - missed pongs: \(missedPongCount)")
+            
+            if missedPongCount >= maxMissedPongs {
+                print("❌ Connection appears dead - attempting reconnection")
+                handleConnectionFailure()
+            }
+        } else {
+            missedPongCount = 0
+        }
+    }
+    
+    private func handleConnectionFailure() {
+        print("🔄 Handling connection failure")
+        
+        // Force disconnect and attempt reconnection
+        let peersToReconnect = connectedPeers
+        session.disconnect()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            for peer in peersToReconnect {
+                if TrustedDevicesManager.shared.isTrusted(peer) {
+                    self.attemptReconnection(to: peer)
+                }
+            }
+        }
     }
     
     private func stopKeepAlive() {
@@ -485,40 +594,92 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
         DispatchQueue.main.async {
             switch state {
             case .notConnected:
-                self.connectedPeers.removeAll { $0 == peerID }
-                
-                if self.connectedPeers.isEmpty {
-                    self.connectionState = .disconnected
-                    self.stopKeepAlive()
-                }
+                self.handlePeerDisconnected(peerID)
                 
             case .connecting:
                 self.connectionState = .connecting(to: peerID.displayName)
                 
             case .connected:
-                if !self.connectedPeers.contains(peerID) {
-                    self.connectedPeers.append(peerID)
-                }
-                
-                self.connectionState = .connected
-                self.startKeepAlive()
-                self.sendQueuedMessages()
-                
-                // Update trusted device last seen
-                if TrustedDevicesManager.shared.isTrusted(peerID) {
-                    TrustedDevicesManager.shared.updateLastConnected(peerID)
-                }
-                
-                // Stop discovery after stable connection
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    if self.connectionState.isConnected {
-                        self.stopBrowsing()
-                        self.stopAdvertising()
-                    }
-                }
+                self.handlePeerConnected(peerID)
                 
             @unknown default:
                 break
+            }
+        }
+    }
+    
+    private func handlePeerDisconnected(_ peerID: MCPeerID) {
+        connectedPeers.removeAll { $0 == peerID }
+        
+        if connectedPeers.isEmpty {
+            connectionState = .disconnected
+            stopKeepAlive()
+            print("🔌 All peers disconnected")
+            
+            // IMPROVED: Attempt auto-reconnection for trusted devices
+            if TrustedDevicesManager.shared.isTrusted(peerID) {
+                print("🔄 Attempting auto-reconnect to trusted device: \(peerID.displayName)")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.attemptReconnection(to: peerID)
+                }
+            }
+        }
+    }
+    
+    private func handlePeerConnected(_ peerID: MCPeerID) {
+        if !connectedPeers.contains(peerID) {
+            connectedPeers.append(peerID)
+        }
+        
+        connectionState = .connected
+        startKeepAlive()
+        sendQueuedMessages()
+        
+        // Update trusted device last seen
+        if TrustedDevicesManager.shared.isTrusted(peerID) {
+            TrustedDevicesManager.shared.updateLastConnected(peerID)
+        }
+        
+        // Stop discovery after stable connection (with delay to ensure stability)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            if self.connectionState.isConnected {
+                self.stopBrowsing()
+                self.stopAdvertising()
+                print("🛑 Stopped discovery services after stable connection")
+            }
+        }
+    }
+    
+    private func attemptReconnection(to peerID: MCPeerID) {
+        guard connectionState != .connected else {
+            print("✅ Already connected, skipping reconnection attempt")
+            return
+        }
+        
+        print("🔄 Starting reconnection attempt to: \(peerID.displayName)")
+        
+        // Start both browsing and advertising for maximum discovery chances
+        if !isBrowsing {
+            startBrowsing()
+        }
+        
+        if !isAdvertising {
+            startAdvertising(as: DeviceRoleManager.shared.deviceRole.rawValue)
+        }
+        
+        // Try to invite the peer if we find them
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if self.discoveredPeers.contains(where: { $0.displayName == peerID.displayName }) {
+                self.invitePeer(peerID)
+            }
+        }
+        
+        // Stop reconnection attempt after 10 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+            if self.connectionState != .connected {
+                print("⏰ Reconnection attempt timed out")
+                self.stopBrowsing()
+                self.stopAdvertising()
             }
         }
     }

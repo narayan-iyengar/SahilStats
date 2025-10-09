@@ -69,25 +69,89 @@ class VideoRecordingManager: NSObject, ObservableObject {
             name: UIDevice.orientationDidChangeNotification,
             object: nil
         )
+        
+        // IMPROVED: Add session interruption handling
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionWasInterrupted),
+            name: .AVCaptureSessionWasInterrupted,
+            object: captureSession
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionInterruptionEnded),
+            name: .AVCaptureSessionInterruptionEnded,
+            object: captureSession
+        )
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            print("🎥 VideoRecordingManager: Starting capture session...")
-            self.captureSession?.startRunning()
             
-            // Wait for session to fully start before updating orientation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("🎥 VideoRecordingManager: Session started, updating orientation...")
-                self.updatePreviewOrientation()
+            // IMPROVED: Check session state before starting
+            if let session = self.captureSession, !session.isRunning {
+                print("🎥 VideoRecordingManager: Starting capture session...")
+                session.startRunning()
                 
-                // Trigger the onCameraReady callback if set
-                self.onCameraReady?()
+                // Wait for session to fully start before updating orientation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    print("🎥 VideoRecordingManager: Session started, updating orientation...")
+                    self.updatePreviewOrientation()
+                    
+                    // Trigger the onCameraReady callback if set
+                    self.onCameraReady?()
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.onCameraReady?()
+                }
             }
+        }
+    }
+    
+    @objc private func sessionWasInterrupted(notification: NSNotification) {
+        guard let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
+              let reasonIntegerValue = userInfoValue.integerValue,
+              let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) else {
+            print("⚠️ Camera session interrupted for unknown reason")
+            return
+        }
+        
+        print("⚠️ Camera session interrupted: \(reason)")
+        
+        switch reason {
+        case .videoDeviceNotAvailableInBackground:
+            print("📱 Camera not available in background")
+        case .audioDeviceInUseByAnotherClient:
+            print("🔊 Audio device in use by another client")
+        case .videoDeviceInUseByAnotherClient:
+            print("📷 Video device in use by another client")
+        case .videoDeviceNotAvailableWithMultipleForegroundApps:
+            print("📱 Camera not available with multiple foreground apps")
+        default:
+            print("⚠️ Other interruption reason: \(reason.rawValue)")
+        }
+    }
+    
+    @objc private func sessionInterruptionEnded(notification: NSNotification) {
+        print("✅ Camera session interruption ended")
+        
+        // Restart session if needed
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self,
+                  let session = self.captureSession,
+                  !session.isRunning else { return }
+            
+            print("🔄 Restarting camera session after interruption")
+            session.startRunning()
         }
     }
     
     func stopCameraSession() {
         NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .AVCaptureSessionWasInterrupted, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .AVCaptureSessionInterruptionEnded, object: nil)
+        
         DispatchQueue.global(qos: .userInitiated).async {
             self.captureSession?.stopRunning()
         }
@@ -215,12 +279,13 @@ class VideoRecordingManager: NSObject, ObservableObject {
         do {
             let session = AVCaptureSession()
             
-            // IMPROVED: Start with a reasonable preset and adjust if needed
-            if session.canSetSessionPreset(.high) {
-                session.sessionPreset = .high
-            } else if session.canSetSessionPreset(.medium) {
+            // IMPROVED: Use sessionPreset that's less resource intensive during networking
+            if session.canSetSessionPreset(.medium) {
                 session.sessionPreset = .medium
-                print("⚠️ Using medium quality preset as fallback")
+                print("📹 Using medium quality preset for better stability")
+            } else if session.canSetSessionPreset(.high) {
+                session.sessionPreset = .high
+                print("⚠️ Falling back to high quality preset")
             }
             
             // IMPROVED: Try multiple camera fallbacks
@@ -261,13 +326,23 @@ class VideoRecordingManager: NSObject, ObservableObject {
                     device.exposureMode = .continuousAutoExposure
                 }
                 
-                // Enable stabilization if available
-                if device.activeFormat.isVideoStabilizationModeSupported(.auto) {
-                    // This will be set on the connection later
+                // IMPROVED: Reduce frame rate for better network stability
+                let formatDescription = device.activeFormat.formatDescription
+                let dimensions = CMVideoFormatDescriptionGetDimensions(formatDescription)
+                print("📹 Camera resolution: \(dimensions.width)x\(dimensions.height)")
+                
+                // Try to set a lower frame rate for better stability
+                for range in device.activeFormat.videoSupportedFrameRateRanges {
+                    if range.minFrameRate <= 24 && range.maxFrameRate >= 24 {
+                        device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 24)
+                        device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 24)
+                        print("📹 Set frame rate to 24fps for stability")
+                        break
+                    }
                 }
                 
                 device.unlockForConfiguration()
-                print("✅ Camera device configured for optimal video recording")
+                print("✅ Camera device configured for optimal stability")
                 
             } catch {
                 print("⚠️ Could not configure camera device: \(error)")
