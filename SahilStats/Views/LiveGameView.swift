@@ -643,9 +643,13 @@ struct LiveGameControllerView: View {
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
                 onRequestControl: requestControl,
-                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller && multipeer.connectionState.isConnected,
-                isRecording: multipeer.isRemoteRecording ?? false, // DEFAULT to false instead of nil
-                onToggleRecording: multipeer.connectionState.isConnected ? {
+                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller, // Remove connection requirement
+                isRecording: multipeer.isRemoteRecording ?? false,
+                onToggleRecording: DeviceRoleManager.shared.deviceRole == .controller ? { // Always show for controller
+                    print("🔍 [DEBUG] Recording toggle tapped")
+                    print("   multipeer.connectionState: \(multipeer.connectionState)")
+                    print("   multipeer.isRemoteRecording: \(multipeer.isRemoteRecording ?? false)")
+                    
                     let isRecording = self.multipeer.isRemoteRecording ?? false
                     if isRecording {
                         print("🎬 Controller sending STOP recording command")

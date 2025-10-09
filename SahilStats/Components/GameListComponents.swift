@@ -45,6 +45,246 @@ struct EmptyStateView: View {
     }
 }
 
+// MARK: - Admin Status Indicator
+struct AdminStatusIndicator: View {
+    @EnvironmentObject var authService: AuthService
+    @ObservedObject private var connectionManager = UnifiedConnectionManager.shared
+    @State private var showingAdminMenu = false
+    
+    var body: some View {
+        Button(action: { showingAdminMenu = true }) {
+            ZStack {
+                // Base admin icon with connection-aware color and pulsing
+                Image(systemName: "person.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(adminIconColor)
+                    .opacity(adminIconOpacity)
+                    .scaleEffect(isScanning ? 1.1 : 1.0)
+                    .animation(
+                        isScanning ? 
+                        Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true) :
+                        .easeInOut(duration: 0.3),
+                        value: isScanning
+                    )
+                
+                // Small gear overlay for admin feel
+                Image(systemName: "gearshape.fill")
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .frame(width: 10, height: 10)
+                    .background(adminIconColor)
+                    .clipShape(Circle())
+                    .offset(x: 8, y: 6)
+            }
+        }
+        .sheet(isPresented: $showingAdminMenu) {
+            AdminMenuSheet()
+                .presentationDetents([.medium])
+        }
+    }
+    
+    private var baseColor: Color {
+        if authService.isSignedIn && !authService.isAnonymous {
+            return .blue  // Fully signed in admin
+        } else if authService.isAnonymous {
+            return .orange  // Guest user
+        } else {
+            return .gray  // Not signed in
+        }
+    }
+    
+    private var adminIconColor: Color {
+        switch connectionManager.connectionStatus {
+        case .connected:
+            return .green  // Connected - green
+        case .scanning, .connecting, .foundTrustedDevice:
+            return .orange  // Active connection attempt - orange
+        case .error:
+            return .red  // Error - red
+        default:
+            return baseColor  // Default based on auth status
+        }
+    }
+    
+    private var adminIconOpacity: Double {
+        switch connectionManager.connectionStatus {
+        case .scanning, .connecting:
+            return 0.8  // Slightly transparent when actively connecting
+        default:
+            return 1.0  // Fully opaque otherwise
+        }
+    }
+    
+    private var isScanning: Bool {
+        switch connectionManager.connectionStatus {
+        case .scanning, .connecting:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+// MARK: - Admin Menu Sheet
+struct AdminMenuSheet: View {
+    @EnvironmentObject var authService: AuthService
+    @ObservedObject private var connectionManager = UnifiedConnectionManager.shared
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // Connection status display
+                connectionStatusDisplay
+                
+                // Connection action button - compact design
+                connectionActionButton
+                
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Device Connection")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.height(300)])
+    }
+    
+    private var connectionStatusDisplay: some View {
+        VStack(spacing: 16) {
+            // Status icon and title
+            HStack(spacing: 16) {
+                Image(systemName: connectionIcon)
+                    .font(.system(size: 32))
+                    .foregroundColor(connectionManager.connectionStatus.color)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(connectionTitle)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Text(connectionManager.connectionStatus.displayText)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            // Connected device info (if connected)
+            if let device = connectionManager.connectedDevice {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Connected to \(device.name)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Text("Role: \(device.role.rawValue.capitalized)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.top, 8)
+            }
+        }
+        .padding(20)
+        .background(connectionManager.connectionStatus.color.opacity(0.1))
+        .cornerRadius(16)
+    }
+    
+    private var connectionActionButton: some View {
+        VStack(spacing: 12) {
+            if connectionManager.connectionStatus.isConnected {
+                Button("Disconnect") {
+                    print("🔌 Admin Panel: User tapped Disconnect")
+                    connectionManager.disconnect()
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(.red)
+                .frame(maxWidth: .infinity, minHeight: 50)
+            } else {
+                Button(action: {
+                    print("🔍 Admin Panel: User tapped Scan for Devices")
+                    print("🔍 Current status: \(connectionManager.connectionStatus)")
+                    print("🔍 Background scanning enabled: \(connectionManager.isBackgroundScanningEnabled)")
+                    connectionManager.startBackgroundScanning()
+                    
+                    // Auto-dismiss after starting scan
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        dismiss()
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        if case .scanning = connectionManager.connectionStatus {
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(0.9)
+                        } else {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .font(.headline)
+                        }
+                        
+                        Text(scanButtonText)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isScanning)
+            }
+        }
+    }
+    
+    // Helper properties
+    private var connectionIcon: String {
+        switch connectionManager.connectionStatus {
+        case .scanning: return "antenna.radiowaves.left.and.right"
+        case .foundTrustedDevice: return "dot.radiowaves.left.and.right"
+        case .connecting: return "antenna.radiowaves.left.and.right"
+        case .connected: return "link.circle.fill"
+        case .unavailable: return "questionmark.circle"
+        case .disabled: return "power"
+        case .error: return "exclamationmark.triangle.fill"
+        }
+    }
+    
+    private var connectionTitle: String {
+        switch connectionManager.connectionStatus {
+        case .scanning: return "Scanning for Devices"
+        case .foundTrustedDevice: return "Device Found"
+        case .connecting: return "Connecting"
+        case .connected: return "Connected"
+        case .unavailable: return "No Devices Available"
+        case .disabled: return "Background Scanning Disabled"
+        case .error: return "Connection Error"
+        }
+    }
+    
+    private var scanButtonText: String {
+        switch connectionManager.connectionStatus {
+        case .scanning: return "Scanning..."
+        default: return "Scan for Devices"
+        }
+    }
+    
+    private var isScanning: Bool {
+        switch connectionManager.connectionStatus {
+        case .scanning: return true
+        default: return false
+        }
+    }
+}
+
 // MARK: - Enhanced User Status Indicator
 struct UserStatusIndicator: View {
     @EnvironmentObject var authService: AuthService
@@ -89,41 +329,7 @@ struct UserStatusIndicator: View {
     }
 }
 
-// MARK: - Game List Toolbar
-struct GameListToolbar: View {
-    let activeFiltersCount: Int
-    let hasLiveGame: Bool
-    let canCreateGames: Bool
-    let onShowFilters: () -> Void
-    let onShowLiveGame: () -> Void
-    let onNewGame: () -> Void
-    let isIPad: Bool
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Filter button with badge
-            Button(action: onShowFilters) {
-                // Conditionally change the icon based on whether filters are active
-                Image(systemName: activeFiltersCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    .font(.title3)
-                    .foregroundColor(.orange)
-            }
-            
-            // New Game button (only shown if user can create games)
-            if canCreateGames {
-                Button(action: onNewGame) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(.orange)
-                }
-            }
-            
-            if hasLiveGame {
-                LiveGameButton(action: onShowLiveGame)
-            }
-        }
-    }
-}
+
 
 // MARK: - Live Game Button
 struct LiveGameButton: View {
@@ -168,6 +374,27 @@ struct GameDeleteAlert: View {
                 }
                 gameToDelete = nil
             }
+        }
+    }
+}
+
+// MARK: - Reusable Dismiss Button
+struct DismissButton: View {
+    let action: () -> Void
+    let isIPad: Bool
+    
+    init(action: @escaping () -> Void, isIPad: Bool = false) {
+        self.action = action
+        self.isIPad = isIPad
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: isIPad ? 20 : 18, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: isIPad ? 44 : 40, height: isIPad ? 44 : 40)
+                .background(.ultraThinMaterial, in: Circle())
         }
     }
 }

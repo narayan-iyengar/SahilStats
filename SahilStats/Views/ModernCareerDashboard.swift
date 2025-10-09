@@ -42,15 +42,11 @@ struct ModernCareerDashboard: View {
     @State private var selectedTab = 0
     
     var body: some View {
-        VStack(spacing: isIPad ? 32 : 20) {
-            // Header
-            HStack {
-                Text("Sahil's Career Dashboard")
-                    .font(isIPad ? .system(size: 40, weight: .heavy) : .system(size: 28, weight: .heavy))
-                    .fontWeight(.heavy)
-                    .foregroundColor(.primary)
-                Spacer()
-            }
+        VStack(spacing: 0) {  // Changed to 0 for manual spacing control
+            // Add a spacer or empty view for header spacing
+            Spacer()
+            Color.clear
+                .frame(height: isIPad ? 52 : 40)  // Dedicated header space
             
             // Modern Tab Selector
             ModernTabSelector(
@@ -62,6 +58,7 @@ struct ModernCareerDashboard: View {
                     }
                 }
             )
+            .padding(.bottom, isIPad ? 40 : 32)  // Space between tabs and content
             
             // Content based on selected tab
             if selectedTab == 0 {
@@ -70,7 +67,8 @@ struct ModernCareerDashboard: View {
                 ModernCareerTrendsView(games: games, isIPad: isIPad)
             }
         }
-        .padding(isIPad ? 32 : 20)
+        .padding(.horizontal, isIPad ? 32 : 20)
+        .padding(.bottom, isIPad ? 32 : 20)
         .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 24 : 16)
     }
@@ -78,45 +76,45 @@ struct ModernCareerDashboard: View {
 
 // MARK: - Modern Tab Selector
 
-struct ModernTabSelector: View {
-    @Binding var selectedTab: Int
-    let isIPad: Bool
-    let onSelectionChange: (Int) -> Void
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(0..<2) { index in
-                Button(action: {
-                    selectedTab = index
-                    onSelectionChange(index)
-                }) {
-                    Text(index == 0 ? "Overview" : "Trends")
-                        .font(isIPad ? .title2 : .body)
-                        .fontWeight(.medium)
-                        .foregroundColor(selectedTab == index ? .primary : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, isIPad ? 16 : 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
-                                .fill(selectedTab == index ? Color(.systemBackground) : Color.clear)
-                                .shadow(
-                                    color: selectedTab == index ? .black.opacity(0.1) : .clear,
-                                    radius: selectedTab == index ? 4 : 0,
-                                    x: 0,
-                                    y: selectedTab == index ? 2 : 0
-                                )
-                        )
+    struct ModernTabSelector: View {
+        @Binding var selectedTab: Int
+        let isIPad: Bool
+        let onSelectionChange: (Int) -> Void
+        
+        var body: some View {
+            HStack(spacing: 0) {
+                ForEach(0..<2) { index in
+                    Button(action: {
+                        selectedTab = index
+                        onSelectionChange(index)
+                    }) {
+                        Text(index == 0 ? "Overview" : "Trends")
+                            .font(isIPad ? .title2 : .body)
+                            .fontWeight(.medium)
+                            .foregroundColor(selectedTab == index ? .primary : .secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, isIPad ? 8 : 6)  // Further reduced from 10:8 to 8:6
+                            .background(
+                                RoundedRectangle(cornerRadius: isIPad ? 12 : 8)  // Reduced corner radius to match smaller size
+                                    .fill(selectedTab == index ? Color(.systemBackground) : Color.clear)
+                                    .shadow(
+                                        color: selectedTab == index ? .black.opacity(0.1) : .clear,
+                                        radius: selectedTab == index ? 4 : 0,
+                                        x: 0,
+                                        y: selectedTab == index ? 2 : 0
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .background(
+                RoundedRectangle(cornerRadius: isIPad ? 16 : 12)  // Reduced outer corner radius too
+                    .fill(Color(.systemGray6))
+            )
+            .animation(.easeInOut(duration: 0.2), value: selectedTab)
         }
-        .background(
-            RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
-                .fill(Color(.systemGray6))
-        )
-        .animation(.easeInOut(duration: 0.2), value: selectedTab)
     }
-}
 
 // MARK: - Modern Overview Stats View
 
@@ -153,7 +151,7 @@ struct ModernOverviewStatsView: View {
                 ModernStatCard(title: "FG%", value: String(format: "%.0f%%", stats.fieldGoalPercentage * 100), color: .blue, isIPad: isIPad)
                 ModernStatCard(title: "3P%", value: String(format: "%.0f%%", stats.threePointPercentage * 100), color: .green, isIPad: isIPad)
                 ModernStatCard(title: "FT%", value: String(format: "%.0f%%", stats.freeThrowPercentage * 100), color: .orange, isIPad: isIPad)
-                ModernStatCard(title: "Shooting%", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
+                ModernStatCard(title: "Shot %", value: String(format: "%.0f%%", stats.trueShootingPercentage * 100), color: .cyan, isIPad: isIPad)
             }
             
             // --- Advanced Analytics Section ---

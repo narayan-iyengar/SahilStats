@@ -49,13 +49,8 @@ class LiveGameManager: ObservableObject {
                     return
                 }
                 
-                // If we have a live game and device has a recorder role, but we're idle, start connecting
-                if let liveGame = games.first,
-                   case .idle = self.gameState,
-                   DeviceRoleManager.shared.deviceRole == .recorder {
-                    print("🎬 Firebase: Live game available and we're a recorder in idle state. Starting connection.")
-                    self.startMultiDeviceSession(role: .recorder)
-                }
+                // No automatic multi-device session starting - using Firebase-only approach
+                // The recorder will be handled directly through GameSetupView
                 
                 // If we have a live game and we're a recorder in connected state,
                 // check if the game is already running and should transition to inProgress
@@ -149,19 +144,13 @@ class LiveGameManager: ObservableObject {
                     gameState = .inProgress(role: .recorder)
                     print("🎬 LiveGameManager: gameState updated to \(gameState)")
                     
-                    // Force NavigationCoordinator to transition if observers aren't working
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        NavigationCoordinator.shared.forceTransitionToRecording()
-                    }
+                    // Navigation is now handled by GameSetupView, not LiveGameManager
                 case .idle, .connecting(.recorder):
                     print("🎬 Transitioning LiveGameManager from \(gameState) directly to inProgress state for recorder")
                     gameState = .inProgress(role: .recorder)
                     print("🎬 LiveGameManager: gameState updated to \(gameState)")
                     
-                    // Force NavigationCoordinator to transition if observers aren't working
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        NavigationCoordinator.shared.forceTransitionToRecording()
-                    }
+                    // Navigation is now handled by GameSetupView, not LiveGameManager
                 default:
                     print("⚠️ LiveGameManager: gameStarting received but current state is \(gameState), not transitioning")
                 }
@@ -208,7 +197,7 @@ class LiveGameManager: ObservableObject {
             // Handle game state synchronization from controller
             // Check if this gameStateUpdate indicates the game has started
             if let payload = message.payload,
-               let isRunningString = payload["isRunning"] as? String,
+               let isRunningString = payload["isRunning"],
                let isRunning = Bool(isRunningString),
                let gameId = payload["gameId"] {
                 print("🎬 GameStateUpdate - isRunning: \(isRunning), gameId: \(gameId)")

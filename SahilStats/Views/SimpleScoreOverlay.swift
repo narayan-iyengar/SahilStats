@@ -21,6 +21,11 @@ struct SimpleScoreOverlay: View {
         orientation == .landscapeLeft || orientation == .landscapeRight
     }
     
+    // Camera is locked to landscapeRight, so we need to rotate content when device is landscapeLeft
+    private var needsRotation: Bool {
+        orientation == .landscapeLeft
+    }
+    
     private func getOrdinalSuffix(_ number: Int) -> String {
         let lastDigit = number % 10
         let lastTwoDigits = number % 100
@@ -50,11 +55,9 @@ struct SimpleScoreOverlay: View {
     }
     
     private func getTextRotation() -> Double {
-        switch orientation {
-        case .landscapeLeft: return 90
-        case .landscapeRight: return -90
-        default: return 0
-        }
+        // Camera is locked to landscapeRight
+        // When device is landscapeLeft, we need to rotate 180 degrees
+        return needsRotation ? 180 : 0
     }
     
     private func formatTeamName(_ teamName: String, maxLength: Int = 8) -> String {
@@ -79,7 +82,11 @@ struct SimpleScoreOverlay: View {
                 portraitPrompt
             }
         }
-        .onChange(of: orientation) { _, _ in
+        .onAppear {
+            print("📄 SimpleScoreOverlay appeared - orientation: \(orientation.debugDescription), isLandscape: \(isLandscape)")
+        }
+        .onChange(of: orientation) { oldValue, newValue in
+            print("📄 SimpleScoreOverlay orientation changed: \(oldValue.debugDescription) -> \(newValue.debugDescription), isLandscape: \(isLandscape)")
             // Stop animation when orientation changes
             if isLandscape {
                 rotationAnimation = false
@@ -90,25 +97,15 @@ struct SimpleScoreOverlay: View {
     // MARK: - Compact Landscape Overlay
     private var landscapeOverlay: some View {
         GeometryReader { geometry in
-            ZStack {
-                // Position based on specific landscape orientation
-                if orientation == .landscapeRight {
-                    // Camera on left (dynamic island side), overlay bottom center
-                    VStack {
-                        Spacer()
-                        scoreboardContent
-                            .padding(.bottom, 40)
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                } else if orientation == .landscapeLeft {
-                    // Camera on right, overlay bottom center
-                    VStack {
-                        Spacer()
-                        scoreboardContent
-                            .padding(.bottom, 40)
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    scoreboardContent
+                        .rotationEffect(.degrees(getTextRotation()))
+                    Spacer()
                 }
+                .padding(.bottom, 40)
             }
         }
         .ignoresSafeArea()
@@ -210,13 +207,13 @@ struct SimpleScoreOverlay: View {
             
             VStack(spacing: 32) {
                 // Animated rotation icon with proper orientation
-                Image(systemName: "iphone")  // Changed to iPhone icon for better portrait representation
+                Image(systemName: "iphone")
                     .font(.system(size: 60, weight: .light))
                     .foregroundColor(.white)
                     .rotationEffect(.degrees(rotationAnimation ? 90 : 0))
                     .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: rotationAnimation)
                     .onAppear { rotationAnimation = true }
-                    .onDisappear { rotationAnimation = false }  // FIXED: Stop animation when view disappears
+                    .onDisappear { rotationAnimation = false }
                 
                 VStack(spacing: 16) {
                     Text("Rotate to Landscape")

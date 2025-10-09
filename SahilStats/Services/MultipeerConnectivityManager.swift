@@ -302,30 +302,48 @@ class MultipeerConnectivityManager: NSObject, ObservableObject {
     
     func sendMessage(_ message: Message) {
         guard !connectedPeers.isEmpty else {
-            print("⚠️ No peers connected - queuing message")
+            print("⚠️ No peers connected - queuing message for later retry")
+            messageRetryQueue.append(message)
+            return
+        }
+        
+        // IMPROVED: Filter only actually connected peers
+        let actuallyConnectedPeers = connectedPeers.filter { peer in
+            session.connectedPeers.contains(peer)
+        }
+        
+        guard !actuallyConnectedPeers.isEmpty else {
+            print("⚠️ No peers actually connected according to session - queuing message")
             messageRetryQueue.append(message)
             return
         }
         
         do {
             let data = try JSONEncoder().encode(message)
-            try session.send(data, toPeers: connectedPeers, with: .reliable)
+            try session.send(data, toPeers: actuallyConnectedPeers, with: .reliable)
             
-            print("📤 Sent message: \(message.type.rawValue)")
+            print("📤 Sent message: \(message.type.rawValue) to \(actuallyConnectedPeers.count) peer(s)")
             
             // Log payload for debugging
             if let payload = message.payload {
                 print("📤 Payload: \(payload)")
             }
             
-        } catch {
+        } catch let error as NSError {
             print("❌ Failed to send message: \(error)")
+            print("   Error code: \(error.code), domain: \(error.domain)")
+            print("   Connected peers: \(connectedPeers.map { $0.displayName })")
+            print("   Session connected peers: \(session.connectedPeers.map { $0.displayName })")
+            
             DispatchQueue.main.async {
                 self.lastError = error.localizedDescription
             }
             
-            // Queue for retry
-            messageRetryQueue.append(message)
+            // Only queue for retry if it's a temporary connection issue
+            if error.code == 1 { // MCSession peer not connected error
+                print("🔄 Queuing message for retry due to connection issue")
+                messageRetryQueue.append(message)
+            }
         }
     }
     

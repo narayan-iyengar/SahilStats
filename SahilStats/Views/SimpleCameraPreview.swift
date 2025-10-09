@@ -88,11 +88,18 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
             print("⚠️ SimpleCameraPreviewView: No preview layer available from recording manager")
             
             // Try to setup camera which will create both session and preview layer
-            if let newPreviewLayer = recordingManager.setupCamera() {
-                print("✅ SimpleCameraPreviewView: Created new preview layer from setupCamera")
-                addPreviewLayer(newPreviewLayer, to: view, coordinator: coordinator)
-            } else {
-                print("❌ SimpleCameraPreviewView: Failed to setup camera")
+            // FIXED: Move setupCamera to background thread to avoid UI blocking
+            DispatchQueue.global(qos: .userInitiated).async {
+                if let newPreviewLayer = self.recordingManager.setupCamera() {
+                    DispatchQueue.main.async {
+                        print("✅ SimpleCameraPreviewView: Created new preview layer from setupCamera")
+                        self.addPreviewLayer(newPreviewLayer, to: view, coordinator: coordinator)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        print("❌ SimpleCameraPreviewView: Failed to setup camera")
+                    }
+                }
             }
         }
     }
@@ -106,11 +113,19 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
         if let session = previewLayer.session {
             print("🎥 Session running status: \(session.isRunning)")
             if !session.isRunning {
-                print("⚠️ Session not running, starting it now...")
-                session.startRunning()
-                // Wait for session to start
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.completePreviewLayerSetup(previewLayer, view: view, coordinator: coordinator)
+                print("⚠️ Session not running, starting it on background thread...")
+                // FIXED: Move session.startRunning() to background thread to avoid UI blocking
+                DispatchQueue.global(qos: .userInitiated).async {
+                    session.startRunning()
+                    
+                    // Return to main thread for UI updates
+                    DispatchQueue.main.async {
+                        print("✅ Session started successfully on background thread")
+                        // Wait for session to fully start
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.completePreviewLayerSetup(previewLayer, view: view, coordinator: coordinator)
+                        }
+                    }
                 }
                 return
             }

@@ -20,6 +20,11 @@ struct SahilStatsApp: App {
         _ = WifiNetworkMonitor.shared
         _ = YouTubeUploadManager.shared
         _ = LiveGameManager.shared // Initialize the new manager
+        
+        // Initialize unified connection manager
+        Task { @MainActor in
+            UnifiedConnectionManager.shared.initializeOnAppLaunch()
+        }
     }
     
     var body: some Scene {
@@ -29,6 +34,16 @@ struct SahilStatsApp: App {
                 .onAppear {
                     AppDelegate.orientationLock = .portrait
                     _ = FirebaseYouTubeAuthManager.shared
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                    Task { @MainActor in
+                        UnifiedConnectionManager.shared.handleAppWillEnterForeground()
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                    Task { @MainActor in
+                        UnifiedConnectionManager.shared.handleAppDidEnterBackground()
+                    }
                 }
         }
     }

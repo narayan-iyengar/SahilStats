@@ -185,26 +185,56 @@ struct GameListView: View {
         }
     }
     
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-
-        ToolbarItemGroup(placement: .navigationBarTrailing) {
-            GameListToolbar(
-                activeFiltersCount: filterManager.activeFiltersCount,
-                hasLiveGame: firebaseService.hasLiveGame,
-                canCreateGames: authService.canCreateGames,
-                onShowFilters: { showingFilters = true },
-                onShowLiveGame: { navigation.resumeLiveGame() },
-                onNewGame: { showingNewGame = true },
-                isIPad: isIPad
-            )
+        // Leading toolbar items
+        ToolbarItem(placement: .navigationBarLeading) {
+            AdminStatusIndicator()
         }
         
-        ToolbarItem(placement: .navigationBarLeading) {
-              UserStatusIndicator()
-
+        // All trailing items in one group to prevent duplicates
+        ToolbarItem(placement: .navigationBarTrailing) {
+            HStack(spacing: isIPad ? 12 : 8) {
+                // Live Game button (highest priority)
+                if firebaseService.hasLiveGame {
+                    LiveGameButton(action: { navigation.resumeLiveGame() })
+                }
+                
+                // Filter button with badge
+                Button(action: { showingFilters = true }) {
+                    ZStack {
+                        // Always use the same base icon to prevent grey circle appearance
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(filterManager.activeFiltersCount > 0 ? .orange : .gray)
+                        
+                        // Badge for active filters
+                        if filterManager.activeFiltersCount > 0 {
+                            Text("\(filterManager.activeFiltersCount)")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .frame(width: 16, height: 16)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                                .offset(x: 8, y: -8)
+                        }
+                    }
+                }
+                
+                // New Game button (only shown if user can create games)
+                if authService.canCreateGames {
+                    Button(action: { showingNewGame = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
         }
     }
+
 }
 struct GamesSectionHeader: View {
     let filteredCount: Int
@@ -379,17 +409,8 @@ struct EnhancedCareerStatsView: View {
     @State private var selectedTab = 0
     
     var body: some View {
-        VStack(spacing: isIPad ? 60 : 25) {
-            // Header
-            HStack {
-                Text("Sahil's Career Dashboard")
-                    .font(isIPad ? .system(size: 52, weight: .heavy) : .title2)
-                    .fontWeight(.heavy)
-                    .foregroundColor(.primary)
-                Spacer()
-            }
-            
-            // Tab selector
+        VStack(spacing: isIPad ? 40 : 20) {
+            // Tab selector (moved up to replace the large header)
             Picker("View", selection: $selectedTab) {
                 Text("Overview")
                     .font(isIPad ? .largeTitle : .body)
@@ -399,7 +420,7 @@ struct EnhancedCareerStatsView: View {
                     .tag(1)
             }
             .pickerStyle(SegmentedPickerStyle())
-            .scaleEffect(isIPad ? 1.5 : 1.0)
+            .scaleEffect(isIPad ? 1.3 : 1.0)
             .onChange(of: selectedTab) { oldValue, newValue in
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isViewingTrends = (newValue == 1)
