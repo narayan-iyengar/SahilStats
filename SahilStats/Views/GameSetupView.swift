@@ -939,6 +939,10 @@ struct GameSetupView: View  {
     
     private func joinAsRecorder() {
         print("🎬 GameSetupView: joinAsRecorder called - using Firebase-only approach")
+        
+        // Mark user interaction to allow navigation
+        NavigationCoordinator.shared.markUserHasInteracted()
+        
         Task {
             do {
                 guard let liveGame = firebaseService.getCurrentLiveGame(),
@@ -990,8 +994,18 @@ struct GameSetupView: View  {
                         let selectedRole: DeviceRoleManager.DeviceRole = deviceRole == .controller ? .controller : .controller
                         try await DeviceRoleManager.shared.setDeviceRole(selectedRole, for: gameId)
                         
-                        // No need for Bluetooth signals - Firebase handles coordination
-                        print("🎮 Game created successfully - using Firebase coordination")
+                        // IMPROVED: Automatically trigger recording on connected devices
+                        if isMultiDevice && hasBluetoothConnection {
+                            print("🎬 Automatically starting recording on connected devices")
+                            multipeer.sendGameStarting(gameId: gameId)
+                            
+                            // Give connected devices a moment to process, then start recording
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                self.multipeer.sendStartRecording()
+                            }
+                        }
+                        
+                        print("🎮 Game created successfully with automatic recording setup")
                     }
                     
                     await MainActor.run {

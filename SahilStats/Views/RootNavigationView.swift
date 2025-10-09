@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct RootNavigationView: View {
     @ObservedObject private var navigation = NavigationCoordinator.shared
@@ -42,6 +43,11 @@ struct RootNavigationView: View {
                         
                     case .recording(let liveGame):
                         CleanVideoRecordingView(liveGame: liveGame)
+                            .ignoresSafeArea(.all)
+                            .navigationBarHidden(true)
+                            
+                    case .waitingToRecord(let liveGame):
+                        RecorderReadyView(liveGame: liveGame)
                             .ignoresSafeArea(.all)
                             .navigationBarHidden(true)
                     }
@@ -165,6 +171,10 @@ struct MainTabView: View {
             .accentColor(.orange)
             .sheet(isPresented: $showingAuth) {
                 AuthView()
+            }
+            .onAppear {
+                // Mark user interaction when they see the main app interface
+                NavigationCoordinator.shared.markUserHasInteracted()
             }
             
             // Status bar connection indicator
@@ -444,5 +454,142 @@ struct ConnectionFlow: View {
         case .error(let message):
             return message
         }
+    }
+}
+
+// MARK: - Ready to Record View (NEW)
+
+struct ReadyToRecordView: View {
+    let liveGame: LiveGame
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var navigation = NavigationCoordinator.shared
+    @State private var connectionLost = false
+    @State private var autoStartRecording = false
+    @State private var cancellables = Set<AnyCancellable>()
+    
+    var body: some View {
+        ZStack {
+            // Dark background like recording view
+            Color.black.ignoresSafeArea()
+            
+            VStack(spacing: 40) {
+                Spacer()
+                
+                // Game info using existing components
+                VStack(spacing: 20) {
+                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("Game Detected")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                }
+                
+                // Status indicator
+                VStack(spacing: 16) {
+                    Image(systemName: "video.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.orange)
+                        .symbolEffect(.pulse.byLayer, options: .repeating)
+                    
+                    Text("Ready to Record")
+                        .font(.largeTitle)
+                        .fontWeight(.heavy)
+                        .foregroundColor(.white)
+                    
+                    Text("Waiting for recording command from controller...")
+                        .font(.body)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+                
+                // Connection status using existing AdminStatusIndicator concept
+                HStack(spacing: 12) {
+                    Image(systemName: multipeer.connectionState.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundColor(multipeer.connectionState.isConnected ? .green : .red)
+                    
+                    Text(multipeer.connectionState.isConnected ? "Connected to Controller" : "Connection Lost")
+                        .foregroundColor(.white.opacity(0.9))
+                }
+                .padding()
+                .background(.ultraThinMaterial.opacity(0.3))
+                .cornerRadius(12)
+                
+                Spacer()
+                
+                // Emergency exit using existing DismissButton
+                VStack(spacing: 16) {
+                    DismissButton(action: {
+                        navigation.returnToDashboard()
+                    })
+                    
+                    Text("Tap to exit if needed")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding()
+        }
+        .onAppear {
+            setupMessageHandling()
+            checkForAutoStart()
+        }
+        .onDisappear {
+            cancellables.removeAll()
+        }
+    }
+    
+    private func setupMessageHandling() {
+        // Listen for manual recording commands
+        multipeer.messagePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { message in
+                switch message.type {
+                case .startRecording:
+                    print("🎬 ReadyToRecord: Received manual start command")
+                    startRecording()
+                    
+                case .stopRecording:
+                    print("🎬 ReadyToRecord: Received manual stop command")
+                    // If recording, this will be handled by the recording view
+                    break
+                    
+                default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Monitor connection state for auto-recovery
+        multipeer.$connectionState
+            .receive(on: DispatchQueue.main)
+            .sink { connectionState in
+                if !connectionState.isConnected {
+                    connectionLost = true
+                } else if connectionLost {
+                    // Connection recovered - check for auto-start
+                    connectionLost = false
+                    checkForAutoStart()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func checkForAutoStart() {
+        // If connection was lost and now recovered, auto-start recording
+        // This handles your backup requirement
+        if connectionLost && multipeer.connectionState.isConnected {
+            print("🎬 Connection recovered - auto-starting recording for backup")
+            autoStartRecording = true
+            startRecording()
+        }
+    }
+    
+    private func startRecording() {
+        print("🎬 ReadyToRecord: Transitioning to recording view")
+        navigation.currentFlow = .recording(liveGame)
     }
 }

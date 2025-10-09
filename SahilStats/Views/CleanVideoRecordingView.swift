@@ -131,7 +131,7 @@ struct CleanVideoRecordingView: View {
         
         setupCameraWithDelay()
         
-        // IMPROVED: Enhanced connection state monitoring
+        // IMPROVED: Enhanced connection state monitoring with recovery
         multipeer.$connectionState
             .receive(on: DispatchQueue.main)
             .sink { connectionState in
@@ -140,11 +140,12 @@ struct CleanVideoRecordingView: View {
                 switch connectionState {
                 case .connected:
                     print("✅ CleanVideoRecordingView: Successfully connected to controller")
+                    self.handleConnectionRestored()
                 case .connecting(let peerName):
                     print("🔄 CleanVideoRecordingView: Attempting to connect to controller: \(peerName)")
                 case .disconnected:
                     print("⚠️ CleanVideoRecordingView: Disconnected from controller")
-                    // Don't immediately exit - the connection might recover
+                    self.handleConnectionLoss()
                 }
             }
             .store(in: &cancellables)
@@ -333,7 +334,17 @@ struct CleanVideoRecordingView: View {
             recordingDuration: recordingManager.recordingTimeString
         )
     }
+    
+    private func handleConnectionRestored() {
+        print("🔗 CleanVideoRecordingView: Connection to controller restored.")
+        // Optionally, reset any UI state or dismiss connection error alerts as needed.
+        // For example:
+        // self.showingConnectionError = false
+    }
+    
+    private func handleConnectionLoss() {
+        print("🔗 CleanVideoRecordingView: Connection to controller lost.")
+        // Optionally, present an alert or UI state update for lost connection here.
+    }
 }
-
-
 

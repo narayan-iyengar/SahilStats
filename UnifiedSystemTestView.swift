@@ -316,6 +316,7 @@ struct UnifiedSystemTestView: View {
         case .liveGame: return "Live Game"
         case .gameSetup: return "Game Setup"
         case .recording: return "Recording"
+        case .waitingToRecord(_): return "Waiting to Record"
         }
     }
     
@@ -325,6 +326,7 @@ struct UnifiedSystemTestView: View {
         case .liveGame: return .blue
         case .gameSetup: return .orange
         case .recording: return .red
+        case .waitingToRecord(_): return .orange
         }
     }
     
@@ -364,3 +366,4 @@ struct UnifiedSystemTestView: View {
 #Preview {
     UnifiedSystemTestView()
 }
+

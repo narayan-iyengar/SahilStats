@@ -157,7 +157,10 @@ struct GameListView: View {
                     isHovered: hoveredGameId == game.id,
                     canDelete: authService.canDeleteGames,
                     canEdit: authService.canEditGames,
-                    onTap: { selectedGame = game },
+                    onTap: { 
+                        NavigationCoordinator.shared.markUserHasInteracted()
+                        selectedGame = game 
+                    },
                     onDelete: {
                         gameToDelete = game
                         showingDeleteAlert = true
@@ -225,6 +228,27 @@ struct GameListView: View {
                 
                 // New Game button (only shown if user can create games)
                 if authService.canCreateGames {
+                    Menu {
+                        // Quick Basketball Setup
+                        Button(action: { 
+                            NavigationCoordinator.shared.markUserHasInteracted()
+                            showingNewGame = true 
+                        }) {
+                            Label("Setup New Game", systemImage: "plus.circle")
+                        }
+                        
+                        // Basketball Game Mode (Simplified)
+                        Button(action: { 
+                            startBasketballMode() 
+                        }) {
+                            Label("Basketball Game Mode", systemImage: "basketball")
+                        }
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.orange)
+                    }
+                } else {
                     Button(action: { showingNewGame = true }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
@@ -363,6 +387,20 @@ extension GameListView {
                 print("Failed to delete game: \(error)")
             }
         }
+    }
+    
+    // MARK: - Basketball Mode Helper
+    
+    private func startBasketballMode() {
+        print("🏀 Starting Basketball Mode - Smart Device Setup")
+        NavigationCoordinator.shared.markUserHasInteracted()
+        NavigationCoordinator.shared.userExplicitlyJoinedGame = true
+        
+        // This will automatically:
+        // 1. iPad → Controller role (stats management)
+        // 2. iPhone → Recorder role (camera on tripod)
+        // 3. Auto-start recording when game begins
+        showingNewGame = true
     }
 }
 

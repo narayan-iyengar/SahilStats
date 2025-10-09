@@ -653,10 +653,10 @@ struct LiveGameControllerView: View {
                     let isRecording = self.multipeer.isRemoteRecording ?? false
                     if isRecording {
                         print("🎬 Controller sending STOP recording command")
-                        self.multipeer.sendStopRecording()
+                        NavigationCoordinator.shared.stopRecording()
                     } else {
                         print("🎬 Controller sending START recording command")
-                        self.multipeer.sendStartRecording()
+                        NavigationCoordinator.shared.startRecording()
                     }
                 } : nil
             )

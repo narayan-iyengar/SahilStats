@@ -211,10 +211,16 @@ struct RefactoredSystemTestView: View {
     
     private func flowDescription(_ flow: NavigationCoordinator.AppFlow) -> String {
         switch flow {
-        case .dashboard: return "Dashboard"
-        case .liveGame: return "Live Game"
-        case .gameSetup: return "Game Setup"
-        case .recording: return "Recording"
+        case .dashboard:
+            return "Dashboard"
+        case .liveGame(_):
+            return "Live Game"
+        case .gameSetup:
+            return "Game Setup"
+        case .recording(_):
+            return "Recording"
+        case .waitingToRecord(_):
+            return "Ready to Record"
         }
     }
 }
