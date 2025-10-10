@@ -5,7 +5,7 @@ import AVFoundation
 
 struct SimpleCameraPreviewView: UIViewRepresentable {
     @Binding var isCameraReady: Bool
-    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @ObservedObject private var recordingManager = VideoRecordingManager.shared
     
     class Coordinator: NSObject {
         var parent: SimpleCameraPreviewView

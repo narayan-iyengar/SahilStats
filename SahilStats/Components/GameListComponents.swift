@@ -48,7 +48,7 @@ struct EmptyStateView: View {
 // MARK: - Admin Status Indicator
 struct AdminStatusIndicator: View {
     @EnvironmentObject var authService: AuthService
-    @ObservedObject private var connectionManager = UnifiedConnectionManager.shared
+    @ObservedObject private var connectionManager = MultipeerConnectivityManager.shared
     @State private var showingAdminMenu = false
     
     var body: some View {
@@ -128,22 +128,28 @@ struct AdminStatusIndicator: View {
 // MARK: - Admin Menu Sheet
 struct AdminMenuSheet: View {
     @EnvironmentObject var authService: AuthService
-    @ObservedObject private var connectionManager = UnifiedConnectionManager.shared
+    @ObservedObject private var connectionManager = MultipeerConnectivityManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
-                // Connection status display
-                connectionStatusDisplay
-                
-                // Connection action button - compact design
+            VStack(spacing: 20) {
+                // Connection status - more prominent
+                connectionStatusCard
+
+                // Device role selection - only show when not connected
+                if !connectionManager.connectionStatus.isConnected {
+                    deviceRoleToggle
+                }
+
+                // Connection actions
                 connectionActionButton
-                
+
                 Spacer()
             }
-            .padding(24)
-            .navigationTitle("Device Connection")
+            .padding(20)
+            .navigationTitle("Multi-Device")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -151,93 +157,167 @@ struct AdminMenuSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(300)])
+        .presentationDetents([.medium])
     }
-    
-    private var connectionStatusDisplay: some View {
-        VStack(spacing: 16) {
-            // Status icon and title
-            HStack(spacing: 16) {
-                Image(systemName: connectionIcon)
-                    .font(.system(size: 32))
-                    .foregroundColor(connectionManager.connectionStatus.color)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(connectionTitle)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Text(connectionManager.connectionStatus.displayText)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-            }
-            
-            // Connected device info (if connected)
-            if let device = connectionManager.connectedDevice {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Connected to \(device.name)")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        Text("Role: \(device.role.rawValue.capitalized)")
+
+    private var deviceRoleToggle: some View {
+        VStack(spacing: 12) {
+            Text("My Role")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 12) {
+                // Controller button
+                Button(action: {
+                    roleManager.setPreferredRole(.controller)
+                }) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.title3)
+                            .foregroundColor(roleManager.preferredRole == .controller ? .white : .blue)
+                        Text("Control")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                            .foregroundColor(roleManager.preferredRole == .controller ? .white : .primary)
                     }
-                    
-                    Spacer()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(roleManager.preferredRole == .controller ? Color.blue : Color.blue.opacity(0.1))
+                    .cornerRadius(10)
                 }
-                .padding(.top, 8)
+
+                // Recorder button
+                Button(action: {
+                    roleManager.setPreferredRole(.recorder)
+                }) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "video.fill")
+                            .font(.title3)
+                            .foregroundColor(roleManager.preferredRole == .recorder ? .white : .orange)
+                        Text("Record")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(roleManager.preferredRole == .recorder ? .white : .primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(roleManager.preferredRole == .recorder ? Color.orange : Color.orange.opacity(0.1))
+                    .cornerRadius(10)
+                }
             }
         }
-        .padding(20)
-        .background(connectionManager.connectionStatus.color.opacity(0.1))
-        .cornerRadius(16)
+        .padding(14)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+
+    private var connectionStatusCard: some View {
+        VStack(spacing: 14) {
+            // Status header
+            HStack {
+                Image(systemName: connectionIcon)
+                    .font(.title2)
+                    .foregroundColor(connectionManager.connectionStatus.color)
+                    .frame(width: 32)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(connectionTitle)
+                        .font(.headline)
+                    Text(connectionManager.connectionStatus.displayText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+
+            // Connected device info with role switch
+            if let device = connectionManager.connectedDevice {
+                Divider()
+
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(device.name)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: roleManager.preferredRole == .controller ? "gamecontroller.fill" : "video.fill")
+                                .font(.caption)
+                                .foregroundColor(roleManager.preferredRole == .controller ? .blue : .orange)
+                            Text("I'm \(roleManager.preferredRole.displayName)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    // Role switch button - requires reconnection
+                    Button(action: {
+                        // Switch roles locally and reconnect
+                        if let peer = connectionManager.connectedPeer {
+                            print("🔄 User requested role switch - will disconnect and reconnect")
+                            // Save the new roles
+                            TrustedDevicesManager.shared.switchRoles(for: peer)
+                            roleManager.toggleRole()
+                            // Disconnect and let auto-reconnect handle it with new roles
+                            connectionManager.disconnect()
+                            // Auto-reconnect will kick in after 5 seconds with new roles
+                        }
+                    }) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .padding(8)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(connectionManager.connectionStatus.color.opacity(0.08))
+        .cornerRadius(12)
     }
     
     private var connectionActionButton: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             if connectionManager.connectionStatus.isConnected {
-                Button("Disconnect") {
-                    print("🔌 Admin Panel: User tapped Disconnect")
+                // Disconnect button
+                Button(action: {
+                    print("🔌 Disconnecting from device")
                     connectionManager.disconnect()
-                    dismiss()
+                }) {
+                    Text("Disconnect")
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                 }
                 .buttonStyle(.bordered)
-                .foregroundColor(.red)
-                .frame(maxWidth: .infinity, minHeight: 50)
+                .tint(.red)
             } else {
+                // Connect/Scan button
                 Button(action: {
-                    print("🔍 Admin Panel: User tapped Scan for Devices")
-                    print("🔍 Current status: \(connectionManager.connectionStatus)")
-                    print("🔍 Background scanning enabled: \(connectionManager.isBackgroundScanningEnabled)")
+                    print("🔍 Starting device scan...")
                     connectionManager.startBackgroundScanning()
-                    
-                    // Auto-dismiss after starting scan
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        dismiss()
-                    }
                 }) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 10) {
                         if case .scanning = connectionManager.connectionStatus {
                             ProgressView()
                                 .tint(.white)
-                                .scaleEffect(0.9)
+                                .scaleEffect(0.8)
                         } else {
                             Image(systemName: "antenna.radiowaves.left.and.right")
-                                .font(.headline)
+                                .font(.subheadline)
                         }
-                        
+
                         Text(scanButtonText)
-                            .fontWeight(.semibold)
+                            .fontWeight(.medium)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isScanning)

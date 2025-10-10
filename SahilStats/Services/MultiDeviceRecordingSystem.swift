@@ -18,14 +18,16 @@ import AVFoundation
 
 class DeviceRoleManager: ObservableObject {
     static let shared = DeviceRoleManager()
-    
+
     @Published var deviceRole: DeviceRole = .none
+    @Published var preferredRole: DeviceRole = .none // User's default preference
     @Published var connectedDevices: [ConnectedDevice] = []
     @Published var isConnectedToGame = false
     @Published var liveGameId: String?
-    
+
     private let firebaseService = FirebaseService.shared
     private var deviceListener: ListenerRegistration?
+    private let preferredRoleKey = "preferredDeviceRole"
     
     enum DeviceRole: String, CaseIterable {
         case none = "none"
@@ -72,6 +74,38 @@ class DeviceRoleManager: ObservableObject {
     
     private init() {
         loadSavedRole()
+        loadPreferredRole()
+    }
+
+    // MARK: - Preferred Role Management
+
+    /// Load the user's preferred role from storage
+    private func loadPreferredRole() {
+        if let savedRoleString = UserDefaults.standard.string(forKey: preferredRoleKey),
+           let savedRole = DeviceRole(rawValue: savedRoleString) {
+            preferredRole = savedRole
+        } else {
+            // Default to controller if no preference set
+            preferredRole = .controller
+        }
+    }
+
+    /// Set the user's preferred role (persisted across app launches)
+    func setPreferredRole(_ role: DeviceRole) {
+        preferredRole = role
+        UserDefaults.standard.set(role.rawValue, forKey: preferredRoleKey)
+        print("✅ Preferred role set to: \(role.displayName)")
+    }
+
+    /// Toggle between controller and recorder roles
+    func toggleRole() {
+        let newRole: DeviceRole = (preferredRole == .controller) ? .recorder : .controller
+        setPreferredRole(newRole)
+    }
+
+    /// Get the role to use for auto-connection
+    var roleForAutoConnection: DeviceRole {
+        return preferredRole != .none ? preferredRole : .controller
     }
     
     // MARK: - Role Management

@@ -11,8 +11,8 @@ import MultipeerConnectivity
 
 struct RecorderReadyView: View {
     let liveGame: LiveGame
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
-    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var connectionLostTime: Date?
@@ -304,25 +304,31 @@ struct RecorderReadyView: View {
     
     private func handleConnectionChange(oldState: MultipeerConnectivityManager.ConnectionState, newState: MultipeerConnectivityManager.ConnectionState) {
         print("🔄 RecorderReadyView: Connection changed from \(oldState) to \(newState)")
-        
+
         switch newState {
         case .connected:
             // Connection restored
             connectionLostTime = nil
             print("✅ Connection restored - ready for recording commands")
-            
+
         case .disconnected:
             // Connection lost - start tracking time and attempt reconnection
             if connectionLostTime == nil {
                 connectionLostTime = Date()
                 print("⚠️ Connection lost - will attempt auto-reconnect and continue if recording")
-                
+
                 // Start reconnection attempts
                 startReconnectionAttempts()
             }
-            
+
         case .connecting:
             print("🔄 Attempting to reconnect...")
+
+        case .idle:
+            print("⚠️ Connection idle - not connected")
+
+        case .searching:
+            print("🔍 Searching for controller...")
         }
     }
     

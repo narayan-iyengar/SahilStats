@@ -8,7 +8,7 @@ import Combine
 
 struct PostGameStatsView: View {
     let gameConfig: GameConfig
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass

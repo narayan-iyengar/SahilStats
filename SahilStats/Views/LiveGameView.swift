@@ -354,7 +354,7 @@ struct LiveSmartShootingStatCard: View {
 
 struct LiveGameControllerView: View {
     let liveGame: LiveGame
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @ObservedObject private var deviceControl = DeviceControlManager.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
@@ -1412,12 +1412,18 @@ struct LiveGameControllerView: View {
     
     private func toggleGameClock() {
         guard deviceControl.hasControl else { return }
-        
+
         Task {
             do {
                 var updatedGame = serverGameState
                 let now = Date()
-                
+
+                // CRITICAL FIX: Preserve local changes (scores, stats, bench status)
+                updatedGame.playerStats = currentStats
+                updatedGame.homeScore = currentHomeScore
+                updatedGame.awayScore = currentAwayScore
+                updatedGame.sahilOnBench = sahilOnBench
+
                 if updatedGame.isRunning {
                     print("🛑 Pausing game")
                     updatedGame.isRunning = false
@@ -1425,6 +1431,7 @@ struct LiveGameControllerView: View {
                     updatedGame.clockStartTime = nil
                     updatedGame.clockAtStart = nil
                     print("Paused at: \(localClockTime)")
+                    print("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
                 } else {
                     print("▶️ Starting game")
                     updatedGame.isRunning = true
@@ -1432,13 +1439,14 @@ struct LiveGameControllerView: View {
                     updatedGame.clockAtStart = localClockTime
                     updatedGame.clock = localClockTime
                     print("Started with clock: \(localClockTime)")
+                    print("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
                 }
-                
+
                 updatedGame.lastClockUpdate = now
-                
+
                 try await firebaseService.updateLiveGame(updatedGame)
                 print("✅ Game clock toggle successful")
-                
+
             } catch {
                 print("❌ Game clock toggle failed: \(error)")
                 self.error = error.localizedDescription
@@ -1448,36 +1456,49 @@ struct LiveGameControllerView: View {
     
     private func addMinuteToClock() {
         guard deviceControl.hasControl else { return }
-        
+
         Task {
             do {
                 var updatedGame = serverGameState
                 let now = Date()
-                
+
+                // CRITICAL FIX: Preserve local changes
+                updatedGame.playerStats = currentStats
+                updatedGame.homeScore = currentHomeScore
+                updatedGame.awayScore = currentAwayScore
+                updatedGame.sahilOnBench = sahilOnBench
+
                 localClockTime += 60
-                
+
                 updatedGame.clock = localClockTime
                 if updatedGame.isRunning {
                     updatedGame.clockStartTime = now
                     updatedGame.clockAtStart = localClockTime
                 }
                 updatedGame.lastClockUpdate = now
-                
+
                 try await firebaseService.updateLiveGame(updatedGame)
+                print("✅ Added minute, scores preserved: \(currentHomeScore)-\(currentAwayScore)")
             } catch {
                 self.error = error.localizedDescription
             }
         }
     }
-    
+
     private func nextQuarter() {
         guard deviceControl.hasControl else { return }
-        
+
         Task {
             do {
                 var updatedGame = serverGameState
                 let now = Date()
-                
+
+                // CRITICAL FIX: Preserve local changes
+                updatedGame.playerStats = currentStats
+                updatedGame.homeScore = currentHomeScore
+                updatedGame.awayScore = currentAwayScore
+                updatedGame.sahilOnBench = sahilOnBench
+
                 updatedGame.quarter += 1
                 let newClockTime = TimeInterval(updatedGame.quarterLength * 60)
                 updatedGame.clock = newClockTime
@@ -1485,11 +1506,12 @@ struct LiveGameControllerView: View {
                 updatedGame.clockStartTime = nil
                 updatedGame.clockAtStart = nil
                 updatedGame.lastClockUpdate = now
-                
+
                 localClockTime = newClockTime
                 currentQuarter = updatedGame.quarter
-                
+
                 try await firebaseService.updateLiveGame(updatedGame)
+                print("✅ Advanced quarter, scores preserved: \(currentHomeScore)-\(currentAwayScore)")
             } catch {
                 self.error = error.localizedDescription
             }

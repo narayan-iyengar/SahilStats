@@ -83,6 +83,8 @@ struct CompactDeviceControlStatusCard: View {
                     .background((isRecording ?? false) ? Color.red : Color.red.opacity(0.8))
                     .cornerRadius(6)
                 }
+                .disabled(isRecording == nil) // Disable if no recording state (not connected)
+                .opacity(isRecording == nil ? 0.5 : 1.0) // Grey out if not connected
             }
             
             // ADD: Bluetooth status indicator
@@ -499,12 +501,12 @@ struct CompactScoreButtonStyle: ButtonStyle {
 struct CompactControlButtonStyle: ButtonStyle {
     let color: Color
     let isIPad: Bool
-    
+
     init(color: Color, isIPad: Bool = false) {
         self.color = color
         self.isIPad = isIPad
     }
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(isIPad ? .caption : .caption2)
@@ -519,6 +521,8 @@ struct CompactControlButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
+
+
 
 
 // MARK: - On Bench Message
@@ -550,7 +554,7 @@ struct LiveGameWatchView: View {
     let liveGame: LiveGame
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @EnvironmentObject var authService: AuthService
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @State private var localClockTime: TimeInterval = 0
     
     private var isIPad: Bool {
@@ -1760,12 +1764,12 @@ struct CleanStatCard: View {
 struct CleanStatButtonStyle: ButtonStyle {
     let color: Color
     let isIPad: Bool
-    
+
     init(color: Color, isIPad: Bool = false) {
         self.color = color
         self.isIPad = isIPad
     }
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(isIPad ? .title2 : .title3)
