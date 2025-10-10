@@ -280,9 +280,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             let session = AVCaptureSession()
             
             // IMPROVED: Use sessionPreset that's less resource intensive during networking
-            if session.canSetSessionPreset(.medium) {
-                session.sessionPreset = .medium
-                print("📹 Using medium quality preset for better stability")
+            if session.canSetSessionPreset(.hd1280x720) {
+                session.sessionPreset = .hd1280x720
+                print("📹 Using 720p quality preset for better stability")
             } else if session.canSetSessionPreset(.high) {
                 session.sessionPreset = .high
                 print("⚠️ Falling back to high quality preset")
@@ -333,10 +333,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 
                 // Try to set a lower frame rate for better stability
                 for range in device.activeFormat.videoSupportedFrameRateRanges {
-                    if range.minFrameRate <= 24 && range.maxFrameRate >= 24 {
-                        device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 24)
-                        device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 24)
-                        print("📹 Set frame rate to 24fps for stability")
+                    if range.minFrameRate <= 30 && range.maxFrameRate >= 30 {
+                        device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
+                        device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
+                        print("📹 Set frame rate to 30fps for stability")
                         break
                     }
                 }
@@ -395,31 +395,28 @@ class VideoRecordingManager: NSObject, ObservableObject {
         do {
             let audioSession = AVAudioSession.sharedInstance()
             
-            // IMPROVED: Better audio session configuration for video recording
+            // --- FIX: More robust audio session configuration for video recording ---
             try audioSession.setCategory(.playAndRecord,
                                        mode: .videoRecording,
                                        options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
-            
-            // IMPROVED: Set preferred sample rate and buffer duration for better performance
-            try audioSession.setPreferredSampleRate(44100)
-            try audioSession.setPreferredIOBufferDuration(0.01)
             
             try audioSession.setActive(true)
             print("✅ Audio session configured successfully")
             
         } catch let error as NSError {
-            print("❌ Audio session setup failed: \(error)")
+            print("❌ Audio session setup failed: \(error.localizedDescription)")
             print("   Error code: \(error.code)")
             print("   Error domain: \(error.domain)")
             
-            // Try a simpler fallback configuration
+            // --- FIX: Add a simpler fallback configuration ---
             do {
+                print("⚠️ Trying fallback audio session configuration...")
                 let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.record, mode: .videoRecording)
+                try audioSession.setCategory(.record, mode: .default)
                 try audioSession.setActive(true)
                 print("✅ Audio session configured with fallback settings")
             } catch {
-                print("❌ Even fallback audio session failed: \(error)")
+                print("❌ Even fallback audio session failed: \(error.localizedDescription)")
                 self.error = error
             }
         }
@@ -643,4 +640,3 @@ extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
         }
     }
 }
-
