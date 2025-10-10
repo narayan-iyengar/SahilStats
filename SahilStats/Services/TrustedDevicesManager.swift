@@ -40,18 +40,31 @@ class TrustedDevicesManager: ObservableObject {
     private let trustedPeersKey = "com.sahilstats.trustedPeers"
     
     // MARK: - Trusted Peer Model
-    
+
     struct TrustedPeer: Codable, Identifiable {
         let id: String // Peer ID display name (unique identifier)
         let deviceName: String
-        let role: String // "controller" or "recorder"
+        var role: String // "controller" or "recorder" - NOW MUTABLE for role switching
+        var myRole: String // What role THIS device uses when connecting to this peer
         let dateAdded: Date
         let lastConnected: Date?
-        
+
+        init(peerID: MCPeerID, role: String, myRole: String) {
+            self.id = peerID.displayName
+            self.deviceName = peerID.displayName
+            self.role = role
+            self.myRole = myRole
+            self.dateAdded = Date()
+            self.lastConnected = nil
+        }
+
+        // Legacy init for backward compatibility
         init(peerID: MCPeerID, role: String) {
             self.id = peerID.displayName
             self.deviceName = peerID.displayName
             self.role = role
+            // Infer myRole as opposite of their role
+            self.myRole = role == "controller" ? "recorder" : "controller"
             self.dateAdded = Date()
             self.lastConnected = nil
         }
@@ -95,21 +108,57 @@ class TrustedDevicesManager: ObservableObject {
         return trustedPeers.contains { $0.id == peerID.displayName }
     }
     
-    /// Add a peer to trusted devices
-    func addTrustedPeer(_ peerID: MCPeerID, role: DeviceRoleManager.DeviceRole) {
+    /// Add a peer to trusted devices with both roles specified
+    func addTrustedPeer(_ peerID: MCPeerID, theirRole: DeviceRoleManager.DeviceRole, myRole: DeviceRoleManager.DeviceRole) {
         // Don't add duplicates
         guard !isTrusted(peerID) else {
             print("⚠️ Peer already trusted: \(peerID.displayName)")
             updateLastConnected(peerID)
             return
         }
-        
+
         var peers = trustedPeers
-        let newPeer = TrustedPeer(peerID: peerID, role: role.rawValue)
+        let newPeer = TrustedPeer(peerID: peerID, role: theirRole.rawValue, myRole: myRole.rawValue)
         peers.append(newPeer)
         trustedPeers = peers
-        
-        print("✅ Added trusted peer: \(peerID.displayName) as \(role.displayName)")
+
+        print("✅ Added trusted peer: \(peerID.displayName) - They: \(theirRole.displayName), Me: \(myRole.displayName)")
+    }
+
+    /// Legacy method for backward compatibility
+    func addTrustedPeer(_ peerID: MCPeerID, role: DeviceRoleManager.DeviceRole) {
+        // Infer my role as opposite
+        let myRole: DeviceRoleManager.DeviceRole = role == .controller ? .recorder : .controller
+        addTrustedPeer(peerID, theirRole: role, myRole: myRole)
+    }
+
+    /// Switch roles with a trusted peer
+    func switchRoles(for peerID: MCPeerID) {
+        var peers = trustedPeers
+        if let index = peers.firstIndex(where: { $0.id == peerID.displayName }) {
+            var peer = peers[index]
+            // Swap the roles
+            let tempRole = peer.role
+            peer = TrustedPeer(
+                id: peer.id,
+                deviceName: peer.deviceName,
+                role: peer.myRole,
+                myRole: tempRole,
+                dateAdded: peer.dateAdded,
+                lastConnected: peer.lastConnected
+            )
+            peers[index] = peer
+            trustedPeers = peers
+            print("🔄 Switched roles with \(peerID.displayName) - They: \(peer.role), Me: \(peer.myRole)")
+        }
+    }
+
+    /// Get my role when connecting to a specific peer
+    func getMyRole(for peerID: MCPeerID) -> DeviceRoleManager.DeviceRole? {
+        guard let peer = trustedPeers.first(where: { $0.id == peerID.displayName }) else {
+            return nil
+        }
+        return DeviceRoleManager.DeviceRole(rawValue: peer.myRole)
     }
     
     /// Remove a peer from trusted devices
@@ -138,6 +187,7 @@ class TrustedDevicesManager: ObservableObject {
                 id: peer.id,
                 deviceName: peer.deviceName,
                 role: peer.role,
+                myRole: peer.myRole,
                 dateAdded: peer.dateAdded,
                 lastConnected: Date()
             )
@@ -209,10 +259,21 @@ struct TrustedDevice: Identifiable {
 // MARK: - TrustedPeer Extension for updating
 
 extension TrustedDevicesManager.TrustedPeer {
+    init(id: String, deviceName: String, role: String, myRole: String, dateAdded: Date, lastConnected: Date?) {
+        self.id = id
+        self.deviceName = deviceName
+        self.role = role
+        self.myRole = myRole
+        self.dateAdded = dateAdded
+        self.lastConnected = lastConnected
+    }
+
+    // Legacy init for backward compatibility with old data
     init(id: String, deviceName: String, role: String, dateAdded: Date, lastConnected: Date?) {
         self.id = id
         self.deviceName = deviceName
         self.role = role
+        self.myRole = role == "controller" ? "recorder" : "controller"
         self.dateAdded = dateAdded
         self.lastConnected = lastConnected
     }

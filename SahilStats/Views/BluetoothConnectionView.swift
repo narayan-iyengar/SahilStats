@@ -11,8 +11,8 @@ import SwiftUI
 import MultipeerConnectivity
 
 struct BluetoothConnectionView: View {
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
-    @StateObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var rememberDevice = true
@@ -189,22 +189,30 @@ struct BluetoothConnectionView: View {
     
     private var statusIcon: String {
         switch multipeer.connectionState {
+        case .idle: return "antenna.radiowaves.left.and.right.slash"
+        case .searching: return "antenna.radiowaves.left.and.right"
         case .disconnected: return "antenna.radiowaves.left.and.right.slash"
         case .connecting: return "antenna.radiowaves.left.and.right"
         case .connected: return "checkmark.circle.fill"
         }
     }
-    
+
     private var statusColor: Color {
         switch multipeer.connectionState {
+        case .idle: return .gray
+        case .searching: return .orange
         case .disconnected: return .gray
         case .connecting: return .orange
         case .connected: return .green
         }
     }
-    
+
     private var statusDescription: String {
         switch multipeer.connectionState {
+        case .idle:
+            return "Not active"
+        case .searching:
+            return "Searching for devices..."
         case .disconnected:
             return "Not connected to any device"
         case .connecting:
@@ -413,7 +421,7 @@ struct BluetoothConnectionView: View {
 // MARK: - Bluetooth Status Indicator
 
 struct BluetoothStatusIndicator: View {
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
     var body: some View {
         HStack(spacing: 8) {
@@ -433,14 +441,18 @@ struct BluetoothStatusIndicator: View {
     
     private var statusIcon: String {
         switch multipeer.connectionState {
+        case .idle: return "antenna.radiowaves.left.and.right.slash"
+        case .searching: return "antenna.radiowaves.left.and.right"
         case .disconnected: return "antenna.radiowaves.left.and.right.slash"
         case .connecting: return "antenna.radiowaves.left.and.right"
         case .connected: return "checkmark.circle.fill"
         }
     }
-    
+
     private var statusColor: Color {
         switch multipeer.connectionState {
+        case .idle: return .gray
+        case .searching: return .orange
         case .disconnected: return .gray
         case .connecting: return .orange
         case .connected: return .green

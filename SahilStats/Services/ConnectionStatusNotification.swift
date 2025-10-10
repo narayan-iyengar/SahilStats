@@ -208,9 +208,9 @@ struct SeamlessConnectionFlow: View {
     //let onGameStart: (String) -> Void
     let liveGame: LiveGame
     
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
-    @StateObject private var roleManager = DeviceRoleManager.shared
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @ObservedObject private var trustedDevices = TrustedDevicesManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -272,6 +272,12 @@ struct SeamlessConnectionFlow: View {
                     connectionStatus = .failed(error: "Connection lost")
                     showNotification = true
                 }
+            case .idle:
+                // Connection is idle/stopped
+                break
+            case .searching:
+                // Already handled in setupSeamlessConnection
+                break
             }
         }
         .onReceive(multipeer.messagePublisher) { message in

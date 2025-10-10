@@ -544,10 +544,15 @@ struct PlayerStats: Codable, Equatable {
 
 // MARK: - Team Model
 
-struct Team: Identifiable, Codable {
+struct Team: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var name: String
     var createdAt: Date
+
+    // Equatable conformance
+    static func == (lhs: Team, rhs: Team) -> Bool {
+        return lhs.id == rhs.id && lhs.name == rhs.name
+    }
     
     // Custom coding keys
     enum CodingKeys: String, CodingKey {
@@ -736,6 +741,20 @@ struct Achievement: Codable, Identifiable, Hashable {
 
 // MARK: - Live Game Model (Enhanced with FIXED Time Tracking)
 
+// MARK: - Game Configuration
+struct GameConfiguration {
+    var teamName: String = ""
+    var opponent: String = ""
+    var location: String = ""
+    var date: Date = Date()
+    var gameFormat: GameFormat = .quarters
+    var quarterLength: Int = 10
+    var numQuarter: Int = 4
+}
+
+// Backward compatibility alias
+typealias GameConfig = GameConfiguration
+
 struct LiveGame: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var teamName: String
@@ -851,7 +870,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
         gameFormat == .halves ? "Half" : "Quarter"
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil) {
+    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil, isMultiDeviceSetup: Bool = false) {
         self.teamName = teamName
         self.opponent = opponent
         self.location = location
@@ -863,7 +882,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
         self.clock = TimeInterval(quarterLength * 60)
         self.clockStartTime = nil
         self.clockAtStart = TimeInterval(quarterLength * 60)
-        
+
         // AUTO-GRANT CONTROL: Set the creating device as the controller
         self.controllingDeviceId = deviceId
         self.controllingUserEmail = createdBy
@@ -871,20 +890,21 @@ struct LiveGame: Identifiable, Codable, Equatable {
         self.controlRequestingDeviceId = nil
         self.controlRequestTimestamp = nil
         self.lastClockUpdate = nil
-        
+
         self.homeScore = 0
         self.awayScore = 0
         self.playerStats = PlayerStats()
         self.createdAt = Date()
         self.createdBy = createdBy
         self.sahilOnBench = false
-        
+        self.isMultiDeviceSetup = isMultiDeviceSetup
+
         // 🔥 CRITICAL FIX: Explicitly initialize time tracking as nil/empty
         self.totalPlayingTimeMinutes = 0.0
         self.benchTimeMinutes = 0.0
         self.currentTimeSegment = nil  // ✅ This ensures startInitialTimeTracking() will be called
         self.timeSegments = []         // ✅ Start with empty completed segments
-        
+
         print("🔥 NEW LiveGame created - currentTimeSegment is NIL: \(currentTimeSegment == nil)")
     }
 }

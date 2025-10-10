@@ -7,7 +7,7 @@ import Combine
 import FirebaseAuth
 
 struct GameListView: View {
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @ObservedObject private var navigation = NavigationCoordinator.shared
     @EnvironmentObject var authService: AuthService
     @StateObject private var filterManager = GameFilterManager()

@@ -7,7 +7,7 @@ import Combine
 
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
-    @StateObject private var recordingManager = VideoRecordingManager.shared
+    @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @StateObject private var orientationManager = OrientationManager()
     @Environment(\.dismiss) private var dismiss
     
@@ -146,17 +146,10 @@ struct CleanVideoRecordingView: View {
                 case .disconnected:
                     print("⚠️ CleanVideoRecordingView: Disconnected from controller")
                     self.handleConnectionLoss()
-                }
-            }
-            .store(in: &cancellables)
-        
-        // IMPROVED: Monitor connected peers changes
-        multipeer.$connectedPeers
-            .receive(on: DispatchQueue.main)
-            .sink { peers in
-                print("🔗 CleanVideoRecordingView: Connected peers changed: \(peers.map { $0.displayName })")
-                if peers.isEmpty {
-                    print("⚠️ CleanVideoRecordingView: No peers connected - recorder may be isolated")
+                case .idle:
+                    print("⚠️ CleanVideoRecordingView: Connection is idle")
+                case .searching:
+                    print("🔍 CleanVideoRecordingView: Searching for controller")
                 }
             }
             .store(in: &cancellables)

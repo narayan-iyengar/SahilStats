@@ -4,7 +4,7 @@ import SwiftUI
 
 struct ConnectionWaitingRoomView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
 
     var body: some View {
         VStack(spacing: 20) {
@@ -40,6 +40,8 @@ struct ConnectionWaitingRoomView: View {
             return "Connection successful!"
         case .idle:
             return "Canceled."
+        case .disconnected:
+            return "Disconnected."
         }
     }
 }

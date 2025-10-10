@@ -3,6 +3,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import MultipeerConnectivity
 
 @MainActor
 class LiveGameManager: ObservableObject {
@@ -36,9 +37,9 @@ class LiveGameManager: ObservableObject {
     // The UI will be responsible for observing the connection state directly.
     func startMultiDeviceSession(role: DeviceRoleManager.DeviceRole) {
         print("🚀 LiveGameManager: Kicking off multi-device session for role: \(role)")
-        
-        multipeer.stopAll() // Ensure a clean slate
-        
+
+        multipeer.stopSession() // Ensure a clean slate
+
         // Add a small delay to let services fully stop before restarting
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             if role == .controller {
@@ -64,6 +65,6 @@ class LiveGameManager: ObservableObject {
     
     func reset() {
         liveGame = nil
-        multipeer.stopAll()
+        multipeer.stopSession()
     }
 }

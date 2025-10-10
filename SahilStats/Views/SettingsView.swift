@@ -102,7 +102,7 @@ struct SettingsView: View {
         }
     }
     
-    @StateObject private var settingsManager = SettingsManager.shared
+    @ObservedObject private var settingsManager = SettingsManager.shared
     @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
 }
 
@@ -270,8 +270,8 @@ struct RoleSelectionCard: View {
 
 struct DevicePairingView: View {
     @Binding var isPairing: Bool
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
-    @StateObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
     @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
     @Environment(\.dismiss) private var dismiss
     
@@ -431,7 +431,16 @@ struct DevicePairingView: View {
         }
         .onDisappear {
             print("🔵 DevicePairingView disappeared")
-            stopScanning()
+            // Only stop scanning if NOT connected (user cancelled)
+            if !multipeer.connectionState.isConnected {
+                print("🛑 User cancelled pairing, stopping scan")
+                stopScanning()
+            } else {
+                print("✅ Keeping connection alive after successful pairing")
+                // Just stop browsing/advertising, keep the session alive
+                multipeer.stopBrowsing()
+                multipeer.stopAdvertising()
+            }
             cancellables.removeAll()
         }
         .alert("Pair with \(deviceToPair?.displayName ?? "Device")?", isPresented: $showingPairingConfirmation) {
@@ -460,16 +469,28 @@ struct DevicePairingView: View {
     
     private func handleConnectionEstablished() {
         print("✅ Connection established for pairing")
-        
+
         // Get the connected peer
         guard let peer = multipeer.connectedPeers.first else { return }
-        
-        let peerRole: DeviceRoleManager.DeviceRole = selectedRole == .controller ? .recorder : .controller
-        trustedDevicesManager.addTrustedPeer(peer, role: peerRole)
-        
+
+        // Determine roles: my role and their role
+        let myRole = selectedRole
+        let theirRole: DeviceRoleManager.DeviceRole = (selectedRole == .controller) ? .recorder : .controller
+
+        print("📝 Saving pairing - Me: \(myRole.displayName), Them: \(theirRole.displayName)")
+
+        // Save the peer with BOTH roles (theirs and mine)
+        trustedDevicesManager.addTrustedPeer(peer, theirRole: theirRole, myRole: myRole)
+
+        // Set my preferred role for future connections
+        roleManager.setPreferredRole(myRole)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            print("✅ Pairing complete, dismissing")
-            stopScanning()
+            print("✅ Pairing complete, keeping connection alive")
+            // DON'T call stopScanning() - that kills the connection!
+            // Just stop browsing/advertising since we're already connected
+            multipeer.stopBrowsing()
+            multipeer.stopAdvertising()
             dismiss()
         }
     }
@@ -529,7 +550,7 @@ struct DevicePairingView: View {
 }
 
 struct BackgroundConnectionIndicator: View {
-    @StateObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
     var body: some View {
         VStack {

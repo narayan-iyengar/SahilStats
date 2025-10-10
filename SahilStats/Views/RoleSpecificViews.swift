@@ -66,9 +66,9 @@ struct LiveScoreOverlay: View {
 
 struct RecordingDeviceView: View {
     let liveGame: LiveGame
-    @StateObject private var recordingManager = VideoRecordingManager.shared
-    @StateObject private var roleManager = DeviceRoleManager.shared
-    @StateObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var recordingManager = VideoRecordingManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var showingDeviceManager = false
@@ -170,7 +170,7 @@ struct ControlDeviceView: View {
 
 struct DeviceManagerView: View {
     let liveGame: LiveGame
-    @StateObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
