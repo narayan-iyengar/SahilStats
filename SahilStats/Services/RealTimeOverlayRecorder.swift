@@ -309,11 +309,16 @@ class RealTimeOverlayRecorder: NSObject {
         // It will be scaled during composition if needed
         let size = CGSize(width: 1280, height: 720)
 
-        let renderer = UIGraphicsImageRenderer(size: size)
+        // IMPORTANT: Use transparent format, not opaque (prevents black box artifact)
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false  // This is critical!
+        format.scale = 1  // Use 1x scale to save memory
+
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { context in
             let cgContext = context.cgContext
 
-            // Clear background (transparent)
+            // Clear background (transparent) - now this actually works!
             cgContext.clear(CGRect(origin: .zero, size: size))
 
             // Draw scoreboard overlay
