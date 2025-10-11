@@ -192,21 +192,8 @@ class RealTimeOverlayRecorder: NSObject {
             let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
             videoInput.expectsMediaDataInRealTime = true
 
-            // Set video transform for landscape recording
-            let deviceOrientation = UIDevice.current.orientation
-            let transform: CGAffineTransform
-
-            switch deviceOrientation {
-            case .landscapeLeft:
-                transform = CGAffineTransform(rotationAngle: .pi / 2) // 90 degrees
-            case .landscapeRight:
-                transform = CGAffineTransform(rotationAngle: -.pi / 2) // -90 degrees
-            case .portraitUpsideDown:
-                transform = CGAffineTransform(rotationAngle: .pi) // 180 degrees
-            default: // portrait or unknown
-                transform = .identity
-            }
-            videoInput.transform = transform
+            // No transform needed - we're compositing to 1280x720 (landscape) directly
+            // The camera frames and overlay are both drawn into the same landscape buffer
 
             if writer.canAdd(videoInput) {
                 writer.add(videoInput)
@@ -321,21 +308,20 @@ class RealTimeOverlayRecorder: NSObject {
             height: scoreboardHeight
         )
 
-        // Semi-transparent background
-        context.setFillColor(UIColor.black.withAlphaComponent(0.5).cgColor)
-        context.fill(scoreboardRect)
-
-        // Border
-        context.setStrokeColor(UIColor.white.withAlphaComponent(0.2).cgColor)
-        context.setLineWidth(1)
-        context.stroke(scoreboardRect)
-
-        // Corner radius (approximate - Core Graphics doesn't have native rounded rect with individual corners)
+        // Draw rounded rectangle background (single draw, no artifacts)
         let cornerRadius = 14 * scaleFactor
         let path = UIBezierPath(roundedRect: scoreboardRect, cornerRadius: cornerRadius)
-        context.addPath(path.cgPath)
+
+        // Fill with semi-transparent black
         context.setFillColor(UIColor.black.withAlphaComponent(0.5).cgColor)
+        context.addPath(path.cgPath)
         context.fillPath()
+
+        // Add border
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.2).cgColor)
+        context.setLineWidth(1)
+        context.addPath(path.cgPath)
+        context.strokePath()
 
         // Text attributes
         let homeTeamName = formatTeamName(game.teamName, maxLength: 4)
@@ -501,7 +487,22 @@ class RealTimeOverlayRecorder: NSObject {
 
         // Draw camera frame (use reusable ciContext - creating new context each frame kills performance!)
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-        if let cgImage = self.ciContext.createCGImage(ciImage, from: ciImage.extent) {
+
+        // Rotate camera frame to landscape if needed
+        // Camera sensor typically captures in portrait (720x1280), we need landscape (1280x720)
+        let cameraWidth = CVPixelBufferGetWidth(imageBuffer)
+        let cameraHeight = CVPixelBufferGetHeight(imageBuffer)
+        let isPortraitCamera = cameraHeight > cameraWidth
+
+        let orientedImage: CIImage
+        if isPortraitCamera {
+            // Rotate 90 degrees clockwise to get landscape
+            orientedImage = ciImage.oriented(.right)
+        } else {
+            orientedImage = ciImage
+        }
+
+        if let cgImage = self.ciContext.createCGImage(orientedImage, from: orientedImage.extent) {
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer)))
         }
 
