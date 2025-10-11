@@ -31,12 +31,17 @@ class LiveActivityManager: ObservableObject {
 
         // Check if Live Activities are supported
         let authInfo = ActivityAuthorizationInfo()
-        print("🏝️ Live Activities enabled: \(authInfo.areActivitiesEnabled)")
+        print("🏝️ Live Activities authorization status: \(authInfo.areActivitiesEnabled)")
+        print("🏝️ Frequent pushes enabled: \(authInfo.frequentPushesEnabled)")
+
         guard authInfo.areActivitiesEnabled else {
-            print("⚠️ Live Activities are not enabled")
-            print("   User needs to enable in Settings → SahilStats → Allow Live Activities")
+            print("⚠️ Live Activities are NOT enabled")
+            print("   📱 User needs to enable in Settings → SahilStats → Allow Live Activities")
+            print("   This is why you're seeing notification banners instead of Dynamic Island")
             return
         }
+
+        print("✅ Live Activities ARE enabled - attempting to start...")
 
         let attributes = SahilStatsActivityAttributes(
             deviceRole: deviceRole.displayName
@@ -57,15 +62,23 @@ class LiveActivityManager: ObservableObject {
         )
 
         do {
+            print("🏝️ Requesting Live Activity with attributes: \(deviceRole.displayName)")
             currentActivity = try Activity.request(
                 attributes: attributes,
                 content: .init(state: initialState, staleDate: nil),
                 pushType: nil
             )
             isActivityActive = true
-            print("✅ Live Activity started for role: \(deviceRole.displayName)")
+            print("✅ Live Activity started successfully for role: \(deviceRole.displayName)")
+            print("   Activity ID: \(currentActivity?.id ?? "unknown")")
         } catch {
-            print("❌ Failed to start Live Activity: \(error)")
+            print("❌ Failed to start Live Activity: \(error.localizedDescription)")
+            print("   Error details: \(error)")
+
+            // Check if it's a common error
+            if let activityError = error as? ActivityAuthorizationError {
+                print("   Authorization error: \(activityError)")
+            }
         }
     }
 

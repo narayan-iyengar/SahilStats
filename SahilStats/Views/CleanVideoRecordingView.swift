@@ -37,14 +37,21 @@ struct CleanVideoRecordingView: View {
             if isCameraReady {
                 SimpleCameraPreviewView(isCameraReady: $isCameraReady)
                     .ignoresSafeArea(.all)
-                
+
                 SimpleScoreOverlay(
                     overlayData: overlayData,
                     orientation: orientationManager.orientation,
                     recordingDuration: recordingManager.recordingTimeString,
                     isRecording: recordingManager.isRecording
                 )
-                
+
+                // Connection status indicator at top
+                VStack {
+                    ConnectionStatusIndicator(deviceRole: .recorder)
+                        .padding(.top, orientationManager.isLandscape ? 50 : 20)
+                    Spacer()
+                }
+
                 if orientationManager.isLandscape {
                     landscapeControls
                 } else {
@@ -410,7 +417,21 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOverlayData() {
-        guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else { return }
+        guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else {
+            print("⚠️ CleanVideoRecordingView: getCurrentLiveGame() returned nil!")
+            return
+        }
+
+        // Log game state every 5 seconds to track updates
+        let shouldLog = Int(Date().timeIntervalSince1970) % 5 == 0
+        if shouldLog {
+            print("🎮 CleanVideoRecordingView: Game data from Firebase:")
+            print("   Score: \(currentGame.homeScore)-\(currentGame.awayScore)")
+            print("   Clock: \(currentGame.currentClockDisplay)")
+            print("   Period: Q\(currentGame.quarter)")
+            print("   isRecording: \(recordingManager.isRecording)")
+        }
+
         overlayData = SimpleScoreOverlayData(
             from: currentGame,
             isRecording: recordingManager.isRecording,
