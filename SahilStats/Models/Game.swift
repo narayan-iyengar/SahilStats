@@ -73,6 +73,7 @@ struct Game: Identifiable, Codable, Equatable {
         case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
         case createdAt, adminName, editedAt, editedBy, achievements
         case totalPlayingTimeMinutes, benchTimeMinutes, gameTimeTracking
+        case videoURL, youtubeVideoId, youtubeURL, videoUploadedAt
     }
     
     @ServerTimestamp var timestamp: Date?
@@ -263,7 +264,19 @@ struct Game: Identifiable, Codable, Equatable {
         
         // Optional metadata
         adminName = try container.decodeIfPresent(String.self, forKey: .adminName)
-        
+        videoURL = try container.decodeIfPresent(String.self, forKey: .videoURL)
+        youtubeVideoId = try container.decodeIfPresent(String.self, forKey: .youtubeVideoId)
+        youtubeURL = try container.decodeIfPresent(String.self, forKey: .youtubeURL)
+
+        // Handle videoUploadedAt
+        if let uploadedAtData = try? container.decodeIfPresent(Timestamp.self, forKey: .videoUploadedAt) {
+            videoUploadedAt = uploadedAtData.dateValue()
+        } else if let uploadedAtDouble = try? container.decodeIfPresent(Double.self, forKey: .videoUploadedAt) {
+            videoUploadedAt = Date(timeIntervalSince1970: uploadedAtDouble)
+        } else {
+            videoUploadedAt = nil
+        }
+
         // Handle editedAt - try different formats
         if let editedAtData = try? container.decodeIfPresent(Timestamp.self, forKey: .editedAt) {
             editedAt = editedAtData.dateValue()
@@ -477,7 +490,24 @@ extension Game {
         if let editedAt = editedAt {
             data["editedAt"] = Timestamp(date: editedAt)
         }
-        
+
+        // SAFE: Add video URLs if they exist
+        if let videoURL = videoURL {
+            data["videoURL"] = videoURL
+        }
+
+        if let youtubeVideoId = youtubeVideoId {
+            data["youtubeVideoId"] = youtubeVideoId
+        }
+
+        if let youtubeURL = youtubeURL {
+            data["youtubeURL"] = youtubeURL
+        }
+
+        if let videoUploadedAt = videoUploadedAt {
+            data["videoUploadedAt"] = Timestamp(date: videoUploadedAt)
+        }
+
         // SAFE: Convert achievements to array of dictionaries
         data["achievements"] = achievements.map { achievement in
             [
@@ -1244,8 +1274,8 @@ func isControllerRoleAvailable() -> Bool {
         return true
     }
     
-    func getAvailableRoles() -> [DeviceRoleManager.DeviceRole] {
-        var roles: [DeviceRoleManager.DeviceRole] = []
+    func getAvailableRoles() -> [DeviceRole] {
+        var roles: [DeviceRole] = []
         
         if isControllerRoleAvailable() {
             roles.append(.controller)

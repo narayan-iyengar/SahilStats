@@ -233,7 +233,7 @@ struct DevicePairingMainView: View {
 
 
 struct RoleSelectionCard: View {
-    let role: DeviceRoleManager.DeviceRole
+    let role: DeviceRole
     let isSelected: Bool
     let action: () -> Void
     
@@ -275,7 +275,7 @@ struct DevicePairingView: View {
     @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
     @Environment(\.dismiss) private var dismiss
     
-    @State private var selectedRole: DeviceRoleManager.DeviceRole = .controller
+    @State private var selectedRole: DeviceRole = .controller
     @State private var showingPairingConfirmation = false
     @State private var deviceToPair: MCPeerID?
     @State private var cancellables = Set<AnyCancellable>() // Add this for subscriptions
@@ -475,7 +475,7 @@ struct DevicePairingView: View {
 
         // Determine roles: my role and their role
         let myRole = selectedRole
-        let theirRole: DeviceRoleManager.DeviceRole = (selectedRole == .controller) ? .recorder : .controller
+        let theirRole: DeviceRole = (selectedRole == .controller) ? .recorder : .controller
 
         print("📝 Saving pairing - Me: \(myRole.displayName), Them: \(theirRole.displayName)")
 
@@ -498,23 +498,18 @@ struct DevicePairingView: View {
     private func startScanning() {
         print("🔍 Starting scan for role: \(selectedRole.displayName)")
         isPairing = true
-        
+
         // Clear previous discoveries
         multipeer.clearDiscoveredPeers()
-        
-        print("🔍📡 Starting BOTH browsing and advertising for pairing")
-        multipeer.startBrowsing()
-        
-        if selectedRole == .controller {
-            multipeer.startAdvertising(as: "controller")
-        } else {
-            multipeer.startAdvertising(as: "recorder")
-        }
-        
+
+        // Use startSession with the selected role for proper symmetric discovery
+        print("🔍📡 Starting session as \(selectedRole.displayName) for pairing")
+        multipeer.startSession(role: selectedRole)
+
         // Stop spinner after scan period
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             print("⏱️ Scan period completed. Found \(self.nearbyDevices.count) devices")
-            
+
             if self.nearbyDevices.isEmpty {
                 print("❌ No devices discovered during scan")
             } else {
@@ -523,7 +518,7 @@ struct DevicePairingView: View {
                     print("   - \(peer.displayName)")
                 }
             }
-            
+
             self.isPairing = false
         }
     }

@@ -9,8 +9,8 @@
 import SwiftUI
 
 struct UploadStatusView: View {
-    @StateObject private var uploadManager = YouTubeUploadManager.shared
-    @StateObject private var wifinetworkMonitor = WifiNetworkMonitor.shared
+    @ObservedObject private var uploadManager = YouTubeUploadManager.shared
+    @ObservedObject private var wifinetworkMonitor = WifiNetworkMonitor.shared
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -142,6 +142,15 @@ struct UploadStatusView: View {
                         .foregroundColor(.green)
                         .disabled(!wifinetworkMonitor.isWiFi)
                     }
+
+                    // Show clear button if there are failed uploads
+                    let failedCount = uploadManager.pendingUploads.filter({ $0.uploadAttempts >= 5 }).count
+                    if failedCount > 0 {
+                        Button("Clear Failed Uploads (\(failedCount))") {
+                            uploadManager.clearAllFailedUploads()
+                        }
+                        .foregroundColor(.red)
+                    }
                 }
             }
             .navigationTitle("Upload Status")
@@ -160,9 +169,9 @@ struct UploadStatusView: View {
 // MARK: - Upload Status Badge
 
 struct UploadStatusBadge: View {
-    @StateObject private var uploadManager = YouTubeUploadManager.shared
-    @StateObject private var wifinetworkMonitor = WifiNetworkMonitor.shared
-    
+    @ObservedObject private var uploadManager = YouTubeUploadManager.shared
+    @ObservedObject private var wifinetworkMonitor = WifiNetworkMonitor.shared
+
     var body: some View {
         if uploadManager.isUploading || !uploadManager.pendingUploads.isEmpty {
             Button(action: {}) {

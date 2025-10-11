@@ -27,14 +27,16 @@ struct CompleteGameDetailView: View {
     @State private var isEditingScore = false
     @State private var editingMyTeamScore = ""
     @State private var editingOpponentScore = ""
-    
+
     // State for editing team names
     @State private var isEditingTeamNames = false
     @State private var editingTeamName = ""
     @State private var editingOpponentName = ""
-    
+
     // State for media features
     @State private var showingShareSheet = false
+    @State private var showingVideoPlayer = false
+    @State private var videoURLToPlay: URL?
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
@@ -66,21 +68,10 @@ struct CompleteGameDetailView: View {
                     if !game.achievements.isEmpty {
                         achievementsSection
                     }
-                    
-                    if let videoId = game.youtubeVideoId {
-                        Section("Game Video") {
-                            Link(destination: URL(string: "https://www.youtube.com/watch?v=\(videoId)")!) {
-                                HStack {
-                                    Image(systemName: "play.rectangle.fill")
-                                        .foregroundColor(.red)
-                                    Text("Watch on YouTube")
-                                    Spacer()
-                                    Image(systemName: "arrow.up.right")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
+
+                    // Game Video Section (show if we have ANY video - YouTube or local)
+                    if game.youtubeVideoId != nil || game.videoURL != nil {
+                        gameVideoSection
                     }
                     
                     Spacer(minLength: 50)
@@ -128,6 +119,11 @@ struct CompleteGameDetailView: View {
             Button("Cancel", role: .cancel) {}
             Button("Save") {
                 saveTeamNameChange()
+            }
+        }
+        .sheet(isPresented: $showingVideoPlayer) {
+            if let videoURL = videoURLToPlay {
+                LocalVideoPlayerView(videoURL: videoURL)
             }
         }
     }
@@ -378,8 +374,138 @@ struct CompleteGameDetailView: View {
         }
     }
     
+    // MARK: - Game Video Section
+
+    @ViewBuilder
+    private var gameVideoSection: some View {
+        VStack(alignment: .leading, spacing: isIPad ? 20 : 16) {
+            Text("Game Video")
+                .font(isIPad ? .title2 : .headline)
+                .fontWeight(.bold)
+                .foregroundColor(.red)
+
+            if let videoId = game.youtubeVideoId {
+                // YouTube video is available
+                Link(destination: URL(string: "https://www.youtube.com/watch?v=\(videoId)")!) {
+                    HStack(spacing: isIPad ? 16 : 12) {
+                        // YouTube play icon
+                        ZStack {
+                            RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
+                                .fill(Color.red)
+                                .frame(width: isIPad ? 64 : 56, height: isIPad ? 64 : 56)
+
+                            Image(systemName: "play.fill")
+                                .font(isIPad ? .title : .title2)
+                                .foregroundColor(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Watch on YouTube")
+                                .font(isIPad ? .title3 : .body)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+
+                            Text("Full game uploaded and ready")
+                                .font(isIPad ? .body : .caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.up.right.circle.fill")
+                            .font(isIPad ? .title2 : .title3)
+                            .foregroundColor(.red)
+                    }
+                    .padding(isIPad ? 20 : 16)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(isIPad ? 16 : 12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                            .stroke(Color.red.opacity(0.3), lineWidth: 2)
+                    )
+                }
+                .buttonStyle(.plain)
+            } else if let videoURLPath = game.videoURL, FileManager.default.fileExists(atPath: videoURLPath) {
+                // Local video available
+                Button(action: {
+                    playLocalVideo(path: videoURLPath)
+                }) {
+                    HStack(spacing: isIPad ? 16 : 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
+                                .fill(Color.blue)
+                                .frame(width: isIPad ? 64 : 56, height: isIPad ? 64 : 56)
+
+                            Image(systemName: "play.circle.fill")
+                                .font(isIPad ? .title : .title2)
+                                .foregroundColor(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Watch Local Recording")
+                                .font(isIPad ? .title3 : .body)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+
+                            Text("Tap to play • Uploading to YouTube...")
+                                .font(isIPad ? .body : .caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right.circle.fill")
+                            .font(isIPad ? .title2 : .title3)
+                            .foregroundColor(.blue)
+                    }
+                    .padding(isIPad ? 20 : 16)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(isIPad ? 16 : 12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                            .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Upload in progress or queued
+                HStack(spacing: isIPad ? 16 : 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
+                            .fill(Color.orange)
+                            .frame(width: isIPad ? 64 : 56, height: isIPad ? 64 : 56)
+
+                        ProgressView()
+                            .tint(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Video Uploading")
+                            .font(isIPad ? .title3 : .body)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+
+                        Text("Check back soon for the full game video")
+                            .font(isIPad ? .body : .caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(isIPad ? 20 : 16)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(isIPad ? 16 : 12)
+            }
+        }
+    }
+
+    private func playLocalVideo(path: String) {
+        videoURLToPlay = URL(fileURLWithPath: path)
+        showingVideoPlayer = true
+    }
+
     // MARK: - Achievements Section
-    
+
     @ViewBuilder
     private var achievementsSection: some View {
         VStack(alignment: .leading, spacing: isIPad ? 20 : 16) {

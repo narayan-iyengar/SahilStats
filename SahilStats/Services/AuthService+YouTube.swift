@@ -87,44 +87,73 @@ extension AuthService {
 // MARK: - YouTube Settings Section
 
 struct YouTubeSettingsSection: View {
-    @StateObject private var youtubeAuth = FirebaseYouTubeAuthManager.shared
-    @StateObject private var uploadManager = YouTubeUploadManager.shared
+    @ObservedObject private var youtubeAuth = FirebaseYouTubeAuthManager.shared
+    @ObservedObject private var uploadManager = YouTubeUploadManager.shared
     @ObservedObject private var wifiMonitor = WifiNetworkMonitor.shared
     @EnvironmentObject var authService: AuthService
     
     @State private var showingUploadStatus = false
     @State private var autoUploadEnabled = true
     @State private var showingError = false
-    
+    @State private var showingRevokeConfirmation = false
+
     var body: some View {
         Section("YouTube Uploads") {
             // Authorization status
             HStack {
                 Image(systemName: youtubeAuth.isYouTubeAuthorized ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundColor(youtubeAuth.isYouTubeAuthorized ? .green : .red)
-                
+
                 Text("YouTube")
-                
+
                 Spacer()
-                
+
                 Text(youtubeAuth.isYouTubeAuthorized ? "Authorized" : "Not Authorized")
                     .foregroundColor(.secondary)
             }
-            
+
             if !youtubeAuth.isYouTubeAuthorized {
                 Button("Authorize YouTube Uploads") {
                     authorizeYouTube()
                 }
                 .foregroundColor(.red)
+            } else {
+                // Show channel name if available
+                if let channelName = youtubeAuth.youtubeChannelName {
+                    HStack {
+                        Text("Channel")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(channelName)
+                    }
+                }
+
+                // Re-authorize button (in case of permission issues)
+                Button("Re-authorize YouTube") {
+                    authorizeYouTube()
+                }
+                .foregroundColor(.blue)
+
+                // Revoke access button
+                Button("Revoke Access") {
+                    showingRevokeConfirmation = true
+                }
+                .foregroundColor(.red)
             }
             
             // Upload status
-            Button(action: { showingUploadStatus = true }) {
+            Button(action: {
+                guard !showingUploadStatus else { return }
+                // Add small delay to avoid presentation conflicts
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    showingUploadStatus = true
+                }
+            }) {
                 HStack {
                     Text("Upload Status")
-                    
+
                     Spacer()
-                    
+
                     if uploadManager.isUploading {
                         ProgressView()
                             .scaleEffect(0.8)
@@ -136,7 +165,7 @@ struct YouTubeSettingsSection: View {
                                 .foregroundColor(.orange)
                         }
                     }
-                    
+
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -174,6 +203,14 @@ struct YouTubeSettingsSection: View {
         } message: {
             Text(youtubeAuth.authError ?? "Failed to authorize YouTube")
         }
+        .confirmationDialog("Revoke YouTube Access", isPresented: $showingRevokeConfirmation, titleVisibility: .visible) {
+            Button("Revoke Access", role: .destructive) {
+                revokeYouTubeAccess()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will remove YouTube upload permissions. You can re-authorize anytime.")
+        }
     }
     
     private func authorizeYouTube() {
@@ -181,7 +218,7 @@ struct YouTubeSettingsSection: View {
             do {
                 print("🔍 Starting YouTube authorization")
                 print("🔍 GIDSignIn currentUser: \(GIDSignIn.sharedInstance.currentUser?.profile?.email ?? "nil")")
-                
+
                 // Always use the full Google Sign-In flow to get YouTube scopes
                 // Even if Firebase Auth shows signed in, we need GIDSignIn currentUser
                 if GIDSignIn.sharedInstance.currentUser == nil {
@@ -197,6 +234,21 @@ struct YouTubeSettingsSection: View {
                     showingError = true
                 }
                 print("❌ YouTube authorization failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func revokeYouTubeAccess() {
+        Task {
+            do {
+                print("🔓 Revoking YouTube access")
+                try await youtubeAuth.revokeYouTubeAccess()
+                print("✅ YouTube access revoked successfully")
+            } catch {
+                await MainActor.run {
+                    showingError = true
+                }
+                print("❌ Failed to revoke YouTube access: \(error.localizedDescription)")
             }
         }
     }

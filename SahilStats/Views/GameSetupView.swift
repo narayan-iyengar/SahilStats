@@ -48,9 +48,16 @@ struct GameSetupView: View {
         .onChange(of: showingConnectionWaitingRoom) { wasShowing, isShowing in
             if wasShowing && !isShowing { // When the waiting room is dismissed
                 if case .connected = multipeer.connectionState {
-                    // Handshake complete for Controller, proceed to game form
-                    print("✅ Handshake complete. Proceeding to create game.")
-                    setupMode = .gameForm
+                    // Only controller proceeds to game form
+                    // Recorder stays on waiting screen until game starts
+                    if roleManager.preferredRole == .controller {
+                        print("✅ Handshake complete. Controller proceeding to create game.")
+                        setupMode = .gameForm
+                    } else {
+                        print("✅ Recorder connected. Waiting for controller to start game.")
+                        // Recorder should stay on selection screen or show a waiting view
+                        // They'll receive a gameStarting message when controller starts
+                    }
                 }
             }
         }
@@ -125,9 +132,28 @@ struct GameSetupView: View {
                 // Option 3: Multi-device session with video
                 Button(action: {
                     isMultiDevice = true
-                    let role = roleManager.roleForAutoConnection
-                    multipeer.startSession(role: role)
-                    showingConnectionWaitingRoom = true
+
+                    // Mark that user explicitly joined the game flow (enables auto-navigation)
+                    NavigationCoordinator.shared.userExplicitlyJoinedGame = true
+                    NavigationCoordinator.shared.markUserHasInteracted()
+
+                    // Check if already connected
+                    if multipeer.connectionState.isConnected {
+                        print("✅ Already connected, skipping waiting room")
+                        // Directly proceed based on role
+                        if roleManager.preferredRole == .controller {
+                            setupMode = .gameForm
+                        } else {
+                            // Recorder stays on selection screen waiting for gameStarting message
+                            print("✅ Recorder ready. Waiting for controller to start game.")
+                        }
+                    } else {
+                        // Not connected, show waiting room and start scanning
+                        print("🔍 Not connected, starting connection process")
+                        let role = roleManager.roleForAutoConnection
+                        multipeer.startSession(role: role)
+                        showingConnectionWaitingRoom = true
+                    }
                 }) {
                     HStack {
                         Image(systemName: "video.badge.plus")
@@ -419,11 +445,26 @@ struct GameSetupView: View {
             let liveGame = try await createLiveGame()
             createdLiveGame = liveGame
 
-            // Send game starting message to connected device if multi-device
+            // Set device role for multi-device games
             if isMultiDevice, let gameId = liveGame.id {
+                // Set the device role based on preferred role
+                print("🎯 Controller setting deviceRole to \(roleManager.preferredRole.displayName) for game \(gameId)")
+                try await DeviceRoleManager.shared.setDeviceRole(roleManager.preferredRole, for: gameId)
+                print("✅ Controller deviceRole set successfully")
+
+                // Send game starting message to connected device
+                print("📤 Sending gameStarting message to recorder")
                 multipeer.sendGameStarting(gameId: gameId)
+
+                // Give the recorder a moment to receive the message and set their role
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+
+                // Send start recording command to transition recorder to recording view
+                print("📤 Sending startRecording command to recorder")
+                multipeer.sendStartRecording()
             }
 
+            print("🎬 Controller transitioning to live game view")
             showingLiveGameView = true
         }
     }

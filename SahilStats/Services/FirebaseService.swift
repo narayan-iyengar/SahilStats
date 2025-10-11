@@ -366,6 +366,17 @@ class FirebaseService: ObservableObject {
     func deleteGame(_ gameId: String) async throws {
         try await db.collection("games").document(gameId).delete()
     }
+
+    func updateGameVideoURL(gameId: String, videoURL: String) async {
+        do {
+            try await db.collection("games").document(gameId).updateData([
+                "videoURL": videoURL
+            ])
+            print("✅ Updated game \(gameId) with local video URL")
+        } catch {
+            print("❌ Failed to update video URL: \(error.localizedDescription)")
+        }
+    }
     
     // MARK: - Teams
     

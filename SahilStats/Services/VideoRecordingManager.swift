@@ -443,22 +443,43 @@ class VideoRecordingManager: NSObject, ObservableObject {
     // MARK: - Recording Control
     
     func startRecording() async {
-        guard let videoOutput = videoOutput,
-              !isRecording else { return }
-        
+        print("🎥 VideoRecordingManager: startRecording() called")
+        print("   videoOutput exists: \(videoOutput != nil)")
+        print("   isRecording: \(isRecording)")
+        print("   captureSession running: \(captureSession?.isRunning ?? false)")
+
+        guard let videoOutput = videoOutput else {
+            print("❌ Cannot start recording - videoOutput is nil (camera not setup)")
+            return
+        }
+
+        guard !isRecording else {
+            print("❌ Cannot start recording - already recording")
+            return
+        }
+
+        print("🎥 Starting video recording...")
+
         let documentsPath = FileManager.default.urls(for: .documentDirectory,
                                                    in: .userDomainMask)[0]
         let outputURL = documentsPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).mov")
-        
+
         // Store the URL
         self.outputURL = outputURL
-        
+
+        print("🎥 Recording to: \(outputURL)")
+
         videoOutput.startRecording(to: outputURL, recordingDelegate: self)
-        
+        print("🎥 AVCaptureMovieFileOutput.startRecording() called")
+
         await MainActor.run {
             self.isRecording = true
             self.recordingStartTime = Date()
             self.startRecordingTimer()
+
+            // Update Live Activity
+            LiveActivityManager.shared.updateRecordingState(isRecording: true)
+            print("✅ Recording state updated - isRecording=true")
         }
     }
     
@@ -469,20 +490,34 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     func stopRecording() async {
         guard isRecording else { return }
-        
+
         videoOutput?.stopRecording()
-        
+
         await MainActor.run {
             self.isRecording = false
             self.recordingStartTime = nil
             self.stopRecordingTimer()
+
+            // Update Live Activity
+            LiveActivityManager.shared.updateRecordingState(isRecording: false)
         }
     }
     
     private func startRecordingTimer() {
-        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            guard let startTime = self.recordingStartTime else { return }
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, let startTime = self.recordingStartTime else { return }
             self.recordingDuration = Date().timeIntervalSince(startTime)
+
+            // Update Live Activity every second (not every 0.1s to avoid too many updates)
+            let duration = Int(self.recordingDuration)
+            if duration > 0 && duration % 1 == 0 {
+                Task { @MainActor in
+                    LiveActivityManager.shared.updateRecordingState(
+                        isRecording: true,
+                        duration: self.recordingTimeString
+                    )
+                }
+            }
         }
     }
     
@@ -591,12 +626,28 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
     
     /// Handles saving recording and queuing for upload - used by recording view
-    func saveRecordingAndQueueUpload(gameId: String, teamName: String, opponent: String) async {
+    /// Returns the local video URL for storage in the game record
+    @discardableResult
+    func saveRecordingAndQueueUpload(gameId: String, teamName: String, opponent: String) async -> URL? {
+        print("📹 saveRecordingAndQueueUpload called")
+        print("   Game ID: \(gameId)")
+        print("   Teams: \(teamName) vs \(opponent)")
+        print("   outputURL: \(String(describing: outputURL))")
+
         guard let outputURL = outputURL else {
-            print("❌ No recording to save and queue")
-            return
+            print("❌ No recording to save and queue - outputURL is nil")
+            return nil
         }
-        
+
+        // Check if file exists
+        let fileExists = FileManager.default.fileExists(atPath: outputURL.path)
+        print("   File exists at outputURL: \(fileExists)")
+
+        if !fileExists {
+            print("❌ Recording file does not exist at path: \(outputURL.path)")
+            return nil
+        }
+
         // Generate title and description
         let title = "🏀 \(teamName) vs \(opponent) - \(Date().formatted(date: .abbreviated, time: .shortened))"
         let description = """
@@ -604,22 +655,50 @@ class VideoRecordingManager: NSObject, ObservableObject {
         \(teamName) vs \(opponent)
         Recorded: \(Date().formatted(date: .complete, time: .shortened))
         Game ID: \(gameId)
-        
+
         Automatically uploaded by SahilStats
         """
-        
-        // Queue for upload
-        YouTubeUploadManager.shared.queueVideoForUpload(
-            videoURL: outputURL,
-            title: title,
-            description: description,
-            gameId: gameId
-        )
-        
-        print("✅ Video queued for YouTube upload")
-        
-        // Also save to photo library
+
+        print("📹 Queuing video for upload with title: \(title)")
+
+        // IMPORTANT: Copy the file for YouTube upload before saving to Photos
+        // Photos library MOVES the file, so we need a separate copy for YouTube
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let youtubeURL = documentsPath.appendingPathComponent("youtube_\(Date().timeIntervalSince1970).mov")
+
+        do {
+            try FileManager.default.copyItem(at: outputURL, to: youtubeURL)
+            print("✅ Created copy for YouTube upload at: \(youtubeURL.lastPathComponent)")
+
+            // Queue the COPY for upload (not the original)
+            YouTubeUploadManager.shared.queueVideoForUpload(
+                videoURL: youtubeURL,
+                title: title,
+                description: description,
+                gameId: gameId
+            )
+
+            print("✅ Video queued for YouTube upload, now saving original to photo library")
+        } catch {
+            print("❌ Failed to create copy for YouTube: \(error)")
+            // Fallback: still try to queue the original (might fail later, but better than nothing)
+            YouTubeUploadManager.shared.queueVideoForUpload(
+                videoURL: outputURL,
+                title: title,
+                description: description,
+                gameId: gameId
+            )
+        }
+
+        // Save the ORIGINAL to photo library (this will move/delete the original file)
         await saveToPhotoLibrary()
+
+        print("✅ saveRecordingAndQueueUpload completed")
+        print("   Local video URL will be stored in Firebase when upload completes: \(youtubeURL.path)")
+
+        // Return the youtube copy URL (the one that persists)
+        // Note: The videoURL will be stored in Firebase by YouTubeUploadManager when the upload completes
+        return youtubeURL
     }
 
 }
@@ -628,15 +707,30 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
 extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        print("🎥 fileOutput delegate called - recording finished")
+        print("   Output URL: \(outputFileURL)")
+        print("   Error: \(String(describing: error))")
+
         if let error = error {
-            print("Recording failed: \(error)")
+            print("❌ Recording failed: \(error)")
             DispatchQueue.main.async {
                 self.error = error
             }
         } else {
-            print("Recording saved to: \(outputFileURL)")
-            // Store the last successful recording
-            self.outputURL = outputFileURL
+            // Check if file exists
+            let fileExists = FileManager.default.fileExists(atPath: outputFileURL.path)
+            print("   File exists: \(fileExists)")
+
+            if fileExists {
+                print("✅ Recording saved successfully to: \(outputFileURL)")
+                // Store the last successful recording
+                DispatchQueue.main.async {
+                    self.outputURL = outputFileURL
+                    print("   outputURL stored in VideoRecordingManager")
+                }
+            } else {
+                print("❌ Recording file does not exist at expected path")
+            }
         }
     }
 }

@@ -318,7 +318,7 @@ struct LiveSmartShootingStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
     
@@ -357,7 +357,7 @@ struct LiveGameControllerView: View {
     @ObservedObject private var firebaseService = FirebaseService.shared
     @ObservedObject private var deviceControl = DeviceControlManager.shared
     @EnvironmentObject var authService: AuthService
-    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.scenePhase) var scenePhase
     
@@ -635,6 +635,22 @@ struct LiveGameControllerView: View {
     @ViewBuilder
     private func fixedGameHeader() -> some View {
         VStack(spacing: isIPad ? 6 : 4) {
+            // Done button at the top
+            HStack {
+                Button(action: handleDone) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Done")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                }
+                Spacer()
+            }
+
             // Device Control Status
             CompactDeviceControlStatusCard(
                 hasControl: deviceControl.hasControl,
@@ -1572,9 +1588,14 @@ struct LiveGameControllerView: View {
     
    
 
+    private func handleDone() {
+        print("🏠 Done button pressed - returning to dashboard")
+        navigation.returnToDashboard()
+    }
+
     private func finishGame() {
         guard deviceControl.hasControl else { return }
-        
+
         Task {
             do {
                 // 1. Await the definitive, updated game object after ending the last segment.
@@ -1670,7 +1691,7 @@ struct LiveGameControllerView: View {
                 print("🔍 =============================================")
                 
                 await MainActor.run {
-                    dismiss()
+                    navigation.returnToDashboard()
                 }
             } catch {
                 await MainActor.run {

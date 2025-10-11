@@ -29,49 +29,6 @@ class DeviceRoleManager: ObservableObject {
     private var deviceListener: ListenerRegistration?
     private let preferredRoleKey = "preferredDeviceRole"
     
-    enum DeviceRole: String, CaseIterable {
-        case none = "none"
-        case recorder = "recorder"        // iPhone - focuses on recording
-        case controller = "controller"    // iPad - focuses on scoring/control
-        case viewer = "viewer"           // Any device - just watching
-        
-        var displayName: String {
-            switch self {
-            case .none: return "Select Role"
-            case .recorder: return "Recording Device"
-            case .controller: return "Control Device"
-            case .viewer: return "Viewer"
-            }
-        }
-        
-        var description: String {
-            switch self {
-            case .none: return "Choose your device's role"
-            case .recorder: return "Focus on video recording with live overlay"
-            case .controller: return "Control scoring, stats, and game clock"
-            case .viewer: return "Watch live game without controls"
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .none: return "questionmark.circle"
-            case .recorder: return "video.fill"
-            case .controller: return "gamecontroller.fill"
-            case .viewer: return "eye.fill"
-            }
-        }
-        
-        var preferredDevice: String {
-            switch self {
-            case .recorder: return "iPhone (better camera)"
-            case .controller: return "iPad (larger screen)"
-            case .viewer: return "Any device"
-            case .none: return ""
-            }
-        }
-    }
-    
     private init() {
         loadSavedRole()
         loadPreferredRole()
@@ -252,28 +209,6 @@ class DeviceRoleManager: ObservableObject {
     }
 }
 
-
-extension DeviceRoleManager.DeviceRole {
-    var color: Color {
-        switch self {
-        case .controller: return .blue
-        case .recorder: return .red
-        case .viewer: return .green
-        case .none: return .gray
-        }
-    }
-    
-    
-    var joinDescription: String {
-        switch self {
-        case .controller: return "Control scoring and game clock"
-        case .recorder: return "Record video with live overlay"
-        case .viewer: return "Watch and view stats in real-time"
-        case .none: return ""
-        }
-    }
-}
-
 enum LiveGameError: Error {
     case gameNotFound
     case roleNotAvailable
@@ -294,27 +229,27 @@ enum LiveGameError: Error {
 
 struct ConnectedDevice: Codable, Identifiable {
     let id: String
-    let role: DeviceRoleManager.DeviceRole
+    let role: DeviceRole
     let name: String
     let lastSeen: Date
     let isActive: Bool
-    
+
     enum CodingKeys: String, CodingKey {
         case id, role, name, lastSeen, isActive
     }
-    
-    init(id: String, role: DeviceRoleManager.DeviceRole, name: String, lastSeen: Date, isActive: Bool) {
+
+    init(id: String, role: DeviceRole, name: String, lastSeen: Date, isActive: Bool) {
         self.id = id
         self.role = role
         self.name = name
         self.lastSeen = lastSeen
         self.isActive = isActive
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        role = DeviceRoleManager.DeviceRole(rawValue: try container.decode(String.self, forKey: .role)) ?? .viewer
+        role = DeviceRole(rawValue: try container.decode(String.self, forKey: .role)) ?? .viewer
         name = try container.decode(String.self, forKey: .name)
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         
@@ -408,7 +343,7 @@ struct DeviceRoleSelectionView: View {
         }
     }
     
-    private func selectRole(_ role: DeviceRoleManager.DeviceRole) {
+    private func selectRole(_ role: DeviceRole) {
         Task {
             do {
                 if let gameId = liveGame.id {

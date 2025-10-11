@@ -19,7 +19,7 @@ class FirebaseYouTubeAuthManager: ObservableObject {
     @Published var authError: String?
     
     private init() {
-        //checkYouTubeAuthorization()
+        checkYouTubeAuthorization()
     }
     
     // MARK: - Check Authorization Status

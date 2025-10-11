@@ -42,6 +42,10 @@ struct SahilStatsApp: App {
                     _ = FirebaseYouTubeAuthManager.shared
                 }
         }
+        .backgroundTask(.appRefresh("keepalive")) { _ in
+            // Keep connection alive in background
+            print("🔄 Background task keeping connection alive")
+        }
     }
 }
 
@@ -56,6 +60,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         // Set the notification delegate
         UNUserNotificationCenter.current().delegate = self
         return true
+    }
+
+    // Called when app is about to terminate
+    func applicationWillTerminate(_ application: UIApplication) {
+        print("🛑 App terminating - resetting roles and stopping connections")
+        Task { @MainActor in
+            // Clear device role
+            await DeviceRoleManager.shared.clearDeviceRole()
+
+            // Stop multipeer session
+            MultipeerConnectivityManager.shared.stopSession()
+        }
+    }
+
+    // Called when app enters background
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        print("📱 App entered background - keeping connection alive")
+        // Don't reset anything, keep connection alive
+    }
+
+    // Called when app returns to foreground
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        print("📱 App returning to foreground - checking connection")
+        Task { @MainActor in
+            // Restart auto-connection if needed
+            MultipeerConnectivityManager.shared.startAutoConnectionIfNeeded()
+        }
     }
 
     // MARK: - UNUserNotificationCenterDelegate

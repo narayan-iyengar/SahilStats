@@ -15,7 +15,8 @@ struct SimpleScoreOverlay: View {
     let isRecording: Bool
     
     @State private var rotationAnimation = false
-    @State private var borderPulse = false
+    @State private var recordingProgress: CGFloat = 0
+    @State private var progressTimer: Timer?
     
     private var isLandscape: Bool {
         orientation == .landscapeLeft || orientation == .landscapeRight
@@ -102,7 +103,6 @@ struct SimpleScoreOverlay: View {
                 HStack {
                     Spacer()
                     scoreboardContent
-                        .rotationEffect(.degrees(getTextRotation()))
                     Spacer()
                 }
                 .padding(.bottom, 40)
@@ -126,11 +126,11 @@ struct SimpleScoreOverlay: View {
                     .monospacedDigit()
             }
             .frame(width: 50)
-            
+
             Rectangle()
                 .fill(Color.white.opacity(0.2))
                 .frame(width: 1, height: 30)
-            
+
             // Clock & period
             VStack(spacing: 2) {
                 Text(formatShortPeriod())
@@ -142,11 +142,11 @@ struct SimpleScoreOverlay: View {
                     .monospacedDigit()
             }
             .frame(width: 70)
-            
+
             Rectangle()
                 .fill(Color.white.opacity(0.2))
                 .frame(width: 1, height: 30)
-            
+
             // Home team
             VStack(spacing: 2) {
                 Text(formatTeamName(overlayData.awayTeam, maxLength: 4))
@@ -168,34 +168,58 @@ struct SimpleScoreOverlay: View {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
-                
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(
-                        isRecording ? Color.red : Color.white.opacity(0.2),
-                        lineWidth: isRecording ? 3 : 1
-                    )
-                    .opacity(isRecording ? (borderPulse ? 1.0 : 0.4) : 1.0)
+
+                // Only show subtle border when NOT recording
+                // When recording, the animated ticker provides the border
+                if !isRecording {
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                }
             }
         )
         .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 2)
+        .shadow(color: isRecording ? Color.red.opacity(0.4 + (recordingProgress * 0.3)) : Color.clear, radius: isRecording ? 8 : 0, x: 0, y: 0)
         .onAppear {
             if isRecording {
-                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                    borderPulse = true
-                }
+                startProgressTimer()
             }
         }
         .onChange(of: isRecording) { _, newValue in
             if newValue {
-                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                    borderPulse = true
-                }
+                startProgressTimer()
             } else {
-                borderPulse = false
+                stopProgressTimer()
+            }
+        }
+        .onDisappear {
+            stopProgressTimer()
+        }
+    }
+
+    // MARK: - Progress Timer Methods
+
+    private func startProgressTimer() {
+        recordingProgress = 0
+        progressTimer?.invalidate()
+
+        // Update progress every 0.1 seconds for smooth animation
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            // Increment progress - complete circle every 60 seconds
+            recordingProgress += 0.1 / 60.0
+
+            // Loop back to 0 when complete
+            if recordingProgress >= 1.0 {
+                recordingProgress = 0
             }
         }
     }
-    
+
+    private func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+        recordingProgress = 0
+    }
+
     // MARK: - Portrait Prompt
     
     private var portraitPrompt: some View {

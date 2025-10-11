@@ -43,6 +43,16 @@ class NavigationCoordinator: ObservableObject {
         print("🎯 Resuming live game")
         markUserHasInteracted()
         userExplicitlyJoinedGame = true
+
+        // Start Live Activity for controller and viewer (not recorder - it's on a tripod)
+        let deviceRole = DeviceRoleManager.shared.deviceRole
+        if deviceRole == .controller || deviceRole == .viewer {
+            print("🏝️ Starting Live Activity for \(deviceRole.displayName)")
+            LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
+        } else {
+            print("🏝️ Skipping Live Activity for \(deviceRole.displayName) - only for controller/viewer")
+        }
+
         if let liveGame = liveGameManager.liveGame {
             navigateToGameFlow(liveGame)
         } else {
@@ -52,6 +62,10 @@ class NavigationCoordinator: ObservableObject {
 
     func returnToDashboard() {
         print("🏠 Returning to dashboard")
+
+        // Stop Live Activity when leaving game
+        LiveActivityManager.shared.stopActivity()
+
         currentFlow = .dashboard
         userExplicitlyJoinedGame = false
         hasUserInteractedWithApp = false
@@ -109,10 +123,9 @@ class NavigationCoordinator: ObservableObject {
             print("🎮 Role is Controller/Viewer. Navigating to live game view.")
             currentFlow = .liveGame(liveGame)
         case .none:
-            // If no role is set but a live game exists, prompt the user to select one.
-            // This happens when a user opens the app and a game is already in progress.
-            print("❓ No role set for existing game. Staying in dashboard/setup.")
-            // The UI (e.g., GameListView) will show a "Join Live Game" button.
+            // If no role is set, stay in dashboard
+            // The user will tap the Live pill which shows a role selection sheet
+            print("❓ No role set for existing game. User should tap Live pill to select role.")
         }
     }
 }

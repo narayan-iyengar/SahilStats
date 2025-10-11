@@ -13,7 +13,7 @@ struct RecorderReadyView: View {
     let liveGame: LiveGame
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
-    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     
     @State private var connectionLostTime: Date?
     @State private var cancellables = Set<AnyCancellable>()
@@ -367,7 +367,7 @@ struct RecorderReadyView: View {
             
         case .gameEnded:
             print("🎬 Game ended - returning to dashboard")
-            dismiss()
+            navigation.returnToDashboard()
             
         default:
             break
@@ -423,8 +423,8 @@ struct RecorderReadyView: View {
     }
     
     private func handleEmergencyExit() {
-        print("🚨 Emergency exit from recorder ready view")
-        dismiss()
+        print("🚨 Emergency exit from recorder ready view - returning to dashboard")
+        navigation.returnToDashboard()
     }
 }
 
