@@ -202,7 +202,8 @@ class RealTimeOverlayRecorder: NSObject {
             let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
 
             // Video input settings - use detected resolution
-            let bitRate = outputWidth * outputHeight * 4 // Roughly 4 bits per pixel
+            // Use more conservative bitrate (8Mbps for 1080p, 4Mbps for 720p)
+            let bitRate = outputWidth >= 1920 ? 8_000_000 : 4_000_000
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: outputWidth,
@@ -274,8 +275,8 @@ class RealTimeOverlayRecorder: NSObject {
     // MARK: - Overlay Management
 
     private func startOverlayUpdates() {
-        // Update overlay 4 times per second for real-time feel
-        overlayUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        // Update overlay 2 times per second (reduced from 4x for memory efficiency)
+        overlayUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.updateOverlay()
         }
         RunLoop.current.add(overlayUpdateTimer!, forMode: .common)
@@ -290,20 +291,23 @@ class RealTimeOverlayRecorder: NSObject {
     }
 
     private func updateOverlay() {
-        guard let game = currentLiveGame else { return }
+        autoreleasepool {
+            guard let game = currentLiveGame else { return }
 
-        // Generate overlay image
-        let overlayImage = renderOverlayImage(for: game)
+            // Generate overlay image
+            let overlayImage = renderOverlayImage(for: game)
 
-        // Store for frame composition
-        videoQueue.async {
-            self.currentOverlayImage = overlayImage
+            // Store for frame composition
+            videoQueue.async {
+                self.currentOverlayImage = overlayImage
+            }
         }
     }
 
     private func renderOverlayImage(for game: LiveGame) -> UIImage? {
-        // Render size matches video resolution (dynamic)
-        let size = CGSize(width: outputWidth, height: outputHeight)
+        // Render overlay at 720p regardless of output resolution to save memory
+        // It will be scaled during composition if needed
+        let size = CGSize(width: 1280, height: 720)
 
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in
@@ -598,56 +602,59 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
     }
 
     private func handleVideoFrame(_ sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) {
-        guard let writer = assetWriter,
-              let videoInput = videoWriterInput,
-              let adaptor = pixelBufferAdaptor else {
-            return
-        }
-
-        // Start writing on first frame
-        if recordingStartTime == nil {
-            let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-            recordingStartTime = timestamp
-            lastVideoTimestamp = timestamp
-
-            if writer.status == .unknown {
-                writer.startWriting()
-                writer.startSession(atSourceTime: timestamp)
-                print("✅ Started asset writer session at time: \(CMTimeGetSeconds(timestamp))")
+        // Autoreleasepool to prevent memory accumulation during tight loop processing
+        autoreleasepool {
+            guard let writer = assetWriter,
+                  let videoInput = videoWriterInput,
+                  let adaptor = pixelBufferAdaptor else {
+                return
             }
-        }
 
-        guard writer.status == .writing else {
-            if writer.status == .failed {
-                print("❌ Asset writer failed: \(String(describing: writer.error))")
+            // Start writing on first frame
+            if recordingStartTime == nil {
+                let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                recordingStartTime = timestamp
+                lastVideoTimestamp = timestamp
+
+                if writer.status == .unknown {
+                    writer.startWriting()
+                    writer.startSession(atSourceTime: timestamp)
+                    print("✅ Started asset writer session at time: \(CMTimeGetSeconds(timestamp))")
+                }
             }
-            return
-        }
 
-        // Write frame if input is ready
-        if videoInput.isReadyForMoreMediaData {
-            let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            guard writer.status == .writing else {
+                if writer.status == .failed {
+                    print("❌ Asset writer failed: \(String(describing: writer.error))")
+                }
+                return
+            }
 
-            // Adjust timestamp relative to recording start
-            let adjustedTimestamp = CMTimeSubtract(timestamp, recordingStartTime ?? .zero)
+            // Write frame if input is ready
+            if videoInput.isReadyForMoreMediaData {
+                let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
-            // Compose frame with overlay (pass connection for orientation)
-            if let composedPixelBuffer = composeFrame(from: sampleBuffer, connection: connection) {
-                adaptor.append(composedPixelBuffer, withPresentationTime: adjustedTimestamp)
-                lastVideoTimestamp = adjustedTimestamp
-                frameCount += 1
+                // Adjust timestamp relative to recording start
+                let adjustedTimestamp = CMTimeSubtract(timestamp, recordingStartTime ?? .zero)
 
-                // Log every 30 frames (roughly once per second at 30fps)
-                if frameCount % 30 == 0 {
-                    print("📹 Written \(frameCount) frames (\(String(format: "%.1f", CMTimeGetSeconds(adjustedTimestamp)))s)")
+                // Compose frame with overlay (pass connection for orientation)
+                if let composedPixelBuffer = composeFrame(from: sampleBuffer, connection: connection) {
+                    adaptor.append(composedPixelBuffer, withPresentationTime: adjustedTimestamp)
+                    lastVideoTimestamp = adjustedTimestamp
+                    frameCount += 1
+
+                    // Log every 30 frames (roughly once per second at 30fps)
+                    if frameCount % 30 == 0 {
+                        print("📹 Written \(frameCount) frames (\(String(format: "%.1f", CMTimeGetSeconds(adjustedTimestamp)))s)")
+                    }
+                } else {
+                    print("❌ Failed to compose frame at \(CMTimeGetSeconds(adjustedTimestamp))s")
                 }
             } else {
-                print("❌ Failed to compose frame at \(CMTimeGetSeconds(adjustedTimestamp))s")
-            }
-        } else {
-            // Frame dropped because input not ready
-            if frameCount == 0 {
-                print("⚠️ Video input not ready for first frame!")
+                // Frame dropped because input not ready
+                if frameCount == 0 {
+                    print("⚠️ Video input not ready for first frame!")
+                }
             }
         }
     }
