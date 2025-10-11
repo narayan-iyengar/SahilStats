@@ -523,27 +523,43 @@ class RealTimeOverlayRecorder: NSObject {
         // Draw camera frame (use reusable ciContext - creating new context each frame kills performance!)
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
 
-        // Use connection's videoRotationAngle to determine correct orientation
+        // Convert to CGImage without rotation first
+        guard let cgImage = self.ciContext.createCGImage(ciImage, from: ciImage.extent) else {
+            return nil
+        }
+
+        // Get output dimensions
+        let outputWidth = CVPixelBufferGetWidth(outputBuffer)
+        let outputHeight = CVPixelBufferGetHeight(outputBuffer)
+
+        // Apply rotation using CGContext transform instead of CIImage.oriented()
+        // This ensures proper aspect ratio handling
+        context.saveGState()
+
         let rotationAngle = connection.videoRotationAngle
-        let orientedImage: CIImage
 
-        // Map rotation angle to CIImage orientation
+        // Transform based on rotation angle
         switch rotationAngle {
-        case 0:   // LandscapeRight
-            orientedImage = ciImage.oriented(.right)
-        case 90:  // Portrait
-            orientedImage = ciImage.oriented(.up)
-        case 180: // LandscapeLeft
-            orientedImage = ciImage.oriented(.left)
-        case 270: // PortraitUpsideDown
-            orientedImage = ciImage.oriented(.down)
-        default:
-            orientedImage = ciImage.oriented(.right)
+        case 90:  // Portrait - rotate 90° clockwise
+            context.translateBy(x: CGFloat(outputWidth), y: 0)
+            context.rotate(by: .pi / 2)
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
+
+        case 180: // Landscape Left - rotate 180°
+            context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
+            context.rotate(by: .pi)
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
+
+        case 270: // Portrait Upside Down - rotate 270° clockwise
+            context.translateBy(x: 0, y: CGFloat(outputHeight))
+            context.rotate(by: -.pi / 2)
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
+
+        default:  // 0 = Landscape Right (default) - no rotation needed
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
         }
 
-        if let cgImage = self.ciContext.createCGImage(orientedImage, from: orientedImage.extent) {
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer)))
-        }
+        context.restoreGState()
 
         // Draw overlay
         if let overlayImage = currentOverlayImage, let cgImage = overlayImage.cgImage {
