@@ -30,6 +30,7 @@ class RealTimeOverlayRecorder: NSObject {
     private var isRecording = false
     private var recordingStartTime: CMTime?
     private var lastVideoTimestamp: CMTime = .zero
+    private var frameCount: Int = 0 // Track number of frames written
 
     // Overlay state
     private var currentOverlayImage: UIImage?
@@ -38,6 +39,11 @@ class RealTimeOverlayRecorder: NSObject {
 
     // Output
     private var outputURL: URL?
+
+    // Reusable CI context for frame composition (creating this is expensive!)
+    private lazy var ciContext: CIContext = {
+        return CIContext(options: [.useSoftwareRenderer: false])
+    }()
 
     // MARK: - Public API
 
@@ -113,6 +119,7 @@ class RealTimeOverlayRecorder: NSObject {
 
         isRecording = true
         recordingStartTime = nil // Will be set on first frame
+        frameCount = 0 // Reset frame counter
 
         print("✅ Recording started, output URL: \(url.lastPathComponent)")
         return url
@@ -120,6 +127,7 @@ class RealTimeOverlayRecorder: NSObject {
 
     func stopRecording(completion: @escaping (URL?) -> Void) {
         print("🎥 RealTimeOverlayRecorder: Stopping recording")
+        print("   Total frames written: \(frameCount)")
 
         guard isRecording else {
             print("❌ Not currently recording")
@@ -491,10 +499,9 @@ class RealTimeOverlayRecorder: NSObject {
             return nil
         }
 
-        // Draw camera frame
+        // Draw camera frame (use reusable ciContext - creating new context each frame kills performance!)
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-        let ciContext = CIContext()
-        if let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) {
+        if let cgImage = self.ciContext.createCGImage(ciImage, from: ciImage.extent) {
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer)))
         }
 
@@ -597,6 +604,19 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
             if let composedPixelBuffer = composeFrame(from: sampleBuffer) {
                 adaptor.append(composedPixelBuffer, withPresentationTime: adjustedTimestamp)
                 lastVideoTimestamp = adjustedTimestamp
+                frameCount += 1
+
+                // Log every 30 frames (roughly once per second at 30fps)
+                if frameCount % 30 == 0 {
+                    print("📹 Written \(frameCount) frames (\(String(format: "%.1f", CMTimeGetSeconds(adjustedTimestamp)))s)")
+                }
+            } else {
+                print("❌ Failed to compose frame at \(CMTimeGetSeconds(adjustedTimestamp))s")
+            }
+        } else {
+            // Frame dropped because input not ready
+            if frameCount == 0 {
+                print("⚠️ Video input not ready for first frame!")
             }
         }
     }
