@@ -45,10 +45,34 @@ class RealTimeOverlayRecorder: NSObject {
         return CIContext(options: [.useSoftwareRenderer: false])
     }()
 
+    // Video resolution (detected from camera)
+    private var outputWidth: Int = 1920  // Default to 1080p
+    private var outputHeight: Int = 1080
+
     // MARK: - Public API
 
     func setupOutputs(for session: AVCaptureSession) -> Bool {
         print("🎥 RealTimeOverlayRecorder: Setting up outputs")
+
+        // Detect output resolution from session preset
+        switch session.sessionPreset {
+        case .hd1920x1080:
+            outputWidth = 1920
+            outputHeight = 1080
+            print("📹 Using 1080p resolution (1920x1080)")
+        case .hd1280x720:
+            outputWidth = 1280
+            outputHeight = 720
+            print("📹 Using 720p resolution (1280x720)")
+        case .high, .medium:
+            outputWidth = 1280
+            outputHeight = 720
+            print("📹 Using 720p resolution (high/medium preset)")
+        default:
+            outputWidth = 1280
+            outputHeight = 720
+            print("📹 Using 720p resolution (default)")
+        }
 
         // Remove existing movie file output if present
         for output in session.outputs {
@@ -177,17 +201,19 @@ class RealTimeOverlayRecorder: NSObject {
         do {
             let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
 
-            // Video input settings - 720p for good quality and performance
+            // Video input settings - use detected resolution
+            let bitRate = outputWidth * outputHeight * 4 // Roughly 4 bits per pixel
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
-                AVVideoWidthKey: 1280,
-                AVVideoHeightKey: 720,
+                AVVideoWidthKey: outputWidth,
+                AVVideoHeightKey: outputHeight,
                 AVVideoCompressionPropertiesKey: [
-                    AVVideoAverageBitRateKey: 6_000_000, // 6 Mbps
+                    AVVideoAverageBitRateKey: bitRate,
                     AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
                     AVVideoMaxKeyFrameIntervalKey: 30
                 ]
             ]
+            print("📹 Asset writer configured for \(outputWidth)x\(outputHeight) @ \(bitRate/1_000_000)Mbps")
 
             let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
             videoInput.expectsMediaDataInRealTime = true
@@ -204,11 +230,11 @@ class RealTimeOverlayRecorder: NSObject {
                 return false
             }
 
-            // Pixel buffer adaptor
+            // Pixel buffer adaptor - use detected resolution
             let pixelBufferAttributes: [String: Any] = [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: 1280,
-                kCVPixelBufferHeightKey as String: 720
+                kCVPixelBufferWidthKey as String: outputWidth,
+                kCVPixelBufferHeightKey as String: outputHeight
             ]
 
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
@@ -276,8 +302,8 @@ class RealTimeOverlayRecorder: NSObject {
     }
 
     private func renderOverlayImage(for game: LiveGame) -> UIImage? {
-        // Render size matches video resolution
-        let size = CGSize(width: 1280, height: 720)
+        // Render size matches video resolution (dynamic)
+        let size = CGSize(width: outputWidth, height: outputHeight)
 
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in
@@ -446,7 +472,7 @@ class RealTimeOverlayRecorder: NSObject {
 
     // MARK: - Frame Composition
 
-    private func composeFrame(from sampleBuffer: CMSampleBuffer) -> CVPixelBuffer? {
+    private func composeFrame(from sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) -> CVPixelBuffer? {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return nil
         }
@@ -488,18 +514,22 @@ class RealTimeOverlayRecorder: NSObject {
         // Draw camera frame (use reusable ciContext - creating new context each frame kills performance!)
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
 
-        // Rotate camera frame to landscape if needed
-        // Camera sensor typically captures in portrait (720x1280), we need landscape (1280x720)
-        let cameraWidth = CVPixelBufferGetWidth(imageBuffer)
-        let cameraHeight = CVPixelBufferGetHeight(imageBuffer)
-        let isPortraitCamera = cameraHeight > cameraWidth
-
+        // Use connection's videoRotationAngle to determine correct orientation
+        let rotationAngle = connection.videoRotationAngle
         let orientedImage: CIImage
-        if isPortraitCamera {
-            // Rotate 90 degrees clockwise to get landscape
+
+        // Map rotation angle to CIImage orientation
+        switch rotationAngle {
+        case 0:   // LandscapeRight
             orientedImage = ciImage.oriented(.right)
-        } else {
-            orientedImage = ciImage
+        case 90:  // Portrait
+            orientedImage = ciImage.oriented(.up)
+        case 180: // LandscapeLeft
+            orientedImage = ciImage.oriented(.left)
+        case 270: // PortraitUpsideDown
+            orientedImage = ciImage.oriented(.down)
+        default:
+            orientedImage = ciImage.oriented(.right)
         }
 
         if let cgImage = self.ciContext.createCGImage(orientedImage, from: orientedImage.extent) {
@@ -561,13 +591,13 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
         guard isRecording else { return }
 
         if output == videoDataOutput {
-            handleVideoFrame(sampleBuffer)
+            handleVideoFrame(sampleBuffer, connection: connection)
         } else if output == audioDataOutput {
             handleAudioSample(sampleBuffer)
         }
     }
 
-    private func handleVideoFrame(_ sampleBuffer: CMSampleBuffer) {
+    private func handleVideoFrame(_ sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) {
         guard let writer = assetWriter,
               let videoInput = videoWriterInput,
               let adaptor = pixelBufferAdaptor else {
@@ -601,8 +631,8 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
             // Adjust timestamp relative to recording start
             let adjustedTimestamp = CMTimeSubtract(timestamp, recordingStartTime ?? .zero)
 
-            // Compose frame with overlay
-            if let composedPixelBuffer = composeFrame(from: sampleBuffer) {
+            // Compose frame with overlay (pass connection for orientation)
+            if let composedPixelBuffer = composeFrame(from: sampleBuffer, connection: connection) {
                 adaptor.append(composedPixelBuffer, withPresentationTime: adjustedTimestamp)
                 lastVideoTimestamp = adjustedTimestamp
                 frameCount += 1
