@@ -15,17 +15,26 @@ import FirebaseAuth
 
 class YouTubeUploadManager: ObservableObject {
     static let shared = YouTubeUploadManager()
-    
+
     @Published var pendingUploads: [PendingUpload] = []
     @Published var isUploading = false
     @Published var uploadProgress: Double = 0
     @Published var currentUpload: PendingUpload?
-    
+    @Published var isYouTubeUploadEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isYouTubeUploadEnabled, forKey: "isYouTubeUploadEnabled")
+            print("📺 YouTube upload \(isYouTubeUploadEnabled ? "enabled" : "disabled")")
+        }
+    }
+
     private var wifinetworkMonitor = WifiNetworkMonitor.shared
     private var cancellables = Set<AnyCancellable>()
-    
-    
+
+
     private init() {
+        // Load YouTube upload preference (default: true for existing users)
+        self.isYouTubeUploadEnabled = UserDefaults.standard.object(forKey: "isYouTubeUploadEnabled") as? Bool ?? true
+
         loadPendingUploads()
         setupNetworkMonitoring()
     }
@@ -57,6 +66,14 @@ class YouTubeUploadManager: ObservableObject {
         print("   Video URL: \(videoURL)")
         print("   Title: \(title)")
         print("   Game ID: \(gameId)")
+        print("   YouTube upload enabled: \(isYouTubeUploadEnabled)")
+
+        // Check if YouTube uploads are disabled
+        if !isYouTubeUploadEnabled {
+            print("⏸️ YouTube uploads are disabled - skipping queue")
+            print("   Local video saved at: \(videoURL.path)")
+            return
+        }
 
         // Check if file exists
         let fileExists = FileManager.default.fileExists(atPath: videoURL.path)

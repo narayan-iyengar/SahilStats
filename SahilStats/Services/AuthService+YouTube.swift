@@ -177,7 +177,17 @@ struct YouTubeSettingsSection: View {
             Toggle("Auto-upload on WiFi", isOn: $autoUploadEnabled)
                 .toggleStyle(SwitchToggleStyle(tint: .orange))
                 .disabled(!youtubeAuth.isYouTubeAuthorized)
-            
+
+            // Enable/Disable YouTube Uploads (for testing)
+            Toggle("Enable YouTube Uploads", isOn: $uploadManager.isYouTubeUploadEnabled)
+                .toggleStyle(SwitchToggleStyle(tint: .red))
+
+            if !uploadManager.isYouTubeUploadEnabled {
+                Text("YouTube uploads disabled. Videos will be saved locally only.")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+
             // Network status
             HStack {
                 Image(systemName: wifiMonitor.isWiFi ? "wifi" : "antenna.radiowaves.left.and.right")
