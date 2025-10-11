@@ -49,14 +49,13 @@ struct GameSetupView: View {
             if wasShowing && !isShowing { // When the waiting room is dismissed
                 if case .connected = multipeer.connectionState {
                     // Only controller proceeds to game form
-                    // Recorder stays on waiting screen until game starts
+                    // Recorder goes to waiting room until controller creates game
                     if roleManager.preferredRole == .controller {
                         print("✅ Handshake complete. Controller proceeding to create game.")
                         setupMode = .gameForm
                     } else {
-                        print("✅ Recorder connected. Waiting for controller to start game.")
-                        // Recorder should stay on selection screen or show a waiting view
-                        // They'll receive a gameStarting message when controller starts
+                        print("✅ Recorder connected. Navigating to waiting room...")
+                        NavigationCoordinator.shared.currentFlow = .waitingToRecord(nil)
                     }
                 }
             }
@@ -144,8 +143,9 @@ struct GameSetupView: View {
                         if roleManager.preferredRole == .controller {
                             setupMode = .gameForm
                         } else {
-                            // Recorder stays on selection screen waiting for gameStarting message
-                            print("✅ Recorder ready. Waiting for controller to start game.")
+                            // Recorder navigates to waiting room immediately
+                            print("✅ Recorder ready. Navigating to waiting room...")
+                            NavigationCoordinator.shared.currentFlow = .waitingToRecord(nil)
                         }
                     } else {
                         // Not connected, show waiting room and start scanning

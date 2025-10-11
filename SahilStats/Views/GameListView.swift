@@ -984,7 +984,7 @@ struct RoleSelectionSheet: View {
         // Navigate to appropriate view based on role
         switch role {
         case .recorder:
-            navigation.currentFlow = .waitingToRecord(liveGame)
+            navigation.currentFlow = .waitingToRecord(Optional(liveGame))
         case .controller, .viewer:
             navigation.currentFlow = .liveGame(liveGame)
         case .none:

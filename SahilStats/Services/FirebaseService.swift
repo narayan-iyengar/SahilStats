@@ -49,18 +49,18 @@ class FirebaseService: ObservableObject {
     private func configureFirestore() {
         // Enhanced Firestore settings
         let settings = FirestoreSettings()
-        
-        // Enable offline persistence
-        settings.isPersistenceEnabled = true
-        
-        // Set cache size (100MB)
-        settings.cacheSizeBytes = FirestoreCacheSizeUnlimited
-        
+
+        // Enable offline persistence using the new API
+        settings.cacheSettings = PersistentCacheSettings()
+
+        // Note: cacheSizeBytes is configured through PersistentCacheSettings now
+        // The default cache size is sufficient for most use cases
+
         // Set host (useful for debugging)
         // settings.host = "firestore.googleapis.com"
-        
+
         db.settings = settings
-        
+
         // Enable network logging in debug mode
         #if DEBUG
         print("🔍 Firebase debug mode enabled")
@@ -710,18 +710,15 @@ class FirestoreManager {
     static func configureForStability() {
         let db = Firestore.firestore()
         let settings = FirestoreSettings()
-        
-        // CRITICAL: Enable offline persistence to prevent data loss
-        settings.isPersistenceEnabled = true
-        
-        // Set reasonable cache size (50MB instead of unlimited)
-        settings.cacheSizeBytes = 50 * 1024 * 1024
-        
+
+        // CRITICAL: Enable offline persistence to prevent data loss using new API
+        settings.cacheSettings = PersistentCacheSettings(sizeBytes: 50 * 1024 * 1024 as NSNumber)
+
         // Use default host (don't override unless necessary)
         // settings.host = "firestore.googleapis.com"
-        
+
         db.settings = settings
-        
+
         print("✅ Firestore configured for stability")
     }
 }

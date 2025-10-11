@@ -3,6 +3,7 @@
 import SwiftUI
 import FirebaseAuth
 import Combine
+import FirebaseFirestore
 
 // MARK: - Refresh Trigger for Force UI Updates
 
@@ -1678,9 +1679,28 @@ struct LiveGameControllerView: View {
                     gameTimeTracking: finalServerState.timeSegments
                 )
                 
-                try await firebaseService.addGame(finalGame)
-                try await firebaseService.deleteLiveGame(finalServerState.id ?? "")
-                
+                // CRITICAL: Use the same game ID from live game for the final game
+                guard let liveGameId = finalServerState.id else {
+                    throw NSError(domain: "LiveGameView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Live game ID is missing"])
+                }
+
+                // Save the final game with the SAME ID as the live game
+                var finalGameWithId = finalGame
+                finalGameWithId.id = liveGameId
+
+                // Use setData to save with specific ID (NOT addGame which creates new ID)
+                let db = Firestore.firestore()
+                try await db.collection("games").document(liveGameId).setData(from: finalGameWithId)
+
+                print("✅ Game saved with ID: \(liveGameId)")
+
+                // CRITICAL: Send gameEnded message to recorder with the game ID
+                multipeer.sendGameEnded(gameId: liveGameId)
+                print("📤 Sent gameEnded message with gameId: \(liveGameId)")
+
+                // Delete the live game
+                try await firebaseService.deleteLiveGame(liveGameId)
+
                 // 🔍 DEBUG: Print what's actually in the Game object before saving
                 print("🔍 ========== FINAL GAME OBJECT DEBUG ==========")
                 print("📊 Game Object Time Values:")
@@ -1689,7 +1709,7 @@ struct LiveGameControllerView: View {
                 print("   finalGame.gameTimeTracking.count: \(finalGame.gameTimeTracking.count)")
                 print("   finalGame.playingTimePercentage: \(finalGame.playingTimePercentage)")
                 print("🔍 =============================================")
-                
+
                 await MainActor.run {
                     navigation.returnToDashboard()
                 }

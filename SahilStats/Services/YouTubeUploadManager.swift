@@ -415,39 +415,28 @@ class YouTubeUploadManager: ObservableObject {
         do {
             let db = Firestore.firestore()
 
-            // First check if document exists
-            let docSnapshot = try await db.collection("games").document(gameId).getDocument()
+            // Use setData with merge: true to create document if it doesn't exist
+            // This way we don't need to wait for the controller to create it
+            try await db.collection("games").document(gameId).setData([
+                "videoURL": videoURL.path
+            ], merge: true)
 
-            if docSnapshot.exists {
-                // Document exists, update it
-                try await db.collection("games").document(gameId).updateData([
-                    "videoURL": videoURL.path
-                ])
-                print("✅ Successfully saved local video URL to game: \(gameId)")
-                print("   📹 Local video: \(videoURL.lastPathComponent)")
+            print("✅ Successfully saved local video URL to game: \(gameId)")
+            print("   📹 Local video: \(videoURL.lastPathComponent)")
+            if attempt > 1 {
                 print("   ✓ Saved on attempt \(attempt)")
-            } else {
-                // Document doesn't exist yet
-                if attempt < maxAttempts {
-                    let delay = Double(attempt) * 2.0 // Exponential backoff: 2s, 4s, 6s, 8s...
-                    print("⏳ Game document doesn't exist yet (attempt \(attempt)/\(maxAttempts)). Retrying in \(Int(delay))s...")
-
-                    // Retry after delay
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    await saveLocalVideoURLWithRetry(videoURL: videoURL, gameId: gameId, attempt: attempt + 1, maxAttempts: maxAttempts)
-                } else {
-                    print("❌ Game document still doesn't exist after \(maxAttempts) attempts. Giving up on saving local video URL.")
-                }
             }
         } catch {
-            print("⚠️ Error checking/updating game document: \(error.localizedDescription)")
+            print("⚠️ Error saving local video URL (attempt \(attempt)/\(maxAttempts)): \(error.localizedDescription)")
 
-            // Retry on error too (unless max attempts reached)
+            // Retry on error (unless max attempts reached)
             if attempt < maxAttempts {
-                let delay = Double(attempt) * 2.0
+                let delay = Double(attempt) * 2.0 // 2s, 4s, 6s...
                 print("   Retrying in \(Int(delay))s...")
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 await saveLocalVideoURLWithRetry(videoURL: videoURL, gameId: gameId, attempt: attempt + 1, maxAttempts: maxAttempts)
+            } else {
+                print("❌ Failed to save local video URL after \(maxAttempts) attempts")
             }
         }
     }

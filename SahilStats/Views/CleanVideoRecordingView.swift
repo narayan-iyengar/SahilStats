@@ -121,15 +121,23 @@ struct CleanVideoRecordingView: View {
         print("🎥 CleanVideoRecordingView: Setting up view")
         print("🔗 CleanVideoRecordingView: Current multipeer connection state: \(multipeer.connectionState)")
         print("🔗 CleanVideoRecordingView: Connected peers: \(multipeer.connectedPeers.map { $0.displayName })")
-        
+        print("🔗 CleanVideoRecordingView: Is recording: \(recordingManager.isRecording)")
+
         AppDelegate.orientationLock = .landscape
         UIViewController.attemptRotationToDeviceOrientation()
-        
+
         startOverlayUpdateTimer()
         setupBluetoothCallbacks()
         UIApplication.shared.isIdleTimerDisabled = true
-        
-        setupCameraWithDelay()
+
+        // DON'T setup camera if already recording - it will kill the active recording!
+        if !recordingManager.isRecording {
+            setupCameraWithDelay()
+        } else {
+            print("⚠️ Already recording - skipping camera setup to avoid interruption")
+            // Camera is already setup and recording, just mark as ready
+            isCameraReady = true
+        }
         
         // IMPROVED: Enhanced connection state monitoring with recovery
         multipeer.$connectionState
@@ -172,11 +180,9 @@ struct CleanVideoRecordingView: View {
 
             if hasRecording {
                 print("💾 Saving recording during cleanup...")
-                await recordingManager.saveRecordingAndQueueUpload(
-                    gameId: liveGame.id ?? "unknown",
-                    teamName: liveGame.teamName,
-                    opponent: liveGame.opponent
-                )
+                let timeline = ScoreTimelineTracker.shared.stopRecording()
+                print("   📊 Got timeline with \(timeline.count) snapshots")
+                await recordingManager.saveRecordingAndQueueUpload(liveGame: liveGame, scoreTimeline: timeline)
                 print("✅ Recording saved during cleanup")
             }
 
@@ -288,7 +294,7 @@ struct CleanVideoRecordingView: View {
         case .startRecording:
             print("📱 Received startRecording command via publisher.")
             Task { @MainActor in
-                await self.recordingManager.startRecording()
+                await self.recordingManager.startRecording(liveGame: self.liveGame)
                 self.multipeer.sendRecordingStateUpdate(isRecording: true)
             }
         case .stopRecording:
@@ -341,11 +347,9 @@ struct CleanVideoRecordingView: View {
 
             if hasRecording {
                 print("📹 Saving and queueing recording for upload...")
-                await self.recordingManager.saveRecordingAndQueueUpload(
-                    gameId: gameId,
-                    teamName: self.liveGame.teamName,
-                    opponent: self.liveGame.opponent
-                )
+                let timeline = ScoreTimelineTracker.shared.stopRecording()
+                print("   📊 Got timeline with \(timeline.count) snapshots")
+                await self.recordingManager.saveRecordingAndQueueUpload(liveGame: self.liveGame, scoreTimeline: timeline)
                 print("✅ Recording saved and queued for upload")
             } else {
                 print("⚠️ No recording to save")
@@ -378,11 +382,9 @@ struct CleanVideoRecordingView: View {
             // Queue any completed recording for upload
             if hasRecording {
                 print("📹 Saving and queueing recording for upload...")
-                await recordingManager.saveRecordingAndQueueUpload(
-                    gameId: liveGame.id ?? "unknown",
-                    teamName: liveGame.teamName,
-                    opponent: liveGame.opponent
-                )
+                let timeline = ScoreTimelineTracker.shared.stopRecording()
+                print("   📊 Got timeline with \(timeline.count) snapshots")
+                await recordingManager.saveRecordingAndQueueUpload(liveGame: liveGame, scoreTimeline: timeline)
                 print("✅ Recording saved and queued for upload")
             } else {
                 print("⚠️ No recording to queue for upload")
@@ -390,7 +392,7 @@ struct CleanVideoRecordingView: View {
 
             // Navigate back to waiting room after recording is stopped
             print("🏠 Navigating back to waiting room...")
-            navigation.currentFlow = .waitingToRecord(liveGame)
+            navigation.currentFlow = .waitingToRecord(Optional(liveGame))
         }
     }
     
@@ -414,6 +416,15 @@ struct CleanVideoRecordingView: View {
             isRecording: recordingManager.isRecording,
             recordingDuration: recordingManager.recordingTimeString
         )
+
+        // Update recording with current game data
+        if recordingManager.isRecording {
+            // NEW: Update real-time recorder with game data for overlay
+            recordingManager.updateGameData(currentGame)
+
+            // Fallback: Also update score timeline for post-processing mode
+            ScoreTimelineTracker.shared.updateScore(game: currentGame)
+        }
     }
     
     private func handleConnectionRestored() {

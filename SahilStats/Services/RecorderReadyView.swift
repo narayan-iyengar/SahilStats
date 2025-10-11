@@ -8,19 +8,22 @@
 import SwiftUI
 import Combine
 import MultipeerConnectivity
+import FirebaseFirestore
 
 struct RecorderReadyView: View {
-    let liveGame: LiveGame
+    let liveGame: LiveGame?  // Now optional - may not have game info yet
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @ObservedObject private var navigation = NavigationCoordinator.shared
-    
+    @ObservedObject private var firebaseService = FirebaseService.shared
+
     @State private var connectionLostTime: Date?
     @State private var cancellables = Set<AnyCancellable>()
     @State private var showingRecordingView = false
     @State private var batteryLevel: Float = UIDevice.current.batteryLevel
     @State private var availableStorage: String = "Calculating..."
     @State private var batteryTimer: Timer?
+    @State private var receivedLiveGame: LiveGame?  // Game info received from controller
     
     var body: some View {
         ZStack {
@@ -52,7 +55,9 @@ struct RecorderReadyView: View {
             
             // Fullscreen recording view when activated
             .fullScreenCover(isPresented: $showingRecordingView) {
-                CleanVideoRecordingView(liveGame: liveGame)
+                if let game = effectiveGame {
+                    CleanVideoRecordingView(liveGame: game)
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -67,32 +72,53 @@ struct RecorderReadyView: View {
         }
     }
     
+    // MARK: - Computed Properties
+
+    /// The effective game to use - prioritizes received game from controller, falls back to passed-in game
+    private var effectiveGame: LiveGame? {
+        receivedLiveGame ?? liveGame ?? firebaseService.getCurrentLiveGame()
+    }
+
     // MARK: - View Components (Reusing existing design patterns)
-    
+
     private var gameInfoCard: some View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "basketball.fill")
                     .font(.title)
                     .foregroundColor(.orange)
-                
-                VStack(alignment: .leading) {
+
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Recording Setup")
                         .font(.headline)
                         .foregroundColor(.white)
-                    
-                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
+
+                    if let game = effectiveGame {
+                        Text("\(game.teamName) vs \(game.opponent)")
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                    } else {
+                        Text("Waiting for game info...")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                            .italic()
+                    }
                 }
-                
+
                 Spacer()
             }
-            
-            Text("Waiting for controller to start recording...")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
+
+            if effectiveGame != nil {
+                Text("Waiting for controller to start recording...")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("Connected. Controller will send game details shortly...")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+            }
         }
         .padding(20)
         .background(.ultraThinMaterial.opacity(0.3))
@@ -266,10 +292,10 @@ struct RecorderReadyView: View {
     
     private func setupView() {
         print("🎬 RecorderReadyView: Setting up recorder ready state")
-        
+
         // Keep screen awake
         UIApplication.shared.isIdleTimerDisabled = true
-        
+
         // Setup message handling for recording commands
         multipeer.messagePublisher
             .receive(on: DispatchQueue.main)
@@ -277,19 +303,31 @@ struct RecorderReadyView: View {
                 self.handleRecordingMessage(message)
             }
             .store(in: &cancellables)
-        
+
+        // Listen for live game updates from Firebase (in case controller creates game)
+        firebaseService.$liveGames
+            .receive(on: DispatchQueue.main)
+            .sink { liveGames in
+                // If we don't have game info yet and a live game appears, use it
+                if self.receivedLiveGame == nil, let game = self.firebaseService.getCurrentLiveGame() {
+                    print("📱 RecorderReadyView: Live game detected from Firebase: \(game.teamName) vs \(game.opponent)")
+                    self.receivedLiveGame = game
+                }
+            }
+            .store(in: &cancellables)
+
         // Setup battery monitoring
         UIDevice.current.isBatteryMonitoringEnabled = true
         updateBatteryLevel()
-        
+
         batteryTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
             self.updateBatteryLevel()
             self.updateStorageInfo()
         }
-        
+
         // Initial storage calculation
         updateStorageInfo()
-        
+
         // Setup camera (but don't start session yet)
         recordingManager.setupCamera()
     }
@@ -355,20 +393,43 @@ struct RecorderReadyView: View {
     
     private func handleRecordingMessage(_ message: MultipeerConnectivityManager.Message) {
         print("📱 RecorderReadyView: Received message: \(message.type)")
-        
+
         switch message.type {
+        case .gameStarting:
+            print("🎮 Received gameStarting message - fetching game info from Firebase")
+            if let gameId = message.payload?["gameId"] as? String {
+                print("   Game ID: \(gameId)")
+                // Fetch the game info from Firebase and update our state
+                Task {
+                    do {
+                        let db = Firestore.firestore()
+                        let document = try await db.collection("liveGames").document(gameId).getDocument()
+                        if let game = try? document.data(as: LiveGame.self) {
+                            await MainActor.run {
+                                print("✅ Received game info: \(game.teamName) vs \(game.opponent)")
+                                var gameWithId = game
+                                gameWithId.id = gameId
+                                self.receivedLiveGame = gameWithId
+                            }
+                        }
+                    } catch {
+                        print("❌ Failed to fetch game info: \(error)")
+                    }
+                }
+            }
+
         case .startRecording:
             print("🎬 Received START RECORDING command")
             startRecordingTransition()
-            
+
         case .stopRecording:
             print("🎬 Received STOP RECORDING command")
             // If we're in ready state, this doesn't apply to us
-            
+
         case .gameEnded:
             print("🎬 Game ended - returning to dashboard")
             navigation.returnToDashboard()
-            
+
         default:
             break
         }
@@ -430,12 +491,16 @@ struct RecorderReadyView: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("With Game Info") {
     RecorderReadyView(liveGame: LiveGame(
         teamName: "Warriors",
         opponent: "Lakers",
         gameFormat: .halves,
         quarterLength: 20
     ))
+}
+
+#Preview("Waiting for Game Info") {
+    RecorderReadyView(liveGame: nil)
 }
 
