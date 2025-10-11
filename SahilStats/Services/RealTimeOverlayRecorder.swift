@@ -538,6 +538,11 @@ class RealTimeOverlayRecorder: NSObject {
 
         let rotationAngle = connection.videoRotationAngle
 
+        // Camera coordinate system is inverted, so we need to flip
+        // Flip the Y axis for all orientations
+        context.scaleBy(x: 1, y: -1)
+        context.translateBy(x: 0, y: -CGFloat(outputHeight))
+
         // Transform based on rotation angle
         switch rotationAngle {
         case 90:  // Portrait - rotate 90° clockwise
@@ -555,7 +560,7 @@ class RealTimeOverlayRecorder: NSObject {
             context.rotate(by: -.pi / 2)
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
 
-        default:  // 0 = Landscape Right (default) - no rotation needed
+        default:  // 0 = Landscape Right (default) - no rotation, just flip
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
         }
 
