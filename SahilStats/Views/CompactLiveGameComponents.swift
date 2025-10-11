@@ -741,12 +741,8 @@ struct NoLiveGameView: View {
     
     var body: some View {
         ZStack {
-            // Gradient background (more polished than solid color)
-            LinearGradient(
-                colors: [Color(.systemBackground), Color(.systemGray6)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            // Background color
+            Color(.systemBackground)
             .ignoresSafeArea()
             
             VStack(spacing: isIPad ? 40 : 32) {

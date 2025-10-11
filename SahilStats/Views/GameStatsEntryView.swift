@@ -364,7 +364,7 @@ struct PostGameShootingStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
@@ -489,7 +489,7 @@ struct PostGameScoreCard: View {
             }
         }
         .padding(isIPad ? 28 : 16)
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 20 : 12)
     }
 }
@@ -579,7 +579,7 @@ struct PostGameInfoHeader: View {
         }
         .padding(.horizontal, isIPad ? 28 : 16)
         .padding(.vertical, isIPad ? 24 : 12)
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 20 : 12)
     }
 }

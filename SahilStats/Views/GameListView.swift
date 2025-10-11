@@ -20,6 +20,7 @@ struct GameListView: View {
     @State private var showingFilters = false
     @State private var isViewingTrends = false
     @State private var showingNewGame = false
+    @State private var showingRoleSelection = false
     
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -66,6 +67,11 @@ struct GameListView: View {
         .fullScreenCover(isPresented: $showingNewGame) {
             NavigationView {
                 GameSetupView()
+            }
+        }
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                RoleSelectionSheet(liveGame: liveGame)
             }
         }
         .refreshable {
@@ -201,7 +207,7 @@ struct GameListView: View {
             HStack(spacing: isIPad ? 12 : 8) {
                 // Live Game button (highest priority)
                 if firebaseService.hasLiveGame {
-                    LiveGameButton(action: { navigation.resumeLiveGame() })
+                    LiveGameButton(action: { showingRoleSelection = true })
                 }
                 
                 // Filter button with badge
@@ -855,6 +861,216 @@ extension GameListView {
                 return (startDate, endDate)
             }
         }
+    }
+}
+
+// MARK: - Role Selection Sheet
+
+struct RoleSelectionSheet: View {
+    let liveGame: LiveGame
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
+    @EnvironmentObject var authService: AuthService
+    @ObservedObject private var firebaseService = FirebaseService.shared
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @State private var showingDeleteAlert = false
+
+    private var isIPad: Bool { horizontalSizeClass == .regular }
+
+    private var availableRoles: [DeviceRole] {
+        liveGame.getAvailableRoles()
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 32) {
+                Spacer()
+
+                VStack(spacing: 16) {
+                    Text("Join Live Game")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+
+                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+
+                    Text("Select your role to join the game")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(spacing: 16) {
+                    // Controller role
+                    RoleSelectionButton(
+                        title: "Controller",
+                        subtitle: "Control the game and manage stats",
+                        icon: "gamecontroller.fill",
+                        color: .blue,
+                        isAvailable: availableRoles.contains(.controller),
+                        action: {
+                            selectRole(.controller)
+                        }
+                    )
+
+                    // Recorder role
+                    RoleSelectionButton(
+                        title: "Recorder",
+                        subtitle: "Record video and capture highlights",
+                        icon: "video.fill",
+                        color: .red,
+                        isAvailable: availableRoles.contains(.recorder),
+                        action: {
+                            selectRole(.recorder)
+                        }
+                    )
+
+                    // Viewer role
+                    RoleSelectionButton(
+                        title: "Viewer",
+                        subtitle: "Watch the game in real-time",
+                        icon: "eye.fill",
+                        color: .green,
+                        isAvailable: true, // Viewer is always available
+                        action: {
+                            selectRole(.viewer)
+                        }
+                    )
+                }
+                .padding(.horizontal, 40)
+
+                Spacer()
+
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
+                .padding(.horizontal, 40)
+            }
+            .padding()
+            .navigationTitle("Join Game")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if authService.showAdminFeatures {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showingDeleteAlert = true
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+            }
+            .alert("Delete Live Game", isPresented: $showingDeleteAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    deleteLiveGame()
+                }
+            } message: {
+                Text("Are you sure you want to delete this live game? This will cancel the game without saving any stats and return all devices to the dashboard.")
+            }
+        }
+    }
+
+    private func selectRole(_ role: DeviceRole) {
+        print("🎯 Role selected: \(role)")
+        navigation.markUserHasInteracted()
+        navigation.userExplicitlyJoinedGame = true
+        roleManager.deviceRole = role
+        dismiss()
+
+        // Navigate to appropriate view based on role
+        switch role {
+        case .recorder:
+            navigation.currentFlow = .waitingToRecord(liveGame)
+        case .controller, .viewer:
+            navigation.currentFlow = .liveGame(liveGame)
+        case .none:
+            break
+        }
+    }
+
+    private func deleteLiveGame() {
+        print("🗑️ Admin deleting/canceling live game")
+        Task {
+            do {
+                // Delete the live game from Firebase (no stats saved)
+                if let gameId = liveGame.id {
+                    try await firebaseService.deleteLiveGame(gameId)
+                    print("✅ Live game deleted successfully")
+                }
+
+                // Dismiss the sheet and return to dashboard
+                await MainActor.run {
+                    dismiss()
+                    navigation.returnToDashboard()
+                }
+            } catch {
+                print("❌ Error deleting live game: \(error)")
+            }
+        }
+    }
+}
+
+struct RoleSelectionButton: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let color: Color
+    let isAvailable: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundColor(isAvailable ? color : .gray)
+                    .frame(width: 40)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(isAvailable ? .primary : .gray)
+
+                    Text(isAvailable ? subtitle : "Not available - role filled")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if !isAvailable {
+                    Image(systemName: "lock.fill")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(
+                ZStack {
+                    if isAvailable {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(.regularMaterial)
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray6))
+                    }
+
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isAvailable ? color.opacity(0.3) : Color.clear, lineWidth: 1)
+                }
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isAvailable)
+        .opacity(isAvailable ? 1.0 : 0.5)
     }
 }
 

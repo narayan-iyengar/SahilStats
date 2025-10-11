@@ -5,14 +5,15 @@ import SwiftUI
 struct ConnectionWaitingRoomView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
 
     var body: some View {
         VStack(spacing: 20) {
             Text("Connecting...")
                 .font(.largeTitle)
-            
+
             ProgressView()
-            
+
             Text(statusText)
                 .foregroundColor(.secondary)
 
@@ -29,11 +30,13 @@ struct ConnectionWaitingRoomView: View {
             }
         }
     }
-    
+
     private var statusText: String {
         switch multipeer.connectionState {
         case .searching:
-            return "Searching for recorder..."
+            // Show what we're searching for based on our role
+            let searchingFor = roleManager.preferredRole == .controller ? "recorder" : "controller"
+            return "Searching for \(searchingFor)..."
         case .connecting(let name):
             return "Connecting to \(name)..."
         case .connected:

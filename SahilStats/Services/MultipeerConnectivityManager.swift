@@ -29,12 +29,23 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             case .searching:
                 return "Searching"
             case .connecting(let name):
-                return "Connecting to \(name)"
+                let friendlyName = getFriendlyName(for: name)
+                return "Connecting to \(friendlyName)"
             case .connected(let name):
-                return "Connected to \(name)"
+                let friendlyName = getFriendlyName(for: name)
+                return "Connected to \(friendlyName)"
             case .disconnected(let name):
-                return "Disconnected from \(name)"
+                let friendlyName = getFriendlyName(for: name)
+                return "Disconnected from \(friendlyName)"
             }
+        }
+
+        private func getFriendlyName(for peerDisplayName: String) -> String {
+            let peerID = MCPeerID(displayName: peerDisplayName)
+            if let trustedPeer = TrustedDevicesManager.shared.allTrustedPeers.first(where: { $0.id == peerDisplayName }) {
+                return trustedPeer.displayName // Uses friendlyName if set, otherwise deviceName
+            }
+            return peerDisplayName
         }
     }
 
@@ -81,9 +92,22 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         let deviceName = UIDevice.current.name
         let deviceModel = UIDevice.current.model
 
-        // Get a short unique identifier (last 4 chars of UUID)
-        let uuid = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        let shortID = String(uuid.suffix(4))
+        // Use a PERSISTENT UUID stored in UserDefaults (survives app reinstalls within same vendor)
+        let persistentUUIDKey = "com.sahilstats.persistentDeviceUUID"
+        let persistentUUID: String
+
+        if let savedUUID = UserDefaults.standard.string(forKey: persistentUUIDKey) {
+            persistentUUID = savedUUID
+            print("📱 Using saved persistent UUID: \(persistentUUID)")
+        } else {
+            // First launch - create and save a new UUID
+            persistentUUID = UUID().uuidString
+            UserDefaults.standard.set(persistentUUID, forKey: persistentUUIDKey)
+            print("📱 Created new persistent UUID: \(persistentUUID)")
+        }
+
+        // Get short ID from persistent UUID (last 4 chars)
+        let shortID = String(persistentUUID.suffix(4))
 
         // Format: "Name's iPhone (A1B2)" or "Name's iPad (C3D4)"
         let displayName = "\(deviceName) (\(shortID))"
@@ -97,7 +121,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     private var browser: MCNearbyServiceBrowser?
     private var keepAliveTimer: Timer?
     private var reconnectTimer: Timer?
-    private var lastUsedRole: DeviceRoleManager.DeviceRole?
+    private var lastUsedRole: DeviceRole?
     private var shouldAutoReconnect = false
 
     private override init() {
@@ -116,6 +140,13 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         // Only auto-connect if we have trusted devices
         guard trustedDevices.hasTrustedDevices else {
             print("⚠️ No trusted devices, skipping auto-connection")
+            return
+        }
+
+        // Don't restart if already connected
+        if connectionState.isConnected {
+            print("✅ Already connected, skipping auto-connection")
+            shouldAutoReconnect = true // Enable reconnection if disconnect happens
             return
         }
 
@@ -180,7 +211,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Public API
 
-    func startSession(role: DeviceRoleManager.DeviceRole) {
+    func startSession(role: DeviceRole) {
         stopSession() // Ensure a clean slate
         print("🚀 Starting Multipeer Session as \(role.displayName)")
         connectionState = .searching
@@ -289,6 +320,12 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
             switch state {
             case .connecting:
                 self.connectionState = .connecting(to: peerID.displayName)
+
+                // Update Live Activity
+                LiveActivityManager.shared.updateConnectionState(
+                    status: self.connectionState,
+                    connectedPeers: []
+                )
             case .connected:
                 print("✅ MPC Connected to \(peerID.displayName)")
                 self.browser?.stopBrowsingForPeers() // Stop searching once connected
@@ -303,6 +340,12 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     deviceName: peerID.displayName,
                     isConnected: true
                 )
+
+                // Update Live Activity
+                LiveActivityManager.shared.updateConnectionState(
+                    status: self.connectionState,
+                    connectedPeers: [peerID.displayName]
+                )
             case .notConnected:
                 print("❌ MPC Disconnected from \(peerID.displayName)")
                 if self.connectedPeer == peerID {
@@ -314,6 +357,12 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     NotificationManager.shared.sendConnectionNotification(
                         deviceName: peerID.displayName,
                         isConnected: false
+                    )
+
+                    // Update Live Activity
+                    LiveActivityManager.shared.updateConnectionState(
+                        status: self.connectionState,
+                        connectedPeers: []
                     )
 
                     // Attempt automatic reconnection if enabled
@@ -331,6 +380,19 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
         if let message = try? JSONDecoder().decode(Message.self, from: data) {
             DispatchQueue.main.async {
                 if message.type == .ping { self.sendMessage(Message(type: .pong, payload: nil)) }
+
+                // Update recording state based on messages from recorder
+                switch message.type {
+                case .startRecording:
+                    print("🎬 Controller received startRecording message - updating isRemoteRecording to true")
+                    self.isRemoteRecording = true
+                case .stopRecording:
+                    print("🎬 Controller received stopRecording message - updating isRemoteRecording to false")
+                    self.isRemoteRecording = false
+                default:
+                    break
+                }
+
                 self.messagePublisher.send(message)
                 if message.type != .ping && message.type != .pong {
                     print("📥 Received message: \(message.type)")
@@ -451,7 +513,7 @@ extension MultipeerConnectivityManager {
 
     struct ConnectedDeviceInfo {
         let name: String
-        let role: DeviceRoleManager.DeviceRole
+        let role: DeviceRole
     }
 
     var connectionStatus: UIConnectionStatus {
@@ -534,7 +596,7 @@ extension MultipeerConnectivityManager {
         if remember {
             // Add to trusted devices based on opposite role
             let roleManager = DeviceRoleManager.shared
-            let oppositeRole: DeviceRoleManager.DeviceRole = roleManager.preferredRole == .controller ? .recorder : .controller
+            let oppositeRole: DeviceRole = roleManager.preferredRole == .controller ? .recorder : .controller
             TrustedDevicesManager.shared.addTrustedPeer(peer, role: oppositeRole)
         }
     }

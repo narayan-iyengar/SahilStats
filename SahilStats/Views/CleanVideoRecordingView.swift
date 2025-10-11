@@ -9,7 +9,7 @@ struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @StateObject private var orientationManager = OrientationManager()
-    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var navigation = NavigationCoordinator.shared
     
     // Local state for overlay data
     @State private var overlayData: SimpleScoreOverlayData
@@ -157,13 +157,40 @@ struct CleanVideoRecordingView: View {
     
     private func cleanupView() {
         print("🎥 CleanVideoRecordingView: Cleaning up view")
-        AppDelegate.orientationLock = .portrait
-        UIViewController.attemptRotationToDeviceOrientation()
-        
-        recordingManager.stopCameraSession()
-        stopOverlayUpdateTimer()
-        UIApplication.shared.isIdleTimerDisabled = false
-        cancellables.removeAll()
+
+        // CRITICAL: Save any recording before cleanup
+        Task { @MainActor in
+            // Stop recording if still active
+            if recordingManager.isRecording {
+                print("⚠️ Recording still active during cleanup - stopping...")
+                await recordingManager.stopRecording()
+            }
+
+            // Check if we have an unsaved recording
+            let hasRecording = recordingManager.getLastRecordingURL() != nil
+            print("   Has unsaved recording: \(hasRecording)")
+
+            if hasRecording {
+                print("💾 Saving recording during cleanup...")
+                await recordingManager.saveRecordingAndQueueUpload(
+                    gameId: liveGame.id ?? "unknown",
+                    teamName: liveGame.teamName,
+                    opponent: liveGame.opponent
+                )
+                print("✅ Recording saved during cleanup")
+            }
+
+            // Now do the actual cleanup
+            AppDelegate.orientationLock = .portrait
+            UIViewController.attemptRotationToDeviceOrientation()
+
+            recordingManager.stopCameraSession()
+            stopOverlayUpdateTimer()
+            UIApplication.shared.isIdleTimerDisabled = false
+            cancellables.removeAll()
+
+            print("✅ Cleanup complete")
+        }
     }
     
     private func setupCameraWithDelay() {
@@ -251,6 +278,12 @@ struct CleanVideoRecordingView: View {
     }
     
     private func handleMessage(_ message: MultipeerConnectivityManager.Message) {
+        // Filter out noisy pong messages from logs
+        if message.type != .pong {
+            print("📱 [CleanVideoRecordingView] Received message: \(message.type)")
+            print("   Message payload: \(String(describing: message.payload))")
+        }
+
         switch message.type {
         case .startRecording:
             print("📱 Received startRecording command via publisher.")
@@ -266,44 +299,99 @@ struct CleanVideoRecordingView: View {
             }
         case .gameEnded:
             print("📱 Received gameEnded command via publisher.")
-            if let gameId = message.payload?["gameId"] {
+            print("   Payload: \(String(describing: message.payload))")
+
+            if let gameId = message.payload?["gameId"] as? String {
+                print("   ✅ Found gameId in payload: \(gameId)")
                 handleGameEnd(gameId: gameId)
+            } else {
+                print("   ❌ No gameId found in payload!")
+                // Try to get it from liveGame instead
+                if let gameId = liveGame.id {
+                    print("   Using gameId from liveGame: \(gameId)")
+                    handleGameEnd(gameId: gameId)
+                } else {
+                    print("   ❌ No gameId available at all - cannot save recording")
+                }
             }
+        case .pong:
+            // Heartbeat message - ignore silently
+            break
         default:
+            print("   Unhandled message type: \(message.type)")
             break
         }
     }
 
     private func handleGameEnd(gameId: String) {
         print("🎬 CleanVideoRecordingView: handleGameEnd called for gameId: \(gameId)")
-        
-        if recordingManager.isRecording {
-            print("🎬 Recording is active, stopping and saving...")
-            Task { @MainActor in
+        print("   Current recording state: isRecording=\(recordingManager.isRecording)")
+
+        Task { @MainActor in
+            // Stop recording if still active
+            if recordingManager.isRecording {
+                print("🎬 Recording is active, stopping...")
                 await self.recordingManager.stopRecording()
+                print("✅ Recording stopped")
+            }
+
+            // Check if we have a recording to save (even if it's already stopped)
+            let hasRecording = recordingManager.getLastRecordingURL() != nil
+            print("   Has recording to save: \(hasRecording)")
+
+            if hasRecording {
+                print("📹 Saving and queueing recording for upload...")
                 await self.recordingManager.saveRecordingAndQueueUpload(
                     gameId: gameId,
                     teamName: self.liveGame.teamName,
                     opponent: self.liveGame.opponent
                 )
-                
-                print("🎬 Recording saved, dismissing view...")
-                // Reset the state and dismiss
-                LiveGameManager.shared.reset()
-                self.dismiss()
+                print("✅ Recording saved and queued for upload")
+            } else {
+                print("⚠️ No recording to save")
             }
-        } else {
-            print("🎬 No recording active, dismissing view...")
-            LiveGameManager.shared.reset()
-            dismiss()
+
+            print("🏠 Returning to dashboard...")
+            self.navigation.returnToDashboard()
         }
     }
     
     private func handleDismiss() {
-        print("🎬 CleanVideoRecordingView: handleDismiss called")
-        // Use the gameId from the liveGame object or provide a fallback
-        let gameId = liveGame.id ?? "unknown-game-id"
-        handleGameEnd(gameId: gameId)
+        print("🎬 CleanVideoRecordingView: handleDismiss called - navigating back to waiting room")
+        print("🎬 Current recording state: isRecording=\(recordingManager.isRecording)")
+
+        Task { @MainActor in
+            // Check if we have a recording (even if not currently recording)
+            let hasRecording = recordingManager.getLastRecordingURL() != nil
+            print("🎬 Has recording: \(hasRecording)")
+
+            // Stop recording if active and notify controller
+            if recordingManager.isRecording {
+                print("🎬 Stopping recording before dismissing...")
+                await recordingManager.stopRecording()
+
+                // Notify controller that recording has stopped
+                multipeer.sendRecordingStateUpdate(isRecording: false)
+                print("✅ Recording stopped and controller notified")
+            }
+
+            // Queue any completed recording for upload
+            if hasRecording {
+                print("📹 Saving and queueing recording for upload...")
+                await recordingManager.saveRecordingAndQueueUpload(
+                    gameId: liveGame.id ?? "unknown",
+                    teamName: liveGame.teamName,
+                    opponent: liveGame.opponent
+                )
+                print("✅ Recording saved and queued for upload")
+            } else {
+                print("⚠️ No recording to queue for upload")
+            }
+
+            // Navigate back to waiting room after recording is stopped
+            print("🏠 Navigating back to waiting room...")
+            navigation.currentFlow = .waitingToRecord(liveGame)
+        }
     }
     
     // MARK: - Timer and UI Update Methods

@@ -171,7 +171,7 @@ struct RoleSelectionView: View {
                     icon: "gamecontroller.fill",
                     color: .blue,
                     action: {
-                        DeviceRoleManager.shared.deviceRole = DeviceRoleManager.DeviceRole.controller
+                        DeviceRoleManager.shared.deviceRole = DeviceRole.controller
                         NavigationCoordinator.shared.resumeLiveGame()
                     }
                 )
@@ -182,7 +182,7 @@ struct RoleSelectionView: View {
                     icon: "video.fill",
                     color: .red,
                     action: {
-                        DeviceRoleManager.shared.deviceRole = DeviceRoleManager.DeviceRole.recorder
+                        DeviceRoleManager.shared.deviceRole = DeviceRole.recorder
                         NavigationCoordinator.shared.resumeLiveGame()
                     }
                 )

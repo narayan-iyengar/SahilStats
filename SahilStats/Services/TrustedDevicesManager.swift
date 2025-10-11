@@ -19,12 +19,12 @@ import Combine
 // MARK: - Device Role Enum (if not defined elsewhere)
 extension TrustedDevicesManager {
     // Check if we have any trusted devices for a specific role
-    func hasTrustedDevice(for role: DeviceRoleManager.DeviceRole) -> Bool {
+    func hasTrustedDevice(for role: DeviceRole) -> Bool {
         return _trustedPeers.contains { $0.role == role.rawValue }
     }
     
     // Get trusted device for auto-connect
-    func getTrustedPeerForAutoConnect(role: DeviceRoleManager.DeviceRole) -> TrustedPeer? {
+    func getTrustedPeerForAutoConnect(role: DeviceRole) -> TrustedPeer? {
         // Return the most recently added trusted device for the given role
         return _trustedPeers
             .filter { $0.role == role.rawValue }
@@ -44,14 +44,20 @@ class TrustedDevicesManager: ObservableObject {
     struct TrustedPeer: Codable, Identifiable {
         let id: String // Peer ID display name (unique identifier)
         let deviceName: String
+        var friendlyName: String? // Optional user-defined friendly name
         var role: String // "controller" or "recorder" - NOW MUTABLE for role switching
         var myRole: String // What role THIS device uses when connecting to this peer
         let dateAdded: Date
         let lastConnected: Date?
 
+        var displayName: String {
+            return friendlyName ?? deviceName
+        }
+
         init(peerID: MCPeerID, role: String, myRole: String) {
             self.id = peerID.displayName
             self.deviceName = peerID.displayName
+            self.friendlyName = nil
             self.role = role
             self.myRole = myRole
             self.dateAdded = Date()
@@ -62,6 +68,7 @@ class TrustedDevicesManager: ObservableObject {
         init(peerID: MCPeerID, role: String) {
             self.id = peerID.displayName
             self.deviceName = peerID.displayName
+            self.friendlyName = nil
             self.role = role
             // Infer myRole as opposite of their role
             self.myRole = role == "controller" ? "recorder" : "controller"
@@ -109,7 +116,7 @@ class TrustedDevicesManager: ObservableObject {
     }
     
     /// Add a peer to trusted devices with both roles specified
-    func addTrustedPeer(_ peerID: MCPeerID, theirRole: DeviceRoleManager.DeviceRole, myRole: DeviceRoleManager.DeviceRole) {
+    func addTrustedPeer(_ peerID: MCPeerID, theirRole: DeviceRole, myRole: DeviceRole) {
         // Don't add duplicates
         guard !isTrusted(peerID) else {
             print("⚠️ Peer already trusted: \(peerID.displayName)")
@@ -126,9 +133,9 @@ class TrustedDevicesManager: ObservableObject {
     }
 
     /// Legacy method for backward compatibility
-    func addTrustedPeer(_ peerID: MCPeerID, role: DeviceRoleManager.DeviceRole) {
+    func addTrustedPeer(_ peerID: MCPeerID, role: DeviceRole) {
         // Infer my role as opposite
-        let myRole: DeviceRoleManager.DeviceRole = role == .controller ? .recorder : .controller
+        let myRole: DeviceRole = role == .controller ? .recorder : .controller
         addTrustedPeer(peerID, theirRole: role, myRole: myRole)
     }
 
@@ -142,6 +149,7 @@ class TrustedDevicesManager: ObservableObject {
             peer = TrustedPeer(
                 id: peer.id,
                 deviceName: peer.deviceName,
+                friendlyName: peer.friendlyName,
                 role: peer.myRole,
                 myRole: tempRole,
                 dateAdded: peer.dateAdded,
@@ -154,11 +162,11 @@ class TrustedDevicesManager: ObservableObject {
     }
 
     /// Get my role when connecting to a specific peer
-    func getMyRole(for peerID: MCPeerID) -> DeviceRoleManager.DeviceRole? {
+    func getMyRole(for peerID: MCPeerID) -> DeviceRole? {
         guard let peer = trustedPeers.first(where: { $0.id == peerID.displayName }) else {
             return nil
         }
-        return DeviceRoleManager.DeviceRole(rawValue: peer.myRole)
+        return DeviceRole(rawValue: peer.myRole)
     }
     
     /// Remove a peer from trusted devices
@@ -186,6 +194,7 @@ class TrustedDevicesManager: ObservableObject {
             peer = TrustedPeer(
                 id: peer.id,
                 deviceName: peer.deviceName,
+                friendlyName: peer.friendlyName,
                 role: peer.role,
                 myRole: peer.myRole,
                 dateAdded: peer.dateAdded,
@@ -193,6 +202,26 @@ class TrustedDevicesManager: ObservableObject {
             )
             peers[index] = peer
             trustedPeers = peers
+        }
+    }
+
+    /// Update friendly name for a trusted peer
+    func updateFriendlyName(_ peerID: MCPeerID, friendlyName: String?) {
+        var peers = trustedPeers
+        if let index = peers.firstIndex(where: { $0.id == peerID.displayName }) {
+            var peer = peers[index]
+            peer = TrustedPeer(
+                id: peer.id,
+                deviceName: peer.deviceName,
+                friendlyName: friendlyName?.isEmpty == true ? nil : friendlyName,
+                role: peer.role,
+                myRole: peer.myRole,
+                dateAdded: peer.dateAdded,
+                lastConnected: peer.lastConnected
+            )
+            peers[index] = peer
+            trustedPeers = peers
+            print("✏️ Updated friendly name for \(peerID.displayName) to '\(friendlyName ?? "default")'")
         }
     }
     
@@ -207,7 +236,7 @@ class TrustedDevicesManager: ObservableObject {
     }
     
     /// Get trusted peers for a specific role
-    func getTrustedPeers(forRole role: DeviceRoleManager.DeviceRole) -> [TrustedPeer] {
+    func getTrustedPeers(forRole role: DeviceRole) -> [TrustedPeer] {
         return trustedPeers.filter { $0.role == role.rawValue }
     }
     
@@ -241,7 +270,7 @@ class TrustedDevicesManager: ObservableObject {
             TrustedDevice(
                 id: peer.id,
                 displayName: peer.deviceName,
-                role: DeviceRoleManager.DeviceRole(rawValue: peer.role) ?? .none,
+                role: DeviceRole(rawValue: peer.role) ?? .none,
                 lastConnected: peer.lastConnected ?? peer.dateAdded
             )
         }
@@ -252,16 +281,17 @@ class TrustedDevicesManager: ObservableObject {
 struct TrustedDevice: Identifiable {
     let id: String
     let displayName: String
-    let role: DeviceRoleManager.DeviceRole
+    let role: DeviceRole
     let lastConnected: Date
 }
 
 // MARK: - TrustedPeer Extension for updating
 
 extension TrustedDevicesManager.TrustedPeer {
-    init(id: String, deviceName: String, role: String, myRole: String, dateAdded: Date, lastConnected: Date?) {
+    init(id: String, deviceName: String, friendlyName: String?, role: String, myRole: String, dateAdded: Date, lastConnected: Date?) {
         self.id = id
         self.deviceName = deviceName
+        self.friendlyName = friendlyName
         self.role = role
         self.myRole = myRole
         self.dateAdded = dateAdded
@@ -272,6 +302,7 @@ extension TrustedDevicesManager.TrustedPeer {
     init(id: String, deviceName: String, role: String, dateAdded: Date, lastConnected: Date?) {
         self.id = id
         self.deviceName = deviceName
+        self.friendlyName = nil
         self.role = role
         self.myRole = role == "controller" ? "recorder" : "controller"
         self.dateAdded = dateAdded
@@ -282,7 +313,9 @@ extension TrustedDevicesManager.TrustedPeer {
 struct TrustedDevicesSettingsView: View {
     @ObservedObject private var trustedDevices = TrustedDevicesManager.shared
     @State private var showingClearAlert = false
-    
+    @State private var editingPeer: TrustedDevicesManager.TrustedPeer?
+    @State private var editedFriendlyName = ""
+
     var body: some View {
         List {
             Section {
@@ -293,8 +326,13 @@ struct TrustedDevicesSettingsView: View {
                     ForEach(trustedDevices.allTrustedPeers) { peer in
                         HStack {
                             VStack(alignment: .leading) {
-                                Text(peer.deviceName)
+                                Text(peer.displayName)
                                     .font(.headline)
+                                if peer.friendlyName != nil {
+                                    Text(peer.deviceName)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                                 Text(peer.role.capitalized)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -304,9 +342,18 @@ struct TrustedDevicesSettingsView: View {
                                         .foregroundColor(.secondary)
                                 }
                             }
-                            
+
                             Spacer()
-                            
+
+                            Button(action: {
+                                editingPeer = peer
+                                editedFriendlyName = peer.friendlyName ?? ""
+                            }) {
+                                Image(systemName: "pencil")
+                                    .foregroundColor(.blue)
+                            }
+                            .buttonStyle(.plain)
+
                             Button(action: {
                                 // Create MCPeerID to remove the peer
                                 let peerID = MCPeerID(displayName: peer.id)
@@ -315,6 +362,7 @@ struct TrustedDevicesSettingsView: View {
                                 Image(systemName: "trash")
                                     .foregroundColor(.red)
                             }
+                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 4)
                     }
@@ -322,9 +370,9 @@ struct TrustedDevicesSettingsView: View {
             } header: {
                 Text("Trusted Devices")
             } footer: {
-                Text("Trusted devices will automatically connect without approval")
+                Text("Trusted devices will automatically connect without approval. Tap the pencil icon to set a friendly name.")
             }
-            
+
             Section {
                 Button("Clear All Trusted Devices") {
                     showingClearAlert = true
@@ -337,6 +385,40 @@ struct TrustedDevicesSettingsView: View {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
                 trustedDevices.clearAllTrustedDevices()
+            }
+        }
+        .sheet(item: $editingPeer) { peer in
+            NavigationView {
+                Form {
+                    Section {
+                        TextField("Friendly Name", text: $editedFriendlyName)
+                    } header: {
+                        Text("Edit Device Name")
+                    } footer: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Original name: \(peer.deviceName)")
+                                .font(.caption)
+                            Text("Leave empty to use the original device name")
+                                .font(.caption)
+                        }
+                    }
+                }
+                .navigationTitle("Rename Device")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            editingPeer = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            let peerID = MCPeerID(displayName: peer.id)
+                            trustedDevices.updateFriendlyName(peerID, friendlyName: editedFriendlyName)
+                            editingPeer = nil
+                        }
+                    }
+                }
             }
         }
     }

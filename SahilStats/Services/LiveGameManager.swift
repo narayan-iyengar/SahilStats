@@ -9,7 +9,12 @@ import MultipeerConnectivity
 class LiveGameManager: ObservableObject {
     static let shared = LiveGameManager()
 
-    @Published var liveGame: LiveGame?
+    @Published var liveGame: LiveGame? {
+        didSet {
+            // Update Live Activity whenever game state changes
+            LiveActivityManager.shared.updateGameState(liveGame: liveGame)
+        }
+    }
 
     private var cancellables = Set<AnyCancellable>()
     private let multipeer = MultipeerConnectivityManager.shared
@@ -35,7 +40,7 @@ class LiveGameManager: ObservableObject {
 
     // This function now simply starts the connection process.
     // The UI will be responsible for observing the connection state directly.
-    func startMultiDeviceSession(role: DeviceRoleManager.DeviceRole) {
+    func startMultiDeviceSession(role: DeviceRole) {
         print("🚀 LiveGameManager: Kicking off multi-device session for role: \(role)")
 
         multipeer.stopSession() // Ensure a clean slate
@@ -56,6 +61,29 @@ class LiveGameManager: ObservableObject {
         case .gameStarting:
              if let gameId = message.payload?["gameId"] {
                 print("🎬 LiveGameManager received gameStarting signal for gameId: \(gameId)")
+
+                // Set the recorder's device role when they receive the game starting message
+                let roleManager = DeviceRoleManager.shared
+                print("🔍 Current preferredRole: \(roleManager.preferredRole.displayName)")
+                print("🔍 Current deviceRole: \(roleManager.deviceRole.displayName)")
+
+                if roleManager.preferredRole == .recorder {
+                    print("🎯 Recorder setting deviceRole to .recorder for game \(gameId)")
+                    Task {
+                        do {
+                            try await roleManager.setDeviceRole(.recorder, for: gameId)
+                            print("✅ Recorder deviceRole set successfully")
+                            print("🔍 After setting - deviceRole: \(roleManager.deviceRole.displayName)")
+
+                            // Note: No Live Activity for recorder - device is on tripod
+                        } catch {
+                            print("❌ Failed to set recorder deviceRole: \(error)")
+                        }
+                    }
+                } else {
+                    print("⚠️ Not recorder, skipping deviceRole set (preferredRole: \(roleManager.preferredRole.displayName))")
+                }
+
                 // The NavigationCoordinator will handle the UI transition
             }
         default:
@@ -64,7 +92,9 @@ class LiveGameManager: ObservableObject {
     }
     
     func reset() {
+        print("🔄 LiveGameManager: Resetting game state (keeping connection alive)")
         liveGame = nil
-        multipeer.stopSession()
+        // Don't stop the session - keep connection alive for next game
+        // Connection will only be stopped when app terminates or user explicitly disconnects
     }
 }
