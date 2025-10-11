@@ -364,7 +364,48 @@ class FirebaseService: ObservableObject {
     }
     
     func deleteGame(_ gameId: String) async throws {
+        print("🗑️ Deleting game: \(gameId)")
+
+        // First, get the game document to retrieve video URLs
+        let document = try await db.collection("games").document(gameId).getDocument()
+
+        if let data = document.data() {
+            // Delete local video file if it exists
+            if let videoPath = data["videoURL"] as? String {
+                print("🗑️ Deleting local video file: \(videoPath)")
+                let videoURL = URL(fileURLWithPath: videoPath)
+
+                do {
+                    if FileManager.default.fileExists(atPath: videoPath) {
+                        try FileManager.default.removeItem(at: videoURL)
+                        print("✅ Local video file deleted")
+                    } else {
+                        print("⚠️ Local video file not found at path: \(videoPath)")
+                    }
+                } catch {
+                    print("❌ Failed to delete local video file: \(error.localizedDescription)")
+                    // Continue with deletion even if local file fails
+                }
+            }
+
+            // Delete YouTube video if it exists
+            if let youtubeVideoId = data["youtubeVideoId"] as? String {
+                print("🗑️ Deleting YouTube video: \(youtubeVideoId)")
+
+                do {
+                    try await YouTubeUploadManager.shared.deleteYouTubeVideo(videoId: youtubeVideoId)
+                    print("✅ YouTube video deleted")
+                } catch {
+                    print("❌ Failed to delete YouTube video: \(error.localizedDescription)")
+                    // Continue with deletion even if YouTube delete fails
+                    // (video might already be deleted or token expired)
+                }
+            }
+        }
+
+        // Delete the game document from Firebase
         try await db.collection("games").document(gameId).delete()
+        print("✅ Game document deleted from Firebase")
     }
 
     func updateGameVideoURL(gameId: String, videoURL: String) async {

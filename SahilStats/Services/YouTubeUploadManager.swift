@@ -568,6 +568,55 @@ class YouTubeUploadManager: ObservableObject {
         // Move failed upload back to pending
         processPendingUploads()
     }
+
+    // MARK: - YouTube Video Deletion
+
+    func deleteYouTubeVideo(videoId: String) async throws {
+        print("🗑️ Attempting to delete YouTube video: \(videoId)")
+
+        // Get fresh access token
+        let accessToken = try await getFreshAccessToken()
+
+        // Delete video using YouTube API
+        let urlString = "https://www.googleapis.com/youtube/v3/videos?id=\(videoId)"
+        guard let url = URL(string: urlString) else {
+            throw UploadError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UploadError.invalidResponse
+        }
+
+        // YouTube returns 204 (No Content) on successful deletion
+        if httpResponse.statusCode == 204 {
+            print("✅ Successfully deleted YouTube video: \(videoId)")
+            return
+        }
+
+        // Handle errors
+        if httpResponse.statusCode == 404 {
+            print("⚠️ YouTube video not found (may already be deleted): \(videoId)")
+            return // Not an error - video is already gone
+        }
+
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            print("❌ YouTube authorization error when deleting video")
+            throw UploadError.uploadFailed(statusCode: httpResponse.statusCode, message: "YouTube authorization error. Please re-authorize in Settings.")
+        }
+
+        // Log unexpected errors
+        if let responseBody = String(data: data, encoding: .utf8) {
+            print("❌ YouTube API error \(httpResponse.statusCode): \(responseBody)")
+        }
+
+        throw UploadError.uploadFailed(statusCode: httpResponse.statusCode, message: "Failed to delete YouTube video (status \(httpResponse.statusCode))")
+    }
 }
 
 // MARK: - Pending Upload Model
