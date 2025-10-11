@@ -44,14 +44,10 @@ class NavigationCoordinator: ObservableObject {
         markUserHasInteracted()
         userExplicitlyJoinedGame = true
 
-        // Start Live Activity for viewer only (controller and recorder don't need it)
+        // Start Live Activity for all roles (shows connection status in Dynamic Island)
         let deviceRole = DeviceRoleManager.shared.deviceRole
-        if deviceRole == .viewer {
-            print("🏝️ Starting Live Activity for \(deviceRole.displayName)")
-            LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
-        } else {
-            print("🏝️ Skipping Live Activity for \(deviceRole.displayName) - only for viewer")
-        }
+        print("🏝️ Starting Live Activity for \(deviceRole.displayName)")
+        LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
 
         if let liveGame = liveGameManager.liveGame {
             navigateToGameFlow(liveGame)

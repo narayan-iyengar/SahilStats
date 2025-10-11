@@ -81,15 +81,17 @@ class LiveActivityManager: ObservableObject {
         let deviceName: String?
 
         switch status {
-        case .connected:
+        case .connected(let peerName):
             connectionStatus = .connected
-            deviceName = connectedPeers.first
+            // Use friendly name from TrustedDevicesManager
+            deviceName = MultipeerConnectivityManager.ConnectionState.getFriendlyName(for: peerName)
         case .connecting(let peerName):
             connectionStatus = .connecting
-            deviceName = peerName
-        case .disconnected:
+            // Use friendly name from TrustedDevicesManager
+            deviceName = MultipeerConnectivityManager.ConnectionState.getFriendlyName(for: peerName)
+        case .disconnected(let peerName):
             connectionStatus = .disconnected
-            deviceName = nil
+            deviceName = MultipeerConnectivityManager.ConnectionState.getFriendlyName(for: peerName)
         case .searching:
             connectionStatus = .searching
             deviceName = nil
@@ -106,7 +108,7 @@ class LiveActivityManager: ObservableObject {
             await activity.update(
                 .init(state: updatedState, staleDate: nil)
             )
-            print("🔄 Live Activity updated: connection = \(connectionStatus.displayText)")
+            print("🔄 Live Activity updated: connection = \(connectionStatus.displayText), device = \(deviceName ?? "none")")
         }
     }
 
