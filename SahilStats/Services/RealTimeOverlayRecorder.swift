@@ -492,11 +492,10 @@ class RealTimeOverlayRecorder: NSObject {
         }
 
         // Draw camera frame
-        if let ciImage = CIImage(cvPixelBuffer: imageBuffer) {
-            let ciContext = CIContext()
-            if let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) {
-                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer)))
-            }
+        let ciImage = CIImage(cvPixelBuffer: imageBuffer)
+        let ciContext = CIContext()
+        if let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) {
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer)))
         }
 
         // Draw overlay
