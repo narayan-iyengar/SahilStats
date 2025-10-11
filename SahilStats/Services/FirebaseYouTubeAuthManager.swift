@@ -54,7 +54,7 @@ class FirebaseYouTubeAuthManager: ObservableObject {
         
         let scopes = [
             "https://www.googleapis.com/auth/youtube.upload",
-            "https://www.googleapis.com/auth/youtube.readonly"
+            "https://www.googleapis.com/auth/youtube.force-ssl"  // Required for deleting videos
         ]
         
         guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
