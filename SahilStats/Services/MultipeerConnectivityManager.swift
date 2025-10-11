@@ -300,6 +300,11 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         sendMessage(Message(type: .stopRecording, payload: nil))
     }
 
+    func sendGameEnded(gameId: String) {
+        sendMessage(Message(type: .gameEnded, payload: ["gameId": gameId]))
+        print("📤 Sent gameEnded message with gameId: \(gameId)")
+    }
+
     func sendPing() {
         sendMessage(Message(type: .ping, payload: nil))
     }

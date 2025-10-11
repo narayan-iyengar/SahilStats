@@ -19,7 +19,7 @@ class NavigationCoordinator: ObservableObject {
         case liveGame(LiveGame)
         case gameSetup
         case recording(LiveGame)
-        case waitingToRecord(LiveGame)
+        case waitingToRecord(LiveGame?)  // Optional - recorder may not have game info yet
     }
 
     private let liveGameManager = LiveGameManager.shared
@@ -44,13 +44,13 @@ class NavigationCoordinator: ObservableObject {
         markUserHasInteracted()
         userExplicitlyJoinedGame = true
 
-        // Start Live Activity for controller and viewer (not recorder - it's on a tripod)
+        // Start Live Activity for viewer only (controller and recorder don't need it)
         let deviceRole = DeviceRoleManager.shared.deviceRole
-        if deviceRole == .controller || deviceRole == .viewer {
+        if deviceRole == .viewer {
             print("🏝️ Starting Live Activity for \(deviceRole.displayName)")
             LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
         } else {
-            print("🏝️ Skipping Live Activity for \(deviceRole.displayName) - only for controller/viewer")
+            print("🏝️ Skipping Live Activity for \(deviceRole.displayName) - only for viewer")
         }
 
         if let liveGame = liveGameManager.liveGame {
@@ -118,7 +118,7 @@ class NavigationCoordinator: ObservableObject {
         switch currentRole {
         case .recorder:
             print("🎬 Role is Recorder. Showing READY state.")
-            currentFlow = .waitingToRecord(liveGame)
+            currentFlow = .waitingToRecord(Optional(liveGame))
         case .controller, .viewer:
             print("🎮 Role is Controller/Viewer. Navigating to live game view.")
             currentFlow = .liveGame(liveGame)

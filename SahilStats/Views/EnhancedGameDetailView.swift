@@ -10,19 +10,20 @@
 
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 struct CompleteGameDetailView: View {
     @State var game: Game
     @Environment(\.dismiss) private var dismiss
     @StateObject private var firebaseService = FirebaseService.shared
     @EnvironmentObject var authService: AuthService
-    
+
     // State for editing individual stats
     @State private var isEditingStat = false
     @State private var editingStatTitle = ""
     @State private var editingStatValue = ""
     @State private var statUpdateBinding: Binding<Int>?
-    
+
     // State for editing score
     @State private var isEditingScore = false
     @State private var editingMyTeamScore = ""
@@ -37,7 +38,10 @@ struct CompleteGameDetailView: View {
     @State private var showingShareSheet = false
     @State private var showingVideoPlayer = false
     @State private var videoURLToPlay: URL?
-    
+
+    // State for real-time updates
+    @State private var gameListener: ListenerRegistration?
+
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -49,6 +53,14 @@ struct CompleteGameDetailView: View {
                 VStack(alignment: .leading, spacing: isIPad ? 32 : 24) {
                     // Header with game info
                     gameHeaderSection
+                        .onAppear {
+                            print("🎮 Game Details Loaded:")
+                            print("   Game ID: \(game.id ?? "nil")")
+                            print("   Title: \(game.teamName) vs \(game.opponent)")
+                            print("   Date: \(game.formattedDate)")
+                            print("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
+                            print("   Video URL: \(game.videoURL ?? "nil")")
+                        }
                     
                     // Player Stats Section (comprehensive)
                     playerStatsSection
@@ -72,6 +84,15 @@ struct CompleteGameDetailView: View {
                     // Game Video Section (show if we have ANY video - YouTube or local)
                     if game.youtubeVideoId != nil || game.videoURL != nil {
                         gameVideoSection
+                            .onAppear {
+                                print("📹 Video section appeared:")
+                                print("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
+                                print("   Video URL: \(game.videoURL ?? "nil")")
+                                if let videoURLPath = game.videoURL {
+                                    let exists = FileManager.default.fileExists(atPath: videoURLPath)
+                                    print("   File exists: \(exists)")
+                                }
+                            }
                     }
                     
                     Spacer(minLength: 50)
@@ -125,6 +146,12 @@ struct CompleteGameDetailView: View {
             if let videoURL = videoURLToPlay {
                 LocalVideoPlayerView(videoURL: videoURL)
             }
+        }
+        .onAppear {
+            setupGameListener()
+        }
+        .onDisappear {
+            gameListener?.remove()
         }
     }
     
@@ -650,17 +677,55 @@ struct CompleteGameDetailView: View {
         // Trim whitespace and ensure names aren't empty
         let newTeamName = editingTeamName.trimmingCharacters(in: .whitespacesAndNewlines)
         let newOpponentName = editingOpponentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !newTeamName.isEmpty && !newOpponentName.isEmpty else { return }
-        
+
         game.teamName = newTeamName
         game.opponent = newOpponentName
-        
+
         Task {
             do {
                 try await firebaseService.updateGame(game)
             } catch {
                 print("Failed to save team name changes: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func setupGameListener() {
+        guard let gameId = game.id else {
+            print("⚠️ Cannot setup listener: game has no ID")
+            return
+        }
+
+        print("👂 Setting up Firestore listener for game: \(gameId)")
+
+        let db = Firestore.firestore()
+        gameListener = db.collection("games").document(gameId).addSnapshotListener { documentSnapshot, error in
+            guard let document = documentSnapshot else {
+                print("❌ Error fetching game updates: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+
+            guard let data = document.data() else {
+                print("⚠️ Game document has no data")
+                return
+            }
+
+            // Update videoURL if it changed
+            if let videoURL = data["videoURL"] as? String {
+                if self.game.videoURL != videoURL {
+                    print("📹 Video URL updated: \(videoURL)")
+                    self.game.videoURL = videoURL
+                }
+            }
+
+            // Update youtubeVideoId if it changed
+            if let youtubeVideoId = data["youtubeVideoId"] as? String {
+                if self.game.youtubeVideoId != youtubeVideoId {
+                    print("📺 YouTube Video ID updated: \(youtubeVideoId)")
+                    self.game.youtubeVideoId = youtubeVideoId
+                }
             }
         }
     }

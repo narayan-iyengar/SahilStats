@@ -25,7 +25,8 @@ class VideoRecordingManager: NSObject, ObservableObject {
     @Published var error: Error?
     private var outputURL: URL?
     //private var lastRecordingURL: URL?
-    
+    private var isSavingVideo = false  // Prevent duplicate saves
+
     var onCameraReady: (() -> Void)?
     
     
@@ -33,6 +34,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
+    private var realtimeRecorder: RealTimeOverlayRecorder? // Real-time overlay recording
     private var recordingTimer: Timer?
     private var recordingStartTime: Date?
     private var _previewLayer: AVCaptureVideoPreviewLayer?
@@ -366,12 +368,21 @@ class VideoRecordingManager: NSObject, ObservableObject {
                     print("✅ Audio input added to session")
                 }
             }
-            
-            let movieOutput = AVCaptureMovieFileOutput()
-            if session.canAddOutput(movieOutput) {
-                session.addOutput(movieOutput)
-                self.videoOutput = movieOutput
-                print("✅ Movie output added to session")
+
+            // NEW: Use real-time overlay recorder instead of movie file output
+            let recorder = RealTimeOverlayRecorder()
+            if recorder.setupOutputs(for: session) {
+                self.realtimeRecorder = recorder
+                print("✅ Real-time overlay recorder setup successful")
+            } else {
+                print("❌ Failed to setup real-time recorder, falling back to movie output")
+                // Fallback to traditional recording if real-time fails
+                let movieOutput = AVCaptureMovieFileOutput()
+                if session.canAddOutput(movieOutput) {
+                    session.addOutput(movieOutput)
+                    self.videoOutput = movieOutput
+                    print("✅ Movie output added to session (fallback)")
+                }
             }
             
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
@@ -442,23 +453,76 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     // MARK: - Recording Control
     
-    func startRecording() async {
+    func startRecording(liveGame: LiveGame? = nil) async {
         print("🎥 VideoRecordingManager: startRecording() called")
+        print("   realtimeRecorder exists: \(realtimeRecorder != nil)")
         print("   videoOutput exists: \(videoOutput != nil)")
         print("   isRecording: \(isRecording)")
         print("   captureSession running: \(captureSession?.isRunning ?? false)")
-
-        guard let videoOutput = videoOutput else {
-            print("❌ Cannot start recording - videoOutput is nil (camera not setup)")
-            return
-        }
 
         guard !isRecording else {
             print("❌ Cannot start recording - already recording")
             return
         }
 
+        guard let game = liveGame else {
+            print("❌ Cannot start recording - liveGame is required")
+            return
+        }
+
         print("🎥 Starting video recording...")
+
+        // NEW: Use real-time recorder if available
+        if let recorder = realtimeRecorder {
+            print("🎥 Using real-time overlay recorder")
+            if let url = recorder.startRecording(liveGame: game) {
+                await MainActor.run {
+                    self.outputURL = url
+                    self.isRecording = true
+                    self.recordingStartTime = Date()
+                    self.startRecordingTimer()
+
+                    // Update Live Activity
+                    LiveActivityManager.shared.updateRecordingState(isRecording: true)
+                    print("✅ Real-time recording started - isRecording=true")
+                }
+            } else {
+                print("❌ Failed to start real-time recording")
+            }
+            return
+        }
+
+        // Fallback: Traditional recording with post-processing
+        guard let videoOutput = videoOutput else {
+            print("❌ Cannot start recording - no recording method available")
+            return
+        }
+
+        print("🎥 Using traditional recording (fallback)")
+
+        // FIX: Set video orientation on recording connection
+        if let connection = videoOutput.connection(with: .video) {
+            let deviceOrientation = UIDevice.current.orientation
+            let rotationAngle: CGFloat
+
+            switch deviceOrientation {
+            case .portrait:
+                rotationAngle = 90
+            case .portraitUpsideDown:
+                rotationAngle = 270
+            case .landscapeLeft:
+                rotationAngle = 0
+            case .landscapeRight:
+                rotationAngle = 180
+            default:
+                rotationAngle = 90 // Default to portrait
+            }
+
+            if connection.isVideoRotationAngleSupported(rotationAngle) {
+                connection.videoRotationAngle = rotationAngle
+                print("🎥 Set recording orientation to \(rotationAngle)°")
+            }
+        }
 
         let documentsPath = FileManager.default.urls(for: .documentDirectory,
                                                    in: .userDomainMask)[0]
@@ -477,6 +541,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             self.recordingStartTime = Date()
             self.startRecordingTimer()
 
+            // Start tracking score timeline for post-processing
+            ScoreTimelineTracker.shared.startRecording(initialGame: game)
+
             // Update Live Activity
             LiveActivityManager.shared.updateRecordingState(isRecording: true)
             print("✅ Recording state updated - isRecording=true")
@@ -486,17 +553,52 @@ class VideoRecordingManager: NSObject, ObservableObject {
     func getLastRecordingURL() -> URL? {
         return outputURL
     }
-    
-    
+
+    /// Update game data during real-time recording (for overlay updates)
+    func updateGameData(_ liveGame: LiveGame) {
+        realtimeRecorder?.updateGame(liveGame)
+    }
+
     func stopRecording() async {
         guard isRecording else { return }
 
+        // NEW: Use real-time recorder if available
+        if let recorder = realtimeRecorder {
+            print("🎥 Stopping real-time recording...")
+            return await withCheckedContinuation { continuation in
+                recorder.stopRecording { url in
+                    Task { @MainActor in
+                        if let url = url {
+                            print("✅ Real-time recording stopped: \(url.lastPathComponent)")
+                            self.outputURL = url
+                        } else {
+                            print("❌ Real-time recording failed")
+                        }
+
+                        self.isRecording = false
+                        self.recordingStartTime = nil
+                        self.stopRecordingTimer()
+
+                        // Update Live Activity
+                        LiveActivityManager.shared.updateRecordingState(isRecording: false)
+
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+
+        // Fallback: Traditional recording
         videoOutput?.stopRecording()
 
         await MainActor.run {
             self.isRecording = false
             self.recordingStartTime = nil
             self.stopRecordingTimer()
+
+            // DON'T call ScoreTimelineTracker.stopRecording() here
+            // It will be called later when saving the video to get the timeline
+            // Calling it here would discard the timeline data
 
             // Update Live Activity
             LiveActivityManager.shared.updateRecordingState(isRecording: false)
@@ -628,24 +730,71 @@ class VideoRecordingManager: NSObject, ObservableObject {
     /// Handles saving recording and queuing for upload - used by recording view
     /// Returns the local video URL for storage in the game record
     @discardableResult
-    func saveRecordingAndQueueUpload(gameId: String, teamName: String, opponent: String) async -> URL? {
+    func saveRecordingAndQueueUpload(liveGame: LiveGame, scoreTimeline: [ScoreTimelineTracker.ScoreSnapshot]) async -> URL? {
+        // Prevent duplicate saves
+        guard !isSavingVideo else {
+            print("⚠️ Already saving video - skipping duplicate save")
+            return nil
+        }
+
+        isSavingVideo = true
+        defer { isSavingVideo = false }
+
+        let gameId = liveGame.id ?? "unknown"
+        let teamName = liveGame.teamName
+        let opponent = liveGame.opponent
+
         print("📹 saveRecordingAndQueueUpload called")
         print("   Game ID: \(gameId)")
         print("   Teams: \(teamName) vs \(opponent)")
+        print("   Score timeline: \(scoreTimeline.count) snapshots")
         print("   outputURL: \(String(describing: outputURL))")
 
-        guard let outputURL = outputURL else {
+        guard let originalURL = outputURL else {
             print("❌ No recording to save and queue - outputURL is nil")
             return nil
         }
 
         // Check if file exists
-        let fileExists = FileManager.default.fileExists(atPath: outputURL.path)
+        let fileExists = FileManager.default.fileExists(atPath: originalURL.path)
         print("   File exists at outputURL: \(fileExists)")
 
         if !fileExists {
-            print("❌ Recording file does not exist at path: \(outputURL.path)")
+            print("❌ Recording file does not exist at path: \(originalURL.path)")
             return nil
+        }
+
+        // Save score timeline for future reference (only used in fallback mode)
+        ScoreTimelineTracker.shared.saveTimeline(scoreTimeline, forGameId: gameId)
+
+        // 🎨 OVERLAY COMPOSITION
+        let compositedURL: URL
+
+        if realtimeRecorder != nil {
+            // NEW: Real-time recording already has overlay baked in - skip post-processing
+            print("✅ Using real-time recording (overlay already baked in)")
+            compositedURL = originalURL
+        } else {
+            // Fallback: Add time-based score overlay to video (post-processing)
+            print("🎨 Adding time-based overlay to video (post-processing)...")
+
+            // Wait for overlay composition to complete
+            compositedURL = await withCheckedContinuation { continuation in
+                VideoOverlayCompositor.addTimeBasedOverlayToVideo(
+                    videoURL: originalURL,
+                    scoreTimeline: scoreTimeline
+                ) { result in
+                    switch result {
+                    case .success(let url):
+                        print("✅ Overlay added successfully")
+                        continuation.resume(returning: url)
+                    case .failure(let error):
+                        print("❌ Overlay composition failed: \(error)")
+                        print("   Falling back to original video")
+                        continuation.resume(returning: originalURL)
+                    }
+                }
+            }
         }
 
         // Generate title and description
@@ -653,6 +802,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
         let description = """
         Game Recording
         \(teamName) vs \(opponent)
+        Score: \(liveGame.homeScore)-\(liveGame.awayScore)
         Recorded: \(Date().formatted(date: .complete, time: .shortened))
         Game ID: \(gameId)
 
@@ -667,7 +817,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
         let youtubeURL = documentsPath.appendingPathComponent("youtube_\(Date().timeIntervalSince1970).mov")
 
         do {
-            try FileManager.default.copyItem(at: outputURL, to: youtubeURL)
+            try FileManager.default.copyItem(at: compositedURL, to: youtubeURL)
             print("✅ Created copy for YouTube upload at: \(youtubeURL.lastPathComponent)")
 
             // Queue the COPY for upload (not the original)
@@ -678,23 +828,29 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 gameId: gameId
             )
 
-            print("✅ Video queued for YouTube upload, now saving original to photo library")
+            print("✅ Video queued for YouTube upload, now saving composited video to photo library")
         } catch {
             print("❌ Failed to create copy for YouTube: \(error)")
-            // Fallback: still try to queue the original (might fail later, but better than nothing)
+            // Fallback: still try to queue the composited video
             YouTubeUploadManager.shared.queueVideoForUpload(
-                videoURL: outputURL,
+                videoURL: compositedURL,
                 title: title,
                 description: description,
                 gameId: gameId
             )
         }
 
-        // Save the ORIGINAL to photo library (this will move/delete the original file)
+        // Update outputURL to point to composited video for photo library save
+        self.outputURL = compositedURL
+
+        // Save the composited video to photo library
         await saveToPhotoLibrary()
 
         print("✅ saveRecordingAndQueueUpload completed")
         print("   Local video URL will be stored in Firebase when upload completes: \(youtubeURL.path)")
+
+        // Clear outputURL to prevent duplicate saves
+        self.outputURL = nil
 
         // Return the youtube copy URL (the one that persists)
         // Note: The videoURL will be stored in Firebase by YouTubeUploadManager when the upload completes
