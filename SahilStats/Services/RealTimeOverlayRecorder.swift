@@ -37,6 +37,11 @@ class RealTimeOverlayRecorder: NSObject {
     private var overlayUpdateTimer: Timer?
     private var currentLiveGame: LiveGame?
 
+    // Clock interpolation for smooth countdown
+    private var lastClockTime: TimeInterval = 0
+    private var lastClockUpdateTime: Date = Date()
+    private var isClockRunning: Bool = false
+
     // Output
     private var outputURL: URL?
 
@@ -191,8 +196,26 @@ class RealTimeOverlayRecorder: NSObject {
     }
 
     func updateGame(_ liveGame: LiveGame) {
+        print("📊 RealTimeOverlayRecorder.updateGame() called:")
+        print("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
+        print("   Clock: \(liveGame.currentClockDisplay)")
+        print("   Period: Q\(liveGame.quarter)")
+        print("   Teams: \(liveGame.teamName) vs \(liveGame.opponent)")
+
         self.currentLiveGame = liveGame
-        // Overlay will be updated on next timer tick
+
+        // Update clock interpolation tracking
+        let newClockTime = parseClockToSeconds(liveGame.currentClockDisplay)
+        if newClockTime != lastClockTime {
+            print("   ⏱️ Clock changed from \(formatSecondsToClockDisplay(lastClockTime)) to \(liveGame.currentClockDisplay)")
+            lastClockTime = newClockTime
+            lastClockUpdateTime = Date()
+            // Clock is running if it's greater than 0
+            isClockRunning = newClockTime > 0
+        }
+
+        // Immediately update overlay with new game data
+        updateOverlay()
     }
 
     // MARK: - Asset Writer Setup
@@ -275,11 +298,17 @@ class RealTimeOverlayRecorder: NSObject {
     // MARK: - Overlay Management
 
     private func startOverlayUpdates() {
-        // Update overlay 2 times per second (reduced from 4x for memory efficiency)
-        overlayUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.updateOverlay()
+        print("🎨 RealTimeOverlayRecorder: Starting overlay update timer")
+        // Update overlay 10 times per second for smooth clock countdown
+        // This creates smooth real-time clock display without noticeable jumps
+        DispatchQueue.main.async { [weak self] in
+            self?.overlayUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                self?.updateOverlay()
+            }
+            if let timer = self?.overlayUpdateTimer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
         }
-        RunLoop.current.add(overlayUpdateTimer!, forMode: .common)
 
         // Generate initial overlay
         updateOverlay()
@@ -292,10 +321,20 @@ class RealTimeOverlayRecorder: NSObject {
 
     private func updateOverlay() {
         autoreleasepool {
-            guard let game = currentLiveGame else { return }
+            guard let game = currentLiveGame else {
+                // Don't log on every call - only when it's unexpected
+                return
+            }
 
             // Generate overlay image
             let overlayImage = renderOverlayImage(for: game)
+
+            // Log clock value periodically to verify interpolation (every 10 updates = ~1 second)
+            let shouldLog = frameCount % 300 == 0  // Log every 10 seconds of video
+            if shouldLog {
+                let interpolatedClock = getInterpolatedClockDisplay()
+                print("🎨 Overlay updated: \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock) (interpolated)")
+            }
 
             // Store for frame composition
             videoQueue.async {
@@ -362,7 +401,8 @@ class RealTimeOverlayRecorder: NSObject {
         let homeTeamName = formatTeamName(game.teamName, maxLength: 4)
         let awayTeamName = formatTeamName(game.opponent, maxLength: 4)
         let periodText = formatPeriod(quarter: game.quarter, gameFormat: game.gameFormat)
-        let clockText = game.currentClockDisplay
+        // Use interpolated clock for smooth countdown
+        let clockText = getInterpolatedClockDisplay()
 
         let columnWidth: CGFloat = 50 * scaleFactor
         let centerWidth: CGFloat = 70 * scaleFactor
@@ -538,29 +578,38 @@ class RealTimeOverlayRecorder: NSObject {
 
         let rotationAngle = connection.videoRotationAngle
 
-        // Camera coordinate system is mirrored, so we need to flip horizontally
-        // Flip the X axis for all orientations
-        context.scaleBy(x: -1, y: 1)
-        context.translateBy(x: -CGFloat(outputWidth), y: 0)
+        // Log rotation angle for debugging (only log every 30 frames to avoid spam)
+        if frameCount % 30 == 0 {
+            print("📹 Video rotation angle: \(rotationAngle)° | Frame: \(frameCount) | Output: \(outputWidth)x\(outputHeight)")
+        }
 
-        // Transform based on rotation angle
+        // Apply orientation correction based on videoRotationAngle
+        // Note: videoRotationAngle tells us how much the video needs to be rotated to appear upright
+        // The camera was producing upside-down video, so we need 180° rotation for landscape
         switch rotationAngle {
-        case 90:  // Portrait - rotate 90° clockwise
+        case 90:
+            // Portrait: rotate 90° clockwise
             context.translateBy(x: CGFloat(outputWidth), y: 0)
             context.rotate(by: .pi / 2)
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
 
-        case 180: // Landscape Left - rotate 180°
+        case 180:
+            // Landscape Left: rotate 180°
             context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
             context.rotate(by: .pi)
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
 
-        case 270: // Portrait Upside Down - rotate 270° clockwise
+        case 270:
+            // Portrait Upside Down: rotate 270° clockwise (or -90°)
             context.translateBy(x: 0, y: CGFloat(outputHeight))
             context.rotate(by: -.pi / 2)
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
 
-        default:  // 0 = Landscape Right (default) - no rotation, just horizontal flip
+        default:
+            // 0 or other = Landscape Right
+            // Since video was upside-down with no rotation, apply 180° correction
+            context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
+            context.rotate(by: .pi)
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
         }
 
@@ -572,6 +621,39 @@ class RealTimeOverlayRecorder: NSObject {
         }
 
         return outputBuffer
+    }
+
+    // MARK: - Clock Interpolation
+
+    private func parseClockToSeconds(_ clockDisplay: String) -> TimeInterval {
+        // Parse "5:23" -> 323 seconds, "0:45" -> 45 seconds
+        let components = clockDisplay.split(separator: ":")
+        guard components.count == 2,
+              let minutes = Double(components[0]),
+              let seconds = Double(components[1]) else {
+            return 0
+        }
+        return (minutes * 60) + seconds
+    }
+
+    private func getInterpolatedClockDisplay() -> String {
+        guard isClockRunning, lastClockTime > 0 else {
+            return formatSecondsToClockDisplay(lastClockTime)
+        }
+
+        // Calculate how much time has elapsed since last update
+        let elapsedSinceUpdate = Date().timeIntervalSince(lastClockUpdateTime)
+
+        // Subtract elapsed time from last clock value (clock counts down)
+        let interpolatedTime = max(0, lastClockTime - elapsedSinceUpdate)
+
+        return formatSecondsToClockDisplay(interpolatedTime)
+    }
+
+    private func formatSecondsToClockDisplay(_ totalSeconds: TimeInterval) -> String {
+        let minutes = Int(totalSeconds) / 60
+        let seconds = Int(totalSeconds) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 
     // MARK: - Helper Methods

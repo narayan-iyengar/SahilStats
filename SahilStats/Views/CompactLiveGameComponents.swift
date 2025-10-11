@@ -564,6 +564,12 @@ struct LiveGameWatchView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                // Connection status indicator
+                HStack {
+                    ConnectionStatusIndicator(deviceRole: .viewer)
+                    Spacer()
+                }
+
                 // Watch-only header
                 VStack(spacing: 8) {
                     HStack {
@@ -572,12 +578,12 @@ struct LiveGameWatchView: View {
                             .frame(width: 12, height: 12)
                             .opacity(0.8)
                             .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                        
+
                         Text("WATCHING LIVE")
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(.red)
-                        
+
                         Spacer()
                     }
                     

@@ -29,13 +29,13 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             case .searching:
                 return "Searching"
             case .connecting(let name):
-                let friendlyName = getFriendlyName(for: name)
+                let friendlyName = MultipeerConnectivityManager.ConnectionState.getFriendlyName(for: name)
                 return "Connecting to \(friendlyName)"
             case .connected(let name):
-                let friendlyName = getFriendlyName(for: name)
+                let friendlyName = MultipeerConnectivityManager.ConnectionState.getFriendlyName(for: name)
                 return "Connected to \(friendlyName)"
             case .disconnected(let name):
-                let friendlyName = getFriendlyName(for: name)
+                let friendlyName = MultipeerConnectivityManager.ConnectionState.getFriendlyName(for: name)
                 return "Disconnected from \(friendlyName)"
             }
         }
@@ -340,18 +340,30 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 self.stopReconnectTimer() // Stop reconnect attempts once connected
                 self.startKeepAlive()
 
-                // Send connection notification with friendly name
-                let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
-                NotificationManager.shared.sendConnectionNotification(
-                    deviceName: friendlyName,
-                    isConnected: true
-                )
+                // Start Live Activity if not already active (for auto-connection path)
+                if !LiveActivityManager.shared.isActivityActive {
+                    let deviceRole = DeviceRoleManager.shared.deviceRole
+                    print("🏝️ Auto-connection succeeded - starting Live Activity for \(deviceRole.displayName)")
+                    LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
+                }
 
-                // Update Live Activity
+                // Update Live Activity with connection state
                 LiveActivityManager.shared.updateConnectionState(
                     status: self.connectionState,
                     connectedPeers: [peerID.displayName]
                 )
+
+                // Only send notification if Live Activity is not active
+                if !LiveActivityManager.shared.isActivityActive {
+                    let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
+                    NotificationManager.shared.sendConnectionNotification(
+                        deviceName: friendlyName,
+                        isConnected: true
+                    )
+                    print("📱 Sent connection notification (Live Activity not active)")
+                } else {
+                    print("🏝️ Skipping notification (Live Activity is active)")
+                }
             case .notConnected:
                 print("❌ MPC Disconnected from \(peerID.displayName)")
                 if self.connectedPeer == peerID {
@@ -359,18 +371,23 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     self.connectionState = .disconnected(to: peerID.displayName)
                     self.stopKeepAlive()
 
-                    // Send disconnection notification with friendly name
-                    let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
-                    NotificationManager.shared.sendConnectionNotification(
-                        deviceName: friendlyName,
-                        isConnected: false
-                    )
-
                     // Update Live Activity
                     LiveActivityManager.shared.updateConnectionState(
                         status: self.connectionState,
                         connectedPeers: []
                     )
+
+                    // Only send notification if Live Activity is not active
+                    if !LiveActivityManager.shared.isActivityActive {
+                        let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
+                        NotificationManager.shared.sendConnectionNotification(
+                            deviceName: friendlyName,
+                            isConnected: false
+                        )
+                        print("📱 Sent disconnection notification (Live Activity not active)")
+                    } else {
+                        print("🏝️ Skipping notification (Live Activity is active)")
+                    }
 
                     // Attempt automatic reconnection if enabled
                     if self.shouldAutoReconnect {

@@ -636,7 +636,7 @@ struct LiveGameControllerView: View {
     @ViewBuilder
     private func fixedGameHeader() -> some View {
         VStack(spacing: isIPad ? 6 : 4) {
-            // Done button at the top
+            // Done button and connection indicator at the top
             HStack {
                 Button(action: handleDone) {
                     HStack(spacing: 4) {
@@ -650,6 +650,9 @@ struct LiveGameControllerView: View {
                     .padding(.horizontal, 10)
                 }
                 Spacer()
+
+                // Connection status indicator
+                ConnectionStatusIndicator(deviceRole: .controller)
             }
 
             // Device Control Status
