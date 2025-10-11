@@ -50,7 +50,7 @@ class NotificationManager: NSObject, ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = deviceName
         content.body = isConnected ? "Connected" : "Disconnected"
-        content.sound = .default
+        content.sound = nil  // Silent notification - less annoying
 
         // Add icon/image if available
         // You can add an app icon or device icon here
