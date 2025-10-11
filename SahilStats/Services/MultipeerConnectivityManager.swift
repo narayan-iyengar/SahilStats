@@ -40,7 +40,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             }
         }
 
-        private func getFriendlyName(for peerDisplayName: String) -> String {
+        static func getFriendlyName(for peerDisplayName: String) -> String {
             let peerID = MCPeerID(displayName: peerDisplayName)
             if let trustedPeer = TrustedDevicesManager.shared.allTrustedPeers.first(where: { $0.id == peerDisplayName }) {
                 return trustedPeer.displayName // Uses friendlyName if set, otherwise deviceName
@@ -340,9 +340,10 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 self.stopReconnectTimer() // Stop reconnect attempts once connected
                 self.startKeepAlive()
 
-                // Send connection notification
+                // Send connection notification with friendly name
+                let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
                 NotificationManager.shared.sendConnectionNotification(
-                    deviceName: peerID.displayName,
+                    deviceName: friendlyName,
                     isConnected: true
                 )
 
@@ -358,9 +359,10 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     self.connectionState = .disconnected(to: peerID.displayName)
                     self.stopKeepAlive()
 
-                    // Send disconnection notification
+                    // Send disconnection notification with friendly name
+                    let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
                     NotificationManager.shared.sendConnectionNotification(
-                        deviceName: peerID.displayName,
+                        deviceName: friendlyName,
                         isConnected: false
                     )
 
