@@ -38,6 +38,9 @@ class RealTimeOverlayRecorder: NSObject {
     private var currentLiveGame: LiveGame?
     private var overlayUpdateCount: Int = 0
 
+    // Lock for overlay image access (ensures memory visibility across threads)
+    private let overlayLock = NSLock()
+
     // Clock interpolation for smooth countdown
     private var lastClockTime: TimeInterval = 0
     private var lastClockUpdateTime: Date = Date()
@@ -412,10 +415,14 @@ class RealTimeOverlayRecorder: NSObject {
                 }
             }
 
-            // CRITICAL FIX: Store overlay SYNCHRONOUSLY on videoQueue to ensure it's available for next frame
-            // Using async caused race condition where frames used stale overlay
-            videoQueue.sync {
-                self.currentOverlayImage = overlayImage
+            // CRITICAL FIX: Store overlay with explicit lock to ensure memory visibility
+            // This ensures the video queue can see the updated overlay image
+            overlayLock.lock()
+            self.currentOverlayImage = overlayImage
+            overlayLock.unlock()
+
+            if shouldLog {
+                print("   ✅ Overlay image stored successfully")
             }
         }
     }
@@ -765,10 +772,23 @@ class RealTimeOverlayRecorder: NSObject {
 
         context.restoreGState()
 
-        // CRITICAL FIX: Read overlay image with thread safety (we're already on videoQueue)
-        // Access currentOverlayImage directly since we're already on videoQueue
-        // (composeFrame is called from handleVideoFrame which runs on videoQueue)
-        if let overlayImage = currentOverlayImage, let cgImage = overlayImage.cgImage {
+        // CRITICAL FIX: Read overlay image with explicit lock to ensure memory visibility
+        // Even though we're on videoQueue, we need proper synchronization to see updates from main thread
+        overlayLock.lock()
+        let overlayImage = currentOverlayImage
+        overlayLock.unlock()
+
+        // Log overlay read for debugging
+        if frameCount % 30 == 0 {
+            print("🔒 Frame \(frameCount): Read overlay image with lock - \(overlayImage != nil ? "GOT IMAGE" : "NIL")")
+            if let img = overlayImage {
+                print("   Overlay dimensions: \(img.size.width)x\(img.size.height)")
+                let pointer = Unmanaged.passUnretained(img).toOpaque()
+                print("   UIImage pointer: \(String(describing: pointer))")
+            }
+        }
+
+        if let overlayImage = overlayImage, let cgImage = overlayImage.cgImage {
             let overlayRect = CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer))
 
             // Set blend mode to normal with alpha compositing (ensures overlay appears on top)
