@@ -559,7 +559,20 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
     /// Update game data during real-time recording (for overlay updates)
     func updateGameData(_ liveGame: LiveGame) {
-        realtimeRecorder?.updateGame(liveGame)
+        // CRITICAL: Log EVERY call to track if updates are flowing through
+        print("🔄 VideoRecordingManager.updateGameData() called:")
+        print("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
+        print("   Clock: \(liveGame.currentClockDisplay)")
+        print("   Period: Q\(liveGame.quarter)")
+        print("   realtimeRecorder exists: \(realtimeRecorder != nil)")
+
+        guard let recorder = realtimeRecorder else {
+            print("   ❌ ERROR: realtimeRecorder is NIL - cannot update overlay!")
+            return
+        }
+
+        recorder.updateGame(liveGame)
+        print("   ✅ Game data forwarded to RealTimeOverlayRecorder")
     }
 
     func stopRecording() async {

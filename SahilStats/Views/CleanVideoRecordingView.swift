@@ -45,13 +45,6 @@ struct CleanVideoRecordingView: View {
                     isRecording: recordingManager.isRecording
                 )
 
-                // Connection status indicator at top
-                VStack {
-                    ConnectionStatusIndicator(deviceRole: .recorder)
-                        .padding(.top, orientationManager.isLandscape ? 50 : 20)
-                    Spacer()
-                }
-
                 if orientationManager.isLandscape {
                     landscapeControls
                 } else {
@@ -417,15 +410,19 @@ struct CleanVideoRecordingView: View {
     }
     
     private func updateOverlayData() {
+        // CRITICAL: Log EVERY call to verify timer is running
+        static var callCount = 0
+        callCount += 1
+
         guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else {
-            print("⚠️ CleanVideoRecordingView: getCurrentLiveGame() returned nil!")
+            print("⚠️ CleanVideoRecordingView: getCurrentLiveGame() returned nil! (call #\(callCount))")
             return
         }
 
-        // Log game state every 5 seconds to track updates
-        let shouldLog = Int(Date().timeIntervalSince1970) % 5 == 0
+        // Log every 5 seconds for normal monitoring (not too verbose)
+        let shouldLog = callCount % 5 == 0
         if shouldLog {
-            print("🎮 CleanVideoRecordingView: Game data from Firebase:")
+            print("🎮 CleanVideoRecordingView.updateOverlayData() - call #\(callCount)")
             print("   Score: \(currentGame.homeScore)-\(currentGame.awayScore)")
             print("   Clock: \(currentGame.currentClockDisplay)")
             print("   Period: Q\(currentGame.quarter)")
@@ -445,6 +442,8 @@ struct CleanVideoRecordingView: View {
 
             // Fallback: Also update score timeline for post-processing mode
             ScoreTimelineTracker.shared.updateScore(game: currentGame)
+        } else if callCount % 5 == 0 {
+            print("   ⚠️ Not recording - skipping game data update")
         }
     }
     
