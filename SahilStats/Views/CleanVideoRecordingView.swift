@@ -409,10 +409,13 @@ struct CleanVideoRecordingView: View {
         updateTimer = nil
     }
     
+    // Track update calls for logging (at type level)
+    private static var updateCallCount = 0
+
     private func updateOverlayData() {
         // CRITICAL: Log EVERY call to verify timer is running
-        static var callCount = 0
-        callCount += 1
+        CleanVideoRecordingView.updateCallCount += 1
+        let callCount = CleanVideoRecordingView.updateCallCount
 
         guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else {
             print("⚠️ CleanVideoRecordingView: getCurrentLiveGame() returned nil! (call #\(callCount))")
