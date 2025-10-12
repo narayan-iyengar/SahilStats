@@ -281,16 +281,17 @@ class VideoRecordingManager: NSObject, ObservableObject {
         do {
             let session = AVCaptureSession()
             
-            // Use 1080p for real-time recording (falls back to 720p if needed)
-            if session.canSetSessionPreset(.hd1920x1080) {
-                session.sessionPreset = .hd1920x1080
-                print("📹 Using 1080p quality preset")
-            } else if session.canSetSessionPreset(.hd1280x720) {
+            // Use 720p for real-time recording to reduce CPU load and improve stability
+            // 1080p is too heavy for simultaneous encoding + overlay + network
+            if session.canSetSessionPreset(.hd1280x720) {
                 session.sessionPreset = .hd1280x720
-                print("📹 Using 720p quality preset (fallback)")
+                print("📹 Using 720p quality preset for optimal stability")
             } else if session.canSetSessionPreset(.high) {
                 session.sessionPreset = .high
-                print("⚠️ Falling back to high quality preset")
+                print("📹 Using high quality preset (fallback)")
+            } else {
+                session.sessionPreset = .medium
+                print("⚠️ Using medium quality preset (low-end device)")
             }
             
             // IMPROVED: Try multiple camera fallbacks
