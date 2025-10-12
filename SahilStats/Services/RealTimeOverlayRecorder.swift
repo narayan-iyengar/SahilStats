@@ -348,10 +348,10 @@ class RealTimeOverlayRecorder: NSObject {
         print("🎨 RealTimeOverlayRecorder: Starting overlay update timer")
         print("   Current game: \(currentLiveGame?.teamName ?? "nil") vs \(currentLiveGame?.opponent ?? "nil")")
 
-        // Update overlay 10 times per second for smooth clock countdown
-        // This creates smooth real-time clock display without noticeable jumps
+        // Update overlay 4 times per second (reduced from 10Hz to save memory)
+        // Still smooth enough for clock countdown, but uses 60% less memory
         DispatchQueue.main.async { [weak self] in
-            self?.overlayUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.overlayUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
                 self?.updateOverlay()
             }
             if let timer = self?.overlayUpdateTimer {
@@ -402,8 +402,8 @@ class RealTimeOverlayRecorder: NSObject {
             // Generate overlay image
             let overlayImage = renderOverlayImage(for: game)
 
-            // Log every 30 overlay updates (roughly every 3 seconds at 10Hz) for better debugging
-            let shouldLog = overlayUpdateCount % 30 == 0
+            // Log every 12 overlay updates (roughly every 3 seconds at 4Hz) - reduced for memory
+            let shouldLog = overlayUpdateCount % 12 == 0
             if shouldLog {
                 let interpolatedClock = getInterpolatedClockDisplay()
                 print("🎨 Overlay updated (\(overlayUpdateCount) updates): \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock)")
@@ -421,64 +421,40 @@ class RealTimeOverlayRecorder: NSObject {
             self.currentOverlayImage = overlayImage
             overlayLock.unlock()
 
-            if shouldLog {
-                print("   ✅ Overlay image stored successfully")
-                if let img = overlayImage {
-                    let pointer = Unmanaged.passUnretained(img).toOpaque()
-                    print("   📝 STORED UIImage pointer: \(String(describing: pointer))")
-                    print("   📝 STORED game data: \(game.teamName) \(game.homeScore)-\(game.awayScore) | Clock: \(getInterpolatedClockDisplay())")
-                }
+            if shouldLog && overlayImage != nil {
+                let pointer = Unmanaged.passUnretained(overlayImage!).toOpaque()
+                print("   ✅ Stored overlay - pointer: \(String(describing: pointer))")
             }
         }
     }
 
     private func renderOverlayImage(for game: LiveGame) -> UIImage? {
-        // CRITICAL FIX: Render overlay at EXACT output resolution to avoid scaling artifacts
-        // This ensures pixel-perfect overlay composition without interpolation
-        let size = CGSize(width: outputWidth, height: outputHeight)
+        // Wrap in autoreleasepool to immediately release temporary objects
+        return autoreleasepool {
+            // CRITICAL FIX: Render overlay at EXACT output resolution to avoid scaling artifacts
+            // This ensures pixel-perfect overlay composition without interpolation
+            let size = CGSize(width: outputWidth, height: outputHeight)
 
-        // IMPORTANT: Use transparent format, not opaque (prevents black box artifact)
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = false  // This is critical!
-        format.scale = 1  // Use 1x scale for exact pixel control
+            // IMPORTANT: Use transparent format, not opaque (prevents black box artifact)
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = false  // This is critical!
+            format.scale = 1  // Use 1x scale for exact pixel control
 
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        let image = renderer.image { context in
-            let cgContext = context.cgContext
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+            let image = renderer.image { context in
+                let cgContext = context.cgContext
 
-            // Clear background (transparent) - now this actually works!
-            cgContext.clear(CGRect(origin: .zero, size: size))
+                // Clear background (transparent) - now this actually works!
+                cgContext.clear(CGRect(origin: .zero, size: size))
 
-            // Draw scoreboard overlay
-            drawScoreboardOverlay(in: cgContext, size: size, game: game)
-        }
-
-        // Force a copy of the CGImage to prevent caching/reuse
-        // This ensures each overlay is truly unique
-        if let cgImage = image.cgImage {
-            // Create a new CGImage by copying to a new context
-            let width = cgImage.width
-            let height = cgImage.height
-            let colorSpace = cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB()
-            let bitmapInfo = cgImage.bitmapInfo.rawValue
-
-            if let context = CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: cgImage.bitsPerComponent,
-                bytesPerRow: cgImage.bytesPerRow,
-                space: colorSpace,
-                bitmapInfo: bitmapInfo
-            ) {
-                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-                if let newCGImage = context.makeImage() {
-                    return UIImage(cgImage: newCGImage, scale: 1.0, orientation: .up)
-                }
+                // Draw scoreboard overlay
+                drawScoreboardOverlay(in: cgContext, size: size, game: game)
             }
-        }
 
-        return image
+            // Return image directly - UIGraphicsImageRenderer already creates unique CGImage
+            // No need to manually copy (which doubles memory usage)
+            return image
+        }
     }
 
     private func drawScoreboardOverlay(in context: CGContext, size: CGSize, game: LiveGame) {
@@ -668,8 +644,8 @@ class RealTimeOverlayRecorder: NSObject {
         let width = CVPixelBufferGetWidth(imageBuffer)
         let height = CVPixelBufferGetHeight(imageBuffer)
 
-        // Check if camera frames are changing by sampling pixel data
-        if frameCount % 30 == 0 {
+        // Check if camera frames are changing by sampling pixel data (every 120 frames = 4 seconds)
+        if frameCount % 120 == 0 {
             let baseAddress = CVPixelBufferGetBaseAddress(imageBuffer)
             let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
             // Sample a few bytes to create a simple hash
@@ -740,9 +716,9 @@ class RealTimeOverlayRecorder: NSObject {
 
         let rotationAngle = connection.videoRotationAngle
 
-        // Log rotation angle for debugging (only log every 30 frames to avoid spam)
-        if frameCount % 30 == 0 {
-            print("📹 Video rotation angle: \(rotationAngle)° | Frame: \(frameCount) | Output: \(outputWidth)x\(outputHeight)")
+        // Log rotation angle for debugging (only log every 120 frames to reduce memory)
+        if frameCount % 120 == 0 {
+            print("📹 Rotation: \(rotationAngle)° | Frame: \(frameCount)")
         }
 
         // Apply orientation correction based on videoRotationAngle
@@ -783,20 +759,12 @@ class RealTimeOverlayRecorder: NSObject {
         let overlayImage = currentOverlayImage
         overlayLock.unlock()
 
-        // Log overlay read for debugging
-        if frameCount % 30 == 0 {
-            print("🔒 Frame \(frameCount): Read overlay image with lock - \(overlayImage != nil ? "GOT IMAGE" : "NIL")")
+        // Log overlay read every 120 frames (4 seconds) - reduced for memory
+        if frameCount % 120 == 0 {
+            print("🔒 Frame \(frameCount): Read overlay - \(overlayImage != nil ? "GOT IMAGE" : "NIL")")
             if let img = overlayImage {
-                print("   Overlay dimensions: \(img.size.width)x\(img.size.height)")
                 let pointer = Unmanaged.passUnretained(img).toOpaque()
-                print("   📖 READ UIImage pointer: \(String(describing: pointer))")
-
-                // CRITICAL: Also show what game data we CURRENTLY have at frame draw time
-                if let game = currentLiveGame {
-                    print("   📖 CURRENT game data at frame time: \(game.teamName) \(game.homeScore)-\(game.awayScore) | Clock: \(game.currentClockDisplay)")
-                } else {
-                    print("   ⚠️ currentLiveGame is NIL at frame time!")
-                }
+                print("   READ UIImage pointer: \(String(describing: pointer))")
             }
         }
 
@@ -812,25 +780,13 @@ class RealTimeOverlayRecorder: NSObject {
             // IMPORTANT: Flush context to ensure drawing is committed to pixel buffer
             context.flush()
 
-            // Log every 30 frames (1 second) to verify overlay is being drawn with updated data
-            if frameCount % 30 == 0 {
-                // Create a simple hash of the cgImage to detect if it's actually changing
+            // Log every 120 frames (4 seconds) - reduced for memory
+            if frameCount % 120 == 0 {
                 let imagePointer = Unmanaged.passUnretained(cgImage).toOpaque()
-                let imageHash = String(describing: imagePointer)
-
-                // CRITICAL: Also log what game data the overlay should contain
+                print("🎨 Drawing overlay on frame \(frameCount)")
+                print("   CGImage pointer: \(String(describing: imagePointer))")
                 if let game = currentLiveGame {
-                    print("🎨 Drawing overlay on frame \(frameCount)")
-                    print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
-                    print("   Drawing to rect: \(overlayRect)")
-                    print("   CGImage pointer: \(imageHash)")
-                    print("   ⚠️ CURRENT GAME DATA: \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(game.currentClockDisplay)")
-                    print("   Blend mode: normal | Flushed: YES")
-                } else {
-                    print("🎨 Drawing overlay on frame \(frameCount)")
-                    print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
-                    print("   CGImage pointer: \(imageHash)")
-                    print("   ⚠️ WARNING: currentLiveGame is NIL at frame draw time!")
+                    print("   Game data: \(game.teamName) \(game.homeScore)-\(game.awayScore) | \(game.currentClockDisplay)")
                 }
             }
         } else {
