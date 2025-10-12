@@ -402,8 +402,8 @@ class RealTimeOverlayRecorder: NSObject {
             // Generate overlay image
             let overlayImage = renderOverlayImage(for: game)
 
-            // Log every 100 overlay updates (roughly every 10 seconds at 10Hz)
-            let shouldLog = overlayUpdateCount % 100 == 0
+            // Log every 30 overlay updates (roughly every 3 seconds at 10Hz) for better debugging
+            let shouldLog = overlayUpdateCount % 30 == 0
             if shouldLog {
                 let interpolatedClock = getInterpolatedClockDisplay()
                 print("🎨 Overlay updated (\(overlayUpdateCount) updates): \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock)")
@@ -423,6 +423,11 @@ class RealTimeOverlayRecorder: NSObject {
 
             if shouldLog {
                 print("   ✅ Overlay image stored successfully")
+                if let img = overlayImage {
+                    let pointer = Unmanaged.passUnretained(img).toOpaque()
+                    print("   📝 STORED UIImage pointer: \(String(describing: pointer))")
+                    print("   📝 STORED game data: \(game.teamName) \(game.homeScore)-\(game.awayScore) | Clock: \(getInterpolatedClockDisplay())")
+                }
             }
         }
     }
@@ -784,7 +789,14 @@ class RealTimeOverlayRecorder: NSObject {
             if let img = overlayImage {
                 print("   Overlay dimensions: \(img.size.width)x\(img.size.height)")
                 let pointer = Unmanaged.passUnretained(img).toOpaque()
-                print("   UIImage pointer: \(String(describing: pointer))")
+                print("   📖 READ UIImage pointer: \(String(describing: pointer))")
+
+                // CRITICAL: Also show what game data we CURRENTLY have at frame draw time
+                if let game = currentLiveGame {
+                    print("   📖 CURRENT game data at frame time: \(game.teamName) \(game.homeScore)-\(game.awayScore) | Clock: \(game.currentClockDisplay)")
+                } else {
+                    print("   ⚠️ currentLiveGame is NIL at frame time!")
+                }
             }
         }
 
