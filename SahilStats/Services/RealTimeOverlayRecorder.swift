@@ -423,9 +423,6 @@ class RealTimeOverlayRecorder: NSObject {
         format.opaque = false  // This is critical!
         format.scale = 1  // Use 1x scale for exact pixel control
 
-        // CRITICAL: Disable any caching to ensure fresh image every time
-        format.prefersExtendedRange = false
-
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { context in
             let cgContext = context.cgContext
@@ -439,9 +436,26 @@ class RealTimeOverlayRecorder: NSObject {
 
         // Force a copy of the CGImage to prevent caching/reuse
         // This ensures each overlay is truly unique
-        if let cgImage = image.cgImage, let colorSpace = cgImage.colorSpace {
-            if let newCGImage = cgImage.copy() {
-                return UIImage(cgImage: newCGImage, scale: 1.0, orientation: .up)
+        if let cgImage = image.cgImage {
+            // Create a new CGImage by copying to a new context
+            let width = cgImage.width
+            let height = cgImage.height
+            let colorSpace = cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo = cgImage.bitmapInfo.rawValue
+
+            if let context = CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: cgImage.bitsPerComponent,
+                bytesPerRow: cgImage.bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            ) {
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+                if let newCGImage = context.makeImage() {
+                    return UIImage(cgImage: newCGImage, scale: 1.0, orientation: .up)
+                }
             }
         }
 
