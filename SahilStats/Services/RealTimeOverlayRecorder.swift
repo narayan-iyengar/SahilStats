@@ -376,13 +376,20 @@ class RealTimeOverlayRecorder: NSObject {
         autoreleasepool {
             overlayUpdateCount += 1
 
+            // CRITICAL FIX: Read currentLiveGame with proper synchronization!
+            // Even though we're on main thread, we must use videoQueue.sync to read
+            // the value that was written with videoQueue.sync
+            let game: LiveGame? = videoQueue.sync {
+                return self.currentLiveGame
+            }
+
             // ALWAYS log every 100 calls to verify timer is firing
             if overlayUpdateCount % 100 == 0 {
                 print("⏱️ updateOverlay() called \(overlayUpdateCount) times")
-                print("   currentLiveGame: \(currentLiveGame != nil ? "EXISTS" : "NIL!")")
+                print("   currentLiveGame: \(game != nil ? "EXISTS" : "NIL!")")
             }
 
-            guard let game = currentLiveGame else {
+            guard let game = game else {
                 if overlayUpdateCount % 100 == 0 {
                     print("❌ ERROR: currentLiveGame is NIL - overlay cannot be rendered!")
                 }
@@ -778,11 +785,21 @@ class RealTimeOverlayRecorder: NSObject {
                 // Create a simple hash of the cgImage to detect if it's actually changing
                 let imagePointer = Unmanaged.passUnretained(cgImage).toOpaque()
                 let imageHash = String(describing: imagePointer)
-                print("🎨 Drawing overlay on frame \(frameCount)")
-                print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
-                print("   Drawing to rect: \(overlayRect)")
-                print("   CGImage pointer: \(imageHash)")
-                print("   Blend mode: normal | Flushed: YES")
+
+                // CRITICAL: Also log what game data the overlay should contain
+                if let game = currentLiveGame {
+                    print("🎨 Drawing overlay on frame \(frameCount)")
+                    print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
+                    print("   Drawing to rect: \(overlayRect)")
+                    print("   CGImage pointer: \(imageHash)")
+                    print("   ⚠️ CURRENT GAME DATA: \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(game.currentClockDisplay)")
+                    print("   Blend mode: normal | Flushed: YES")
+                } else {
+                    print("🎨 Drawing overlay on frame \(frameCount)")
+                    print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
+                    print("   CGImage pointer: \(imageHash)")
+                    print("   ⚠️ WARNING: currentLiveGame is NIL at frame draw time!")
+                }
             }
         } else {
             // Log if overlay is missing
