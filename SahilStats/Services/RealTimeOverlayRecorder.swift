@@ -776,7 +776,8 @@ class RealTimeOverlayRecorder: NSObject {
             // Log every 30 frames (1 second) to verify overlay is being drawn with updated data
             if frameCount % 30 == 0 {
                 // Create a simple hash of the cgImage to detect if it's actually changing
-                let imageHash = String(format: "%p", cgImage)
+                let imagePointer = Unmanaged.passUnretained(cgImage).toOpaque()
+                let imageHash = String(format: "%p", imagePointer)
                 print("🎨 Drawing overlay on frame \(frameCount)")
                 print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
                 print("   Drawing to rect: \(overlayRect)")
