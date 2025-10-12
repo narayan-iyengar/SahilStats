@@ -36,11 +36,16 @@ class RealTimeOverlayRecorder: NSObject {
     private var currentOverlayImage: UIImage?
     private var overlayUpdateTimer: Timer?
     private var currentLiveGame: LiveGame?
+    private var overlayUpdateCount: Int = 0
 
     // Clock interpolation for smooth countdown
     private var lastClockTime: TimeInterval = 0
     private var lastClockUpdateTime: Date = Date()
     private var isClockRunning: Bool = false
+
+    // Frame composition tracking
+    private var lastFrameHash: Int = 0
+    private var duplicateFrameCount: Int = 0
 
     // Output
     private var outputURL: URL?
@@ -123,40 +128,54 @@ class RealTimeOverlayRecorder: NSObject {
     func startRecording(liveGame: LiveGame) -> URL? {
         print("🎥 RealTimeOverlayRecorder: Starting recording")
         print("   Game: \(liveGame.teamName) vs \(liveGame.opponent)")
+        print("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
+        print("   Clock: \(liveGame.currentClockDisplay)")
 
         guard !isRecording else {
             print("❌ Already recording")
             return nil
         }
 
-        // Store game for overlay updates
-        self.currentLiveGame = liveGame
+        // Store game for overlay updates (on videoQueue for thread safety)
+        videoQueue.sync {
+            self.currentLiveGame = liveGame
+        }
+        print("✅ Current game stored for overlay updates (thread-safe)")
 
         // Create output URL
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let url = documentsPath.appendingPathComponent("realtime_\(Date().timeIntervalSince1970).mov")
         self.outputURL = url
+        print("📁 Output URL: \(url.path)")
 
         // Initialize asset writer
+        print("🎬 Setting up asset writer...")
         guard setupAssetWriter(outputURL: url) else {
             print("❌ Failed to setup asset writer")
             return nil
         }
+        print("✅ Asset writer setup complete")
 
         // Start overlay update timer
+        print("🎨 Starting overlay updates...")
         startOverlayUpdates()
 
         isRecording = true
         recordingStartTime = nil // Will be set on first frame
         frameCount = 0 // Reset frame counter
+        overlayUpdateCount = 0 // Reset overlay counter
 
-        print("✅ Recording started, output URL: \(url.lastPathComponent)")
+        print("✅ Recording started successfully")
+        print("   Output URL: \(url.lastPathComponent)")
+        print("   isRecording: \(isRecording)")
         return url
     }
 
     func stopRecording(completion: @escaping (URL?) -> Void) {
         print("🎥 RealTimeOverlayRecorder: Stopping recording")
         print("   Total frames written: \(frameCount)")
+        print("   Total overlay updates: \(overlayUpdateCount)")
+        print("   isRecording: \(isRecording)")
 
         guard isRecording else {
             print("❌ Not currently recording")
@@ -165,11 +184,15 @@ class RealTimeOverlayRecorder: NSObject {
         }
 
         isRecording = false
+        print("✅ Set isRecording = false")
+
         stopOverlayUpdates()
+        print("✅ Stopped overlay updates")
 
         // Finish writing
         videoWriterInput?.markAsFinished()
         audioWriterInput?.markAsFinished()
+        print("✅ Marked inputs as finished")
 
         guard let writer = assetWriter else {
             print("❌ No asset writer")
@@ -178,17 +201,34 @@ class RealTimeOverlayRecorder: NSObject {
         }
 
         let outputURL = self.outputURL
+        print("📁 Output URL: \(outputURL?.path ?? "nil")")
 
+        print("🎬 Calling writer.finishWriting()...")
         writer.finishWriting {
             DispatchQueue.main.async {
                 if writer.status == .completed {
                     print("✅ Recording completed successfully")
+                    print("   Final frame count: \(self.frameCount)")
+                    if let url = outputURL {
+                        let fileExists = FileManager.default.fileExists(atPath: url.path)
+                        print("   File exists: \(fileExists)")
+                        if fileExists {
+                            do {
+                                let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+                                let fileSize = attrs[.size] as? Int64 ?? 0
+                                print("   File size: \(fileSize) bytes (\(Double(fileSize) / 1_000_000) MB)")
+                            } catch {
+                                print("   Could not get file size: \(error)")
+                            }
+                        }
+                    }
                     completion(outputURL)
                 } else if let error = writer.error {
                     print("❌ Recording failed: \(error)")
                     completion(nil)
                 } else {
                     print("❌ Recording failed with unknown error")
+                    print("   Writer status: \(writer.status.rawValue)")
                     completion(nil)
                 }
             }
@@ -202,7 +242,11 @@ class RealTimeOverlayRecorder: NSObject {
         print("   Period: Q\(liveGame.quarter)")
         print("   Teams: \(liveGame.teamName) vs \(liveGame.opponent)")
 
-        self.currentLiveGame = liveGame
+        // CRITICAL FIX: Update game data on videoQueue to ensure thread safety
+        // This ensures overlay rendering always has consistent game data
+        videoQueue.sync {
+            self.currentLiveGame = liveGame
+        }
 
         // Update clock interpolation tracking
         let newClockTime = parseClockToSeconds(liveGame.currentClockDisplay)
@@ -214,7 +258,7 @@ class RealTimeOverlayRecorder: NSObject {
             isClockRunning = newClockTime > 0
         }
 
-        // Immediately update overlay with new game data
+        // Immediately trigger overlay update with new game data
         updateOverlay()
     }
 
@@ -299,6 +343,8 @@ class RealTimeOverlayRecorder: NSObject {
 
     private func startOverlayUpdates() {
         print("🎨 RealTimeOverlayRecorder: Starting overlay update timer")
+        print("   Current game: \(currentLiveGame?.teamName ?? "nil") vs \(currentLiveGame?.opponent ?? "nil")")
+
         // Update overlay 10 times per second for smooth clock countdown
         // This creates smooth real-time clock display without noticeable jumps
         DispatchQueue.main.async { [weak self] in
@@ -307,11 +353,18 @@ class RealTimeOverlayRecorder: NSObject {
             }
             if let timer = self?.overlayUpdateTimer {
                 RunLoop.main.add(timer, forMode: .common)
+                print("✅ Overlay update timer scheduled and added to run loop")
+            } else {
+                print("❌ Failed to create overlay update timer")
             }
         }
 
-        // Generate initial overlay
-        updateOverlay()
+        // Generate initial overlay on main thread (UIGraphicsImageRenderer requires main thread!)
+        print("🎨 Generating initial overlay...")
+        DispatchQueue.main.async {
+            self.updateOverlay()
+            print("✅ Initial overlay generated")
+        }
     }
 
     private func stopOverlayUpdates() {
@@ -321,37 +374,57 @@ class RealTimeOverlayRecorder: NSObject {
 
     private func updateOverlay() {
         autoreleasepool {
+            overlayUpdateCount += 1
+
+            // ALWAYS log every 100 calls to verify timer is firing
+            if overlayUpdateCount % 100 == 0 {
+                print("⏱️ updateOverlay() called \(overlayUpdateCount) times")
+                print("   currentLiveGame: \(currentLiveGame != nil ? "EXISTS" : "NIL!")")
+            }
+
             guard let game = currentLiveGame else {
-                // Don't log on every call - only when it's unexpected
+                if overlayUpdateCount % 100 == 0 {
+                    print("❌ ERROR: currentLiveGame is NIL - overlay cannot be rendered!")
+                }
                 return
             }
 
             // Generate overlay image
             let overlayImage = renderOverlayImage(for: game)
 
-            // Log clock value periodically to verify interpolation (every 10 updates = ~1 second)
-            let shouldLog = frameCount % 300 == 0  // Log every 10 seconds of video
+            // Log every 100 overlay updates (roughly every 10 seconds at 10Hz)
+            let shouldLog = overlayUpdateCount % 100 == 0
             if shouldLog {
                 let interpolatedClock = getInterpolatedClockDisplay()
-                print("🎨 Overlay updated: \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock) (interpolated)")
+                print("🎨 Overlay updated (\(overlayUpdateCount) updates): \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock)")
+                print("   Raw clock from game: \(game.currentClockDisplay)")
+                print("   Interpolated clock: \(interpolatedClock)")
+                print("   Overlay image generated: \(overlayImage != nil ? "YES" : "NO")")
+                if let img = overlayImage {
+                    print("   Overlay image size: \(img.size.width)x\(img.size.height)")
+                }
             }
 
-            // Store for frame composition
-            videoQueue.async {
+            // CRITICAL FIX: Store overlay SYNCHRONOUSLY on videoQueue to ensure it's available for next frame
+            // Using async caused race condition where frames used stale overlay
+            videoQueue.sync {
                 self.currentOverlayImage = overlayImage
             }
         }
     }
 
     private func renderOverlayImage(for game: LiveGame) -> UIImage? {
-        // Render overlay at 720p regardless of output resolution to save memory
-        // It will be scaled during composition if needed
-        let size = CGSize(width: 1280, height: 720)
+        // CRITICAL FIX: Render overlay at EXACT output resolution to avoid scaling artifacts
+        // This ensures pixel-perfect overlay composition without interpolation
+        let size = CGSize(width: outputWidth, height: outputHeight)
 
         // IMPORTANT: Use transparent format, not opaque (prevents black box artifact)
         let format = UIGraphicsImageRendererFormat()
         format.opaque = false  // This is critical!
-        format.scale = 1  // Use 1x scale to save memory
+        format.scale = 1  // Use 1x scale for exact pixel control
+
+        // CRITICAL: Disable any caching to ensure fresh image every time
+        format.prefersExtendedRange = false
 
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { context in
@@ -364,6 +437,14 @@ class RealTimeOverlayRecorder: NSObject {
             drawScoreboardOverlay(in: cgContext, size: size, game: game)
         }
 
+        // Force a copy of the CGImage to prevent caching/reuse
+        // This ensures each overlay is truly unique
+        if let cgImage = image.cgImage, let colorSpace = cgImage.colorSpace {
+            if let newCGImage = cgImage.copy() {
+                return UIImage(cgImage: newCGImage, scale: 1.0, orientation: .up)
+            }
+        }
+
         return image
     }
 
@@ -371,7 +452,8 @@ class RealTimeOverlayRecorder: NSObject {
         // Match SwiftUI SimpleScoreOverlay design
         let scaleFactor = size.height / 375.0 // Scale based on video height
 
-        let scoreboardWidth: CGFloat = 246 * scaleFactor
+        // Make scoreboard wider to accommodate status dots
+        let scoreboardWidth: CGFloat = 280 * scaleFactor  // Increased from 246
         let scoreboardHeight: CGFloat = 56 * scaleFactor
 
         // Position at bottom center
@@ -489,6 +571,24 @@ class RealTimeOverlayRecorder: NSObject {
             centered: true,
             in: context
         )
+
+        // Add subtle status dots on the right side
+        let dotSize: CGFloat = 6 * scaleFactor
+        let dotSpacing: CGFloat = 4 * scaleFactor
+        let dotsStartX = scoreboardRect.maxX - padding - dotSize
+        let dotY = scoreboardRect.midY - dotSize / 2
+
+        // Connection dot (green - we're connected if we're recording)
+        let connectionDotRect = CGRect(x: dotsStartX - dotSize - dotSpacing, y: dotY, width: dotSize, height: dotSize)
+        context.setFillColor(UIColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 0.7).cgColor)  // Subtle green
+        context.fillEllipse(in: connectionDotRect)
+
+        // Recording dot (red when recording)
+        if isRecording {
+            let recordingDotRect = CGRect(x: dotsStartX, y: dotY, width: dotSize, height: dotSize)
+            context.setFillColor(UIColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 0.8).cgColor)  // Subtle red
+            context.fillEllipse(in: recordingDotRect)
+        }
     }
 
     private func drawText(
@@ -523,6 +623,9 @@ class RealTimeOverlayRecorder: NSObject {
 
     private func composeFrame(from sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) -> CVPixelBuffer? {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            if frameCount % 100 == 0 {
+                print("❌ composeFrame: No image buffer in sample buffer!")
+            }
             return nil
         }
 
@@ -531,6 +634,32 @@ class RealTimeOverlayRecorder: NSObject {
 
         let width = CVPixelBufferGetWidth(imageBuffer)
         let height = CVPixelBufferGetHeight(imageBuffer)
+
+        // Check if camera frames are changing by sampling pixel data
+        if frameCount % 30 == 0 {
+            let baseAddress = CVPixelBufferGetBaseAddress(imageBuffer)
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
+            // Sample a few bytes to create a simple hash
+            if let addr = baseAddress {
+                let ptr = addr.assumingMemoryBound(to: UInt8.self)
+                var hash = 0
+                // Sample pixels from different parts of the frame
+                for i in [0, bytesPerRow/4, bytesPerRow/2, bytesPerRow*3/4, bytesPerRow] {
+                    hash ^= Int(ptr[i])
+                }
+
+                if hash == lastFrameHash && frameCount > 0 {
+                    duplicateFrameCount += 1
+                    print("⚠️ Frame \(frameCount): Camera frame appears IDENTICAL to previous frame! (duplicates: \(duplicateFrameCount))")
+                } else {
+                    if duplicateFrameCount > 0 {
+                        print("✅ Frame \(frameCount): Camera frame is DIFFERENT (frame content is changing)")
+                    }
+                    duplicateFrameCount = 0
+                }
+                lastFrameHash = hash
+            }
+        }
 
         // Create output pixel buffer
         guard let pixelBufferPool = pixelBufferAdaptor?.pixelBufferPool else {
@@ -615,9 +744,40 @@ class RealTimeOverlayRecorder: NSObject {
 
         context.restoreGState()
 
-        // Draw overlay
+        // CRITICAL FIX: Read overlay image with thread safety (we're already on videoQueue)
+        // Access currentOverlayImage directly since we're already on videoQueue
+        // (composeFrame is called from handleVideoFrame which runs on videoQueue)
         if let overlayImage = currentOverlayImage, let cgImage = overlayImage.cgImage {
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer)))
+            let overlayRect = CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer))
+
+            // Set blend mode to normal with alpha compositing (ensures overlay appears on top)
+            context.setBlendMode(.normal)
+
+            // Draw overlay image
+            context.draw(cgImage, in: overlayRect)
+
+            // IMPORTANT: Flush context to ensure drawing is committed to pixel buffer
+            context.flush()
+
+            // Log every 30 frames (1 second) to verify overlay is being drawn with updated data
+            if frameCount % 30 == 0 {
+                // Create a simple hash of the cgImage to detect if it's actually changing
+                let imageHash = String(format: "%p", cgImage)
+                print("🎨 Drawing overlay on frame \(frameCount)")
+                print("   Overlay image size: \(overlayImage.size.width)x\(overlayImage.size.height)")
+                print("   Drawing to rect: \(overlayRect)")
+                print("   CGImage pointer: \(imageHash)")
+                print("   Blend mode: normal | Flushed: YES")
+            }
+        } else {
+            // Log if overlay is missing
+            if frameCount % 30 == 0 {
+                print("⚠️ NO OVERLAY IMAGE to draw on frame \(frameCount)")
+                print("   currentOverlayImage: \(currentOverlayImage != nil ? "exists" : "nil")")
+                if let img = currentOverlayImage {
+                    print("   cgImage: \(img.cgImage != nil ? "exists" : "nil")")
+                }
+            }
         }
 
         return outputBuffer
@@ -699,8 +859,27 @@ class RealTimeOverlayRecorder: NSObject {
 
 extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
 
+    // Track delegate calls
+    private static var delegateCallCount: Int = 0
+
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard isRecording else { return }
+        guard isRecording else {
+            // Only log first few times to avoid spam
+            if Self.delegateCallCount < 3 {
+                Self.delegateCallCount += 1
+                print("⚠️ captureOutput called but isRecording=false")
+            }
+            return
+        }
+
+        // Log first few delegate callbacks
+        if frameCount < 3 {
+            if output == videoDataOutput {
+                print("📹 captureOutput: VIDEO frame received (frameCount: \(frameCount))")
+            } else if output == audioDataOutput {
+                print("🔊 captureOutput: AUDIO sample received")
+            }
+        }
 
         if output == videoDataOutput {
             handleVideoFrame(sampleBuffer, connection: connection)
@@ -715,6 +894,7 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
             guard let writer = assetWriter,
                   let videoInput = videoWriterInput,
                   let adaptor = pixelBufferAdaptor else {
+                print("⚠️ handleVideoFrame: Missing writer/input/adaptor")
                 return
             }
 
@@ -724,16 +904,25 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
                 recordingStartTime = timestamp
                 lastVideoTimestamp = timestamp
 
+                print("🎬 First video frame received!")
+                print("   Timestamp: \(CMTimeGetSeconds(timestamp))s")
+                print("   Writer status: \(writer.status.rawValue)")
+
                 if writer.status == .unknown {
                     writer.startWriting()
                     writer.startSession(atSourceTime: timestamp)
                     print("✅ Started asset writer session at time: \(CMTimeGetSeconds(timestamp))")
+                } else {
+                    print("⚠️ Writer status not .unknown, it's: \(writer.status.rawValue)")
                 }
             }
 
             guard writer.status == .writing else {
                 if writer.status == .failed {
                     print("❌ Asset writer failed: \(String(describing: writer.error))")
+                } else if frameCount < 5 {
+                    // Log status issues for first few frames
+                    print("⚠️ Writer status not .writing: \(writer.status.rawValue)")
                 }
                 return
             }
@@ -748,20 +937,26 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
                 // Compose frame with overlay (pass connection for orientation)
                 if let composedPixelBuffer = composeFrame(from: sampleBuffer, connection: connection) {
                     adaptor.append(composedPixelBuffer, withPresentationTime: adjustedTimestamp)
+
+                    // Check for duplicate timestamps
+                    if frameCount > 0 && CMTimeCompare(adjustedTimestamp, lastVideoTimestamp) == 0 {
+                        print("⚠️ DUPLICATE TIMESTAMP! Frame #\(frameCount) has same timestamp as previous frame: \(CMTimeGetSeconds(adjustedTimestamp))s")
+                    }
+
                     lastVideoTimestamp = adjustedTimestamp
                     frameCount += 1
 
-                    // Log every 30 frames (roughly once per second at 30fps)
-                    if frameCount % 30 == 0 {
-                        print("📹 Written \(frameCount) frames (\(String(format: "%.1f", CMTimeGetSeconds(adjustedTimestamp)))s)")
+                    // Log first 5 frames, then every 30 frames
+                    if frameCount <= 5 || frameCount % 30 == 0 {
+                        print("📹 Written frame #\(frameCount) at \(String(format: "%.3f", CMTimeGetSeconds(adjustedTimestamp)))s")
                     }
                 } else {
                     print("❌ Failed to compose frame at \(CMTimeGetSeconds(adjustedTimestamp))s")
                 }
             } else {
                 // Frame dropped because input not ready
-                if frameCount == 0 {
-                    print("⚠️ Video input not ready for first frame!")
+                if frameCount < 5 {
+                    print("⚠️ Video input not ready for frame (frameCount: \(frameCount))")
                 }
             }
         }

@@ -58,61 +58,28 @@ struct ConnectionStatusIndicator: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             // Connection status dot
             Circle()
                 .fill(statusColor)
-                .frame(width: 8, height: 8)
-
-            // Connection icon
-            Image(systemName: statusIcon)
-                .font(.caption2)
-                .foregroundColor(statusColor)
-
-            // Status text
-            Text(statusText)
-                .font(.caption)
-                .foregroundColor(.white)
-                .lineLimit(1)
-
-            // Device role badge
-            Text(deviceRole.displayName)
-                .font(.caption2)
-                .foregroundColor(.orange)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(
-                    Capsule()
-                        .fill(Color.orange.opacity(0.2))
-                )
+                .frame(width: 6, height: 6)
 
             // Recording indicator (if recorder)
             if deviceRole == .recorder {
                 let isRecording = multipeer.isRemoteRecording ?? VideoRecordingManager.shared.isRecording
                 if isRecording {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 6, height: 6)
-                        Text("REC")
-                            .font(.caption2)
-                            .foregroundColor(.red)
-                            .fontWeight(.bold)
-                    }
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 6, height: 6)
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(
             Capsule()
-                .fill(Color.black.opacity(0.6))
-                .overlay(
-                    Capsule()
-                        .strokeBorder(statusColor.opacity(0.3), lineWidth: 1)
-                )
+                .fill(Color.black.opacity(0.5))
         )
-        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
     }
 }
 
