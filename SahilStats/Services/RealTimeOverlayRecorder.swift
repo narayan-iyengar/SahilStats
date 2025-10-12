@@ -441,7 +441,7 @@ class RealTimeOverlayRecorder: NSObject {
             format.scale = 1  // Use 1x scale for exact pixel control
 
             let renderer = UIGraphicsImageRenderer(size: size, format: format)
-            let image = renderer.image { context in
+            let tempImage = renderer.image { context in
                 let cgContext = context.cgContext
 
                 // Clear background (transparent) - now this actually works!
@@ -451,9 +451,15 @@ class RealTimeOverlayRecorder: NSObject {
                 drawScoreboardOverlay(in: cgContext, size: size, game: game)
             }
 
-            // Return image directly - UIGraphicsImageRenderer already creates unique CGImage
-            // No need to manually copy (which doubles memory usage)
-            return image
+            // CRITICAL FIX: iOS reuses UIImage object wrappers even when CGImage changes
+            // Extract CGImage and create NEW UIImage to force unique object identity
+            // This prevents video queue from reading stale CGImage reference
+            guard let cgImage = tempImage.cgImage else {
+                return tempImage
+            }
+
+            // Create a fresh UIImage from the CGImage - this ensures unique object identity
+            return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
         }
     }
 
