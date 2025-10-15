@@ -94,3 +94,6 @@ GoogleService-Info.plist
 
 # macOS
 .DS_Store
+
+# Xcode shared schemes
+SahilStats.xcodeproj/xcshareddata/
