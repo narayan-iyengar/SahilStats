@@ -47,21 +47,21 @@ struct BasketballSeams: Shape {
         let radius = min(rect.width, rect.height) / 2
 
         // Vertical center line
-        path.move(to: CGPoint(x: center.x, y: center.y - radius * 0.8))
-        path.addLine(to: CGPoint(x: center.x, y: center.y + radius * 0.8))
+        path.move(to: CGPoint(x: center.x, y: center.y - radius * 0.85))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius * 0.85))
 
-        // Left curved line
-        path.move(to: CGPoint(x: center.x - radius * 0.7, y: center.y - radius * 0.4))
+        // Top horizontal curve (curves upward like a smile)
+        path.move(to: CGPoint(x: center.x - radius * 0.65, y: center.y - radius * 0.15))
         path.addQuadCurve(
-            to: CGPoint(x: center.x - radius * 0.7, y: center.y + radius * 0.4),
-            control: CGPoint(x: center.x - radius * 1.1, y: center.y)
+            to: CGPoint(x: center.x + radius * 0.65, y: center.y - radius * 0.15),
+            control: CGPoint(x: center.x, y: center.y - radius * 0.55)
         )
 
-        // Right curved line
-        path.move(to: CGPoint(x: center.x + radius * 0.7, y: center.y - radius * 0.4))
+        // Bottom horizontal curve (curves downward like a frown)
+        path.move(to: CGPoint(x: center.x - radius * 0.65, y: center.y + radius * 0.15))
         path.addQuadCurve(
-            to: CGPoint(x: center.x + radius * 0.7, y: center.y + radius * 0.4),
-            control: CGPoint(x: center.x + radius * 1.1, y: center.y)
+            to: CGPoint(x: center.x + radius * 0.65, y: center.y + radius * 0.15),
+            control: CGPoint(x: center.x, y: center.y + radius * 0.55)
         )
 
         return path
@@ -162,17 +162,17 @@ struct SahilStatsLogoPreview: View {
 
                     HStack(spacing: 20) {
                         VStack {
-                            SahilStatsLogo(size: 120, showShadow: false, showText: false)
+                            SahilStatsLogo(size: 120, showShadow: false)
                             Text("180×180")
                                 .font(.caption)
                         }
                         VStack {
-                            SahilStatsLogo(size: 80, showShadow: false, showText: false)
+                            SahilStatsLogo(size: 80, showShadow: false)
                             Text("120×120")
                                 .font(.caption)
                         }
                         VStack {
-                            SahilStatsLogo(size: 60, showShadow: false, showText: false)
+                            SahilStatsLogo(size: 60, showShadow: false)
                             Text("60×60")
                                 .font(.caption)
                         }
