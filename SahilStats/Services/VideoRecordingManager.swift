@@ -331,30 +331,54 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 }
             }
             
-            // IMPROVED: Try multiple camera fallbacks
+            // IMPROVED: Try multiple camera fallbacks with ultra-wide support for 0.5x zoom
             var videoDevice: AVCaptureDevice?
-            
-            // Try back wide angle camera first
-            videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-            
-            // Fall back to any back camera
+
+            // First priority: Triple camera (ultra-wide 0.5x, wide 1x, telephoto 2x+) - iPhone 11 Pro and newer Pro models
+            videoDevice = AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back)
+            if videoDevice != nil {
+                print("📹 Using triple camera system (supports 0.5x ultra-wide zoom)")
+            }
+
+            // Second priority: Dual wide camera (ultra-wide 0.5x, wide 1x) - iPhone 11 and newer non-Pro models
+            if videoDevice == nil {
+                videoDevice = AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back)
+                if videoDevice != nil {
+                    print("📹 Using dual wide camera system (supports 0.5x ultra-wide zoom)")
+                }
+            }
+
+            // Third priority: Dual camera (wide, telephoto) - older iPhones
             if videoDevice == nil {
                 videoDevice = AVCaptureDevice.default(.builtInDualCamera, for: .video, position: .back)
-                print("⚠️ Using dual camera as fallback")
+                if videoDevice != nil {
+                    print("⚠️ Using dual camera (no ultra-wide - 0.5x zoom not available)")
+                }
             }
-            
+
+            // Fourth priority: Wide angle camera only
+            if videoDevice == nil {
+                videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+                if videoDevice != nil {
+                    print("⚠️ Using wide angle camera only (no ultra-wide - 0.5x zoom not available)")
+                }
+            }
+
             // Last resort: front camera
             if videoDevice == nil {
                 videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
-                print("⚠️ Using front camera as fallback")
+                if videoDevice != nil {
+                    print("⚠️ Using front camera as last resort")
+                }
             }
-            
+
             guard let device = videoDevice else {
                 print("❌ No camera device available at all")
                 return nil
             }
             
             print("🎥 VideoRecordingManager: Found camera device: \(device.localizedName)")
+            print("📹 Zoom range: \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
 
             // Store device reference for zoom/focus controls
             self.currentVideoDevice = device
@@ -789,7 +813,8 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
     // MARK: - Advanced Camera Controls
 
-    /// Set camera zoom level (1.0 = no zoom, higher values = zoomed in)
+    /// Set camera zoom level (0.5x = ultra-wide, 1.0 = wide, 2.0+ = telephoto)
+    /// Requires device with multi-camera support for 0.5x zoom
     /// Returns the actual zoom factor applied (clamped to device limits)
     @discardableResult
     func setZoom(factor: CGFloat) -> CGFloat {
@@ -822,6 +847,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
     /// Get current zoom factor
     func getCurrentZoom() -> CGFloat {
         return currentVideoDevice?.videoZoomFactor ?? 1.0
+    }
+
+    /// Get minimum allowed zoom factor (0.5x for ultra-wide cameras)
+    func getMinZoom() -> CGFloat {
+        return currentVideoDevice?.minAvailableVideoZoomFactor ?? 1.0
     }
 
     /// Get maximum allowed zoom factor
