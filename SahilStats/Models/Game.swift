@@ -51,7 +51,8 @@ struct Game: Identifiable, Codable, Equatable {
     var totalPlayingTimeMinutes: Double = 0.0 // Total minutes on court
     var benchTimeMinutes: Double = 0.0 // Total minutes on bench
     var gameTimeTracking: [GameTimeSegment] = [] // Detailed time tracking
-    
+    var isMultiDeviceSetup: Bool? // Whether this was a multi-device or single-device game
+
     // Computed properties for proper time calculations
     var totalGameTimeMinutes: Double {
         return Double(quarterLength * numQuarter)
@@ -74,6 +75,7 @@ struct Game: Identifiable, Codable, Equatable {
         case createdAt, adminName, editedAt, editedBy, achievements
         case totalPlayingTimeMinutes, benchTimeMinutes, gameTimeTracking
         case videoURL, youtubeVideoId, youtubeURL, videoUploadedAt
+        case isMultiDeviceSetup
     }
     
     @ServerTimestamp var timestamp: Date?
@@ -294,6 +296,7 @@ struct Game: Identifiable, Codable, Equatable {
         totalPlayingTimeMinutes = try container.decodeIfPresent(Double.self, forKey: .totalPlayingTimeMinutes) ?? 0.0
         benchTimeMinutes = try container.decodeIfPresent(Double.self, forKey: .benchTimeMinutes) ?? 0.0
         gameTimeTracking = try container.decodeIfPresent([GameTimeSegment].self, forKey: .gameTimeTracking) ?? []
+        isMultiDeviceSetup = try container.decodeIfPresent(Bool.self, forKey: .isMultiDeviceSetup)
     }
 
     // MARK: - Helper Function for Date Parsing (Add this to your Game struct)
@@ -372,9 +375,10 @@ struct Game: Identifiable, Codable, Equatable {
         return turnovers > 0 ? Double(assists) / Double(turnovers) : Double(assists)
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, timestamp: Date = Date(), gameFormat: GameFormat = .halves, quarterLength: Int = 20, myTeamScore: Int = 0, opponentScore: Int = 0, fg2m: Int = 0, fg2a: Int = 0, fg3m: Int = 0, fg3a: Int = 0, ftm: Int = 0, fta: Int = 0, rebounds: Int = 0, assists: Int = 0, steals: Int = 0, blocks: Int = 0, fouls: Int = 0, turnovers: Int = 0, adminName: String? = nil,     totalPlayingTimeMinutes: Double = 0.0,
+    init(teamName: String, opponent: String, location: String? = nil, timestamp: Date = Date(), gameFormat: GameFormat = .halves, quarterLength: Int = 20, myTeamScore: Int = 0, opponentScore: Int = 0, fg2m: Int = 0, fg2a: Int = 0, fg3m: Int = 0, fg3a: Int = 0, ftm: Int = 0, fta: Int = 0, rebounds: Int = 0, assists: Int = 0, steals: Int = 0, blocks: Int = 0, fouls: Int = 0, turnovers: Int = 0, adminName: String? = nil, totalPlayingTimeMinutes: Double = 0.0,
          benchTimeMinutes: Double = 0.0,
-         gameTimeTracking: [GameTimeSegment] = []) {
+         gameTimeTracking: [GameTimeSegment] = [],
+         isMultiDeviceSetup: Bool? = nil) {
         self.teamName = teamName
         self.opponent = opponent
         self.location = location
@@ -388,6 +392,7 @@ struct Game: Identifiable, Codable, Equatable {
         self.totalPlayingTimeMinutes = totalPlayingTimeMinutes
         self.benchTimeMinutes = benchTimeMinutes
         self.gameTimeTracking = gameTimeTracking
+        self.isMultiDeviceSetup = isMultiDeviceSetup
         
         // Calculate outcome
         if myTeamScore > opponentScore {
@@ -460,7 +465,12 @@ extension Game {
             "totalPlayingTimeMinutes": totalPlayingTimeMinutes,
             "benchTimeMinutes": benchTimeMinutes
         ]
-        
+
+        // SAFE: Add isMultiDeviceSetup if it exists
+        if let isMultiDeviceSetup = isMultiDeviceSetup {
+            data["isMultiDeviceSetup"] = isMultiDeviceSetup
+        }
+
         // SAFE: Only add optional fields if they exist
         if let location = location, !location.isEmpty {
             data["location"] = location

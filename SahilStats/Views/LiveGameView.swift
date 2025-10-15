@@ -17,17 +17,18 @@ class RefreshTrigger: ObservableObject {
 struct LiveGameView: View {
     @ObservedObject private var firebaseService = FirebaseService.shared
     @ObservedObject private var roleManager = DeviceRoleManager.shared
-    
+    @ObservedObject private var deviceControl = DeviceControlManager.shared
+
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
+
     @State private var shouldAutoDismissWhenGameEnds = true
-    
+
     private var isIPad: Bool {
         horizontalSizeClass == .regular
     }
-    
+
     var body: some View {
         Group {
             if let liveGame = firebaseService.getCurrentLiveGame() {
@@ -43,7 +44,8 @@ struct LiveGameView: View {
                             }
                         }
                 } else {
-                    // Show appropriate view based on role
+                    // Show appropriate view based on role AND control status
+                    // If a viewer has control, show them the controller view
                     switch roleManager.deviceRole {
                     case .recorder:
                         CleanVideoRecordingView(liveGame: liveGame)
@@ -53,7 +55,12 @@ struct LiveGameView: View {
                     case .controller:
                         ControlDeviceView(liveGame: liveGame)
                     case .viewer:
-                        LiveGameWatchView(liveGame: liveGame)
+                        // IMPORTANT: If viewer has control, show controller view
+                        if deviceControl.hasControl {
+                            ControlDeviceView(liveGame: liveGame)
+                        } else {
+                            LiveGameWatchView(liveGame: liveGame)
+                        }
                     case .none:
                         // Only show this for multi-device games
                         RoleNotSetView()
@@ -359,6 +366,7 @@ struct LiveGameControllerView: View {
     @ObservedObject private var deviceControl = DeviceControlManager.shared
     @EnvironmentObject var authService: AuthService
     @ObservedObject private var navigation = NavigationCoordinator.shared
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.scenePhase) var scenePhase
     
@@ -582,7 +590,9 @@ struct LiveGameControllerView: View {
         pingTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
             // Only send pings if this device has control
             if deviceControl.hasControl {
-                multipeer.sendPing()
+                Task { @MainActor in
+                    multipeer.sendPing()
+                }
             }
         }
     }
@@ -598,15 +608,20 @@ struct LiveGameControllerView: View {
     private func startAnnouncingGameState() {
         // Invalidate any existing timer to prevent duplicates
         stopAnnouncingGameState()
-        
-        print("📢 [Controller] Starting to announce game state every 3 seconds.")
-        
+
+        print("📢 [Controller] Starting to announce game state every 15 seconds (backup only).")
+
         // Send one announcement immediately upon starting
         announceGameState()
-        
-        // Schedule the timer to repeat
-        gameStateAnnounceTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+
+        // Schedule the timer to repeat (reduced from 3s to 15s - now just a backup/recovery mechanism)
+        gameStateAnnounceTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { _ in
             announceGameState()
+
+            // ALSO: Send periodic clock sync for drift correction
+            Task { @MainActor in
+                multipeer.sendClockSync(clockValue: localClockTime, isRunning: serverGameState.isRunning)
+            }
         }
     }
 
@@ -621,13 +636,23 @@ struct LiveGameControllerView: View {
         guard deviceControl.hasControl, let gameId = serverGameState.id else {
             return
         }
-        
+
+        // Send FULL game state to recorder (no Firebase reads needed!)
         let gameState: [String: String] = [
             "gameId": gameId,
-            "isRunning": "true" // Let the recorder know the game is active
+            "homeScore": String(currentHomeScore),
+            "awayScore": String(currentAwayScore),
+            "clock": String(format: "%.1f", localClockTime),
+            "quarter": String(currentQuarter),
+            "isRunning": serverGameState.isRunning ? "true" : "false",
+            "teamName": serverGameState.teamName,
+            "opponent": serverGameState.opponent
         ]
         multipeer.sendGameState(gameState)
-        print("📢 [Controller] Sent game state announcement for gameId: \(gameId)")
+        // Log only every 10 announcements to reduce noise (30 seconds)
+        if (Int(Date().timeIntervalSince1970) % 30 == 0) {
+            print("📢 [Controller] Sent game state: \(currentHomeScore)-\(currentAwayScore) | Clock: \(String(format: "%.0f", localClockTime))s")
+        }
     }
     
     
@@ -636,7 +661,7 @@ struct LiveGameControllerView: View {
     @ViewBuilder
     private func fixedGameHeader() -> some View {
         VStack(spacing: isIPad ? 6 : 4) {
-            // Done button and connection indicator at the top
+            // Done button at the top
             HStack {
                 Button(action: handleDone) {
                     HStack(spacing: 4) {
@@ -650,9 +675,6 @@ struct LiveGameControllerView: View {
                     .padding(.horizontal, 10)
                 }
                 Spacer()
-
-                // Connection status indicator
-                ConnectionStatusIndicator(deviceRole: .controller)
             }
 
             // Device Control Status
@@ -663,7 +685,7 @@ struct LiveGameControllerView: View {
                 pendingRequest: deviceControl.pendingControlRequest,
                 isIPad: isIPad,
                 onRequestControl: requestControl,
-                showBluetoothStatus: DeviceRoleManager.shared.deviceRole == .controller, // Remove connection requirement
+                showBluetoothStatus: (serverGameState.isMultiDeviceSetup ?? false) && DeviceRoleManager.shared.deviceRole == .controller,
                 isRecording: multipeer.isRemoteRecording ?? false,
                 onToggleRecording: DeviceRoleManager.shared.deviceRole == .controller ? {
                     print("🎬 [DEBUG] Recording toggle tapped")
@@ -1464,6 +1486,9 @@ struct LiveGameControllerView: View {
 
                 updatedGame.lastClockUpdate = now
 
+                // INSTANT: Send clock control immediately via multipeer (no delay!)
+                multipeer.sendClockControl(isRunning: updatedGame.isRunning, clockValue: localClockTime, timestamp: now)
+
                 try await firebaseService.updateLiveGame(updatedGame)
                 print("✅ Game clock toggle successful")
 
@@ -1530,6 +1555,9 @@ struct LiveGameControllerView: View {
                 localClockTime = newClockTime
                 currentQuarter = updatedGame.quarter
 
+                // INSTANT: Send period change immediately via multipeer (no delay!)
+                multipeer.sendPeriodChange(quarter: updatedGame.quarter, clockValue: newClockTime, gameFormat: updatedGame.gameFormat)
+
                 try await firebaseService.updateLiveGame(updatedGame)
                 print("✅ Advanced quarter, scores preserved: \(currentHomeScore)-\(currentAwayScore)")
             } catch {
@@ -1549,10 +1577,13 @@ struct LiveGameControllerView: View {
     
     private func scheduleUpdate() {
         guard deviceControl.hasControl else { return }
-        
+
         hasUnsavedChanges = true
+
+        // INSTANT: Send score updates immediately via multipeer (no delay!)
+        multipeer.sendScoreUpdate(homeScore: currentHomeScore, awayScore: currentAwayScore)
+
         updateTimer?.invalidate()
-        
         updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
             updateLiveGameImmediately()
         }
@@ -1594,7 +1625,10 @@ struct LiveGameControllerView: View {
 
     private func handleDone() {
         print("🏠 Done button pressed - returning to dashboard")
+        // Clean up navigation state
         navigation.returnToDashboard()
+        // Actually dismiss the view
+        dismiss()
     }
 
     private func finishGame() {
@@ -1679,7 +1713,8 @@ struct LiveGameControllerView: View {
                     adminName: authService.currentUser?.email,
                     totalPlayingTimeMinutes: totalPlayingTime,
                     benchTimeMinutes: totalBenchTime,
-                    gameTimeTracking: finalServerState.timeSegments
+                    gameTimeTracking: finalServerState.timeSegments,
+                    isMultiDeviceSetup: finalServerState.isMultiDeviceSetup
                 )
                 
                 // CRITICAL: Use the same game ID from live game for the final game

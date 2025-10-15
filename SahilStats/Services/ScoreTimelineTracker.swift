@@ -19,6 +19,7 @@ class ScoreTimelineTracker {
         let homeTeam: String
         let awayTeam: String
         let gameFormat: GameFormat
+        let zoomLevel: CGFloat?  // Camera zoom level (nil = 1.0x)
     }
 
     private var recordingStartTime: Date?
@@ -42,7 +43,8 @@ class ScoreTimelineTracker {
             clockTime: initialGame.currentClockDisplay,
             homeTeam: initialGame.teamName,
             awayTeam: initialGame.opponent,
-            gameFormat: initialGame.gameFormat
+            gameFormat: initialGame.gameFormat,
+            zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil
         )
 
         snapshots.append(initialSnapshot)
@@ -80,7 +82,8 @@ class ScoreTimelineTracker {
             clockTime: game.currentClockDisplay,
             homeTeam: game.teamName,
             awayTeam: game.opponent,
-            gameFormat: game.gameFormat
+            gameFormat: game.gameFormat,
+            zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil
         )
 
         snapshots.append(snapshot)

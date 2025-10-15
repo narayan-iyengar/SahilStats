@@ -12,7 +12,6 @@
 //
 
 import SwiftUI
-import FirebaseCore
 import Firebase
 import FirebaseAuth
 import Combine
@@ -176,10 +175,10 @@ struct CompactClockCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 12 : 8)
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 12 : 8)
     }
-    
+
     private func formatClockTime(_ time: TimeInterval) -> String {
         if time <= 59 {
             return String(format: "%.1f", time)
@@ -380,7 +379,7 @@ struct CompactLiveScoreDisplayCard: View {
         }
         .padding(.horizontal, isIPad ? 28 : 24)
         .padding(.vertical, isIPad ? 28 : 24)
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 20 : 16)
     }
 }
@@ -471,7 +470,7 @@ struct CompactGameControlsCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 16 : 12)
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 12 : 8)
     }
 }
@@ -555,12 +554,17 @@ struct LiveGameWatchView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @EnvironmentObject var authService: AuthService
     @ObservedObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var deviceControl = DeviceControlManager.shared
     @State private var localClockTime: TimeInterval = 0
-    
+
     private var isIPad: Bool {
         horizontalSizeClass == .regular
     }
-    
+
+    private var serverGameState: LiveGame {
+        firebaseService.getCurrentLiveGame() ?? liveGame
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -569,6 +573,19 @@ struct LiveGameWatchView: View {
                     ConnectionStatusIndicator(deviceRole: .viewer)
                     Spacer()
                 }
+
+                // Device Control Status with Request Control button
+                CompactDeviceControlStatusCard(
+                    hasControl: deviceControl.hasControl,
+                    controllingUser: deviceControl.controllingUser,
+                    canRequestControl: deviceControl.canRequestControl,
+                    pendingRequest: deviceControl.pendingControlRequest,
+                    isIPad: isIPad,
+                    onRequestControl: requestControl,
+                    showBluetoothStatus: false,  // Viewers don't need recording controls
+                    isRecording: nil,
+                    onToggleRecording: nil
+                )
 
                 // Watch-only header
                 VStack(spacing: 8) {
@@ -586,8 +603,8 @@ struct LiveGameWatchView: View {
 
                         Spacer()
                     }
-                    
-                    Text("You're watching in real-time. Only admins can control the game.")
+
+                    Text("You're watching in real-time.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -647,10 +664,37 @@ struct LiveGameWatchView: View {
         .onAppear {
             // Set the initial clock time when the view appears
             localClockTime = liveGame.getCurrentClock()
+
+            // Update control status
+            deviceControl.updateControlStatus(
+                for: serverGameState,
+                userEmail: authService.currentUser?.email
+            )
         }
         .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
             // Update the local clock time continuously
             localClockTime = firebaseService.getCurrentLiveGame()?.getCurrentClock() ?? localClockTime
+        }
+        .onChange(of: serverGameState) { _, newGame in
+            // Update control status when game state changes
+            deviceControl.updateControlStatus(
+                for: newGame,
+                userEmail: authService.currentUser?.email
+            )
+        }
+    }
+
+    private func requestControl() {
+        Task {
+            do {
+                try await deviceControl.requestControl(
+                    for: serverGameState,
+                    userEmail: authService.currentUser?.email
+                )
+                print("✅ Control requested successfully")
+            } catch {
+                print("❌ Failed to request control: \(error)")
+            }
         }
     }
 }
@@ -907,7 +951,13 @@ struct PlayingTimeCard: View {
             }
         }
         .padding(isIPad ? 20 : 16)
-        .background(Color(.systemGroupedBackground))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.green.opacity(0.15), Color.orange.opacity(0.15)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
@@ -1141,7 +1191,7 @@ struct PlayerStatusDisplayCard: View {
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 12 : 10)
-        .background(Color(.systemGroupedBackground))
+        .background((sahilOnBench ? Color.orange : Color.green).opacity(0.15))
         .cornerRadius(isIPad ? 12 : 8)
     }
 }
@@ -1502,10 +1552,10 @@ struct SmartShootingStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
-    
+
     // MARK: - Enhanced Smart Logic Methods with Live Score Integration
     
     private func incrementMade() {
@@ -1696,7 +1746,7 @@ struct RegularStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
@@ -1758,7 +1808,13 @@ struct CleanStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.blue.opacity(0.12), Color.purple.opacity(0.12)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .cornerRadius(isIPad ? 16 : 12)
     }
 }

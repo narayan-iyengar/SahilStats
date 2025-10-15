@@ -213,6 +213,25 @@ struct SimpleGameRow: View {
                     }
                     
                     HStack {
+                        // Device mode badge
+                        if let isMultiDevice = game.isMultiDeviceSetup {
+                            HStack(spacing: 4) {
+                                Image(systemName: isMultiDevice ? "link" : "iphone")
+                                    .font(.system(size: 10))
+                                Text(isMultiDevice ? "Multi" : "Single")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(isMultiDevice ? Color.blue.opacity(0.15) : Color.green.opacity(0.15))
+                            .foregroundColor(isMultiDevice ? .blue : .green)
+                            .cornerRadius(4)
+
+                            Text("•")
+                                .foregroundColor(.secondary)
+                        }
+
                         Text("\(game.points) PTS")
                         Text("•")
                         Text("\(game.rebounds) REB")

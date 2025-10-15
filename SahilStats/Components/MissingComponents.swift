@@ -285,7 +285,7 @@ struct DetailStatCard: View {
             Text(title)
                 .font(isIPad ? .body : .caption)
                 .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                //.foregroundColor(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7) // Allow text to scale down to 70% if needed
             

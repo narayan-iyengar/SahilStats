@@ -67,7 +67,7 @@ class NavigationCoordinator: ObservableObject {
         hasUserInteractedWithApp = false
         DeviceRoleManager.shared.deviceRole = .none
         liveGameManager.reset()
-        appStartTime = Date()
+        // Don't reset appStartTime - it should only be set once at app launch
     }
 
     func markUserHasInteracted() {

@@ -21,7 +21,9 @@ struct GameListView: View {
     @State private var isViewingTrends = false
     @State private var showingNewGame = false
     @State private var showingRoleSelection = false
-    
+    @State private var showingDeleteError = false
+    @State private var deleteErrorMessage = ""
+
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     private var isIPad: Bool {
@@ -49,6 +51,11 @@ struct GameListView: View {
                 gameToDelete: $gameToDelete,
                 onDelete: deleteGame
             )
+        }
+        .alert("Deletion Error", isPresented: $showingDeleteError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteErrorMessage)
         }
         .sheet(isPresented: $showingFilters) {
             FilterView(
@@ -207,7 +214,10 @@ struct GameListView: View {
             HStack(spacing: isIPad ? 12 : 8) {
                 // Live Game button (highest priority)
                 if firebaseService.hasLiveGame {
-                    LiveGameButton(action: { showingRoleSelection = true })
+                    LiveGameButton(
+                        action: { showingRoleSelection = true },
+                        liveGame: firebaseService.getCurrentLiveGame()
+                    )
                 }
                 
                 // Filter button with badge
@@ -389,8 +399,15 @@ extension GameListView {
         Task {
             do {
                 try await firebaseService.deleteGame(game.id ?? "")
+                print("✅ Game deleted successfully")
             } catch {
                 print("Failed to delete game: \(error)")
+
+                // Show error to user
+                await MainActor.run {
+                    deleteErrorMessage = "Failed to delete game: \(error.localizedDescription)"
+                    showingDeleteError = true
+                }
             }
         }
     }
@@ -879,7 +896,19 @@ struct RoleSelectionSheet: View {
     private var isIPad: Bool { horizontalSizeClass == .regular }
 
     private var availableRoles: [DeviceRole] {
-        liveGame.getAvailableRoles()
+        // For single-device games on non-controlling devices, only show Viewer
+        if liveGame.isMultiDeviceSetup == false {
+            let currentDeviceId = DeviceControlManager.shared.deviceId
+            let isControllingDevice = liveGame.controllingDeviceId == currentDeviceId
+
+            if !isControllingDevice {
+                // Non-controlling device in single-device game → ONLY Viewer
+                return [.viewer]
+            }
+        }
+
+        // Multi-device games OR controlling device in single-device game → show all available roles
+        return liveGame.getAvailableRoles()
     }
 
     var body: some View {
@@ -888,7 +917,7 @@ struct RoleSelectionSheet: View {
                 Spacer()
 
                 VStack(spacing: 16) {
-                    Text("Join Live Game")
+                    Text(liveGame.isMultiDeviceSetup == false ? "View Live Game" : "Join Live Game")
                         .font(.largeTitle)
                         .fontWeight(.bold)
 
@@ -896,9 +925,16 @@ struct RoleSelectionSheet: View {
                         .font(.title3)
                         .foregroundColor(.secondary)
 
-                    Text("Select your role to join the game")
-                        .font(.body)
-                        .foregroundColor(.secondary)
+                    if liveGame.isMultiDeviceSetup == false {
+                        Text("This is a single-device game. You can watch and request control.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text("Select your role to join the game")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 VStack(spacing: 16) {
@@ -914,22 +950,24 @@ struct RoleSelectionSheet: View {
                         }
                     )
 
-                    // Recorder role
-                    RoleSelectionButton(
-                        title: "Recorder",
-                        subtitle: "Record video and capture highlights",
-                        icon: "video.fill",
-                        color: .red,
-                        isAvailable: availableRoles.contains(.recorder),
-                        action: {
-                            selectRole(.recorder)
-                        }
-                    )
+                    // Recorder role - only show for multi-device games
+                    if liveGame.isMultiDeviceSetup != false {
+                        RoleSelectionButton(
+                            title: "Recorder",
+                            subtitle: "Record video and capture highlights",
+                            icon: "video.fill",
+                            color: .red,
+                            isAvailable: availableRoles.contains(.recorder),
+                            action: {
+                                selectRole(.recorder)
+                            }
+                        )
+                    }
 
                     // Viewer role
                     RoleSelectionButton(
                         title: "Viewer",
-                        subtitle: "Watch the game in real-time",
+                        subtitle: liveGame.isMultiDeviceSetup == false ? "Watch and request control" : "Watch the game in real-time",
                         icon: "eye.fill",
                         color: .green,
                         isAvailable: true, // Viewer is always available

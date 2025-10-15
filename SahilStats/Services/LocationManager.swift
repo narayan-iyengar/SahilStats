@@ -168,31 +168,45 @@ class LocationManager: NSObject, ObservableObject {
         }
     }
 
-    // Updated to work with MKMapItem using modern iOS 26+ APIs
+    // Format location name from MKMapItem (iOS 26+ compatible)
     private func formatLocationName(from mapItem: MKMapItem) -> String {
         var components: [String] = []
-        
+
         // Use the map item's name first
         if let name = mapItem.name {
             components.append(name)
         }
-        
-        // Use addressRepresentations for modern iOS 26+ API
-        if let addressReps = mapItem.addressRepresentations {
-            // Use the full address from MKAddressRepresentations
-            let _ = addressReps.fullAddress(includingRegion: true, singleLine: true)
+
+        // Use iOS 26+ address API if available, fall back to placemark for older iOS
+        if #available(iOS 26.0, *) {
+            // Use new addressRepresentations API (iOS 26+)
+            if let addressReps = mapItem.addressRepresentations,
+               let formattedAddress = addressReps.fullAddress(includingRegion: true, singleLine: true) {
+                // Parse the formatted address to extract city/state
+                let addressParts = formattedAddress.components(separatedBy: ", ")
+                if addressParts.count >= 2 {
+                    // Typically: "Name, City, State ZIP"
+                    components.append(addressParts[addressParts.count - 2])
+                }
+            }
         } else {
-            // Fallback to placemark for older iOS versions or if addressRepresentations is not available
-            let _ = mapItem.address
-            
+            // Fall back to placemark for iOS < 26
+            let placemark = mapItem.placemark
+            if let locality = placemark.locality {
+                components.append(locality)
+            }
+            if let administrativeArea = placemark.administrativeArea {
+                components.append(administrativeArea)
+            }
         }
-        
+
         if !components.isEmpty {
             return components.joined(separator: ", ")
         }
-        
-        // Fallback to coordinates using the modern location property
-        let coordinate = mapItem.location.coordinate
+
+        // Fallback to coordinates from location property
+        let location = mapItem.location
+        let coordinate = location.coordinate
         return String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
     }
 }

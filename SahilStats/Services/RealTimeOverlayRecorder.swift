@@ -34,6 +34,7 @@ class RealTimeOverlayRecorder: NSObject {
 
     // Overlay state
     private var currentOverlayImage: UIImage?
+    private var cachedOverlayCGImage: CGImage? // Cache the CGImage for faster composition
     private var overlayUpdateTimer: Timer?
     private var currentLiveGame: LiveGame?
     private var overlayUpdateCount: Int = 0
@@ -69,6 +70,10 @@ class RealTimeOverlayRecorder: NSObject {
 
         // Detect output resolution from session preset
         switch session.sessionPreset {
+        case .hd4K3840x2160:
+            outputWidth = 3840
+            outputHeight = 2160
+            print("📹 Using 4K resolution (3840x2160)")
         case .hd1920x1080:
             outputWidth = 1920
             outputHeight = 1080
@@ -107,6 +112,36 @@ class RealTimeOverlayRecorder: NSObject {
             session.addOutput(videoOutput)
             self.videoDataOutput = videoOutput
             print("✅ Added AVCaptureVideoDataOutput")
+
+            // CRITICAL FIX: Set video orientation on the connection
+            if let connection = videoOutput.connection(with: .video) {
+                let deviceOrientation = UIDevice.current.orientation
+                let rotationAngle: CGFloat
+
+                switch deviceOrientation {
+                case .portrait:
+                    rotationAngle = 90
+                case .portraitUpsideDown:
+                    rotationAngle = 270
+                case .landscapeLeft:
+                    rotationAngle = 270
+                case .landscapeRight:
+                    rotationAngle = 180  // User's position - Dynamic Island on left
+                default:
+                    rotationAngle = 180  // Default to landscape right
+                }
+
+                if connection.isVideoRotationAngleSupported(rotationAngle) {
+                    connection.videoRotationAngle = rotationAngle
+                    print("🎥 Set initial video rotation to \(rotationAngle)° for device orientation: \(deviceOrientation.rawValue)")
+                } else {
+                    print("⚠️ Rotation angle \(rotationAngle)° not supported")
+                    let supportedAngles = [0.0, 90.0, 180.0, 270.0].filter { connection.isVideoRotationAngleSupported($0) }
+                    print("   Supported angles: \(supportedAngles)")
+                }
+            } else {
+                print("⚠️ No video connection available to set rotation")
+            }
         } else {
             print("❌ Cannot add video data output")
             return false
@@ -244,6 +279,7 @@ class RealTimeOverlayRecorder: NSObject {
         print("   Clock: \(liveGame.currentClockDisplay)")
         print("   Period: Q\(liveGame.quarter)")
         print("   Teams: \(liveGame.teamName) vs \(liveGame.opponent)")
+        print("   Is Running: \(liveGame.isRunning)")
 
         // CRITICAL FIX: Update game data on videoQueue to ensure thread safety
         // This ensures overlay rendering always has consistent game data
@@ -253,12 +289,16 @@ class RealTimeOverlayRecorder: NSObject {
 
         // Update clock interpolation tracking
         let newClockTime = parseClockToSeconds(liveGame.currentClockDisplay)
-        if newClockTime != lastClockTime {
+        let gameIsRunning = liveGame.isRunning
+
+        // CRITICAL FIX: Use actual game running state, not clock value
+        // This fixes the issue where clock would continue after period changes
+        if newClockTime != lastClockTime || gameIsRunning != isClockRunning {
             print("   ⏱️ Clock changed from \(formatSecondsToClockDisplay(lastClockTime)) to \(liveGame.currentClockDisplay)")
+            print("   ⏱️ isRunning changed from \(isClockRunning) to \(gameIsRunning)")
             lastClockTime = newClockTime
             lastClockUpdateTime = Date()
-            // Clock is running if it's greater than 0
-            isClockRunning = newClockTime > 0
+            isClockRunning = gameIsRunning  // Use actual game state!
         }
 
         // Immediately trigger overlay update with new game data
@@ -272,8 +312,15 @@ class RealTimeOverlayRecorder: NSObject {
             let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
 
             // Video input settings - use detected resolution
-            // Use more conservative bitrate (8Mbps for 1080p, 4Mbps for 720p)
-            let bitRate = outputWidth >= 1920 ? 8_000_000 : 4_000_000
+            // Bitrate: 20Mbps for 4K, 8Mbps for 1080p, 4Mbps for 720p
+            let bitRate: Int
+            if outputWidth >= 3840 {
+                bitRate = 20_000_000  // 20 Mbps for 4K
+            } else if outputWidth >= 1920 {
+                bitRate = 8_000_000   // 8 Mbps for 1080p
+            } else {
+                bitRate = 4_000_000   // 4 Mbps for 720p
+            }
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: outputWidth,
@@ -417,13 +464,16 @@ class RealTimeOverlayRecorder: NSObject {
 
             // CRITICAL FIX: Store overlay with explicit lock to ensure memory visibility
             // This ensures the video queue can see the updated overlay image
+            // PERFORMANCE: Also cache the CGImage to avoid repeated UIImage->CGImage conversions
             overlayLock.lock()
             self.currentOverlayImage = overlayImage
+            self.cachedOverlayCGImage = overlayImage?.cgImage // Cache CGImage for fast access
             overlayLock.unlock()
 
             if shouldLog && overlayImage != nil {
                 let pointer = Unmanaged.passUnretained(overlayImage!).toOpaque()
                 print("   ✅ Stored overlay - pointer: \(String(describing: pointer))")
+                print("   ✅ Cached CGImage for performance")
             }
         }
     }
@@ -467,8 +517,8 @@ class RealTimeOverlayRecorder: NSObject {
         // Match SwiftUI SimpleScoreOverlay design
         let scaleFactor = size.height / 375.0 // Scale based on video height
 
-        // Make scoreboard wider to accommodate status dots
-        let scoreboardWidth: CGFloat = 280 * scaleFactor  // Increased from 246
+        // Scoreboard width
+        let scoreboardWidth: CGFloat = 246 * scaleFactor
         let scoreboardHeight: CGFloat = 56 * scaleFactor
 
         // Position at bottom center
@@ -587,23 +637,7 @@ class RealTimeOverlayRecorder: NSObject {
             in: context
         )
 
-        // Add subtle status dots on the right side
-        let dotSize: CGFloat = 6 * scaleFactor
-        let dotSpacing: CGFloat = 4 * scaleFactor
-        let dotsStartX = scoreboardRect.maxX - padding - dotSize
-        let dotY = scoreboardRect.midY - dotSize / 2
-
-        // Connection dot (green - we're connected if we're recording)
-        let connectionDotRect = CGRect(x: dotsStartX - dotSize - dotSpacing, y: dotY, width: dotSize, height: dotSize)
-        context.setFillColor(UIColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 0.7).cgColor)  // Subtle green
-        context.fillEllipse(in: connectionDotRect)
-
-        // Recording dot (red when recording)
-        if isRecording {
-            let recordingDotRect = CGRect(x: dotsStartX, y: dotY, width: dotSize, height: dotSize)
-            context.setFillColor(UIColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 0.8).cgColor)  // Subtle red
-            context.fillEllipse(in: recordingDotRect)
-        }
+        // Status dots removed - clean overlay for final video
     }
 
     private func drawText(
@@ -637,176 +671,117 @@ class RealTimeOverlayRecorder: NSObject {
     // MARK: - Frame Composition
 
     private func composeFrame(from sampleBuffer: CMSampleBuffer, connection: AVCaptureConnection) -> CVPixelBuffer? {
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            if frameCount % 100 == 0 {
-                print("❌ composeFrame: No image buffer in sample buffer!")
-            }
-            return nil
-        }
-
-        CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly) }
-
-        let width = CVPixelBufferGetWidth(imageBuffer)
-        let height = CVPixelBufferGetHeight(imageBuffer)
-
-        // Check if camera frames are changing by sampling pixel data (every 120 frames = 4 seconds)
-        if frameCount % 120 == 0 {
-            let baseAddress = CVPixelBufferGetBaseAddress(imageBuffer)
-            let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
-            // Sample a few bytes to create a simple hash
-            if let addr = baseAddress {
-                let ptr = addr.assumingMemoryBound(to: UInt8.self)
-                var hash = 0
-                // Sample pixels from different parts of the frame
-                for i in [0, bytesPerRow/4, bytesPerRow/2, bytesPerRow*3/4, bytesPerRow] {
-                    hash ^= Int(ptr[i])
+        // PERFORMANCE OPTIMIZED: Reduced expensive operations
+        return autoreleasepool {
+            guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                if frameCount % 100 == 0 {
+                    print("❌ composeFrame: No image buffer in sample buffer!")
                 }
-
-                if hash == lastFrameHash && frameCount > 0 {
-                    duplicateFrameCount += 1
-                    print("⚠️ Frame \(frameCount): Camera frame appears IDENTICAL to previous frame! (duplicates: \(duplicateFrameCount))")
-                } else {
-                    if duplicateFrameCount > 0 {
-                        print("✅ Frame \(frameCount): Camera frame is DIFFERENT (frame content is changing)")
-                    }
-                    duplicateFrameCount = 0
-                }
-                lastFrameHash = hash
+                return nil
             }
-        }
 
-        // Create output pixel buffer
-        guard let pixelBufferPool = pixelBufferAdaptor?.pixelBufferPool else {
-            return nil
-        }
-
-        var outputPixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &outputPixelBuffer)
-
-        guard status == kCVReturnSuccess, let outputBuffer = outputPixelBuffer else {
-            return nil
-        }
-
-        CVPixelBufferLockBaseAddress(outputBuffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(outputBuffer, []) }
-
-        // Create graphics context
-        guard let context = CGContext(
-            data: CVPixelBufferGetBaseAddress(outputBuffer),
-            width: CVPixelBufferGetWidth(outputBuffer),
-            height: CVPixelBufferGetHeight(outputBuffer),
-            bitsPerComponent: 8,
-            bytesPerRow: CVPixelBufferGetBytesPerRow(outputBuffer),
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else {
-            return nil
-        }
-
-        // Draw camera frame (use reusable ciContext - creating new context each frame kills performance!)
-        let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-
-        // Convert to CGImage without rotation first
-        guard let cgImage = self.ciContext.createCGImage(ciImage, from: ciImage.extent) else {
-            return nil
-        }
-
-        // Get output dimensions
-        let outputWidth = CVPixelBufferGetWidth(outputBuffer)
-        let outputHeight = CVPixelBufferGetHeight(outputBuffer)
-
-        // Apply rotation using CGContext transform instead of CIImage.oriented()
-        // This ensures proper aspect ratio handling
-        context.saveGState()
-
-        let rotationAngle = connection.videoRotationAngle
-
-        // Log rotation angle for debugging (only log every 120 frames to reduce memory)
-        if frameCount % 120 == 0 {
-            print("📹 Rotation: \(rotationAngle)° | Frame: \(frameCount)")
-        }
-
-        // Apply orientation correction based on videoRotationAngle
-        // Note: videoRotationAngle tells us how much the video needs to be rotated to appear upright
-        // The camera was producing upside-down video, so we need 180° rotation for landscape
-        switch rotationAngle {
-        case 90:
-            // Portrait: rotate 90° clockwise
-            context.translateBy(x: CGFloat(outputWidth), y: 0)
-            context.rotate(by: .pi / 2)
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
-
-        case 180:
-            // Landscape Left: rotate 180°
-            context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
-            context.rotate(by: .pi)
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
-
-        case 270:
-            // Portrait Upside Down: rotate 270° clockwise (or -90°)
-            context.translateBy(x: 0, y: CGFloat(outputHeight))
-            context.rotate(by: -.pi / 2)
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputHeight), height: CGFloat(outputWidth)))
-
-        default:
-            // 0 or other = Landscape Right
-            // Since video was upside-down with no rotation, apply 180° correction
-            context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
-            context.rotate(by: .pi)
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(outputWidth), height: CGFloat(outputHeight)))
-        }
-
-        context.restoreGState()
-
-        // CRITICAL FIX: Read overlay image with explicit lock to ensure memory visibility
-        // Even though we're on videoQueue, we need proper synchronization to see updates from main thread
-        overlayLock.lock()
-        let overlayImage = currentOverlayImage
-        overlayLock.unlock()
-
-        // Log overlay read every 120 frames (4 seconds) - reduced for memory
-        if frameCount % 120 == 0 {
-            print("🔒 Frame \(frameCount): Read overlay - \(overlayImage != nil ? "GOT IMAGE" : "NIL")")
-            if let img = overlayImage {
-                let pointer = Unmanaged.passUnretained(img).toOpaque()
-                print("   READ UIImage pointer: \(String(describing: pointer))")
+            // Create output pixel buffer first
+            guard let pixelBufferPool = pixelBufferAdaptor?.pixelBufferPool else {
+                return nil
             }
-        }
 
-        if let overlayImage = overlayImage, let cgImage = overlayImage.cgImage {
-            let overlayRect = CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(outputBuffer), height: CVPixelBufferGetHeight(outputBuffer))
+            var outputPixelBuffer: CVPixelBuffer?
+            let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &outputPixelBuffer)
 
-            // Set blend mode to normal with alpha compositing (ensures overlay appears on top)
-            context.setBlendMode(.normal)
+            guard status == kCVReturnSuccess, let outputBuffer = outputPixelBuffer else {
+                return nil
+            }
 
-            // Draw overlay image
-            context.draw(cgImage, in: overlayRect)
+            // Lock buffers
+            CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
+            CVPixelBufferLockBaseAddress(outputBuffer, [])
+            defer {
+                CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly)
+                CVPixelBufferUnlockBaseAddress(outputBuffer, [])
+            }
 
-            // IMPORTANT: Flush context to ensure drawing is committed to pixel buffer
-            context.flush()
+            // Get dimensions
+            let outputWidth = CVPixelBufferGetWidth(outputBuffer)
+            let outputHeight = CVPixelBufferGetHeight(outputBuffer)
 
-            // Log every 120 frames (4 seconds) - reduced for memory
+            // Create graphics context once
+            guard let context = CGContext(
+                data: CVPixelBufferGetBaseAddress(outputBuffer),
+                width: outputWidth,
+                height: outputHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: CVPixelBufferGetBytesPerRow(outputBuffer),
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            ) else {
+                return nil
+            }
+
+            // PERFORMANCE OPTIMIZATION: Create CGImage once, draw efficiently
+            let ciImage = CIImage(cvPixelBuffer: imageBuffer)
+            let rotationAngle = connection.videoRotationAngle
+
+            // Log rotation angle for debugging (only every 120 frames)
             if frameCount % 120 == 0 {
-                let imagePointer = Unmanaged.passUnretained(cgImage).toOpaque()
-                print("🎨 Drawing overlay on frame \(frameCount)")
-                print("   CGImage pointer: \(String(describing: imagePointer))")
-                if let game = currentLiveGame {
-                    print("   Game data: \(game.teamName) \(game.homeScore)-\(game.awayScore) | \(game.currentClockDisplay)")
-                }
+                print("📹 Rotation: \(rotationAngle)° | Frame: \(frameCount)")
             }
-        } else {
-            // Log if overlay is missing
-            if frameCount % 30 == 0 {
-                print("⚠️ NO OVERLAY IMAGE to draw on frame \(frameCount)")
-                print("   currentOverlayImage: \(currentOverlayImage != nil ? "exists" : "nil")")
-                if let img = currentOverlayImage {
-                    print("   cgImage: \(img.cgImage != nil ? "exists" : "nil")")
-                }
-            }
-        }
 
-        return outputBuffer
+            // Create CGImage from camera frame
+            guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else {
+                return nil
+            }
+
+            // Apply rotation using CGContext
+            context.saveGState()
+
+            switch rotationAngle {
+            case 90:
+                // Portrait: rotate 90° clockwise
+                context.translateBy(x: CGFloat(outputWidth), y: 0)
+                context.rotate(by: .pi / 2)
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: outputHeight, height: outputWidth))
+
+            case 180:
+                // Landscape Left: rotate 180°
+                context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
+                context.rotate(by: .pi)
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight))
+
+            case 270:
+                // Portrait Upside Down: rotate 270° clockwise
+                context.translateBy(x: 0, y: CGFloat(outputHeight))
+                context.rotate(by: -.pi / 2)
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: outputHeight, height: outputWidth))
+
+            default:
+                // Landscape Right - rotate 180°
+                context.translateBy(x: CGFloat(outputWidth), y: CGFloat(outputHeight))
+                context.rotate(by: .pi)
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight))
+            }
+
+            context.restoreGState()
+
+            // Draw overlay (use cached CGImage for performance)
+            overlayLock.lock()
+            let overlayCGImage = cachedOverlayCGImage
+            overlayLock.unlock()
+
+            if let overlayImage = overlayCGImage {
+                let overlayRect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
+                context.setBlendMode(.normal)
+                context.draw(overlayImage, in: overlayRect)
+
+                // Log every 120 frames
+                if frameCount % 120 == 0 {
+                    print("🎨 Drawing overlay on frame \(frameCount)")
+                }
+            } else if frameCount % 60 == 0 {
+                print("⚠️ NO OVERLAY IMAGE to draw on frame \(frameCount)")
+            }
+
+            return outputBuffer
+        }
     }
 
     // MARK: - Clock Interpolation

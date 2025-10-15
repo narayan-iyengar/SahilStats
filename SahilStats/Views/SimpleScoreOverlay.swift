@@ -13,10 +13,14 @@ struct SimpleScoreOverlay: View {
     let orientation: UIDeviceOrientation
     let recordingDuration: String
     let isRecording: Bool
-    
+
     @State private var rotationAnimation = false
     @State private var recordingProgress: CGFloat = 0
     @State private var progressTimer: Timer?
+    @State private var showZoomIndicator = false
+    @State private var zoomHideTimer: Timer?
+
+    @ObservedObject private var recordingManager = VideoRecordingManager.shared
     
     private var isLandscape: Bool {
         orientation == .landscapeLeft || orientation == .landscapeRight
@@ -93,19 +97,59 @@ struct SimpleScoreOverlay: View {
                 rotationAnimation = false
             }
         }
+        .onChange(of: recordingManager.currentZoomLevel) { oldValue, newValue in
+            // Show zoom indicator when zoom changes
+            if newValue != oldValue && newValue != 1.0 {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    showZoomIndicator = true
+                }
+
+                // Cancel existing hide timer
+                zoomHideTimer?.invalidate()
+
+                // Auto-hide after 1.5 seconds
+                zoomHideTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showZoomIndicator = false
+                    }
+                }
+            } else if newValue == 1.0 {
+                // Hide immediately when returning to 1.0x
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showZoomIndicator = false
+                }
+                zoomHideTimer?.invalidate()
+            }
+        }
     }
     
     // MARK: - Compact Landscape Overlay
     private var landscapeOverlay: some View {
         GeometryReader { geometry in
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    scoreboardContent
-                    Spacer()
+            ZStack {
+                // Zoom indicator at top center (iOS Camera app style)
+                if showZoomIndicator {
+                    VStack {
+                        Text(String(format: "%.1f×", recordingManager.currentZoomLevel))
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundColor(Color(red: 1.0, green: 0.8, blue: 0.0))  // iOS Camera yellow
+                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                            .padding(.top, 20)
+                        Spacer()
+                    }
+                    .transition(.opacity)
                 }
-                .padding(.bottom, 40)
+
+                // Scoreboard at bottom center
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        scoreboardContent
+                        Spacer()
+                    }
+                    .padding(.bottom, 40)
+                }
             }
         }
         .ignoresSafeArea()
@@ -165,12 +209,12 @@ struct SimpleScoreOverlay: View {
         .padding(.vertical, 8)
         .background(
             ZStack {
+                // ORIGINAL: Nice glassmorphism effect
                 RoundedRectangle(cornerRadius: 14)
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
 
-                // Only show subtle border when NOT recording
-                // When recording, the animated ticker provides the border
+                // Subtle border
                 if !isRecording {
                     RoundedRectangle(cornerRadius: 14)
                         .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)

@@ -11,16 +11,79 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
         var parent: SimpleCameraPreviewView
         var hasAddedPreviewLayer = false
         var checkTimer: Timer?
-        
+        var initialZoom: CGFloat = 1.0
+
         init(_ parent: SimpleCameraPreviewView) {
             self.parent = parent
         }
-        
+
         deinit {
             checkTimer?.invalidate()
         }
+
+        // MARK: - Gesture Handlers
+
+        @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+            guard parent.recordingManager.getCurrentVideoDevice() != nil else { return }
+
+            switch gesture.state {
+            case .began:
+                initialZoom = parent.recordingManager.getCurrentZoom()
+            case .changed:
+                let newZoom = initialZoom * gesture.scale
+                parent.recordingManager.setZoom(factor: newZoom)
+            default:
+                break
+            }
+        }
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view else { return }
+
+            let touchPoint = gesture.location(in: view)
+
+            // Convert to normalized coordinates (0.0 to 1.0)
+            let normalizedPoint = CGPoint(
+                x: touchPoint.x / view.bounds.width,
+                y: touchPoint.y / view.bounds.height
+            )
+
+            // Focus at the tapped point
+            parent.recordingManager.focusAt(point: normalizedPoint)
+
+            // Show visual feedback
+            showFocusIndicator(at: touchPoint, in: view)
+        }
+
+        private func showFocusIndicator(at point: CGPoint, in view: UIView) {
+            // Remove any existing focus indicator
+            view.subviews.filter { $0.tag == 1001 }.forEach { $0.removeFromSuperview() }
+
+            // Create focus indicator
+            let focusView = UIView(frame: CGRect(x: point.x - 40, y: point.y - 40, width: 80, height: 80))
+            focusView.layer.borderColor = UIColor.yellow.cgColor
+            focusView.layer.borderWidth = 2
+            focusView.layer.cornerRadius = 40
+            focusView.backgroundColor = .clear
+            focusView.tag = 1001
+            focusView.alpha = 0
+
+            view.addSubview(focusView)
+
+            // Animate focus indicator
+            UIView.animate(withDuration: 0.2, animations: {
+                focusView.alpha = 1
+                focusView.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+            }) { _ in
+                UIView.animate(withDuration: 0.3, delay: 0.5, options: [], animations: {
+                    focusView.alpha = 0
+                }) { _ in
+                    focusView.removeFromSuperview()
+                }
+            }
+        }
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -28,9 +91,19 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
         view.backgroundColor = .black
-        
+
         print("🎥 SimpleCameraPreviewView: makeUIView called")
-        
+
+        // Add pinch gesture for zoom
+        let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
+        view.addGestureRecognizer(pinchGesture)
+        print("✅ Added pinch gesture for zoom")
+
+        // Add tap gesture for focus
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        view.addGestureRecognizer(tapGesture)
+        print("✅ Added tap gesture for focus")
+
         // Add loading indicator
         let activityIndicator = UIActivityIndicatorView(style: .large)
         activityIndicator.color = .white
@@ -39,7 +112,7 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
         activityIndicator.startAnimating()
         view.addSubview(activityIndicator)
         activityIndicator.tag = 999
-        
+
         // Start checking for preview layer availability
         context.coordinator.checkTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
             DispatchQueue.main.async {
@@ -48,10 +121,10 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
                 }
             }
         }
-        
+
         // Try to add preview layer immediately
         checkAndAddPreviewLayer(to: view, coordinator: context.coordinator)
-        
+
         return view
     }
     
@@ -150,20 +223,41 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
         // Configure preview layer
         previewLayer.frame = view.bounds
         previewLayer.videoGravity = .resizeAspectFill
-        
-        // Set video orientation for landscape
+
+        // Set INITIAL orientation (VideoRecordingManager will handle rotation updates)
         if let connection = previewLayer.connection {
             print("🎥 Connection is active: \(connection.isActive)")
             print("🎥 Connection is enabled: \(connection.isEnabled)")
             print("🎥 Connection has video input: \(connection.inputPorts.first?.mediaType == .video)")
-            if connection.isVideoOrientationSupported {
-                connection.videoOrientation = .landscapeRight
-                print("✅ Set video orientation to landscape")
-            }
+
             // Ensure connection is enabled
             if !connection.isEnabled {
                 connection.isEnabled = true
                 print("✅ Enabled preview connection")
+            }
+
+            // Set initial orientation using same angle mappings as VideoRecordingManager
+            let deviceOrientation = UIDevice.current.orientation
+            let rotationAngle: CGFloat
+
+            switch deviceOrientation {
+            case .portrait:
+                rotationAngle = 90
+            case .portraitUpsideDown:
+                rotationAngle = 270
+            case .landscapeLeft:
+                rotationAngle = 270  // Match VideoRecordingManager
+            case .landscapeRight:
+                rotationAngle = 180  // Match VideoRecordingManager (your position)
+            default:
+                rotationAngle = 180  // Default to landscape right
+            }
+
+            if connection.isVideoRotationAngleSupported(rotationAngle) {
+                connection.videoRotationAngle = rotationAngle
+                print("✅ Set INITIAL preview orientation to \(rotationAngle)° for device orientation \(deviceOrientation.rawValue)")
+            } else {
+                print("⚠️ Rotation angle \(rotationAngle)° not supported")
             }
         } else {
             print("⚠️ No connection available on preview layer")
