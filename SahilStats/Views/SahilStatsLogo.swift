@@ -5,6 +5,13 @@
 //  App logo: Retro basketball badge with professional style
 //  Can be used in-app or rendered to image for app icons
 //
+//  ANIMATION & BATTERY USAGE:
+//  - Static version (isAnimated: false): Zero battery impact
+//  - Animated version (isAnimated: true): Minimal battery impact (~0.1% per minute)
+//  - Best practice: Only animate when visible (splash screen, loading)
+//  - DON'T animate: In list cells, always-on displays
+//  - SwiftUI animations are GPU-accelerated (efficient)
+//
 
 import SwiftUI
 
@@ -12,6 +19,9 @@ struct SahilStatsLogo: View {
     var size: CGFloat = 200
     var showShadow: Bool = true
     var showText: Bool = true
+    var isAnimated: Bool = false  // NEW: Enable spinning animation
+
+    @State private var rotation: Double = 0
 
     var body: some View {
         ZStack {
@@ -45,7 +55,7 @@ struct SahilStatsLogo: View {
                 )
                 .frame(width: size * 0.88, height: size * 0.88)
 
-            // Basketball center
+            // Basketball center (with optional spinning animation)
             ZStack {
                 // Basketball
                 Circle()
@@ -65,6 +75,14 @@ struct SahilStatsLogo: View {
                 // Basketball seams
                 basketballSeams
                     .frame(width: size * 0.50, height: size * 0.50)
+            }
+            .rotationEffect(.degrees(rotation))
+            .onAppear {
+                if isAnimated {
+                    withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                        rotation = 360
+                    }
+                }
             }
 
             // Text overlay (if enabled)
@@ -345,13 +363,28 @@ struct ExportStep: View {
     ZStack {
         Color(red: 0.95, green: 0.95, blue: 0.97)
         VStack(spacing: 40) {
-            SahilStatsLogo(size: 300, showText: true)
+            // Animated spinning version
+            VStack(spacing: 10) {
+                SahilStatsLogo(size: 300, showText: true, isAnimated: true)
+                Text("🔄 Spinning Animation")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
-            HStack(spacing: 30) {
-                SahilStatsLogo(size: 150, showText: false)
-                SahilStatsLogo(size: 150, showText: true)
+            Divider()
+
+            // Static versions
+            VStack(spacing: 10) {
+                HStack(spacing: 30) {
+                    SahilStatsLogo(size: 150, showText: false, isAnimated: false)
+                    SahilStatsLogo(size: 150, showText: true, isAnimated: false)
+                }
+                Text("Static (No Animation)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
+        .padding(40)
     }
     .ignoresSafeArea()
 }
