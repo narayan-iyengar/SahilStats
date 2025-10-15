@@ -89,5 +89,8 @@ fastlane/test_output
 
 iOSInjectionProject/
 
+# Firebase
+GoogleService-Info.plist
+
 # macOS
 .DS_Store
