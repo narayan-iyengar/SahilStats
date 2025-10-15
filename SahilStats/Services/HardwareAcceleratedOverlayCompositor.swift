@@ -538,12 +538,12 @@ class HardwareAcceleratedOverlayCompositor {
 
         let layer = CALayer()
         layer.frame = CGRect(x: x, y: y, width: width, height: height)
-        // ORIGINAL opacity restored
-        layer.backgroundColor = UIColor.black.withAlphaComponent(0.75).cgColor
+        // Darker background for better visibility (increased from 0.75 to 0.85)
+        layer.backgroundColor = UIColor.black.withAlphaComponent(0.85).cgColor
         layer.cornerRadius = 14 * scaleFactor
         layer.borderWidth = 1
-        // ORIGINAL border opacity restored
-        layer.borderColor = UIColor.white.withAlphaComponent(0.5).cgColor
+        // Brighter border for better contrast
+        layer.borderColor = UIColor.white.withAlphaComponent(0.6).cgColor
 
         return layer
     }

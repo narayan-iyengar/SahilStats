@@ -21,7 +21,8 @@ class VideoRecordingManager: NSObject, ObservableObject {
     /// Toggle between real-time overlay recording (Option 1) and post-processing (Option 2)
     /// - Option 1 (true): Burns overlay directly into video during recording - guaranteed preview/video match
     /// - Option 2 (false): Records clean video, adds overlay in post-processing - more stable multipeer connection
-    static var useRealTimeOverlay: Bool = false  // Set to false to use post-processing
+    static var useRealTimeOverlay: Bool = false  // MUST stay false - real-time causes high CPU and connection issues
+    static var useLetterboxPreview: Bool = true  // Use .resizeAspect (letterbox) instead of .resizeAspectFill for camera preview
 
     @Published var isRecording = false
     @Published var recordingDuration: TimeInterval = 0
@@ -46,11 +47,16 @@ class VideoRecordingManager: NSObject, ObservableObject {
     private var recordingStartTime: Date?
     private var _previewLayer: AVCaptureVideoPreviewLayer?
     private var currentVideoDevice: AVCaptureDevice? // Reference to active camera device for zoom/focus control
+    private var lastLiveActivityUpdateSecond: Int = -1 // Track last updated second to throttle Live Activity updates
     
     var previewLayer: AVCaptureVideoPreviewLayer? {
         return _previewLayer
     }
-    
+
+    var isCameraSessionRunning: Bool {
+        return captureSession?.isRunning ?? false
+    }
+
     var recordingTimeString: String {
         let minutes = Int(recordingDuration) / 60
         let seconds = Int(recordingDuration) % 60
@@ -556,7 +562,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
                     // Real-time recorder manages its own game state
                     // No need for ScoreTimelineTracker
 
-                    // Update Live Activity
+                    // Update Live Activity (disabled via feature flag for recorder device)
                     LiveActivityManager.shared.updateRecordingState(isRecording: true)
                     print("✅ Real-time recording started - isRecording=true")
                 }
@@ -617,7 +623,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 // Start tracking score timeline for post-processing
                 ScoreTimelineTracker.shared.startRecording(initialGame: game)
 
-                // Update Live Activity
+                // Update Live Activity (disabled via feature flag for recorder device)
                 LiveActivityManager.shared.updateRecordingState(isRecording: true)
                 print("✅ Recording state updated - isRecording=true")
             }
@@ -643,6 +649,17 @@ class VideoRecordingManager: NSObject, ObservableObject {
             // Score timeline is automatically tracked by ScoreTimelineTracker
             // No action needed here - GPU will handle overlay during export
             print("📊 Game data tracked for post-processing")
+        }
+    }
+
+    /// Show end game banner with final score and winner
+    /// - Only works with real-time overlay recording (Option 1)
+    func showEndGameBanner(liveGame: LiveGame) {
+        if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
+            recorder.showEndGameBanner(game: liveGame)
+            print("🏆 End game banner shown in real-time recorder")
+        } else {
+            print("⚠️ End game banner not supported in post-processing mode")
         }
     }
 
@@ -682,7 +699,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
             // DON'T call ScoreTimelineTracker.stopRecording() here
             // It will be called later when saving the video to get the timeline
 
-            // Update Live Activity
+            // Update Live Activity (disabled via feature flag for recorder device)
             LiveActivityManager.shared.updateRecordingState(isRecording: false)
             print("✅ Recording stopped - isRecording=false")
         }
@@ -693,9 +710,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
             guard let self = self, let startTime = self.recordingStartTime else { return }
             self.recordingDuration = Date().timeIntervalSince(startTime)
 
-            // Update Live Activity every second (not every 0.1s to avoid too many updates)
-            let duration = Int(self.recordingDuration)
-            if duration > 0 && duration % 1 == 0 {
+            // Update Live Activity (disabled via feature flag for recorder device)
+            let currentSecond = Int(self.recordingDuration)
+            if currentSecond != self.lastLiveActivityUpdateSecond && currentSecond > 0 {
+                self.lastLiveActivityUpdateSecond = currentSecond
                 Task { @MainActor in
                     LiveActivityManager.shared.updateRecordingState(
                         isRecording: true,
@@ -710,6 +728,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
         recordingTimer?.invalidate()
         recordingTimer = nil
         recordingDuration = 0
+        lastLiveActivityUpdateSecond = -1  // Reset throttle for next recording
     }
     
     // MARK: - Additional Camera Controls (from your existing code)

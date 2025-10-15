@@ -24,12 +24,13 @@ struct RecorderReadyView: View {
     @State private var availableStorage: String = "Calculating..."
     @State private var batteryTimer: Timer?
     @State private var receivedLiveGame: LiveGame?  // Game info received from controller
-    
+    @State private var isCameraReady = false
+
     var body: some View {
         ZStack {
-            // Dark background for recording setup
+            // Simple black background - no camera preview to avoid blocking/connection issues
             Color.black.ignoresSafeArea()
-            
+
             VStack(spacing: 32) {
                 Spacer()
                 
@@ -328,8 +329,9 @@ struct RecorderReadyView: View {
         // Initial storage calculation
         updateStorageInfo()
 
-        // Setup camera (but don't start session yet)
-        recordingManager.setupCamera()
+        // DON'T setup camera here - it causes connection drops and blocks UI
+        // Camera will be set up when recording starts in CleanVideoRecordingView
+        print("✅ RecorderReadyView ready - waiting for recording command")
     }
     
     private func cleanupView() {
@@ -445,20 +447,16 @@ struct RecorderReadyView: View {
     
     private func startRecordingTransition() {
         print("🎬 Starting transition to recording view")
-        
+
         // Ensure we have camera access
         guard recordingManager.canRecordVideo else {
             print("❌ Cannot start recording - no camera access")
             return
         }
-        
-        // Start camera session before transitioning
-        recordingManager.startCameraSession()
-        
-        // Small delay to ensure camera is ready, then transition
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.showingRecordingView = true
-        }
+
+        // Transition immediately - CleanVideoRecordingView will handle camera setup
+        print("✅ Transitioning to recording view - camera will be set up there")
+        showingRecordingView = true
     }
     
     private func updateBatteryLevel() {

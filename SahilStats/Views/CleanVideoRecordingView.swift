@@ -33,10 +33,10 @@ struct CleanVideoRecordingView: View {
     @State private var cameraSetupAttempts = 0
     @State private var showingCameraError = false
     @State private var cameraErrorMessage = ""
-    
+
     @State private var cancellables = Set<AnyCancellable>() // To hold our subscription
 
-    
+
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
         self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
@@ -49,6 +49,7 @@ struct CleanVideoRecordingView: View {
         ZStack {
             if isCameraReady {
                 SimpleCameraPreviewView(isCameraReady: $isCameraReady)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(.all)
 
                 SimpleScoreOverlay(
@@ -147,12 +148,15 @@ struct CleanVideoRecordingView: View {
         setupBluetoothCallbacks()
         UIApplication.shared.isIdleTimerDisabled = true
 
-        // DON'T setup camera if already recording - it will kill the active recording!
-        if !recordingManager.isRecording {
+        // Skip camera setup if already running (started early in RecorderReadyView)
+        if recordingManager.isCameraSessionRunning {
+            print("✅ Camera session already running - marking as ready immediately")
+            isCameraReady = true
+        } else if !recordingManager.isRecording {
+            print("🎥 Camera session not running yet - setting up now")
             setupCameraWithDelay()
         } else {
             print("⚠️ Already recording - skipping camera setup to avoid interruption")
-            // Camera is already setup and recording, just mark as ready
             isCameraReady = true
         }
         
@@ -221,10 +225,10 @@ struct CleanVideoRecordingView: View {
     }
     
     private func setupCameraWithDelay() {
-        // IMPROVED: Give more time for connection to stabilize before starting heavy camera operations
-        print("🎥 CleanVideoRecordingView: Scheduling camera setup with delay to avoid connection interference")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { // Increased from 0.5 to 1.5 seconds
-            Task {
+        // Setup camera on lower priority to not interfere with multipeer connection
+        print("🎥 CleanVideoRecordingView: Scheduling camera setup on background priority")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { // Reduced delay to minimize connection drop window
+            Task(priority: .background) {
                 await self.setupCamera()
             }
         }
@@ -248,9 +252,9 @@ struct CleanVideoRecordingView: View {
         
         cameraSetupAttempts += 1
         print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
-        
-        // IMPROVED: Move camera setup to background thread to avoid blocking UI and connection handling
-        Task.detached(priority: .userInitiated) {
+
+        // IMPROVED: Move camera setup to low priority background thread to not interfere with multipeer
+        Task.detached(priority: .utility) {
             let hasPermission = await self.recordingManager.checkForCameraPermission()
             
             guard hasPermission else {
@@ -263,17 +267,18 @@ struct CleanVideoRecordingView: View {
             
             await MainActor.run {
                 print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
-                
-                // IMPORTANT: Start the camera session BEFORE setting up preview
-                self.recordingManager.startCameraSession()
-                
-                // Now setup the camera and get the preview layer
+
+                // CRITICAL: Setup camera hardware FIRST (creates the session)
                 if self.recordingManager.setupCamera() != nil {
                     print("✅ Camera hardware setup completed")
                     self.hasCameraSetup = true
-                    
-                    // Give the camera session time to start before marking ready
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+
+                    // NOW start the camera session (after it's been created)
+                    self.recordingManager.startCameraSession()
+                    print("🎥 Camera session started")
+
+                    // Give the camera session time to fully start before marking ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         print("✅ Marking camera as ready")
                         self.isCameraReady = true
                     }
@@ -533,12 +538,9 @@ struct CleanVideoRecordingView: View {
         print("   Current recording state: isRecording=\(recordingManager.isRecording)")
 
         Task { @MainActor in
-            // Add delay to capture final game state and allow splash screen to display
+            // Stop recording if active
             if recordingManager.isRecording {
-                print("⏱️ Waiting 2 seconds to capture End Game button press and splash screen...")
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds as requested by user
-
-                print("🎬 Recording is active, stopping...")
+                print("🎬 Stopping recording...")
                 await self.recordingManager.stopRecording()
                 print("✅ Recording stopped")
             }

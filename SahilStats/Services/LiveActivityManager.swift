@@ -13,6 +13,10 @@ import Combine
 class LiveActivityManager: ObservableObject {
     static let shared = LiveActivityManager()
 
+    // FEATURE FLAG: Disable Live Activities (not useful for recorder device)
+    // Enable this for viewer apps where showing scores in Dynamic Island makes sense
+    private static let isEnabled = false
+
     @Published var isActivityActive = false
     private var currentActivity: Activity<SahilStatsActivityAttributes>?
 
@@ -21,6 +25,12 @@ class LiveActivityManager: ObservableObject {
     // MARK: - Start Activity
 
     func startActivity(deviceRole: DeviceRole) {
+        // Feature flag check - skip if disabled
+        guard Self.isEnabled else {
+            print("🏝️ Live Activity disabled via feature flag")
+            return
+        }
+
         print("🏝️ LiveActivityManager: startActivity() called for role: \(deviceRole.displayName)")
 
         // Don't start if already active
@@ -88,6 +98,7 @@ class LiveActivityManager: ObservableObject {
         status: MultipeerConnectivityManager.ConnectionState,
         connectedPeers: [String]
     ) {
+        guard Self.isEnabled else { return }
         guard let activity = currentActivity else { return }
 
         let connectionStatus: SahilStatsActivityAttributes.ContentState.ConnectionStatus
@@ -126,6 +137,7 @@ class LiveActivityManager: ObservableObject {
     }
 
     func updateGameState(liveGame: LiveGame?) {
+        guard Self.isEnabled else { return }
         guard let activity = currentActivity else { return }
 
         Task {
@@ -157,6 +169,7 @@ class LiveActivityManager: ObservableObject {
     }
 
     func updateRecordingState(isRecording: Bool, duration: String? = nil) {
+        guard Self.isEnabled else { return }
         guard let activity = currentActivity else { return }
 
         Task {
@@ -174,6 +187,7 @@ class LiveActivityManager: ObservableObject {
     // MARK: - Stop Activity
 
     func stopActivity() {
+        guard Self.isEnabled else { return }
         guard let activity = currentActivity else { return }
 
         Task {

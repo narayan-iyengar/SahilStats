@@ -42,7 +42,7 @@ struct SahilStatsLiveActivity: Widget {
                         )
                     } else {
                         VStack(spacing: 4) {
-                            Text("🏀 SahilStats")
+                            Text("SahilStats")
                                 .font(.headline)
                                 .foregroundColor(.orange)
                             Text("Waiting for game to start...")
@@ -55,8 +55,6 @@ struct SahilStatsLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     if context.state.isGameActive {
                         HStack {
-                            Image(systemName: "basketball.fill")
-                                .foregroundColor(.orange)
                             Text("Q\(context.state.quarter)")
                                 .font(.caption)
                             if let clockTime = context.state.clockTime {
@@ -68,12 +66,16 @@ struct SahilStatsLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                // Compact leading - connection status
-                ConnectionDotView(status: context.state.connectionStatus)
+                // Device icon with connection status color - simple connected/disconnected
+                let isController = context.attributes.deviceRole.contains("Control")
+                let iconName = isController ? "ipad" : "iphone"
+                let iconColor: Color = context.state.connectionStatus == .connected ? .green : .gray
+
+                Image(systemName: iconName)
+                    .foregroundColor(iconColor)
             } compactTrailing: {
-                // Compact trailing - always show something meaningful
+                // Show score if game is active, otherwise recording indicator
                 if context.state.isGameActive {
-                    // Show score prominently
                     HStack(spacing: 2) {
                         Text("\(context.state.homeScore)")
                             .font(.caption)
@@ -87,22 +89,23 @@ struct SahilStatsLiveActivity: Widget {
                             .bold()
                             .monospacedDigit()
                     }
-                } else {
-                    // Show appropriate icon based on role when waiting
-                    let icon = context.attributes.deviceRole.contains("Control") ? "gamecontroller.fill" :
-                               context.attributes.deviceRole.contains("Viewer") ? "eye.fill" : "basketball.fill"
-                    Image(systemName: icon)
-                        .foregroundColor(.orange)
-                        .font(.caption2)
-                }
-            } minimal: {
-                // Minimal - just a dot showing connection/recording status
-                if context.state.isRecording {
+                } else if context.state.isRecording {
                     Image(systemName: "record.circle.fill")
                         .foregroundColor(.red)
-                } else {
-                    ConnectionDotView(status: context.state.connectionStatus)
                 }
+            } minimal: {
+                // Minimal - device icon with simple connected/disconnected color
+                let isController = context.attributes.deviceRole.contains("Control")
+                let iconName = isController ? "ipad" : "iphone"
+                let iconColor: Color = {
+                    if context.state.isRecording {
+                        return .red
+                    }
+                    return context.state.connectionStatus == .connected ? .green : .gray
+                }()
+
+                Image(systemName: iconName)
+                    .foregroundColor(iconColor)
             }
         }
     }
@@ -114,74 +117,42 @@ struct LockScreenLiveActivityView: View {
     let context: ActivityViewContext<SahilStatsActivityAttributes>
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Connection status
-            HStack {
-                Text(context.state.connectionStatus.emoji)
-                Text(context.state.connectionStatus.displayText)
-                    .font(.caption)
+        HStack(spacing: 12) {
+            // Device icon with connection status
+            deviceIcon
+                .font(.title2)
+                .foregroundColor(iconColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(context.attributes.deviceRole)
+                    .font(.subheadline)
+                    .foregroundColor(.white)
 
                 if let deviceName = context.state.connectedDeviceName {
-                    Text("• \(deviceName)")
-                        .font(.caption2)
+                    Text(deviceName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(context.state.connectionStatus.displayText)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
-
-                Spacer()
-
-                Text(context.attributes.deviceRole)
-                    .font(.caption)
-                    .foregroundColor(.orange)
             }
 
-            if context.state.isGameActive {
-                // Game score
-                HStack(spacing: 20) {
-                    VStack {
-                        Text(context.state.homeTeam ?? "Home")
-                            .font(.caption)
-                            .lineLimit(1)
-                        Text("\(context.state.homeScore)")
-                            .font(.title2)
-                            .bold()
-                    }
-
-                    VStack {
-                        if let clockTime = context.state.clockTime {
-                            Text(clockTime)
-                                .font(.caption)
-                                .monospacedDigit()
-                        }
-                        Text("Q\(context.state.quarter)")
-                            .font(.caption2)
-                    }
-
-                    VStack {
-                        Text(context.state.awayTeam ?? "Away")
-                            .font(.caption)
-                            .lineLimit(1)
-                        Text("\(context.state.awayScore)")
-                            .font(.title2)
-                            .bold()
-                    }
-                }
-            }
-
-            if context.state.isRecording {
-                HStack {
-                    Image(systemName: "record.circle.fill")
-                        .foregroundColor(.red)
-                    Text("Recording")
-                        .font(.caption)
-                    if let duration = context.state.recordingDuration {
-                        Text(duration)
-                            .font(.caption)
-                            .monospacedDigit()
-                    }
-                }
-            }
+            Spacer()
         }
         .padding()
+    }
+
+    private var deviceIcon: some View {
+        let isController = context.attributes.deviceRole.contains("Control")
+        let iconName = isController ? "ipad" : "iphone"
+        return Image(systemName: iconName)
+    }
+
+    private var iconColor: Color {
+        // Simple connected/disconnected color
+        return context.state.connectionStatus == .connected ? .green : .gray
     }
 }
 
