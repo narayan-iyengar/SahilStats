@@ -2,7 +2,7 @@
 //  SahilStatsLogo.swift
 //  SahilStats
 //
-//  App logo: Basketball with rising graph lines
+//  App logo: Retro basketball badge with professional style
 //  Can be used in-app or rendered to image for app icons
 //
 
@@ -11,105 +11,111 @@ import SwiftUI
 struct SahilStatsLogo: View {
     var size: CGFloat = 200
     var showShadow: Bool = true
+    var showText: Bool = true
 
     var body: some View {
         ZStack {
-            // Basketball
+            // Outer badge circle
             Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            Color(red: 1.0, green: 0.6, blue: 0.3),  // Lighter orange center
-                            Color(red: 1.0, green: 0.42, blue: 0.21)  // Basketball orange
-                        ],
-                        center: .topLeading,
-                        startRadius: size * 0.1,
-                        endRadius: size * 0.5
-                    )
-                )
-                .frame(width: size, height: size)
-
-            // Basketball seams/lines
-            basketballSeams
-
-            // Rising bar chart overlay
-            statsOverlay
-        }
-        .shadow(color: showShadow ? .black.opacity(0.3) : .clear, radius: size * 0.05, x: 0, y: size * 0.02)
-    }
-
-    private var basketballSeams: some View {
-        ZStack {
-            // Vertical center line
-            Rectangle()
-                .fill(Color.black.opacity(0.15))
-                .frame(width: size * 0.015, height: size * 0.7)
-
-            // Horizontal curved lines (basketball seams)
-            Path { path in
-                // Top curve
-                path.move(to: CGPoint(x: -size * 0.35, y: -size * 0.15))
-                path.addQuadCurve(
-                    to: CGPoint(x: size * 0.35, y: -size * 0.15),
-                    control: CGPoint(x: 0, y: -size * 0.4)
-                )
-
-                // Bottom curve
-                path.move(to: CGPoint(x: -size * 0.35, y: size * 0.15))
-                path.addQuadCurve(
-                    to: CGPoint(x: size * 0.35, y: size * 0.15),
-                    control: CGPoint(x: 0, y: size * 0.4)
-                )
-            }
-            .stroke(Color.black.opacity(0.15), lineWidth: size * 0.015)
-        }
-        .frame(width: size, height: size)
-    }
-
-    private var statsOverlay: some View {
-        HStack(spacing: size * 0.05) {
-            // Bar 1 (shortest)
-            RoundedRectangle(cornerRadius: size * 0.02)
-                .fill(Color.white)
-                .frame(width: size * 0.12, height: size * 0.25)
-                .offset(y: size * 0.1)
-
-            // Bar 2 (medium)
-            RoundedRectangle(cornerRadius: size * 0.02)
-                .fill(Color.white)
-                .frame(width: size * 0.12, height: size * 0.38)
-                .offset(y: size * 0.035)
-
-            // Bar 3 (tallest) - with highlight
-            RoundedRectangle(cornerRadius: size * 0.02)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white,
-                            Color.white.opacity(0.9)
+                            Color(red: 0.15, green: 0.18, blue: 0.25),  // Dark navy
+                            Color(red: 0.10, green: 0.12, blue: 0.18)   // Darker navy
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .frame(width: size * 0.12, height: size * 0.5)
-                .overlay(
-                    // Shine effect on tallest bar
-                    RoundedRectangle(cornerRadius: size * 0.02)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.3),
-                                    Color.clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .center
-                            )
-                        )
+                .frame(width: size, height: size)
+
+            // Inner decorative ring
+            Circle()
+                .strokeBorder(
+                    Color(red: 0.85, green: 0.65, blue: 0.35),  // Vintage gold
+                    lineWidth: size * 0.015
                 )
-                .offset(y: -size * 0.025)
+                .frame(width: size * 0.92, height: size * 0.92)
+
+            // Second inner ring
+            Circle()
+                .strokeBorder(
+                    Color(red: 0.85, green: 0.65, blue: 0.35).opacity(0.5),
+                    lineWidth: size * 0.008
+                )
+                .frame(width: size * 0.88, height: size * 0.88)
+
+            // Basketball center
+            ZStack {
+                // Basketball
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color(red: 0.95, green: 0.52, blue: 0.25),  // Bright center
+                                Color(red: 0.85, green: 0.42, blue: 0.18)   // Darker edges
+                            ],
+                            center: .init(x: 0.4, y: 0.4),
+                            startRadius: size * 0.05,
+                            endRadius: size * 0.25
+                        )
+                    )
+                    .frame(width: size * 0.50, height: size * 0.50)
+
+                // Basketball seams
+                basketballSeams
+                    .frame(width: size * 0.50, height: size * 0.50)
+            }
+
+            // Text overlay (if enabled)
+            if showText {
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    Text("SAHIL")
+                        .font(.system(size: size * 0.11, weight: .black, design: .rounded))
+                        .tracking(size * 0.02)
+                        .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.35))
+                        .offset(y: size * 0.38)
+
+                    Text("STATS")
+                        .font(.system(size: size * 0.09, weight: .bold, design: .rounded))
+                        .tracking(size * 0.025)
+                        .foregroundColor(.white.opacity(0.9))
+                        .offset(y: size * 0.40)
+                }
+            }
         }
-        .shadow(color: .black.opacity(0.2), radius: size * 0.02, x: 0, y: size * 0.01)
+        .shadow(color: showShadow ? .black.opacity(0.4) : .clear, radius: size * 0.08, x: 0, y: size * 0.04)
+    }
+
+    private var basketballSeams: some View {
+        ZStack {
+            // Vertical center line
+            Capsule()
+                .fill(Color.black.opacity(0.25))
+                .frame(width: size * 0.012, height: size * 0.35)
+
+            // Horizontal curved lines (basketball seams)
+            Path { path in
+                let seamWidth = size * 0.25
+
+                // Top curve
+                path.move(to: CGPoint(x: -seamWidth, y: -size * 0.08))
+                path.addQuadCurve(
+                    to: CGPoint(x: seamWidth, y: -size * 0.08),
+                    control: CGPoint(x: 0, y: -size * 0.20)
+                )
+
+                // Bottom curve
+                path.move(to: CGPoint(x: -seamWidth, y: size * 0.08))
+                path.addQuadCurve(
+                    to: CGPoint(x: seamWidth, y: size * 0.08),
+                    control: CGPoint(x: 0, y: size * 0.20)
+                )
+            }
+            .stroke(Color.black.opacity(0.25), style: StrokeStyle(lineWidth: size * 0.012, lineCap: .round))
+        }
     }
 }
 
@@ -117,71 +123,119 @@ struct SahilStatsLogo: View {
 
 struct SahilStatsLogoPreview: View {
     var body: some View {
-        ZStack {
-            // Preview on different backgrounds
+        ScrollView {
             VStack(spacing: 40) {
-                // Light background
+                // Main logo showcase
                 VStack(spacing: 20) {
-                    Text("Light Background")
+                    Text("Retro Basketball Badge")
+                        .font(.title.bold())
+
+                    SahilStatsLogo(size: 300)
+
+                    Text("Professional • Classic • Clean")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(40)
+
+                Divider()
+
+                // Variations
+                VStack(spacing: 30) {
+                    Text("Logo Variations")
                         .font(.headline)
-                    HStack(spacing: 30) {
-                        SahilStatsLogo(size: 120)
-                        SahilStatsLogo(size: 80)
-                        SahilStatsLogo(size: 50)
+
+                    // With and without text
+                    HStack(spacing: 40) {
+                        VStack {
+                            SahilStatsLogo(size: 150, showText: true)
+                            Text("With Text")
+                                .font(.caption)
+                        }
+                        VStack {
+                            SahilStatsLogo(size: 150, showText: false)
+                            Text("Icon Only")
+                                .font(.caption)
+                        }
                     }
                 }
                 .padding(40)
-                .background(Color.white)
+                .background(Color.gray.opacity(0.05))
                 .cornerRadius(20)
 
-                // Dark background
-                VStack(spacing: 20) {
-                    Text("Dark Background")
+                // Different backgrounds
+                VStack(spacing: 30) {
+                    Text("On Different Backgrounds")
                         .font(.headline)
-                        .foregroundColor(.white)
+
                     HStack(spacing: 30) {
-                        SahilStatsLogo(size: 120)
-                        SahilStatsLogo(size: 80)
-                        SahilStatsLogo(size: 50)
+                        VStack {
+                            ZStack {
+                                Color.white
+                                SahilStatsLogo(size: 120, showShadow: false)
+                            }
+                            .frame(width: 140, height: 140)
+                            .cornerRadius(12)
+                            Text("Light")
+                                .font(.caption)
+                        }
+
+                        VStack {
+                            ZStack {
+                                Color.black
+                                SahilStatsLogo(size: 120, showShadow: false)
+                            }
+                            .frame(width: 140, height: 140)
+                            .cornerRadius(12)
+                            Text("Dark")
+                                .font(.caption)
+                        }
+
+                        VStack {
+                            ZStack {
+                                Color.orange.opacity(0.2)
+                                SahilStatsLogo(size: 120, showShadow: false)
+                            }
+                            .frame(width: 140, height: 140)
+                            .cornerRadius(12)
+                            Text("Color")
+                                .font(.caption)
+                        }
                     }
                 }
                 .padding(40)
-                .background(Color(red: 0.1, green: 0.12, blue: 0.18))
+                .background(Color.gray.opacity(0.05))
                 .cornerRadius(20)
 
                 // App icon sizes
                 VStack(spacing: 20) {
                     Text("iOS App Icon Sizes")
                         .font(.headline)
+
                     HStack(spacing: 20) {
                         VStack {
-                            SahilStatsLogo(size: 180, showShadow: false)
-                            Text("1024×1024")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        VStack {
-                            SahilStatsLogo(size: 120, showShadow: false)
+                            SahilStatsLogo(size: 120, showShadow: false, showText: false)
                             Text("180×180")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
                         }
                         VStack {
-                            SahilStatsLogo(size: 80, showShadow: false)
+                            SahilStatsLogo(size: 80, showShadow: false, showText: false)
                             Text("120×120")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
                         }
                         VStack {
-                            SahilStatsLogo(size: 60, showShadow: false)
+                            SahilStatsLogo(size: 60, showShadow: false, showText: false)
                             Text("60×60")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
                         }
                     }
+
+                    Text("💡 Use icon-only version for app icons (no text)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(40)
-                .background(Color.gray.opacity(0.1))
+                .background(Color.blue.opacity(0.05))
                 .cornerRadius(20)
             }
             .padding(40)
@@ -287,17 +341,21 @@ struct ExportStep: View {
 
 // MARK: - Previews
 
-#Preview("Logo Sizes") {
-    SahilStatsLogoPreview()
-}
-
-#Preview("App Icon Generator") {
-    AppIconGeneratorView()
-}
-
-#Preview("Single Logo") {
+#Preview("Badge Logo") {
     ZStack {
-        Color.gray.opacity(0.2)
-        SahilStatsLogo(size: 300)
+        Color(red: 0.95, green: 0.95, blue: 0.97)
+        VStack(spacing: 40) {
+            SahilStatsLogo(size: 300, showText: true)
+
+            HStack(spacing: 30) {
+                SahilStatsLogo(size: 150, showText: false)
+                SahilStatsLogo(size: 150, showText: true)
+            }
+        }
     }
+    .ignoresSafeArea()
+}
+
+#Preview("Full Preview") {
+    SahilStatsLogoPreview()
 }
