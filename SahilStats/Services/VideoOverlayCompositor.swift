@@ -67,7 +67,7 @@ class VideoOverlayCompositor {
 
         do {
             let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-            if let audioTrack = audioTracks.first {
+            if audioTracks.first != nil {
                 compositionAudioTrack = composition.addMutableTrack(
                     withMediaType: .audio,
                     preferredTrackID: kCMPersistentTrackID_Invalid
@@ -75,7 +75,7 @@ class VideoOverlayCompositor {
             }
 
             let duration = try await asset.load(.duration)
-            try await videoTrack.load(.timeRange)
+            _ = try await videoTrack.load(.timeRange)
             try compositionVideoTrack.insertTimeRange(
                 CMTimeRange(start: .zero, duration: duration),
                 of: videoTrack,
@@ -131,24 +131,28 @@ class VideoOverlayCompositor {
         parentLayer.addSublayer(videoLayer)
         parentLayer.addSublayer(overlayLayer)
 
-        // Create video composition (deprecated in iOS 26, but works fine)
-        let videoComposition = AVMutableVideoComposition()
-        videoComposition.renderSize = videoSize
-        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-        videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
+        // Create layer instruction using modern configuration API
+        let layerInstructionConfig = AVVideoCompositionLayerInstruction.Configuration(trackID: compositionVideoTrack.trackID)
+        let layerInstruction = AVVideoCompositionLayerInstruction(configuration: layerInstructionConfig)
+
+        // Create instruction using modern configuration API
+        var instructionConfig = AVVideoCompositionInstruction.Configuration()
+        instructionConfig.timeRange = CMTimeRange(start: .zero, duration: duration)
+        instructionConfig.layerInstructions = [layerInstruction]
+        let instruction = AVVideoCompositionInstruction(configuration: instructionConfig)
+
+        // Create video composition using modern configuration API
+        var compositionConfig = AVVideoComposition.Configuration()
+        compositionConfig.renderSize = videoSize
+        compositionConfig.frameDuration = CMTime(value: 1, timescale: 30)
+        compositionConfig.instructions = [instruction]
+        compositionConfig.animationTool = AVVideoCompositionCoreAnimationTool(
             postProcessingAsVideoLayer: videoLayer,
             in: parentLayer
         )
+        let videoComposition = AVVideoComposition(configuration: compositionConfig)
 
-        // Create instruction
-        let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
-
-        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
-        instruction.layerInstructions = [layerInstruction]
-        videoComposition.instructions = [instruction]
-
-        // Export
+        // Export using modern iOS 18+ async API
         let outputURL = videoURL.deletingLastPathComponent()
             .appendingPathComponent("overlay_\(Date().timeIntervalSince1970).mov")
 
@@ -162,39 +166,27 @@ class VideoOverlayCompositor {
             return
         }
 
-        exporter.outputURL = outputURL
         exporter.outputFileType = .mov
         exporter.videoComposition = videoComposition
 
         print("📤 Exporting video with animated overlay to: \(outputURL.lastPathComponent)")
 
-        exporter.exportAsynchronously {
+        do {
+            try await exporter.export(to: outputURL, as: .mov)
+
+            print("✅ Video export completed successfully")
+
+            // Delete original video to save space
+            try? FileManager.default.removeItem(at: videoURL)
+            print("🗑️ Deleted original video (without overlay)")
+
             DispatchQueue.main.async {
-                switch exporter.status {
-                case .completed:
-                    print("✅ Video export completed successfully")
-
-                    // Delete original video to save space
-                    try? FileManager.default.removeItem(at: videoURL)
-                    print("🗑️ Deleted original video (without overlay)")
-
-                    completion(.success(outputURL))
-
-                case .failed:
-                    print("❌ Export failed: \(String(describing: exporter.error))")
-                    completion(.failure(exporter.error ?? NSError(domain: "VideoOverlayCompositor", code: 4,
-                                                                  userInfo: [NSLocalizedDescriptionKey: "Export failed"])))
-
-                case .cancelled:
-                    print("⚠️ Export cancelled")
-                    completion(.failure(NSError(domain: "VideoOverlayCompositor", code: 5,
-                                                userInfo: [NSLocalizedDescriptionKey: "Export cancelled"])))
-
-                default:
-                    print("⚠️ Export status: \(exporter.status.rawValue)")
-                    completion(.failure(NSError(domain: "VideoOverlayCompositor", code: 6,
-                                                userInfo: [NSLocalizedDescriptionKey: "Unknown export status"])))
-                }
+                completion(.success(outputURL))
+            }
+        } catch {
+            print("❌ Export failed: \(String(describing: error))")
+            DispatchQueue.main.async {
+                completion(.failure(error))
             }
         }
     }
@@ -530,7 +522,7 @@ class VideoOverlayCompositor {
         textLayer.fontSize = fontSize
         textLayer.foregroundColor = color.cgColor
         textLayer.alignmentMode = .natural
-        textLayer.contentsScale = UIScreen.main.scale
+        textLayer.contentsScale = 3.0  // Fixed scale for high-quality video rendering
 
         // Use system font with weight
         let font = UIFont.systemFont(ofSize: fontSize, weight: weight)
@@ -625,7 +617,8 @@ class VideoOverlayCompositor {
                         clockTime: interpolatedClockString,
                         homeTeam: currentSnapshot.homeTeam,
                         awayTeam: currentSnapshot.awayTeam,
-                        gameFormat: currentSnapshot.gameFormat
+                        gameFormat: currentSnapshot.gameFormat,
+                        zoomLevel: currentSnapshot.zoomLevel
                     )
 
                     result.append(interpolatedSnapshot)
@@ -651,7 +644,8 @@ class VideoOverlayCompositor {
                         clockTime: interpolatedClockString,
                         homeTeam: currentSnapshot.homeTeam,
                         awayTeam: currentSnapshot.awayTeam,
-                        gameFormat: currentSnapshot.gameFormat
+                        gameFormat: currentSnapshot.gameFormat,
+                        zoomLevel: currentSnapshot.zoomLevel
                     )
 
                     result.append(interpolatedSnapshot)

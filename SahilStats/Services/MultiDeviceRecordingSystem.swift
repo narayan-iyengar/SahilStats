@@ -168,7 +168,7 @@ class DeviceRoleManager: ObservableObject {
         )
         
         let db = Firestore.firestore()
-        try await db.collection("liveGames").document(gameId)
+        try db.collection("liveGames").document(gameId)
             .collection("connectedDevices").document(deviceInfo.id)
             .setData(from: deviceInfo)
     }
@@ -203,8 +203,8 @@ class DeviceRoleManager: ObservableObject {
     }
     
     private func getDeviceName() async -> String {
-        let deviceName = await UIDevice.current.name
-        let modelName = await UIDevice.current.model
+        let deviceName = UIDevice.current.name
+        let modelName = UIDevice.current.model
         return "\(deviceName) (\(modelName))"
     }
 }

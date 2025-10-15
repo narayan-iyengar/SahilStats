@@ -73,7 +73,10 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     enum MessageType: String, Codable {
         case gameStarting, gameAlreadyStarted, startRecording, stopRecording
-        case scoreUpdate, clockUpdate // Example for future use
+        case scoreUpdate // Immediate score updates (event-driven)
+        case clockControl // Clock start/stop/pause (event-driven)
+        case periodChange // Quarter/period changes (event-driven)
+        case clockSync // Periodic clock drift correction (every 10-15s)
         case ping, pong // Keep-alive
         case gameEnded // Game finished
         case gameState, requestRecordingState, recordingStateResponse // Additional message types
@@ -283,6 +286,8 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     
     // MARK: - Convenience Senders
     func sendGameStarting(gameId: String) {
+        // Reset recording state when starting a new game
+        isRemoteRecording = false
         sendMessage(Message(type: .gameStarting, payload: ["gameId": gameId]))
     }
 
@@ -315,6 +320,51 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     func sendRequestForRecordingState() {
         sendMessage(Message(type: .requestRecordingState, payload: nil))
+    }
+
+    // MARK: - Event-Driven Real-Time Updates
+
+    /// Send immediate score update (triggered by user action)
+    func sendScoreUpdate(homeScore: Int, awayScore: Int) {
+        let payload = [
+            "homeScore": String(homeScore),
+            "awayScore": String(awayScore)
+        ]
+        sendMessage(Message(type: .scoreUpdate, payload: payload))
+        print("⚡ [Instant] Sent score update: \(homeScore)-\(awayScore)")
+    }
+
+    /// Send immediate clock control (start/stop/pause)
+    func sendClockControl(isRunning: Bool, clockValue: TimeInterval, timestamp: Date) {
+        let payload = [
+            "isRunning": isRunning ? "true" : "false",
+            "clockValue": String(format: "%.1f", clockValue),
+            "timestamp": String(timestamp.timeIntervalSince1970)
+        ]
+        sendMessage(Message(type: .clockControl, payload: payload))
+        print("⚡ [Instant] Sent clock control: \(isRunning ? "START" : "PAUSE") at \(String(format: "%.0f", clockValue))s")
+    }
+
+    /// Send immediate period/quarter change
+    func sendPeriodChange(quarter: Int, clockValue: TimeInterval, gameFormat: GameFormat) {
+        let payload = [
+            "quarter": String(quarter),
+            "clockValue": String(format: "%.1f", clockValue),
+            "gameFormat": gameFormat.rawValue
+        ]
+        sendMessage(Message(type: .periodChange, payload: payload))
+        print("⚡ [Instant] Sent period change: Q\(quarter) | Clock: \(String(format: "%.0f", clockValue))s")
+    }
+
+    /// Send periodic clock sync (for drift correction)
+    func sendClockSync(clockValue: TimeInterval, isRunning: Bool) {
+        let payload = [
+            "clockValue": String(format: "%.1f", clockValue),
+            "isRunning": isRunning ? "true" : "false",
+            "timestamp": String(Date().timeIntervalSince1970)
+        ]
+        sendMessage(Message(type: .clockSync, payload: payload))
+        // Don't log this - it's periodic and would be too verbose
     }
 }
 

@@ -452,10 +452,13 @@ struct CompleteGameDetailView: View {
                     )
                 }
                 .buttonStyle(.plain)
-            } else if let videoURLPath = game.videoURL, FileManager.default.fileExists(atPath: videoURLPath) {
-                // Local video available
-                Button(action: {
-                    playLocalVideo(path: videoURLPath)
+            } else if let videoURLPath = game.videoURL {
+                // Try to find the local video (handle both full path and filename)
+                let actualPath = resolveVideoPath(videoURLPath)
+                if let path = actualPath, FileManager.default.fileExists(atPath: path) {
+                    // Local video available
+                    Button(action: {
+                        playLocalVideo(path: path)
                 }) {
                     HStack(spacing: isIPad ? 16 : 12) {
                         ZStack {
@@ -494,6 +497,35 @@ struct CompleteGameDetailView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                } else {
+                    // Video URL exists but file not found
+                    HStack(spacing: isIPad ? 16 : 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
+                                .fill(Color.orange)
+                                .frame(width: isIPad ? 64 : 56, height: isIPad ? 64 : 56)
+
+                            ProgressView()
+                                .tint(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Video Uploading")
+                                .font(isIPad ? .title3 : .body)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+
+                            Text("Check back soon for the full game video")
+                                .font(isIPad ? .body : .caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(isIPad ? 20 : 16)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(isIPad ? 16 : 12)
+                }
             } else {
                 // Upload in progress or queued
                 HStack(spacing: isIPad ? 16 : 12) {
@@ -529,6 +561,28 @@ struct CompleteGameDetailView: View {
     private func playLocalVideo(path: String) {
         videoURLToPlay = URL(fileURLWithPath: path)
         showingVideoPlayer = true
+    }
+
+    /// Resolves a video path that might be a full path or just a filename
+    /// iOS documents directory paths can change between app launches, so we need to handle both cases
+    private func resolveVideoPath(_ storedPath: String) -> String? {
+        // If the stored path exists as-is, use it
+        if FileManager.default.fileExists(atPath: storedPath) {
+            return storedPath
+        }
+
+        // Otherwise, treat it as a filename and look in documents directory
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let filename = URL(fileURLWithPath: storedPath).lastPathComponent
+        let reconstructedPath = documentsPath.appendingPathComponent(filename).path
+
+        if FileManager.default.fileExists(atPath: reconstructedPath) {
+            print("📹 Resolved video path from filename: \(filename)")
+            return reconstructedPath
+        }
+
+        print("❌ Could not resolve video path: \(storedPath)")
+        return nil
     }
 
     // MARK: - Achievements Section

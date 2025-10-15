@@ -2,8 +2,8 @@
 
 import SwiftUI
 import AVFoundation
-import MultipeerConnectivity
 import Combine
+import MultipeerConnectivity
 
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
@@ -15,6 +15,16 @@ struct CleanVideoRecordingView: View {
     @State private var overlayData: SimpleScoreOverlayData
     @State private var updateTimer: Timer?
     @State private var isCameraReady = false
+
+    // NEW: Local game state updated via multipeer (no Firebase reads!)
+    @State private var localGameState: LiveGame
+
+    // NEW: Local clock management (independent countdown - smooth 60fps!)
+    @State private var localClockValue: TimeInterval = 0
+    @State private var clockStartTime: Date?
+    @State private var clockAtStart: TimeInterval?
+    @State private var isClockRunning = false
+    @State private var clockUpdateTimer: Timer?
     
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
@@ -30,6 +40,9 @@ struct CleanVideoRecordingView: View {
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
         self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
+        self._localGameState = State(initialValue: liveGame)
+        self._localClockValue = State(initialValue: liveGame.getCurrentClock())
+        self._isClockRunning = State(initialValue: liveGame.isRunning)
     }
     
     var body: some View {
@@ -124,9 +137,13 @@ struct CleanVideoRecordingView: View {
         print("🔗 CleanVideoRecordingView: Is recording: \(recordingManager.isRecording)")
 
         AppDelegate.orientationLock = .landscape
-        UIViewController.attemptRotationToDeviceOrientation()
+        // Request orientation update (iOS 16+ compatible)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape))
+        }
 
         startOverlayUpdateTimer()
+        startLocalClockTimer()  // NEW: Start independent clock countdown
         setupBluetoothCallbacks()
         UIApplication.shared.isIdleTimerDisabled = true
 
@@ -188,10 +205,14 @@ struct CleanVideoRecordingView: View {
 
             // Now do the actual cleanup
             AppDelegate.orientationLock = .portrait
-            UIViewController.attemptRotationToDeviceOrientation()
+            // Request orientation update (iOS 16+ compatible)
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            }
 
             recordingManager.stopCameraSession()
             stopOverlayUpdateTimer()
+            stopLocalClockTimer()  // NEW: Stop clock timer
             UIApplication.shared.isIdleTimerDisabled = false
             cancellables.removeAll()
 
@@ -320,6 +341,37 @@ struct CleanVideoRecordingView: View {
                     print("   ❌ No gameId available at all - cannot save recording")
                 }
             }
+        case .gameState:
+            // Receive full game state from controller (backup/recovery only - every 15s)
+            if let payload = message.payload {
+                print("📱 [CleanVideoRecordingView] Received gameState update via multipeer (backup)")
+                updateLocalGameState(from: payload)
+            } else {
+                print("⚠️ [CleanVideoRecordingView] gameState message has no payload")
+            }
+        case .scoreUpdate:
+            // INSTANT: Score changed on controller (0ms delay!)
+            if let payload = message.payload {
+                print("⚡ [CleanVideoRecordingView] Received INSTANT score update")
+                updateScoreFromPayload(payload)
+            }
+        case .clockControl:
+            // INSTANT: Clock started/stopped on controller (0ms delay!)
+            if let payload = message.payload {
+                print("⚡ [CleanVideoRecordingView] Received INSTANT clock control")
+                updateClockControlFromPayload(payload)
+            }
+        case .periodChange:
+            // INSTANT: Period/quarter changed on controller (0ms delay!)
+            if let payload = message.payload {
+                print("⚡ [CleanVideoRecordingView] Received INSTANT period change")
+                updatePeriodFromPayload(payload)
+            }
+        case .clockSync:
+            // Periodic clock sync for drift correction (every 15s)
+            if let payload = message.payload {
+                syncClockFromPayload(payload)
+            }
         case .pong:
             // Heartbeat message - ignore silently
             break
@@ -329,13 +381,163 @@ struct CleanVideoRecordingView: View {
         }
     }
 
+    private func updateLocalGameState(from payload: [String: Any]) {
+        // Parse game state from controller's multipeer message
+        guard let gameId = payload["gameId"] as? String,
+              let homeScoreStr = payload["homeScore"] as? String,
+              let awayScoreStr = payload["awayScore"] as? String,
+              let clockStr = payload["clock"] as? String,
+              let quarterStr = payload["quarter"] as? String,
+              let isRunningStr = payload["isRunning"] as? String,
+              let teamName = payload["teamName"] as? String,
+              let opponent = payload["opponent"] as? String else {
+            print("⚠️ [CleanVideoRecordingView] Invalid gameState payload")
+            return
+        }
+
+        // Convert strings to proper types
+        guard let homeScore = Int(homeScoreStr),
+              let awayScore = Int(awayScoreStr),
+              let clock = Double(clockStr),
+              let quarter = Int(quarterStr) else {
+            print("⚠️ [CleanVideoRecordingView] Failed to parse gameState values")
+            return
+        }
+
+        let isRunning = isRunningStr == "true"
+
+        // Update local game state (no Firebase read needed!)
+        localGameState.id = gameId
+        localGameState.homeScore = homeScore
+        localGameState.awayScore = awayScore
+        localGameState.clock = clock  // Update clock property, not computed currentClockDisplay
+        localGameState.quarter = quarter
+        localGameState.isRunning = isRunning
+        localGameState.teamName = teamName
+        localGameState.opponent = opponent
+
+        // Log every 10 updates to verify it's working (not too verbose)
+        let timestamp = Int(Date().timeIntervalSince1970)
+        if timestamp % 30 == 0 {
+            print("✅ [CleanVideoRecordingView] Updated local game state from multipeer:")
+            print("   Score: \(homeScore)-\(awayScore) | Clock: \(String(format: "%.0f", clock))s | Q\(quarter)")
+        }
+    }
+
+    // MARK: - Event-Driven Update Handlers
+
+    private func updateScoreFromPayload(_ payload: [String: Any]) {
+        guard let homeScoreStr = payload["homeScore"] as? String,
+              let awayScoreStr = payload["awayScore"] as? String,
+              let homeScore = Int(homeScoreStr),
+              let awayScore = Int(awayScoreStr) else {
+            print("⚠️ Invalid scoreUpdate payload")
+            return
+        }
+
+        // Update local game state instantly (no delay!)
+        localGameState.homeScore = homeScore
+        localGameState.awayScore = awayScore
+
+        print("⚡ Score updated instantly: \(homeScore)-\(awayScore)")
+    }
+
+    private func updateClockControlFromPayload(_ payload: [String: Any]) {
+        guard let isRunningStr = payload["isRunning"] as? String,
+              let clockValueStr = payload["clockValue"] as? String,
+              let timestampStr = payload["timestamp"] as? String,
+              let clockValue = Double(clockValueStr),
+              let timestamp = Double(timestampStr) else {
+            print("⚠️ Invalid clockControl payload")
+            return
+        }
+
+        let isRunning = isRunningStr == "true"
+        let controllerTime = Date(timeIntervalSince1970: timestamp)
+
+        // Update local clock state
+        localClockValue = clockValue
+        isClockRunning = isRunning
+
+        if isRunning {
+            // Clock started - begin local countdown from this point
+            clockStartTime = Date()
+            clockAtStart = clockValue
+
+            // Adjust for network latency (time since controller sent the message)
+            let latency = Date().timeIntervalSince(controllerTime)
+            if latency > 0 && latency < 1.0 {  // Only adjust if latency is reasonable
+                localClockValue = max(0, clockValue - latency)
+                print("⚡ Clock started at \(String(format: "%.0f", localClockValue))s (adjusted for \(Int(latency * 1000))ms latency)")
+            } else {
+                print("⚡ Clock started at \(String(format: "%.0f", clockValue))s")
+            }
+        } else {
+            // Clock paused - stop local countdown
+            clockStartTime = nil
+            clockAtStart = nil
+            print("⚡ Clock paused at \(String(format: "%.0f", clockValue))s")
+        }
+
+        // Update game state
+        localGameState.isRunning = isRunning
+        localGameState.clock = localClockValue  // Update clock property, not computed currentClockDisplay
+    }
+
+    private func updatePeriodFromPayload(_ payload: [String: Any]) {
+        guard let quarterStr = payload["quarter"] as? String,
+              let clockValueStr = payload["clockValue"] as? String,
+              let quarter = Int(quarterStr),
+              let clockValue = Double(clockValueStr) else {
+            print("⚠️ Invalid periodChange payload")
+            return
+        }
+
+        // Update local state
+        localGameState.quarter = quarter
+        localClockValue = clockValue
+        localGameState.clock = clockValue  // Update clock property, not computed currentClockDisplay
+        localGameState.isRunning = false  // CRITICAL: Keep game state in sync
+        isClockRunning = false  // Clock is always paused when period changes
+        clockStartTime = nil
+        clockAtStart = nil
+
+        print("⚡ Period changed: Q\(quarter) | Clock reset to \(String(format: "%.0f", clockValue))s | Clock PAUSED")
+    }
+
+    private func syncClockFromPayload(_ payload: [String: Any]) {
+        guard let clockValueStr = payload["clockValue"] as? String,
+              let isRunningStr = payload["isRunning"] as? String,
+              let clockValue = Double(clockValueStr) else {
+            return
+        }
+
+        let isRunning = isRunningStr == "true"
+
+        // Check for significant drift (>2 seconds)
+        let drift = abs(localClockValue - clockValue)
+        if drift > 2.0 {
+            print("⚠️ Clock drift detected: \(String(format: "%.1f", drift))s - syncing to \(String(format: "%.0f", clockValue))s")
+            localClockValue = clockValue
+
+            // If clock is running, restart from this synced value
+            if isRunning {
+                clockStartTime = Date()
+                clockAtStart = clockValue
+            }
+        }
+    }
+
     private func handleGameEnd(gameId: String) {
         print("🎬 CleanVideoRecordingView: handleGameEnd called for gameId: \(gameId)")
         print("   Current recording state: isRecording=\(recordingManager.isRecording)")
 
         Task { @MainActor in
-            // Stop recording if still active
+            // Add delay to capture final game state and allow splash screen to display
             if recordingManager.isRecording {
+                print("⏱️ Waiting 2 seconds to capture End Game button press and splash screen...")
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds as requested by user
+
                 print("🎬 Recording is active, stopping...")
                 await self.recordingManager.stopRecording()
                 print("✅ Recording stopped")
@@ -408,6 +610,30 @@ struct CleanVideoRecordingView: View {
         updateTimer?.invalidate()
         updateTimer = nil
     }
+
+    // MARK: - Local Clock Management (Independent Countdown)
+
+    private func startLocalClockTimer() {
+        stopLocalClockTimer()
+
+        // Update clock every 0.1 seconds for smooth countdown (10 FPS is enough for 1-second clock updates)
+        clockUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            // No need for [weak self] - SwiftUI views are structs, not classes
+            if self.isClockRunning, let startTime = self.clockStartTime, let clockAtStart = self.clockAtStart {
+                // Calculate elapsed time and update local clock
+                let elapsed = Date().timeIntervalSince(startTime)
+                self.localClockValue = max(0, clockAtStart - elapsed)
+
+                // Update game state clock property for overlay
+                self.localGameState.clock = self.localClockValue
+            }
+        }
+    }
+
+    private func stopLocalClockTimer() {
+        clockUpdateTimer?.invalidate()
+        clockUpdateTimer = nil
+    }
     
     // Track update calls for logging (at type level)
     private static var updateCallCount = 0
@@ -417,15 +643,13 @@ struct CleanVideoRecordingView: View {
         CleanVideoRecordingView.updateCallCount += 1
         let callCount = CleanVideoRecordingView.updateCallCount
 
-        guard let currentGame = FirebaseService.shared.getCurrentLiveGame() else {
-            print("⚠️ CleanVideoRecordingView: getCurrentLiveGame() returned nil! (call #\(callCount))")
-            return
-        }
+        // NEW: Use local game state updated via multipeer (no Firebase reads!)
+        let currentGame = localGameState
 
         // Log every 5 seconds for normal monitoring (not too verbose)
         let shouldLog = callCount % 5 == 0
         if shouldLog {
-            print("🎮 CleanVideoRecordingView.updateOverlayData() - call #\(callCount)")
+            print("🎮 CleanVideoRecordingView.updateOverlayData() - call #\(callCount) [from LOCAL state]")
             print("   Score: \(currentGame.homeScore)-\(currentGame.awayScore)")
             print("   Clock: \(currentGame.currentClockDisplay)")
             print("   Period: Q\(currentGame.quarter)")

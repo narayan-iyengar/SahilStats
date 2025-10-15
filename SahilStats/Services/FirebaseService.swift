@@ -300,7 +300,7 @@ class FirebaseService: ObservableObject {
         do {
             var gameData = game
             gameData.createdAt = Date()
-            let _ = try await db.collection("games").addDocument(from: gameData)
+            try db.collection("games").addDocument(from: gameData)
             print("✅ Game added successfully")
         } catch {
             print("❌ Failed to add game: \(error)")
@@ -358,8 +358,8 @@ class FirebaseService: ObservableObject {
         
         // Update achievements based on new stats
         updatedGame.achievements = Achievement.getEarnedAchievements(for: updatedGame)
-        
-        try await db.collection("games").document(gameId).setData(from: updatedGame)
+
+        try db.collection("games").document(gameId).setData(from: updatedGame)
         print("✅ Game updated successfully: \(gameId)")
     }
     
@@ -394,12 +394,17 @@ class FirebaseService: ObservableObject {
 
                 do {
                     try await YouTubeUploadManager.shared.deleteYouTubeVideo(videoId: youtubeVideoId)
-                    print("✅ YouTube video deleted")
+                    print("✅ YouTube video deleted successfully")
                 } catch {
                     print("❌ Failed to delete YouTube video: \(error.localizedDescription)")
-                    // Continue with deletion even if YouTube delete fails
-                    // (video might already be deleted or token expired)
+                    print("   Video ID: \(youtubeVideoId)")
+                    print("   Error details: \(error)")
+                    // Continue with game deletion even if YouTube delete fails
+                    // This ensures the game is removed from the app even if YouTube API fails
+                    // Common reasons: video already deleted, auth expired, network issue
                 }
+            } else {
+                print("⚠️ No YouTube video ID found for this game")
             }
         }
 
@@ -422,7 +427,7 @@ class FirebaseService: ObservableObject {
     // MARK: - Teams
     
     func addTeam(_ team: Team) async throws {
-        let _ = try await db.collection("teams").addDocument(from: team)
+        _ = try await db.collection("teams").addDocument(from: team)
     }
     
     func deleteTeam(_ teamId: String) async throws {
@@ -432,7 +437,7 @@ class FirebaseService: ObservableObject {
     // MARK: - Live Games
     
     func createLiveGame(_ liveGame: LiveGame) async throws -> String {
-        let docRef = try await db.collection("liveGames").addDocument(from: liveGame)
+        let docRef = try db.collection("liveGames").addDocument(from: liveGame)
         return docRef.documentID
     }
     
@@ -726,11 +731,11 @@ class NetworkMonitor: ObservableObject {
     
     func checkFirestoreConnectivity() {
         let db = Firestore.firestore()
-        
+
         // Simple connectivity test
         Task {
             do {
-                _ = try await db.collection("connectivity_test").limit(to: 1).getDocuments()
+                try await db.collection("connectivity_test").limit(to: 1).getDocuments()
                 await MainActor.run {
                     self.isConnected = true
                 }

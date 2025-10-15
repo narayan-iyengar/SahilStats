@@ -414,16 +414,18 @@ struct UserStatusIndicator: View {
 // MARK: - Live Game Button
 struct LiveGameButton: View {
     let action: () -> Void
-    
+    var liveGame: LiveGame? = nil
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
+                // Pulsing red circle
                 Circle()
                     .fill(Color.red)
                     .frame(width: 8, height: 8)
                     .opacity(0.8)
                     .animation(.easeInOut(duration: 1).repeatForever(), value: true)
-                
+
                 Text("LIVE")
                     .font(.caption)
                     .fontWeight(.bold)

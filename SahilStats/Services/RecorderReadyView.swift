@@ -427,6 +427,14 @@ struct RecorderReadyView: View {
             // If we're in ready state, this doesn't apply to us
 
         case .gameEnded:
+            // If we're showing the recording view, let CleanVideoRecordingView handle this
+            // It has a 2-second delay to capture the end game button press and splash screen
+            if showingRecordingView {
+                print("🎬 Game ended - but recording view is active, letting it handle cleanup with proper delay")
+                return
+            }
+
+            // Only handle if we're still in the ready/waiting state (recording never started)
             print("🎬 Game ended - returning to dashboard")
             navigation.returnToDashboard()
 
