@@ -446,22 +446,32 @@ struct CompactGameControlsCard: View {
                 .font(isIPad ? .body : .subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
-            
+
             HStack(spacing: isIPad ? 12 : 8) {
                 Button(startPauseText) {
                     onStartPause()
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: startPauseColor, isIPad: isIPad))
-                
+
                 Button("+1m") {
                     onAddMinute()
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: .purple, isIPad: isIPad))
-                
+
                 Button(advanceQuarterText) {
+                    // DEBUG: Print values to diagnose the issue
+                    print("🔍 [DEBUG] End Period Button Pressed:")
+                    print("   currentQuarter: \(currentQuarter)")
+                    print("   maxQuarter: \(maxQuarter)")
+                    print("   gameFormat: \(gameFormat)")
+                    print("   Button text: \(advanceQuarterText)")
+                    print("   Condition (currentQuarter < maxQuarter): \(currentQuarter < maxQuarter)")
+
                     if currentQuarter < maxQuarter {
+                        print("   ✅ Calling onAdvanceQuarter() - should advance to next period")
                         onAdvanceQuarter()
                     } else {
+                        print("   ❌ Calling onFinishGame() - should end the game")
                         onFinishGame()
                     }
                 }
