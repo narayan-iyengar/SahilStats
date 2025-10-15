@@ -747,6 +747,11 @@ struct LiveGameControllerView: View {
             
             // Game Controls
             if deviceControl.hasControl {
+                let _ = print("🔍 [DEBUG] Passing values to CompactGameControlsCard:")
+                let _ = print("   currentQuarter: \(currentQuarter)")
+                let _ = print("   serverGameState.numQuarter (maxQuarter): \(serverGameState.numQuarter)")
+                let _ = print("   serverGameState.gameFormat: \(serverGameState.gameFormat)")
+
                 CompactGameControlsCard(
                     currentQuarter: currentQuarter,
                     maxQuarter: serverGameState.numQuarter,
