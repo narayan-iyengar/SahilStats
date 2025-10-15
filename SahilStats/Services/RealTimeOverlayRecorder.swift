@@ -51,6 +51,10 @@ class RealTimeOverlayRecorder: NSObject {
     private var lastFrameHash: Int = 0
     private var duplicateFrameCount: Int = 0
 
+    // End game banner state
+    private var isShowingEndGameBanner: Bool = false
+    private var endGameBannerData: (winner: String, homeScore: Int, awayScore: Int, homeTeam: String, awayTeam: String)?
+
     // Output
     private var outputURL: URL?
 
@@ -305,6 +309,40 @@ class RealTimeOverlayRecorder: NSObject {
         updateOverlay()
     }
 
+    func showEndGameBanner(game: LiveGame) {
+        print("🏆 RealTimeOverlayRecorder: Showing end game banner")
+        print("   Final Score: \(game.homeScore)-\(game.awayScore)")
+        print("   Teams: \(game.teamName) vs \(game.opponent)")
+
+        // Determine winner
+        let winner: String
+        if game.homeScore > game.awayScore {
+            winner = "\(game.teamName) WINS!"
+        } else if game.awayScore > game.homeScore {
+            winner = "\(game.opponent) WINS!"
+        } else {
+            winner = "TIE GAME!"
+        }
+
+        // Store banner data
+        videoQueue.sync {
+            self.isShowingEndGameBanner = true
+            self.endGameBannerData = (
+                winner: winner,
+                homeScore: game.homeScore,
+                awayScore: game.awayScore,
+                homeTeam: game.teamName,
+                awayTeam: game.opponent
+            )
+        }
+
+        // Force overlay update
+        DispatchQueue.main.async {
+            self.updateOverlay()
+            print("✅ End game banner overlay updated")
+        }
+    }
+
     // MARK: - Asset Writer Setup
 
     private func setupAssetWriter(outputURL: URL) -> Bool {
@@ -433,10 +471,15 @@ class RealTimeOverlayRecorder: NSObject {
                 return self.currentLiveGame
             }
 
+            let showingBanner = videoQueue.sync {
+                return self.isShowingEndGameBanner
+            }
+
             // ALWAYS log every 100 calls to verify timer is firing
-            if overlayUpdateCount % 100 == 0 {
+            if overlayUpdateCount % 100 == 0 || showingBanner {
                 print("⏱️ updateOverlay() called \(overlayUpdateCount) times")
                 print("   currentLiveGame: \(game != nil ? "EXISTS" : "NIL!")")
+                print("   showingEndGameBanner: \(showingBanner)")
             }
 
             guard let game = game else {
@@ -446,8 +489,8 @@ class RealTimeOverlayRecorder: NSObject {
                 return
             }
 
-            // Generate overlay image
-            let overlayImage = renderOverlayImage(for: game)
+            // Generate overlay image (banner or normal scoreboard)
+            let overlayImage = showingBanner ? renderEndGameBannerImage() : renderOverlayImage(for: game)
 
             // Log every 12 overlay updates (roughly every 3 seconds at 4Hz) - reduced for memory
             let shouldLog = overlayUpdateCount % 12 == 0
@@ -511,6 +554,103 @@ class RealTimeOverlayRecorder: NSObject {
             // Create a fresh UIImage from the CGImage - this ensures unique object identity
             return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
         }
+    }
+
+    private func renderEndGameBannerImage() -> UIImage? {
+        return autoreleasepool {
+            // Get banner data with proper synchronization
+            guard let bannerData = videoQueue.sync(execute: { return self.endGameBannerData }) else {
+                print("❌ No banner data available")
+                return nil
+            }
+
+            let size = CGSize(width: outputWidth, height: outputHeight)
+
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = false
+            format.scale = 1
+
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+            let tempImage = renderer.image { context in
+                let cgContext = context.cgContext
+
+                // Clear background
+                cgContext.clear(CGRect(origin: .zero, size: size))
+
+                // Draw end game banner
+                drawEndGameBanner(in: cgContext, size: size, bannerData: bannerData)
+            }
+
+            guard let cgImage = tempImage.cgImage else {
+                return tempImage
+            }
+
+            return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
+        }
+    }
+
+    private func drawEndGameBanner(in context: CGContext, size: CGSize, bannerData: (winner: String, homeScore: Int, awayScore: Int, homeTeam: String, awayTeam: String)) {
+        let scaleFactor = size.height / 375.0
+
+        // Large banner in center of screen
+        let bannerWidth: CGFloat = 500 * scaleFactor
+        let bannerHeight: CGFloat = 200 * scaleFactor
+
+        let bannerRect = CGRect(
+            x: (size.width - bannerWidth) / 2,
+            y: (size.height - bannerHeight) / 2,
+            width: bannerWidth,
+            height: bannerHeight
+        )
+
+        // Draw banner background
+        let cornerRadius = 20 * scaleFactor
+        let path = UIBezierPath(roundedRect: bannerRect, cornerRadius: cornerRadius)
+
+        // Fill with semi-transparent black
+        context.setFillColor(UIColor.black.withAlphaComponent(0.85).cgColor)
+        context.addPath(path.cgPath)
+        context.fillPath()
+
+        // Add border
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.3).cgColor)
+        context.setLineWidth(2)
+        context.addPath(path.cgPath)
+        context.strokePath()
+
+        // Draw "FINAL SCORE" text
+        drawText(
+            "FINAL SCORE",
+            at: CGPoint(x: bannerRect.midX, y: bannerRect.minY + 20 * scaleFactor),
+            fontSize: 16 * scaleFactor,
+            color: UIColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 0.95),
+            weight: .bold,
+            centered: true,
+            in: context
+        )
+
+        // Draw score
+        let scoreText = "\(formatTeamName(bannerData.homeTeam, maxLength: 6)) \(bannerData.homeScore) - \(bannerData.awayScore) \(formatTeamName(bannerData.awayTeam, maxLength: 6))"
+        drawText(
+            scoreText,
+            at: CGPoint(x: bannerRect.midX, y: bannerRect.minY + 60 * scaleFactor),
+            fontSize: 32 * scaleFactor,
+            color: .white,
+            weight: .bold,
+            centered: true,
+            in: context
+        )
+
+        // Draw winner text
+        drawText(
+            bannerData.winner,
+            at: CGPoint(x: bannerRect.midX, y: bannerRect.minY + 120 * scaleFactor),
+            fontSize: 40 * scaleFactor,
+            color: UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), // Green
+            weight: .black,
+            centered: true,
+            in: context
+        )
     }
 
     private func drawScoreboardOverlay(in context: CGContext, size: CGSize, game: LiveGame) {
