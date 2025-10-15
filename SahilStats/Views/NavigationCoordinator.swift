@@ -62,6 +62,13 @@ class NavigationCoordinator: ObservableObject {
         // Stop Live Activity when leaving game
         LiveActivityManager.shared.stopActivity()
 
+        // Reset orientation lock to portrait for dashboard
+        AppDelegate.orientationLock = .portrait
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+        }
+        print("🔄 Reset orientation lock to portrait")
+
         currentFlow = .dashboard
         userExplicitlyJoinedGame = false
         hasUserInteractedWithApp = false
