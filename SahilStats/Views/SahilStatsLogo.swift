@@ -2,193 +2,66 @@
 //  SahilStatsLogo.swift
 //  SahilStats
 //
-//  App logo: Hand-drawn basketball with sketchy, organic style
-//  Can be used in-app or rendered to image for app icons
-//
-//  ANIMATION & BATTERY USAGE:
-//  - Static version (isAnimated: false): Zero battery impact
-//  - Animated version (isAnimated: true): Minimal battery impact (~0.1% per minute)
-//  - Best practice: Only animate when visible (splash screen, loading)
-//  - DON'T animate: In list cells, always-on displays
-//  - SwiftUI animations are GPU-accelerated (efficient)
+//  App logo: Clean, minimalist flat basketball icon
+//  Simple and modern app icon aesthetic
 //
 
 import SwiftUI
 
 struct SahilStatsLogo: View {
     var size: CGFloat = 200
+    var backgroundColor: Color = Color.orange
+    var seamColor: Color = Color.white.opacity(0.9)
     var showShadow: Bool = true
-    var showText: Bool = true
-    var isAnimated: Bool = false
-
-    @State private var rotation: Double = 0
 
     var body: some View {
         ZStack {
-            // Hand-drawn basketball
-            ZStack {
-                // Sketchy basketball circle
-                sketchyBasketball
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color(red: 0.98, green: 0.58, blue: 0.28),  // Bright orange
-                                Color(red: 0.95, green: 0.45, blue: 0.18)   // Darker orange
-                            ],
-                            center: .init(x: 0.45, y: 0.45),
-                            startRadius: size * 0.1,
-                            endRadius: size * 0.5
-                        )
-                    )
-                    .frame(width: size, height: size)
+            // Basketball circle - flat design
+            Circle()
+                .fill(backgroundColor)
+                .frame(width: size, height: size)
 
-                // Sketchy outline stroke
-                sketchyBasketball
-                    .stroke(
-                        Color(red: 0.3, green: 0.2, blue: 0.15),
-                        style: StrokeStyle(lineWidth: size * 0.015, lineCap: .round, lineJoin: .round)
-                    )
-                    .frame(width: size, height: size)
-
-                // Basketball seams (hand-drawn style)
-                handDrawnSeams
-                    .stroke(
-                        Color(red: 0.3, green: 0.2, blue: 0.15).opacity(0.8),
-                        style: StrokeStyle(lineWidth: size * 0.018, lineCap: .round, lineJoin: .round)
-                    )
-                    .frame(width: size, height: size)
-            }
-            .rotationEffect(.degrees(rotation))
-            .onAppear {
-                if isAnimated {
-                    withAnimation(.linear(duration: 2.5).repeatForever(autoreverses: false)) {
-                        rotation = 360
-                    }
-                }
-            }
-
-            // Hand-drawn text (if enabled)
-            if showText {
-                VStack(spacing: size * 0.02) {
-                    Spacer()
-
-                    Text("SAHIL")
-                        .font(.system(size: size * 0.16, weight: .black, design: .rounded))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.25, green: 0.20, blue: 0.18),
-                                    Color(red: 0.35, green: 0.28, blue: 0.25)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .shadow(color: .white.opacity(0.5), radius: 0, x: -1, y: -1)
-                        .offset(y: size * 0.52)
-
-                    Text("STATS")
-                        .font(.system(size: size * 0.12, weight: .heavy, design: .rounded))
-                        .foregroundColor(Color(red: 0.95, green: 0.45, blue: 0.18))
-                        .shadow(color: .white.opacity(0.3), radius: 0, x: -1, y: -1)
-                        .offset(y: size * 0.52)
-                }
-            }
+            // Basketball seams - clean lines
+            basketballSeams
+                .stroke(seamColor, style: StrokeStyle(lineWidth: size * 0.03, lineCap: .round, lineJoin: .round))
+                .frame(width: size, height: size)
         }
-        .shadow(color: showShadow ? .black.opacity(0.15) : .clear, radius: size * 0.03, x: size * 0.01, y: size * 0.02)
+        .shadow(color: showShadow ? Color.black.opacity(0.2) : Color.clear, radius: size * 0.05, x: 0, y: size * 0.03)
     }
 
-    // MARK: - Hand-Drawn Shapes
+    // MARK: - Basketball Seams
 
-    /// Sketchy, imperfect basketball outline (wobbled circle)
-    private var sketchyBasketball: some Shape {
-        SketchyCircle(wobbleAmount: size * 0.01, segments: 60)
-    }
-
-    /// Hand-drawn basketball seams
-    private var handDrawnSeams: some Shape {
-        HandDrawnSeams(size: size)
+    private var basketballSeams: some Shape {
+        BasketballSeams(size: size)
     }
 }
 
-// MARK: - Custom Shapes for Hand-Drawn Effect
+// MARK: - Basketball Seams Shape
 
-/// Creates an imperfect circle with slight wobbles (hand-drawn feel)
-struct SketchyCircle: Shape {
-    let wobbleAmount: CGFloat
-    let segments: Int
+struct BasketballSeams: Shape {
+    let size: CGFloat
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) / 2
 
-        // Create points around circle with slight random wobble
-        let angleStep = (2 * .pi) / CGFloat(segments)
+        // Vertical center line
+        path.move(to: CGPoint(x: center.x, y: center.y - radius * 0.8))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius * 0.8))
 
-        for i in 0...segments {
-            let angle = CGFloat(i) * angleStep
-            // Add deterministic "wobble" based on angle (not truly random, so it's reproducible)
-            let wobble = sin(angle * 7) * wobbleAmount + cos(angle * 11) * wobbleAmount * 0.5
-            let r = radius + wobble
-
-            let x = center.x + r * cos(angle)
-            let y = center.y + r * sin(angle)
-
-            if i == 0 {
-                path.move(to: CGPoint(x: x, y: y))
-            } else {
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-
-        path.closeSubpath()
-        return path
-    }
-}
-
-/// Hand-drawn basketball seams (wobbly curves)
-struct HandDrawnSeams: Shape {
-    let size: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let scale = min(rect.width, rect.height) / size
-
-        // Vertical center seam (slightly wobbly)
-        let seamHeight = size * 0.7 * scale
-        let seamTop = center.y - seamHeight / 2
-        let seamBottom = center.y + seamHeight / 2
-
-        path.move(to: CGPoint(x: center.x + size * 0.005 * scale, y: seamTop))
-
-        // Add slight curves for hand-drawn feel
-        let controlPoints = 8
-        let stepY = seamHeight / CGFloat(controlPoints)
-
-        for i in 0...controlPoints {
-            let y = seamTop + stepY * CGFloat(i)
-            let wobble = sin(CGFloat(i) * 1.5) * size * 0.006 * scale
-            path.addLine(to: CGPoint(x: center.x + wobble, y: y))
-        }
-
-        // Horizontal curved seams (top and bottom)
-        let seamWidth = size * 0.55 * scale
-        let seamCurve = size * 0.25 * scale
-
-        // Top curve
-        path.move(to: CGPoint(x: center.x - seamWidth, y: center.y - size * 0.15 * scale))
+        // Left curved line
+        path.move(to: CGPoint(x: center.x - radius * 0.7, y: center.y - radius * 0.4))
         path.addQuadCurve(
-            to: CGPoint(x: center.x + seamWidth, y: center.y - size * 0.15 * scale + size * 0.01 * scale),
-            control: CGPoint(x: center.x + size * 0.01 * scale, y: center.y - seamCurve)
+            to: CGPoint(x: center.x - radius * 0.7, y: center.y + radius * 0.4),
+            control: CGPoint(x: center.x - radius * 1.1, y: center.y)
         )
 
-        // Bottom curve
-        path.move(to: CGPoint(x: center.x - seamWidth, y: center.y + size * 0.15 * scale))
+        // Right curved line
+        path.move(to: CGPoint(x: center.x + radius * 0.7, y: center.y - radius * 0.4))
         path.addQuadCurve(
-            to: CGPoint(x: center.x + seamWidth, y: center.y + size * 0.15 * scale - size * 0.01 * scale),
-            control: CGPoint(x: center.x - size * 0.01 * scale, y: center.y + seamCurve)
+            to: CGPoint(x: center.x + radius * 0.7, y: center.y + radius * 0.4),
+            control: CGPoint(x: center.x + radius * 1.1, y: center.y)
         )
 
         return path
@@ -203,12 +76,12 @@ struct SahilStatsLogoPreview: View {
             VStack(spacing: 40) {
                 // Main logo showcase
                 VStack(spacing: 20) {
-                    Text("Hand-Drawn Basketball")
+                    Text("Flat Basketball Icon")
                         .font(.system(.title, design: .rounded, weight: .bold))
 
-                    SahilStatsLogo(size: 300, isAnimated: true)
+                    SahilStatsLogo(size: 300)
 
-                    Text("Sketchy • Organic • Friendly")
+                    Text("Minimalist • Clean • Professional")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -216,21 +89,20 @@ struct SahilStatsLogoPreview: View {
 
                 Divider()
 
-                // Variations
+                // Color Variations
                 VStack(spacing: 30) {
-                    Text("Logo Variations")
+                    Text("Color Variations")
                         .font(.headline)
 
-                    // With and without text
-                    HStack(spacing: 40) {
+                    HStack(spacing: 30) {
                         VStack {
-                            SahilStatsLogo(size: 150, showText: true)
-                            Text("With Text")
+                            SahilStatsLogo(size: 120, backgroundColor: .orange)
+                            Text("Classic Orange")
                                 .font(.caption)
                         }
                         VStack {
-                            SahilStatsLogo(size: 150, showText: false)
-                            Text("Icon Only")
+                            SahilStatsLogo(size: 120, backgroundColor: .black, seamColor: .white.opacity(0.4))
+                            Text("Dark Mode")
                                 .font(.caption)
                         }
                     }
@@ -417,16 +289,15 @@ struct ExportStep: View {
 
 // MARK: - Previews
 
-#Preview("Hand-Drawn Logo") {
+#Preview("Flat Basketball Icon") {
     ZStack {
-        // Notebook paper background for hand-drawn feel
-        Color(red: 0.98, green: 0.97, blue: 0.95)
+        Color(UIColor.systemBackground)
 
         VStack(spacing: 50) {
-            // Animated spinning version
-            VStack(spacing: 15) {
-                SahilStatsLogo(size: 280, showText: true, isAnimated: true)
-                Text("✏️ Hand-Drawn Style • Spinning")
+            // Main icon
+            VStack(spacing: 20) {
+                SahilStatsLogo(size: 300)
+                Text("Clean • Simple • Modern")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
             }
@@ -434,25 +305,74 @@ struct ExportStep: View {
             Divider()
                 .frame(width: 300)
 
-            // Static versions
-            VStack(spacing: 15) {
-                HStack(spacing: 40) {
+            // Different color variations
+            VStack(spacing: 20) {
+                Text("Color Options")
+                    .font(.headline)
+
+                HStack(spacing: 30) {
                     VStack(spacing: 8) {
-                        SahilStatsLogo(size: 130, showText: false, isAnimated: false)
-                        Text("Icon Only")
+                        SahilStatsLogo(
+                            size: 100,
+                            backgroundColor: .orange,
+                            seamColor: .white.opacity(0.9),
+                            showShadow: false
+                        )
+                        Text("Orange")
                             .font(.caption)
-                            .foregroundColor(.secondary)
                     }
+
                     VStack(spacing: 8) {
-                        SahilStatsLogo(size: 130, showText: true, isAnimated: false)
-                        Text("With Text")
+                        SahilStatsLogo(
+                            size: 100,
+                            backgroundColor: Color(red: 0.95, green: 0.45, blue: 0.18),
+                            seamColor: .white.opacity(0.9),
+                            showShadow: false
+                        )
+                        Text("Dark Orange")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(spacing: 8) {
+                        SahilStatsLogo(
+                            size: 100,
+                            backgroundColor: .black,
+                            seamColor: .white.opacity(0.3),
+                            showShadow: false
+                        )
+                        Text("Black")
+                            .font(.caption)
                     }
                 }
-                Text("Static (No Animation)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+            }
+
+            // On different backgrounds
+            VStack(spacing: 20) {
+                Text("On Different Backgrounds")
+                    .font(.headline)
+
+                HStack(spacing: 20) {
+                    ZStack {
+                        Color.white
+                        SahilStatsLogo(size: 80, showShadow: true)
+                    }
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(20)
+
+                    ZStack {
+                        Color.black
+                        SahilStatsLogo(size: 80, showShadow: true)
+                    }
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(20)
+
+                    ZStack {
+                        Color.blue
+                        SahilStatsLogo(size: 80, showShadow: true)
+                    }
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(20)
+                }
             }
         }
         .padding(40)
