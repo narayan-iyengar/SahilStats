@@ -34,6 +34,9 @@ struct CleanVideoRecordingView: View {
     @State private var showingCameraError = false
     @State private var cameraErrorMessage = ""
 
+    // Zoom control
+    @State private var currentZoomLevel: CGFloat = 1.0
+
     @State private var cancellables = Set<AnyCancellable>() // To hold our subscription
 
 
@@ -78,6 +81,16 @@ struct CleanVideoRecordingView: View {
         .onDisappear {
             cleanupView()
         }
+        .onChange(of: isCameraReady) { newValue in
+            if newValue {
+                // Set default zoom to 0.5x (ultra-wide) when camera is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    let actualZoom = recordingManager.setZoom(factor: 0.5)
+                    currentZoomLevel = actualZoom
+                    print("📹 Camera ready - set initial zoom to \(actualZoom)x (ultra-wide)")
+                }
+            }
+        }
         .alert("Camera Error", isPresented: $showingCameraError) {
             Button("Try Again") {
                 Task {
@@ -91,7 +104,7 @@ struct CleanVideoRecordingView: View {
     }
     
     // MARK: - Child Views
-    
+
     private var landscapeControls: some View {
         ZStack {
             VStack {
