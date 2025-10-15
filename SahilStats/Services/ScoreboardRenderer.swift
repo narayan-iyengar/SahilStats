@@ -178,6 +178,7 @@ class ScoreboardRenderer {
         drawSeparator(
             at: CGPoint(x: xOffset - spacing / 2, y: scoreboardRect.minY + 13 * scaleFactor),
             height: 30 * scaleFactor,
+            scaleFactor: scaleFactor,
             in: context
         )
 
@@ -197,6 +198,7 @@ class ScoreboardRenderer {
         drawSeparator(
             at: CGPoint(x: xOffset - spacing / 2, y: scoreboardRect.minY + 13 * scaleFactor),
             height: 30 * scaleFactor,
+            scaleFactor: scaleFactor,
             in: context
         )
 
@@ -286,10 +288,11 @@ class ScoreboardRenderer {
     private static func drawSeparator(
         at origin: CGPoint,
         height: CGFloat,
+        scaleFactor: CGFloat,
         in context: CGContext
     ) {
         context.setStrokeColor(UIColor.white.withAlphaComponent(0.2).cgColor)
-        context.setLineWidth(1)
+        context.setLineWidth(1 * scaleFactor)  // Scale line width for 4K resolution
         context.move(to: origin)
         context.addLine(to: CGPoint(x: origin.x, y: origin.y + height))
         context.strokePath()
