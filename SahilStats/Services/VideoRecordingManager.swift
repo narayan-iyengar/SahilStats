@@ -205,9 +205,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portraitUpsideDown:
             rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 180  // Home button on left, camera on right
+            rotationAngle = 0    // Swapped - was causing inverted image
         case .landscapeRight:
-            rotationAngle = 0    // Home button on right, camera on left (natural landscape)
+            rotationAngle = 180  // Swapped - was causing inverted image
         default:
             return
         }
@@ -245,9 +245,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portraitUpsideDown:
             rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 180  // Swapped with landscapeRight
+            rotationAngle = 0    // Swapped - was causing inverted image
         case .landscapeRight:
-            rotationAngle = 0    // Try 0° - scoreboard currently vertical on left
+            rotationAngle = 180  // Swapped - was causing inverted image
         default:
             print("⚠️ Invalid orientation in performOrientationUpdate: \(orientation.rawValue)")
             return

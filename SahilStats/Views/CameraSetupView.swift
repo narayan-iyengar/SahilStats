@@ -33,8 +33,7 @@ struct CameraSetupView: View {
     @State private var availableStorage: String = "Calculating..."
     @State private var batteryTimer: Timer?
 
-    // Zoom control
-    @State private var currentZoomLevel: CGFloat = 1.0
+    // Zoom control - use recordingManager's published property instead of local state
 
     var body: some View {
         ZStack {
@@ -136,33 +135,33 @@ struct CameraSetupView: View {
                     Button(action: { setZoom(1.0) }) {
                         Text("1x")
                             .font(.caption)
-                            .fontWeight(abs(currentZoomLevel - 1.0) < 0.1 ? .semibold : .regular)
-                            .foregroundColor(abs(currentZoomLevel - 1.0) < 0.1 ? .orange : .white)
+                            .fontWeight(abs(recordingManager.currentZoomLevel - 1.0) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(recordingManager.currentZoomLevel - 1.0) < 0.1 ? .orange : .white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(abs(currentZoomLevel - 1.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .background(abs(recordingManager.currentZoomLevel - 1.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
                             .cornerRadius(6)
                     }
 
                     Button(action: { setZoom(2.0) }) {
                         Text("2x")
                             .font(.caption)
-                            .fontWeight(abs(currentZoomLevel - 2.0) < 0.1 ? .semibold : .regular)
-                            .foregroundColor(abs(currentZoomLevel - 2.0) < 0.1 ? .orange : .white)
+                            .fontWeight(abs(recordingManager.currentZoomLevel - 2.0) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(recordingManager.currentZoomLevel - 2.0) < 0.1 ? .orange : .white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(abs(currentZoomLevel - 2.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .background(abs(recordingManager.currentZoomLevel - 2.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
                             .cornerRadius(6)
                     }
 
                     Button(action: { setZoom(3.0) }) {
                         Text("3x")
                             .font(.caption)
-                            .fontWeight(abs(currentZoomLevel - 3.0) < 0.1 ? .semibold : .regular)
-                            .foregroundColor(abs(currentZoomLevel - 3.0) < 0.1 ? .orange : .white)
+                            .fontWeight(abs(recordingManager.currentZoomLevel - 3.0) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(recordingManager.currentZoomLevel - 3.0) < 0.1 ? .orange : .white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(abs(currentZoomLevel - 3.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .background(abs(recordingManager.currentZoomLevel - 3.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
                             .cornerRadius(6)
                     }
                 }
@@ -377,9 +376,7 @@ struct CameraSetupView: View {
                         print("📷 Camera zoom capabilities:")
                         print("   Min: \(minZoom)x, Max: \(maxZoom)x, Current: \(currentZoom)x")
                         print("📷 Using ultra-wide camera - 1.0x is the widest view (full court coverage)")
-
-                        // Keep current zoom (1.0x = ultra-wide, which is what we want)
-                        self.currentZoomLevel = currentZoom
+                        // currentZoomLevel is now tracked by recordingManager (@Published property)
                     }
                 } else {
                     self.cameraErrorMessage = "Failed to initialize camera hardware."
@@ -426,9 +423,9 @@ struct CameraSetupView: View {
     }
 
     private func setZoom(_ factor: CGFloat) {
-        let actualZoom = recordingManager.setZoom(factor: factor)
-        currentZoomLevel = actualZoom
-        print("📷 Zoom set to \(actualZoom)x")
+        _ = recordingManager.setZoom(factor: factor)
+        // No need to update local state - recordingManager.currentZoomLevel is @Published
+        print("📷 Zoom set to \(recordingManager.currentZoomLevel)x")
     }
 
     // MARK: - Helper Methods
