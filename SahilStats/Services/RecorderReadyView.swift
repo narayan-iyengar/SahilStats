@@ -25,6 +25,7 @@ struct RecorderReadyView: View {
     @State private var batteryTimer: Timer?
     @State private var receivedLiveGame: LiveGame?  // Game info received from controller
     @State private var isCameraReady = false
+    @State private var showingCameraSetup = false  // NEW: Show camera framing view
 
     var body: some View {
         ZStack {
@@ -45,9 +46,12 @@ struct RecorderReadyView: View {
                 
                 // System Status
                 systemStatusCard
-                
+
+                // NEW: Camera Setup Button
+                cameraSetupButton
+
                 Spacer()
-                
+
                 // Emergency Exit (reusing DismissButton)
                 DismissButton(action: handleEmergencyExit)
                     .padding(.bottom, 40)
@@ -58,6 +62,15 @@ struct RecorderReadyView: View {
             .fullScreenCover(isPresented: $showingRecordingView) {
                 if let game = effectiveGame {
                     CleanVideoRecordingView(liveGame: game)
+                }
+            }
+
+            // NEW: Fullscreen camera setup view
+            .fullScreenCover(isPresented: $showingCameraSetup) {
+                CameraSetupView(liveGame: effectiveGame) {
+                    // Callback when framing is locked
+                    showingCameraSetup = false
+                    print("📷 Camera framing locked - camera session will stay active")
                 }
             }
         }
@@ -207,11 +220,11 @@ struct RecorderReadyView: View {
                     .font(.caption2)
                     .foregroundColor(.gray)
             }
-            
+
             Divider()
                 .frame(height: 30)
                 .background(Color.gray)
-            
+
             // Storage status
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
@@ -229,6 +242,49 @@ struct RecorderReadyView: View {
         .padding(12)
         .background(.ultraThinMaterial.opacity(0.2))
         .cornerRadius(12)
+    }
+
+    // NEW: Camera Setup Button
+    private var cameraSetupButton: some View {
+        Button(action: {
+            showingCameraSetup = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.title2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Setup Camera")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+
+                    Text("Frame your shot before recording")
+                        .font(.caption)
+                        .foregroundColor(.orange.opacity(0.8))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.orange)
+            }
+            .foregroundColor(.white)
+            .padding(16)
+            .background(
+                LinearGradient(
+                    colors: [Color.orange.opacity(0.3), Color.orange.opacity(0.15)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.orange.opacity(0.5), lineWidth: 1)
+            )
+        }
+        .disabled(!recordingManager.canRecordVideo)
+        .opacity(recordingManager.canRecordVideo ? 1.0 : 0.5)
     }
     
     // MARK: - Computed Properties
