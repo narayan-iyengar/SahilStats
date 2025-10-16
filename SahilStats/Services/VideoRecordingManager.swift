@@ -203,11 +203,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portrait:
             rotationAngle = 90
         case .portraitUpsideDown:
-            rotationAngle = 180
+            rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 270  // Swapped with landscapeRight
+            rotationAngle = 180  // Home button on left, camera on right
         case .landscapeRight:
-            rotationAngle = 180    // Try 0° - scoreboard currently vertical on left
+            rotationAngle = 0    // Home button on right, camera on left (natural landscape)
         default:
             return
         }

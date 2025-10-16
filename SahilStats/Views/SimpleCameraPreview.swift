@@ -270,11 +270,11 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
             case .portraitUpsideDown:
                 rotationAngle = 270
             case .landscapeLeft:
-                rotationAngle = 270  // Match VideoRecordingManager
+                rotationAngle = 180  // Home button on left, camera on right
             case .landscapeRight:
-                rotationAngle = 180  // Match VideoRecordingManager (your position)
+                rotationAngle = 0    // Home button on right, camera on left (natural landscape)
             default:
-                rotationAngle = 180  // Default to landscape right
+                rotationAngle = 0    // Default to landscape right
             }
 
             if connection.isVideoRotationAngleSupported(rotationAngle) {

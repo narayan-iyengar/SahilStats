@@ -114,7 +114,7 @@ struct CameraSetupView: View {
                         .foregroundColor(batteryColor)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 28)
             .padding(.vertical, 8)
             .background(Color.black.opacity(0.3))
 
