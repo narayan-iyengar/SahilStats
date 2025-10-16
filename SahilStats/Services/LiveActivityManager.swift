@@ -13,9 +13,10 @@ import Combine
 class LiveActivityManager: ObservableObject {
     static let shared = LiveActivityManager()
 
-    // FEATURE FLAG: Disable Live Activities (not useful for recorder device)
-    // Enable this for viewer apps where showing scores in Dynamic Island makes sense
-    private static let isEnabled = false
+    // FEATURE FLAG: Enable Live Activities for viewer role only
+    // Viewers can glance at Dynamic Island to see live scores while watching the game
+    // Not useful for recorder (on tripod) or controller (using full app)
+    private static let isEnabled = true
 
     @Published var isActivityActive = false
     private var currentActivity: Activity<SahilStatsActivityAttributes>?
@@ -28,6 +29,12 @@ class LiveActivityManager: ObservableObject {
         // Feature flag check - skip if disabled
         guard Self.isEnabled else {
             print("🏝️ Live Activity disabled via feature flag")
+            return
+        }
+
+        // Only enable for viewer role - not useful for recorder (on tripod) or controller (using full app)
+        guard deviceRole == .viewer else {
+            print("🏝️ Live Activity skipped for \(deviceRole.displayName) role (viewer only)")
             return
         }
 
