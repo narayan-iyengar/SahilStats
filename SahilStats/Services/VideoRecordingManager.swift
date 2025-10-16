@@ -331,42 +331,70 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 }
             }
             
-            // IMPROVED: Try multiple camera fallbacks with ultra-wide support for 0.5x zoom
+            // IMPROVED: Use discovery session to find actual ultra-wide camera for 0.5x zoom
             var videoDevice: AVCaptureDevice?
 
-            // First priority: Triple camera (ultra-wide 0.5x, wide 1x, telephoto 2x+) - iPhone 11 Pro and newer Pro models
-            videoDevice = AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back)
+            // For iPhone 13+ with ultra-wide, we need to discover the actual physical camera
+            // The virtual device types (triple/dual camera) have minZoom of 1.0x
+            print("📹 Discovering available cameras...")
+
+            let discoverySession = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [
+                    .builtInUltraWideCamera,  // iPhone 11+ ultra-wide (0.5x)
+                    .builtInWideAngleCamera,  // Standard wide (1.0x)
+                    .builtInTelephotoCamera,  // Telephoto (2x+)
+                    .builtInTripleCamera,     // Virtual device
+                    .builtInDualWideCamera,   // Virtual device
+                    .builtInDualCamera        // Virtual device
+                ],
+                mediaType: .video,
+                position: .back
+            )
+
+            // Log all available cameras
+            print("📹 Found \(discoverySession.devices.count) camera(s):")
+            for device in discoverySession.devices {
+                print("   - \(device.localizedName): zoom \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
+            }
+
+            // Priority 1: Try to get the actual ultra-wide camera (0.5x)
+            videoDevice = discoverySession.devices.first { $0.deviceType == .builtInUltraWideCamera }
             if videoDevice != nil {
-                print("📹 Using triple camera system (supports 0.5x ultra-wide zoom)")
+                print("📹 Using ultra-wide camera (0.5x zoom available)")
             }
 
-            // Second priority: Dual wide camera (ultra-wide 0.5x, wide 1x) - iPhone 11 and newer non-Pro models
+            // Priority 2: Try virtual triple camera
             if videoDevice == nil {
-                videoDevice = AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back)
+                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInTripleCamera }
                 if videoDevice != nil {
-                    print("📹 Using dual wide camera system (supports 0.5x ultra-wide zoom)")
+                    print("📹 Using triple camera system")
                 }
             }
 
-            // Third priority: Dual camera (wide, telephoto) - older iPhones
+            // Priority 3: Try virtual dual wide camera
             if videoDevice == nil {
-                videoDevice = AVCaptureDevice.default(.builtInDualCamera, for: .video, position: .back)
+                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInDualWideCamera }
                 if videoDevice != nil {
-                    print("⚠️ Using dual camera (no ultra-wide - 0.5x zoom not available)")
+                    print("📹 Using dual wide camera system")
                 }
             }
 
-            // Fourth priority: Wide angle camera only
+            // Priority 4: Fall back to regular wide camera (1.0x minimum)
             if videoDevice == nil {
-                videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInWideAngleCamera }
                 if videoDevice != nil {
-                    print("⚠️ Using wide angle camera only (no ultra-wide - 0.5x zoom not available)")
+                    print("⚠️ Using wide angle camera only (no 0.5x zoom)")
                 }
             }
 
             // Last resort: front camera
             if videoDevice == nil {
-                videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+                let frontDiscovery = AVCaptureDevice.DiscoverySession(
+                    deviceTypes: [.builtInWideAngleCamera],
+                    mediaType: .video,
+                    position: .front
+                )
+                videoDevice = frontDiscovery.devices.first
                 if videoDevice != nil {
                     print("⚠️ Using front camera as last resort")
                 }
