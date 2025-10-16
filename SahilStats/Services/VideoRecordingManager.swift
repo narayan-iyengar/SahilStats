@@ -381,6 +381,17 @@ class VideoRecordingManager: NSObject, ObservableObject {
             print("🎥 VideoRecordingManager: Found camera device: \(device.localizedName)")
             print("📹 Zoom range: \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
 
+            // Check virtual device switchover points (tells us actual available zoom range)
+            if #available(iOS 13.0, *) {
+                if let switchoverFactors = device.virtualDeviceSwitchOverVideoZoomFactors as? [NSNumber] {
+                    let factors = switchoverFactors.map { $0.doubleValue }
+                    print("📹 Virtual device camera switchover points: \(factors)")
+                    print("   This means zoom below \(factors.first ?? 1.0)x will use constituent cameras")
+                } else {
+                    print("📹 Not a virtual device - no camera switching available")
+                }
+            }
+
             // Store device reference for zoom/focus controls
             self.currentVideoDevice = device
 
@@ -431,32 +442,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 session.addInput(videoInput)
                 print("✅ Video input added to session")
 
-                // NOW set session preset after camera is added (preserves 0.5x zoom range)
-                let settings = CameraSettingsManager.shared.settings
-                let desiredPreset = settings.resolution.sessionPreset
-
-                // For multi-camera systems, limit to 1080p to preserve 0.5x-15x zoom range
-                // 4K can constrain the zoom range on some devices
-                let maxPreset: AVCaptureSession.Preset
-                if device.deviceType == .builtInTripleCamera || device.deviceType == .builtInDualWideCamera {
-                    maxPreset = .hd1920x1080  // Limit to 1080p for full zoom range
-                } else {
-                    maxPreset = desiredPreset  // Use user preference for single cameras
-                }
-
-                if session.canSetSessionPreset(maxPreset) {
-                    session.sessionPreset = maxPreset
-                    print("📹 Using \(maxPreset == .hd1920x1080 ? "1080p" : settings.resolution.displayName) preset (preserves 0.5x zoom)")
-                } else if session.canSetSessionPreset(.hd1920x1080) {
-                    session.sessionPreset = .hd1920x1080
-                    print("📹 Using 1080p fallback preset")
-                } else if session.canSetSessionPreset(.hd1280x720) {
-                    session.sessionPreset = .hd1280x720
-                    print("📹 Using 720p fallback preset")
-                } else {
-                    session.sessionPreset = .high
-                    print("📹 Using high quality fallback preset")
-                }
+                // EXPERIMENTAL: Try NOT setting session preset to preserve full zoom range
+                // Let the device use its default active format
+                print("📹 Using device default format (no session preset) to preserve full zoom range")
             } else {
                 print("❌ Cannot add video input")
                 return nil
