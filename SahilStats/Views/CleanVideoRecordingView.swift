@@ -511,6 +511,15 @@ struct CleanVideoRecordingView: View {
             return
         }
 
+        // CRITICAL FIX: Validate quarter doesn't exceed game's max periods
+        let maxQuarter = localGameState.numQuarter
+        if quarter > maxQuarter {
+            print("❌ REJECTED period change - quarter \(quarter) exceeds maxQuarter \(maxQuarter)")
+            print("   This appears to be an 'End Game' signal, not a period change!")
+            print("   Ignoring this signal to prevent premature game end.")
+            return
+        }
+
         // Update local state
         localGameState.quarter = quarter
         localClockValue = clockValue
@@ -520,7 +529,7 @@ struct CleanVideoRecordingView: View {
         clockStartTime = nil
         clockAtStart = nil
 
-        print("⚡ Period changed: Q\(quarter) | Clock reset to \(String(format: "%.0f", clockValue))s | Clock PAUSED")
+        print("⚡ Period changed: Q\(quarter)/\(maxQuarter) | Clock reset to \(String(format: "%.0f", clockValue))s | Clock PAUSED")
     }
 
     private func syncClockFromPayload(_ payload: [String: Any]) {
