@@ -29,9 +29,14 @@ struct SimpleCameraPreviewView: UIViewRepresentable {
             switch gesture.state {
             case .began:
                 initialZoom = parent.recordingManager.getCurrentZoom()
+                print("🤏 Pinch zoom started at \(String(format: "%.1f", initialZoom))x")
             case .changed:
                 let newZoom = initialZoom * gesture.scale
-                parent.recordingManager.setZoom(factor: newZoom)
+                let actualZoom = parent.recordingManager.setZoom(factor: newZoom)
+                print("🤏 Pinch zoom: \(String(format: "%.1f", actualZoom))x")
+            case .ended:
+                let finalZoom = parent.recordingManager.getCurrentZoom()
+                print("🤏 Pinch zoom ended at \(String(format: "%.1f", finalZoom))x")
             default:
                 break
             }
