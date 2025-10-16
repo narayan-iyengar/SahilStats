@@ -510,7 +510,12 @@ struct LiveGameControllerView: View {
                 }
                 .coordinateSpace(name: "scroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                    self.scrollOffset = value
+                    // Update scroll offset for header collapse animation
+                    print("🔍 [Scroll Debug] Offset: \(value), Platform: \(ProcessInfo.processInfo.isMacCatalystApp ? "Mac" : "iOS")")
+                    DispatchQueue.main.async {
+                        self.scrollOffset = value
+                        print("🔍 [Scroll Debug] Updated scrollOffset state: \(self.scrollOffset)")
+                    }
                 }
             } else {
                 OnBenchMessage(isIPad: isIPad)
@@ -680,6 +685,9 @@ struct LiveGameControllerView: View {
         // Scale for elements that should shrink
         let shrinkScale = 1 - (collapseProgress * 0.3) // Shrink to 70% when fully collapsed
 
+        // Debug logging for collapse calculation
+        let _ = print("🔍 [Header Debug] scrollOffset: \(scrollOffset), progress: \(collapseProgress), fadeOut: \(fadeOutOpacity), scale: \(shrinkScale)")
+
         VStack(spacing: isIPad ? 6 : 4) {
             // Done button - ALWAYS visible
             HStack {
@@ -803,6 +811,9 @@ struct LiveGameControllerView: View {
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         )
         .animation(.easeInOut(duration: 0.2), value: scrollOffset)
+        .onChange(of: scrollOffset) { oldValue, newValue in
+            print("🔍 [Animation] scrollOffset changed from \(oldValue) to \(newValue)")
+        }
     }
 
     // MARK: - FIXED: Detailed Stats Entry (NO Score Cards Here)
