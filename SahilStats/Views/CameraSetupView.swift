@@ -14,6 +14,7 @@ struct CameraSetupView: View {
     let liveGame: LiveGame?
     let onFramingLocked: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     @StateObject private var orientationManager = OrientationManager()
@@ -37,27 +38,28 @@ struct CameraSetupView: View {
 
     var body: some View {
         ZStack {
-            // Camera Preview
+            // Camera Preview - FULLSCREEN
             if isCameraReady {
                 cameraPreviewLayer
 
-                // Grid Overlay (optional)
+                // Grid Overlay (optional, subtle)
                 if showGrid {
-                    CameraGridOverlay()
+                    CameraGridOverlay(opacity: 0.25, lineWidth: 0.5)
                         .allowsHitTesting(false)
                 }
 
-                // Top Status Bar
-                topStatusBar
+                // Minimal top status (just indicators, no cards)
+                minimalTopStatus
 
-                // Bottom Controls
-                bottomControls
+                // Compact bottom controls
+                compactBottomControls
 
             } else {
                 // Loading State
                 loadingView
             }
         }
+        .edgesIgnoringSafeArea(.all)
         .preferredColorScheme(.dark)
         .statusBarHidden()
         .onAppear {
@@ -73,7 +75,7 @@ struct CameraSetupView: View {
                 }
             }
             Button("Cancel", role: .cancel) {
-                onFramingLocked() // Return to RecorderReadyView
+                handleCancel()
             }
         } message: {
             Text(cameraErrorMessage)
@@ -84,238 +86,143 @@ struct CameraSetupView: View {
 
     private var cameraPreviewLayer: some View {
         SimpleCameraPreviewView(isCameraReady: $isCameraReady)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.all)
+            .edgesIgnoringSafeArea(.all)
     }
 
-    private var topStatusBar: some View {
-        VStack {
-            HStack(spacing: 16) {
-                // Game Info
-                if let game = liveGame {
-                    HStack(spacing: 8) {
-                        Image(systemName: "basketball.fill")
-                            .foregroundColor(.orange)
-                        Text("\(game.teamName) vs \(game.opponent)")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
+    // MARK: - Minimal UI Components
+
+    private var minimalTopStatus: some View {
+        VStack(spacing: 0) {
+            HStack {
+                // Just connection indicator
+                Circle()
+                    .fill(multipeer.connectionState.isConnected ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
+                Text(multipeer.connectionState.isConnected ? "Connected" : "Waiting")
+                    .font(.caption2)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(8)
-                }
 
                 Spacer()
 
-                // Connection Status
-                connectionStatusIndicator
+                // Compact system status
+                HStack(spacing: 6) {
+                    Image(systemName: batteryIcon)
+                        .font(.caption2)
+                        .foregroundColor(batteryColor)
+                    Text("\(Int(batteryLevel * 100))%")
+                        .font(.caption2)
+                        .foregroundColor(batteryColor)
 
-                // System Status
-                systemStatusIndicator
+                    Text("•")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+
+                    Text(availableStorage)
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-
-            // Framing Instructions
-            framingInstructions
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.3))
 
             Spacer()
         }
     }
 
-    private var connectionStatusIndicator: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(multipeer.connectionState.isConnected ? Color.green : Color.orange)
-                .frame(width: 8, height: 8)
-
-            Text(multipeer.connectionState.isConnected ? "Connected" : "Waiting")
-                .font(.caption)
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
-        .cornerRadius(8)
-    }
-
-    private var systemStatusIndicator: some View {
-        HStack(spacing: 8) {
-            // Battery
-            Image(systemName: batteryIcon)
-                .foregroundColor(batteryColor)
-            Text("\(Int(batteryLevel * 100))%")
-                .font(.caption)
-                .foregroundColor(batteryColor)
-
-            Text("•")
-                .foregroundColor(.gray)
-
-            // Storage
-            Text(availableStorage)
-                .font(.caption)
-                .foregroundColor(.blue)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
-        .cornerRadius(8)
-    }
-
-    private var framingInstructions: some View {
-        VStack(spacing: 12) {
-            Text("📷 Frame Your Shot")
-                .font(.headline)
-                .foregroundColor(.white)
-
-            VStack(spacing: 6) {
-                framingCheckItem(
-                    icon: "checkmark.circle.fill",
-                    text: "Both baskets visible",
-                    isComplete: true
-                )
-                framingCheckItem(
-                    icon: "checkmark.circle.fill",
-                    text: "Court centered in frame",
-                    isComplete: true
-                )
-                framingCheckItem(
-                    icon: "level",
-                    text: "Camera level",
-                    isComplete: true
-                )
-            }
-        }
-        .padding(16)
-        .background(.ultraThinMaterial.opacity(0.8))
-        .cornerRadius(12)
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
-    }
-
-    private func framingCheckItem(icon: String, text: String, isComplete: Bool) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundColor(isComplete ? .green : .gray)
-                .font(.caption)
-
-            Text(text)
-                .font(.caption)
-                .foregroundColor(isComplete ? .white : .gray)
-
-            Spacer()
-        }
-    }
-
-    private var bottomControls: some View {
+    private var compactBottomControls: some View {
         VStack {
             Spacer()
 
-            VStack(spacing: 16) {
-                // Zoom Control
-                zoomControl
+            VStack(spacing: 12) {
+                // Compact zoom control
+                HStack(spacing: 8) {
+                    Text("Zoom")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
 
-                // Main Action Buttons
-                HStack(spacing: 20) {
-                    // Grid Toggle
-                    Button(action: {
-                        showGrid.toggle()
-                    }) {
-                        VStack(spacing: 4) {
-                            Image(systemName: showGrid ? "grid" : "grid")
-                                .font(.title2)
-                            Text(showGrid ? "Grid On" : "Grid Off")
-                                .font(.caption)
-                        }
-                        .foregroundColor(showGrid ? .orange : .gray)
-                        .padding(12)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
+                    Button(action: { setZoom(0.5) }) {
+                        Text("0.5x")
+                            .font(.caption)
+                            .fontWeight(abs(currentZoomLevel - 0.5) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(currentZoomLevel - 0.5) < 0.1 ? .orange : .white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(abs(currentZoomLevel - 0.5) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .cornerRadius(6)
                     }
 
-                    // Lock Framing Button (Primary)
+                    Button(action: { setZoom(1.0) }) {
+                        Text("1.0x")
+                            .font(.caption)
+                            .fontWeight(abs(currentZoomLevel - 1.0) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(currentZoomLevel - 1.0) < 0.1 ? .orange : .white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(abs(currentZoomLevel - 1.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .cornerRadius(6)
+                    }
+
+                    Button(action: { setZoom(2.0) }) {
+                        Text("2.0x")
+                            .font(.caption)
+                            .fontWeight(abs(currentZoomLevel - 2.0) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(currentZoomLevel - 2.0) < 0.1 ? .orange : .white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(abs(currentZoomLevel - 2.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .cornerRadius(6)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.black.opacity(0.5))
+                .cornerRadius(20)
+
+                // Main controls - compact row
+                HStack(spacing: 16) {
+                    // Grid toggle - compact
+                    Button(action: { showGrid.toggle() }) {
+                        Image(systemName: showGrid ? "grid" : "grid")
+                            .font(.title3)
+                            .foregroundColor(showGrid ? .orange : .white.opacity(0.7))
+                            .frame(width: 50, height: 50)
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(25)
+                    }
+
+                    // Lock framing - main action
                     Button(action: lockFraming) {
-                        VStack(spacing: 8) {
+                        HStack(spacing: 8) {
                             Image(systemName: "lock.fill")
-                                .font(.title)
+                                .font(.title3)
                             Text("Lock Framing")
-                                .font(.headline)
-                            Text("Ready to Record")
-                                .font(.caption)
-                                .foregroundColor(.orange.opacity(0.8))
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                         }
                         .foregroundColor(.white)
-                        .frame(width: 200, height: 100)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 14)
                         .background(Color.orange)
-                        .cornerRadius(16)
-                        .shadow(color: .orange.opacity(0.5), radius: 10)
+                        .cornerRadius(25)
                     }
                     .disabled(!isCameraReady)
 
-                    // Back Button
-                    Button(action: {
-                        onFramingLocked()
-                    }) {
-                        VStack(spacing: 4) {
-                            Image(systemName: "xmark")
-                                .font(.title2)
-                            Text("Cancel")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.white)
-                        .padding(12)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
+                    // Cancel - compact
+                    Button(action: handleCancel) {
+                        Image(systemName: "xmark")
+                            .font(.title3)
+                            .foregroundColor(.white.opacity(0.7))
+                            .frame(width: 50, height: 50)
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(25)
                     }
                 }
-                .padding(.horizontal, 20)
             }
-            .padding(.bottom, 40)
+            .padding(.bottom, 20)
         }
     }
 
-    private var zoomControl: some View {
-        HStack(spacing: 12) {
-            Text("Zoom")
-                .font(.caption)
-                .foregroundColor(.white)
-
-            Button(action: { setZoom(0.5) }) {
-                Text("0.5x")
-                    .font(.caption)
-                    .foregroundColor(abs(currentZoomLevel - 0.5) < 0.1 ? .orange : .white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(abs(currentZoomLevel - 0.5) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
-                    .cornerRadius(6)
-            }
-
-            Button(action: { setZoom(1.0) }) {
-                Text("1.0x")
-                    .font(.caption)
-                    .foregroundColor(abs(currentZoomLevel - 1.0) < 0.1 ? .orange : .white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(abs(currentZoomLevel - 1.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
-                    .cornerRadius(6)
-            }
-
-            Button(action: { setZoom(2.0) }) {
-                Text("2.0x")
-                    .font(.caption)
-                    .foregroundColor(abs(currentZoomLevel - 2.0) < 0.1 ? .orange : .white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(abs(currentZoomLevel - 2.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
-                    .cornerRadius(6)
-            }
-        }
-        .padding(10)
-        .background(.ultraThinMaterial)
-        .cornerRadius(10)
-    }
 
     private var loadingView: some View {
         VStack(spacing: 20) {
@@ -502,8 +409,24 @@ struct CameraSetupView: View {
         // Keep camera session alive!
         print("📷 Camera session will remain active for recording")
 
+        // Callback to parent view (optional, for coordination)
+        onFramingLocked()
+
+        // Dismiss this view
+        dismiss()
+    }
+
+    private func handleCancel() {
+        print("❌ CameraSetupView: Cancelled - returning to ready view")
+
+        // Keep camera session alive even on cancel!
+        print("📷 Camera session will remain active")
+
         // Callback to parent view
         onFramingLocked()
+
+        // Dismiss this view
+        dismiss()
     }
 
     private func setZoom(_ factor: CGFloat) {
