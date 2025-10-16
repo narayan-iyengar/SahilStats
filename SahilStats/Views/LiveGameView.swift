@@ -464,11 +464,6 @@ struct LiveGameControllerView: View {
             if !sahilOnBench {
                 ScrollView {
                     VStack(spacing: isIPad ? 24 : 20) {
-                        // Track scroll offset at the top of content
-                        Color.clear
-                            .frame(height: 0)
-                            .trackScrollOffset()
-
                         if deviceControl.hasControl {
                             detailedStatsEntryView()
                         } else {
@@ -507,6 +502,18 @@ struct LiveGameControllerView: View {
                     }
                     .padding(.horizontal, isIPad ? 20 : 16)
                     .padding(.vertical, isIPad ? 12 : 8)
+                    .background(
+                        GeometryReader { geometry in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetPreferenceKey.self,
+                                    value: geometry.frame(in: .named("scroll")).minY
+                                )
+                                .onAppear {
+                                    print("🔍 [Scroll Debug] GeometryReader appeared at minY: \(geometry.frame(in: .named("scroll")).minY)")
+                                }
+                        }
+                    )
                 }
                 .coordinateSpace(name: "scroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
