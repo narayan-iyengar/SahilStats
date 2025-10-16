@@ -81,7 +81,7 @@ struct CleanVideoRecordingView: View {
         .onDisappear {
             cleanupView()
         }
-        .onChange(of: isCameraReady) { newValue in
+        .onChange(of: isCameraReady) { _, newValue in
             if newValue {
                 // Set default zoom to 0.5x (ultra-wide) when camera is ready
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
