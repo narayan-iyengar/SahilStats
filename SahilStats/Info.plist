@@ -43,11 +43,5 @@
 
     <key>NSSupportsLiveActivities</key>
     <true/>
-
-    <!-- Enable file sharing to access log files via Finder -->
-    <key>UIFileSharingEnabled</key>
-    <true/>
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true/>
 </dict>
 </plist>
