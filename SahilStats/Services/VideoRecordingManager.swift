@@ -391,7 +391,8 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
             // Check virtual device switchover points (tells us actual available zoom range)
             if #available(iOS 13.0, *) {
-                if let switchoverFactors = device.virtualDeviceSwitchOverVideoZoomFactors as? [NSNumber] {
+                let switchoverFactors = device.virtualDeviceSwitchOverVideoZoomFactors
+                if !switchoverFactors.isEmpty {
                     let factors = switchoverFactors.map { $0.doubleValue }
                     print("📹 Virtual device camera switchover points: \(factors)")
                     print("   This means zoom below \(factors.first ?? 1.0)x will use constituent cameras")
