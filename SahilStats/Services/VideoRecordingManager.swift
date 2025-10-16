@@ -334,33 +334,29 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 print("   - \(device.localizedName): zoom \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
             }
 
-            // Priority 1: Try to get the actual ultra-wide camera (0.5x)
-            videoDevice = discoverySession.devices.first { $0.deviceType == .builtInUltraWideCamera }
+            // STRATEGY: Use wide-angle camera as PRIMARY to enable 0.5x zoom switching
+            // When wide-angle is primary, setting zoom to 0.5x will use ultra-wide camera
+            // This matches how the Camera app works
+
+            // Priority 1: Try virtual triple camera (supports 0.5x-15x range)
+            videoDevice = discoverySession.devices.first { $0.deviceType == .builtInTripleCamera }
             if videoDevice != nil {
-                print("📹 Using ultra-wide camera (0.5x zoom available)")
+                print("📹 Using triple camera system (supports 0.5x-15x via camera switching)")
             }
 
-            // Priority 2: Try virtual triple camera
-            if videoDevice == nil {
-                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInTripleCamera }
-                if videoDevice != nil {
-                    print("📹 Using triple camera system")
-                }
-            }
-
-            // Priority 3: Try virtual dual wide camera
+            // Priority 2: Try virtual dual wide camera (supports 0.5x via camera switching)
             if videoDevice == nil {
                 videoDevice = discoverySession.devices.first { $0.deviceType == .builtInDualWideCamera }
                 if videoDevice != nil {
-                    print("📹 Using dual wide camera system")
+                    print("📹 Using dual wide camera system (supports 0.5x via camera switching)")
                 }
             }
 
-            // Priority 4: Fall back to regular wide camera (1.0x minimum)
+            // Priority 3: Try regular wide camera as fallback (1.0x minimum, no ultra-wide)
             if videoDevice == nil {
                 videoDevice = discoverySession.devices.first { $0.deviceType == .builtInWideAngleCamera }
                 if videoDevice != nil {
-                    print("⚠️ Using wide angle camera only (no 0.5x zoom)")
+                    print("⚠️ Using wide angle camera only (no 0.5x zoom available)")
                 }
             }
 
@@ -439,12 +435,18 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 let settings = CameraSettingsManager.shared.settings
                 let desiredPreset = settings.resolution.sessionPreset
 
-                // For ultra-wide camera, limit to 1080p to preserve 0.5x zoom
-                let maxPreset: AVCaptureSession.Preset = (device.deviceType == .builtInUltraWideCamera) ? .hd1920x1080 : desiredPreset
+                // For multi-camera systems, limit to 1080p to preserve 0.5x-15x zoom range
+                // 4K can constrain the zoom range on some devices
+                let maxPreset: AVCaptureSession.Preset
+                if device.deviceType == .builtInTripleCamera || device.deviceType == .builtInDualWideCamera {
+                    maxPreset = .hd1920x1080  // Limit to 1080p for full zoom range
+                } else {
+                    maxPreset = desiredPreset  // Use user preference for single cameras
+                }
 
                 if session.canSetSessionPreset(maxPreset) {
                     session.sessionPreset = maxPreset
-                    print("📹 Using \(maxPreset == .hd1920x1080 ? "1080p" : settings.resolution.displayName) preset (preserves ultra-wide zoom)")
+                    print("📹 Using \(maxPreset == .hd1920x1080 ? "1080p" : settings.resolution.displayName) preset (preserves 0.5x zoom)")
                 } else if session.canSetSessionPreset(.hd1920x1080) {
                     session.sessionPreset = .hd1920x1080
                     print("📹 Using 1080p fallback preset")
