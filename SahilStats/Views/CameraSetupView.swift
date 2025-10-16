@@ -372,9 +372,20 @@ struct CameraSetupView: View {
 
                         // Set default zoom to ultra-wide for full court view
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            // Log device zoom capabilities
+                            let minZoom = self.recordingManager.getMinZoom()
+                            let maxZoom = self.recordingManager.getMaxZoom()
+                            let currentZoom = self.recordingManager.getCurrentZoom()
+                            print("📷 Camera zoom capabilities:")
+                            print("   Min: \(minZoom)x, Max: \(maxZoom)x, Current: \(currentZoom)x")
+
                             let actualZoom = self.recordingManager.setZoom(factor: 0.5)
                             self.currentZoomLevel = actualZoom
-                            print("📷 Set initial zoom to \(actualZoom)x (ultra-wide)")
+                            print("📷 Requested 0.5x zoom, actually set to: \(actualZoom)x")
+
+                            if actualZoom != 0.5 {
+                                print("⚠️ Could not set 0.5x zoom - device min is \(minZoom)x")
+                            }
                         }
                     }
                 } else {
