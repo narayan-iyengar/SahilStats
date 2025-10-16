@@ -32,31 +32,35 @@ struct RecorderReadyView: View {
             // Simple black background - no camera preview to avoid blocking/connection issues
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                Spacer()
-                
-                // Game Info Card (reusing design patterns)
-                gameInfoCard
-                
-                // Connection Status (reusing AdminStatusIndicator style)
-                connectionStatusCard
-                
-                // Recording Readiness Status
-                readinessStatusCard
-                
-                // System Status
-                systemStatusCard
+            ScrollView {
+                VStack(spacing: 32) {
+                    Spacer()
+                        .frame(height: 40)
 
-                // NEW: Camera Setup Button
-                cameraSetupButton
+                    // Game Info Card (reusing design patterns)
+                    gameInfoCard
 
-                Spacer()
+                    // Connection Status (reusing AdminStatusIndicator style)
+                    connectionStatusCard
 
-                // Emergency Exit (reusing DismissButton)
-                DismissButton(action: handleEmergencyExit)
-                    .padding(.bottom, 40)
+                    // Recording Readiness Status
+                    readinessStatusCard
+
+                    // System Status
+                    systemStatusCard
+
+                    // NEW: Camera Setup Button
+                    cameraSetupButton
+
+                    Spacer()
+                        .frame(height: 40)
+
+                    // Emergency Exit (reusing DismissButton)
+                    DismissButton(action: handleEmergencyExit)
+                        .padding(.bottom, 40)
+                }
+                .padding(24)
             }
-            .padding(24)
             
             // Fullscreen recording view when activated
             .fullScreenCover(isPresented: $showingRecordingView) {

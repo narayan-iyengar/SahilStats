@@ -104,22 +104,14 @@ struct CameraSetupView: View {
 
                 Spacer()
 
-                // Compact system status
-                HStack(spacing: 6) {
+                // Just battery status
+                HStack(spacing: 4) {
                     Image(systemName: batteryIcon)
                         .font(.caption2)
                         .foregroundColor(batteryColor)
                     Text("\(Int(batteryLevel * 100))%")
                         .font(.caption2)
                         .foregroundColor(batteryColor)
-
-                    Text("•")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-
-                    Text(availableStorage)
-                        .font(.caption2)
-                        .foregroundColor(.blue)
                 }
             }
             .padding(.horizontal, 16)
@@ -181,41 +173,35 @@ struct CameraSetupView: View {
 
                 // Main controls - compact row
                 HStack(spacing: 16) {
-                    // Grid toggle - compact
+                    // Grid toggle
                     Button(action: { showGrid.toggle() }) {
                         Image(systemName: showGrid ? "grid" : "grid")
-                            .font(.title3)
+                            .font(.title2)
                             .foregroundColor(showGrid ? .orange : .white.opacity(0.7))
-                            .frame(width: 50, height: 50)
+                            .frame(width: 54, height: 54)
                             .background(Color.black.opacity(0.5))
-                            .cornerRadius(25)
+                            .cornerRadius(27)
                     }
 
-                    // Lock framing - main action
+                    // Lock framing - main action (just icon, larger)
                     Button(action: lockFraming) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "lock.fill")
-                                .font(.title3)
-                            Text("Lock Framing")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
-                        .background(Color.orange)
-                        .cornerRadius(25)
+                        Image(systemName: "lock.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .frame(width: 70, height: 70)
+                            .background(Color.orange)
+                            .cornerRadius(35)
                     }
                     .disabled(!isCameraReady)
 
-                    // Cancel - compact
+                    // Cancel
                     Button(action: handleCancel) {
                         Image(systemName: "xmark")
-                            .font(.title3)
+                            .font(.title2)
                             .foregroundColor(.white.opacity(0.7))
-                            .frame(width: 50, height: 50)
+                            .frame(width: 54, height: 54)
                             .background(Color.black.opacity(0.5))
-                            .cornerRadius(25)
+                            .cornerRadius(27)
                     }
                 }
             }
@@ -310,8 +296,14 @@ struct CameraSetupView: View {
         batteryTimer?.invalidate()
         UIDevice.current.isBatteryMonitoringEnabled = false
 
-        // Reset orientation lock (will be set again by CleanVideoRecordingView)
-        // Don't reset here if we're transitioning to recording
+        // Reset orientation lock to portrait (unless we're transitioning to recording)
+        if !isFramingLocked {
+            print("📱 Resetting orientation to portrait")
+            AppDelegate.orientationLock = .portrait
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            }
+        }
     }
 
     private func setupCameraWithDelay() {
