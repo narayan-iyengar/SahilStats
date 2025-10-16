@@ -1543,6 +1543,13 @@ struct LiveGameControllerView: View {
                 var updatedGame = serverGameState
                 let now = Date()
 
+                // CRITICAL FIX: Validate we're not already at the last period
+                if updatedGame.quarter >= updatedGame.numQuarter {
+                    print("❌ Cannot advance quarter - already at final period (\(updatedGame.quarter)/\(updatedGame.numQuarter))")
+                    print("   This should call finishGame() instead!")
+                    return
+                }
+
                 // CRITICAL FIX: Preserve local changes
                 updatedGame.playerStats = currentStats
                 updatedGame.homeScore = currentHomeScore
@@ -1564,7 +1571,7 @@ struct LiveGameControllerView: View {
                 multipeer.sendPeriodChange(quarter: updatedGame.quarter, clockValue: newClockTime, gameFormat: updatedGame.gameFormat)
 
                 try await firebaseService.updateLiveGame(updatedGame)
-                print("✅ Advanced quarter, scores preserved: \(currentHomeScore)-\(currentAwayScore)")
+                print("✅ Advanced quarter to \(updatedGame.quarter)/\(updatedGame.numQuarter), scores preserved: \(currentHomeScore)-\(currentAwayScore)")
             } catch {
                 self.error = error.localizedDescription
             }
