@@ -372,15 +372,25 @@ class FirebaseService: ObservableObject {
         if let data = document.data() {
             // Delete local video file if it exists
             if let videoPath = data["videoURL"] as? String {
-                print("🗑️ Deleting local video file: \(videoPath)")
-                let videoURL = URL(fileURLWithPath: videoPath)
+                print("🗑️ Attempting to delete local video file from stored path: \(videoPath)")
+
+                // Extract filename from stored path (handles case where full path was stored)
+                let filename = URL(fileURLWithPath: videoPath).lastPathComponent
+
+                // Build current Documents directory path
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let currentVideoURL = documentsPath.appendingPathComponent(filename)
+
+                print("   Looking for file: \(filename)")
+                print("   At current path: \(currentVideoURL.path)")
 
                 do {
-                    if FileManager.default.fileExists(atPath: videoPath) {
-                        try FileManager.default.removeItem(at: videoURL)
-                        print("✅ Local video file deleted")
+                    if FileManager.default.fileExists(atPath: currentVideoURL.path) {
+                        try FileManager.default.removeItem(at: currentVideoURL)
+                        print("✅ Local video file deleted: \(filename)")
                     } else {
-                        print("⚠️ Local video file not found at path: \(videoPath)")
+                        print("⚠️ Local video file not found: \(filename)")
+                        print("   (This is normal if the video was already deleted or never saved locally)")
                     }
                 } catch {
                     print("❌ Failed to delete local video file: \(error.localizedDescription)")
