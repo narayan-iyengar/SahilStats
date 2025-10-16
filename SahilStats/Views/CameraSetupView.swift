@@ -365,27 +365,24 @@ struct CameraSetupView: View {
                     self.recordingManager.startCameraSession()
                     print("📷 Camera session started")
 
-                    // Wait for session to fully start
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // Minimal delay for session to stabilize (reduced from 1.5s to 0.3s total)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         print("✅ Camera ready for framing")
                         self.isCameraReady = true
 
-                        // Set default zoom to ultra-wide for full court view
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // Log device zoom capabilities
-                            let minZoom = self.recordingManager.getMinZoom()
-                            let maxZoom = self.recordingManager.getMaxZoom()
-                            let currentZoom = self.recordingManager.getCurrentZoom()
-                            print("📷 Camera zoom capabilities:")
-                            print("   Min: \(minZoom)x, Max: \(maxZoom)x, Current: \(currentZoom)x")
+                        // Log device zoom capabilities and attempt 0.5x zoom immediately
+                        let minZoom = self.recordingManager.getMinZoom()
+                        let maxZoom = self.recordingManager.getMaxZoom()
+                        let currentZoom = self.recordingManager.getCurrentZoom()
+                        print("📷 Camera zoom capabilities:")
+                        print("   Min: \(minZoom)x, Max: \(maxZoom)x, Current: \(currentZoom)x")
 
-                            let actualZoom = self.recordingManager.setZoom(factor: 0.5)
-                            self.currentZoomLevel = actualZoom
-                            print("📷 Requested 0.5x zoom, actually set to: \(actualZoom)x")
+                        let actualZoom = self.recordingManager.setZoom(factor: 0.5)
+                        self.currentZoomLevel = actualZoom
+                        print("📷 Requested 0.5x zoom, actually set to: \(actualZoom)x")
 
-                            if actualZoom != 0.5 {
-                                print("⚠️ Could not set 0.5x zoom - device min is \(minZoom)x")
-                            }
+                        if actualZoom != 0.5 {
+                            print("⚠️ Could not set 0.5x zoom - device min is \(minZoom)x")
                         }
                     }
                 } else {
