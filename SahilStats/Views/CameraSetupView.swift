@@ -127,25 +127,14 @@ struct CameraSetupView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                // Compact zoom control
+                // Compact zoom control (ultra-wide camera: 1x = widest, 2x = tighter)
                 HStack(spacing: 8) {
                     Text("Zoom")
                         .font(.caption2)
                         .foregroundColor(.gray)
 
-                    Button(action: { setZoom(0.5) }) {
-                        Text("0.5x")
-                            .font(.caption)
-                            .fontWeight(abs(currentZoomLevel - 0.5) < 0.1 ? .semibold : .regular)
-                            .foregroundColor(abs(currentZoomLevel - 0.5) < 0.1 ? .orange : .white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(abs(currentZoomLevel - 0.5) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
-                            .cornerRadius(6)
-                    }
-
                     Button(action: { setZoom(1.0) }) {
-                        Text("1.0x")
+                        Text("1x")
                             .font(.caption)
                             .fontWeight(abs(currentZoomLevel - 1.0) < 0.1 ? .semibold : .regular)
                             .foregroundColor(abs(currentZoomLevel - 1.0) < 0.1 ? .orange : .white)
@@ -156,13 +145,24 @@ struct CameraSetupView: View {
                     }
 
                     Button(action: { setZoom(2.0) }) {
-                        Text("2.0x")
+                        Text("2x")
                             .font(.caption)
                             .fontWeight(abs(currentZoomLevel - 2.0) < 0.1 ? .semibold : .regular)
                             .foregroundColor(abs(currentZoomLevel - 2.0) < 0.1 ? .orange : .white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .background(abs(currentZoomLevel - 2.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
+                            .cornerRadius(6)
+                    }
+
+                    Button(action: { setZoom(3.0) }) {
+                        Text("3x")
+                            .font(.caption)
+                            .fontWeight(abs(currentZoomLevel - 3.0) < 0.1 ? .semibold : .regular)
+                            .foregroundColor(abs(currentZoomLevel - 3.0) < 0.1 ? .orange : .white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(abs(currentZoomLevel - 3.0) < 0.1 ? Color.orange.opacity(0.3) : Color.clear)
                             .cornerRadius(6)
                     }
                 }
@@ -370,20 +370,16 @@ struct CameraSetupView: View {
                         print("✅ Camera ready for framing")
                         self.isCameraReady = true
 
-                        // Log device zoom capabilities and attempt 0.5x zoom immediately
+                        // Log device zoom capabilities
                         let minZoom = self.recordingManager.getMinZoom()
                         let maxZoom = self.recordingManager.getMaxZoom()
                         let currentZoom = self.recordingManager.getCurrentZoom()
                         print("📷 Camera zoom capabilities:")
                         print("   Min: \(minZoom)x, Max: \(maxZoom)x, Current: \(currentZoom)x")
+                        print("📷 Using ultra-wide camera - 1.0x is the widest view (full court coverage)")
 
-                        let actualZoom = self.recordingManager.setZoom(factor: 0.5)
-                        self.currentZoomLevel = actualZoom
-                        print("📷 Requested 0.5x zoom, actually set to: \(actualZoom)x")
-
-                        if actualZoom != 0.5 {
-                            print("⚠️ Could not set 0.5x zoom - device min is \(minZoom)x")
-                        }
+                        // Keep current zoom (1.0x = ultra-wide, which is what we want)
+                        self.currentZoomLevel = currentZoom
                     }
                 } else {
                     self.cameraErrorMessage = "Failed to initialize camera hardware."

@@ -334,29 +334,37 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 print("   - \(device.localizedName): zoom \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
             }
 
-            // STRATEGY: Use wide-angle camera as PRIMARY to enable 0.5x zoom switching
-            // When wide-angle is primary, setting zoom to 0.5x will use ultra-wide camera
-            // This matches how the Camera app works
+            // STRATEGY: Use physical ultra-wide camera as PRIMARY for full court coverage
+            // Ultra-wide camera at 1.0x zoom gives the widest field of view
+            // Can zoom in to 2x+ by increasing zoom factor
 
-            // Priority 1: Try virtual triple camera (supports 0.5x-15x range)
-            videoDevice = discoverySession.devices.first { $0.deviceType == .builtInTripleCamera }
+            // Priority 1: Use physical ultra-wide camera (best for full court view)
+            videoDevice = discoverySession.devices.first { $0.deviceType == .builtInUltraWideCamera }
             if videoDevice != nil {
-                print("📹 Using triple camera system (supports 0.5x-15x via camera switching)")
+                print("📹 Using ultra-wide camera (1.0x = ultra-wide, zoom in for tighter shots)")
             }
 
-            // Priority 2: Try virtual dual wide camera (supports 0.5x via camera switching)
+            // Priority 2: Try virtual triple camera as fallback
             if videoDevice == nil {
-                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInDualWideCamera }
+                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInTripleCamera }
                 if videoDevice != nil {
-                    print("📹 Using dual wide camera system (supports 0.5x via camera switching)")
+                    print("📹 Using triple camera system (fallback)")
                 }
             }
 
-            // Priority 3: Try regular wide camera as fallback (1.0x minimum, no ultra-wide)
+            // Priority 3: Try virtual dual wide camera
+            if videoDevice == nil {
+                videoDevice = discoverySession.devices.first { $0.deviceType == .builtInDualWideCamera }
+                if videoDevice != nil {
+                    print("📹 Using dual wide camera system (fallback)")
+                }
+            }
+
+            // Priority 4: Try regular wide camera as last resort
             if videoDevice == nil {
                 videoDevice = discoverySession.devices.first { $0.deviceType == .builtInWideAngleCamera }
                 if videoDevice != nil {
-                    print("⚠️ Using wide angle camera only (no 0.5x zoom available)")
+                    print("⚠️ Using wide angle camera only (no ultra-wide available)")
                 }
             }
 
