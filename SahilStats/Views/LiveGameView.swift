@@ -456,14 +456,19 @@ struct LiveGameControllerView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // The fixed header stays the same
+            // Collapsible header that responds to scroll
             fixedGameHeader()
-            
+
             // --- NEW LOGIC ---
             // If Sahil is NOT on the bench, show the scrollable stats view
             if !sahilOnBench {
                 ScrollView {
                     VStack(spacing: isIPad ? 24 : 20) {
+                        // Track scroll offset at the top of content
+                        Color.clear
+                            .frame(height: 0)
+                            .trackScrollOffset()
+
                         if deviceControl.hasControl {
                             detailedStatsEntryView()
                         } else {
@@ -492,16 +497,20 @@ struct LiveGameControllerView: View {
                                  isIPad: isIPad
                              )
                         }
-                        
+
                         PlayingTimeCard(
                             liveGame: serverGameState,
                             isIPad: isIPad
                         )
-                        
+
                         Spacer(minLength: 120)
                     }
                     .padding(.horizontal, isIPad ? 20 : 16)
                     .padding(.vertical, isIPad ? 12 : 8)
+                }
+                .coordinateSpace(name: "scroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                    self.scrollOffset = value
                 }
             } else {
                 OnBenchMessage(isIPad: isIPad)
@@ -657,11 +666,22 @@ struct LiveGameControllerView: View {
     
     
     
-    // MARK: - FIXED: Single Game Header (All Info in One Place)
+    // MARK: - Collapsible Header (Responds to Scroll Offset)
     @ViewBuilder
     private func fixedGameHeader() -> some View {
+        // Calculate collapse progress: 0 = fully expanded, 1 = fully collapsed
+        // Scroll threshold: collapse from 0 to -150 points of scroll
+        let collapseThreshold: CGFloat = -150
+        let collapseProgress = min(max(-scrollOffset / abs(collapseThreshold), 0), 1)
+
+        // Opacity for elements that should fade out
+        let fadeOutOpacity = 1 - collapseProgress
+
+        // Scale for elements that should shrink
+        let shrinkScale = 1 - (collapseProgress * 0.3) // Shrink to 70% when fully collapsed
+
         VStack(spacing: isIPad ? 6 : 4) {
-            // Done button at the top
+            // Done button - ALWAYS visible
             HStack {
                 Button(action: handleDone) {
                     HStack(spacing: 4) {
@@ -677,33 +697,37 @@ struct LiveGameControllerView: View {
                 Spacer()
             }
 
-            // Device Control Status
-            CompactDeviceControlStatusCard(
-                hasControl: deviceControl.hasControl,
-                controllingUser: deviceControl.controllingUser,
-                canRequestControl: deviceControl.canRequestControl,
-                pendingRequest: deviceControl.pendingControlRequest,
-                isIPad: isIPad,
-                onRequestControl: requestControl,
-                showBluetoothStatus: (serverGameState.isMultiDeviceSetup ?? false) && DeviceRoleManager.shared.deviceRole == .controller,
-                isRecording: multipeer.isRemoteRecording ?? false,
-                onToggleRecording: DeviceRoleManager.shared.deviceRole == .controller ? {
-                    print("🎬 [DEBUG] Recording toggle tapped")
-                    print("   multipeer.connectionState: \(multipeer.connectionState)")
-                    print("   multipeer.isRemoteRecording: \(multipeer.isRemoteRecording ?? false)")
-                    
-                    let isRecording = self.multipeer.isRemoteRecording ?? false
-                    if isRecording {
-                        print("🎬 Controller sending STOP recording command")
-                        multipeer.sendStopRecording()
-                    } else {
-                        print("🎬 Controller sending START recording command")
-                        multipeer.sendStartRecording()
-                    }
-                } : nil
-            )
-            
-            // Clock Display
+            // Device Control Status - fade out early
+            if fadeOutOpacity > 0.3 {
+                CompactDeviceControlStatusCard(
+                    hasControl: deviceControl.hasControl,
+                    controllingUser: deviceControl.controllingUser,
+                    canRequestControl: deviceControl.canRequestControl,
+                    pendingRequest: deviceControl.pendingControlRequest,
+                    isIPad: isIPad,
+                    onRequestControl: requestControl,
+                    showBluetoothStatus: (serverGameState.isMultiDeviceSetup ?? false) && DeviceRoleManager.shared.deviceRole == .controller,
+                    isRecording: multipeer.isRemoteRecording ?? false,
+                    onToggleRecording: DeviceRoleManager.shared.deviceRole == .controller ? {
+                        print("🎬 [DEBUG] Recording toggle tapped")
+                        print("   multipeer.connectionState: \(multipeer.connectionState)")
+                        print("   multipeer.isRemoteRecording: \(multipeer.isRemoteRecording ?? false)")
+
+                        let isRecording = self.multipeer.isRemoteRecording ?? false
+                        if isRecording {
+                            print("🎬 Controller sending STOP recording command")
+                            multipeer.sendStopRecording()
+                        } else {
+                            print("🎬 Controller sending START recording command")
+                            multipeer.sendStartRecording()
+                        }
+                    } : nil
+                )
+                .opacity(fadeOutOpacity)
+                .scaleEffect(shrinkScale)
+            }
+
+            // Clock Display - shrink but stay visible
             CompactClockCard(
                 quarter: currentQuarter,
                 clockTime: localClockTime,
@@ -712,8 +736,9 @@ struct LiveGameControllerView: View {
                 isIPad: isIPad
             )
             .frame(maxWidth: .infinity)
-            
-            // Score Display
+            .scaleEffect(shrinkScale)
+
+            // Score Display - shrink but stay visible
             if deviceControl.hasControl {
                 CompactLiveScoreCard(
                     homeScore: $currentHomeScore,
@@ -724,6 +749,7 @@ struct LiveGameControllerView: View {
                     onScoreChange: scheduleUpdate
                 )
                 .frame(maxWidth: .infinity)
+                .scaleEffect(shrinkScale)
             } else {
                 CompactLiveScoreDisplayCard(
                     homeScore: serverGameState.homeScore,
@@ -733,20 +759,24 @@ struct LiveGameControllerView: View {
                     isIPad: isIPad
                 )
                 .frame(maxWidth: .infinity)
+                .scaleEffect(shrinkScale)
             }
-            
-            // Player Status
-            PlayerStatusCard(
-                sahilOnBench: $sahilOnBench,
-                isIPad: isIPad,
-                hasControl: deviceControl.hasControl,
-                onStatusChange: {
-                    updatePlayingStatus()
-                }
-            )
-            
-            // Game Controls
-            if deviceControl.hasControl {
+
+            // Player Status - fade out
+            if fadeOutOpacity > 0.5 {
+                PlayerStatusCard(
+                    sahilOnBench: $sahilOnBench,
+                    isIPad: isIPad,
+                    hasControl: deviceControl.hasControl,
+                    onStatusChange: {
+                        updatePlayingStatus()
+                    }
+                )
+                .opacity(fadeOutOpacity)
+            }
+
+            // Game Controls - fade out
+            if deviceControl.hasControl && fadeOutOpacity > 0.5 {
                 let _ = print("🔍 [DEBUG] Passing values to CompactGameControlsCard:")
                 let _ = print("   currentQuarter: \(currentQuarter)")
                 let _ = print("   serverGameState.numQuarter (maxQuarter): \(serverGameState.numQuarter)")
@@ -763,6 +793,7 @@ struct LiveGameControllerView: View {
                     onAdvanceQuarter: nextQuarter,
                     onFinishGame: { showingFinishAlert = true }
                 )
+                .opacity(fadeOutOpacity)
             }
         }
         .padding(.horizontal, isIPad ? 20 : 16)
@@ -771,6 +802,7 @@ struct LiveGameControllerView: View {
             Color(.systemBackground)
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         )
+        .animation(.easeInOut(duration: 0.2), value: scrollOffset)
     }
 
     // MARK: - FIXED: Detailed Stats Entry (NO Score Cards Here)
