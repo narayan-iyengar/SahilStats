@@ -305,32 +305,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         do {
             let session = AVCaptureSession()
 
-            // Use camera settings from user preferences
-            let settings = CameraSettingsManager.shared.settings
-            let desiredPreset = settings.resolution.sessionPreset
+            // DON'T set session preset yet - it constrains ultra-wide zoom range!
+            // We'll set it AFTER adding the camera input
 
-            if session.canSetSessionPreset(desiredPreset) {
-                session.sessionPreset = desiredPreset
-                print("📹 Using \(settings.resolution.displayName) preset (\(settings.resolution.dimensions.width)×\(settings.resolution.dimensions.height))")
-            } else {
-                // Fallback to lower resolutions if preferred isn't supported
-                print("⚠️ Preferred resolution \(settings.resolution.displayName) not supported, trying fallbacks...")
-
-                if session.canSetSessionPreset(.hd1920x1080) {
-                    session.sessionPreset = .hd1920x1080
-                    print("📹 Using 1080p fallback preset")
-                } else if session.canSetSessionPreset(.hd1280x720) {
-                    session.sessionPreset = .hd1280x720
-                    print("📹 Using 720p fallback preset")
-                } else if session.canSetSessionPreset(.high) {
-                    session.sessionPreset = .high
-                    print("📹 Using high quality fallback preset")
-                } else {
-                    session.sessionPreset = .medium
-                    print("⚠️ Using medium quality fallback preset (low-end device)")
-                }
-            }
-            
             // IMPROVED: Use discovery session to find actual ultra-wide camera for 0.5x zoom
             var videoDevice: AVCaptureDevice?
 
@@ -453,15 +430,36 @@ class VideoRecordingManager: NSObject, ObservableObject {
             }
             
             let videoInput = try AVCaptureDeviceInput(device: device)
-            
+
             if session.canAddInput(videoInput) {
                 session.addInput(videoInput)
                 print("✅ Video input added to session")
+
+                // NOW set session preset after camera is added (preserves 0.5x zoom range)
+                let settings = CameraSettingsManager.shared.settings
+                let desiredPreset = settings.resolution.sessionPreset
+
+                // For ultra-wide camera, limit to 1080p to preserve 0.5x zoom
+                let maxPreset: AVCaptureSession.Preset = (device.deviceType == .builtInUltraWideCamera) ? .hd1920x1080 : desiredPreset
+
+                if session.canSetSessionPreset(maxPreset) {
+                    session.sessionPreset = maxPreset
+                    print("📹 Using \(maxPreset == .hd1920x1080 ? "1080p" : settings.resolution.displayName) preset (preserves ultra-wide zoom)")
+                } else if session.canSetSessionPreset(.hd1920x1080) {
+                    session.sessionPreset = .hd1920x1080
+                    print("📹 Using 1080p fallback preset")
+                } else if session.canSetSessionPreset(.hd1280x720) {
+                    session.sessionPreset = .hd1280x720
+                    print("📹 Using 720p fallback preset")
+                } else {
+                    session.sessionPreset = .high
+                    print("📹 Using high quality fallback preset")
+                }
             } else {
                 print("❌ Cannot add video input")
                 return nil
             }
-            
+
             if let audioDevice = AVCaptureDevice.default(for: .audio) {
                 let audioInput = try AVCaptureDeviceInput(device: audioDevice)
                 if session.canAddInput(audioInput) {
