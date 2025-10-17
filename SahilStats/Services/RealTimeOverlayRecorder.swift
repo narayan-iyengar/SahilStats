@@ -128,9 +128,9 @@ class RealTimeOverlayRecorder: NSObject {
                 case .portraitUpsideDown:
                     rotationAngle = 270
                 case .landscapeLeft:
-                    rotationAngle = 180  // Home button on left - swapped to match preview
+                    rotationAngle = 0    // Home button on left - swapped back
                 case .landscapeRight:
-                    rotationAngle = 0    // Home button on right - swapped to match preview
+                    rotationAngle = 180  // Home button on right - swapped back
                 default:
                     rotationAngle = 180  // Default to landscape
                 }

@@ -200,7 +200,6 @@ struct CleanVideoRecordingView: View {
     private func cleanupView() {
         print("🎥 CleanVideoRecordingView: Cleaning up view")
 
-        // CRITICAL: Save any recording before cleanup
         Task { @MainActor in
             // Stop recording if still active
             if recordingManager.isRecording {
@@ -208,17 +207,8 @@ struct CleanVideoRecordingView: View {
                 await recordingManager.stopRecording()
             }
 
-            // Check if we have an unsaved recording
-            let hasRecording = recordingManager.getLastRecordingURL() != nil
-            print("   Has unsaved recording: \(hasRecording)")
-
-            if hasRecording {
-                print("💾 Saving recording during cleanup...")
-                let timeline = ScoreTimelineTracker.shared.stopRecording()
-                print("   📊 Got timeline with \(timeline.count) snapshots")
-                await recordingManager.saveRecordingAndQueueUpload(liveGame: liveGame, scoreTimeline: timeline)
-                print("✅ Recording saved during cleanup")
-            }
+            // DISCARD any unsaved recording - cleanup means game was abandoned
+            await discardRecording()
 
             // Now do the actual cleanup
             AppDelegate.orientationLock = .portrait
@@ -587,14 +577,10 @@ struct CleanVideoRecordingView: View {
     }
     
     private func handleDismiss() {
-        print("🎬 CleanVideoRecordingView: handleDismiss called - navigating back to waiting room")
+        print("🎬 CleanVideoRecordingView: handleDismiss called - user backing out without finishing game")
         print("🎬 Current recording state: isRecording=\(recordingManager.isRecording)")
 
         Task { @MainActor in
-            // Check if we have a recording (even if not currently recording)
-            let hasRecording = recordingManager.getLastRecordingURL() != nil
-            print("🎬 Has recording: \(hasRecording)")
-
             // Stop recording if active and notify controller
             if recordingManager.isRecording {
                 print("🎬 Stopping recording before dismissing...")
@@ -605,23 +591,49 @@ struct CleanVideoRecordingView: View {
                 print("✅ Recording stopped and controller notified")
             }
 
-            // Queue any completed recording for upload
-            if hasRecording {
-                print("📹 Saving and queueing recording for upload...")
-                let timeline = ScoreTimelineTracker.shared.stopRecording()
-                print("   📊 Got timeline with \(timeline.count) snapshots")
-                await recordingManager.saveRecordingAndQueueUpload(liveGame: liveGame, scoreTimeline: timeline)
-                print("✅ Recording saved and queued for upload")
-            } else {
-                print("⚠️ No recording to queue for upload")
-            }
+            // DISCARD any recording - game was abandoned, not finished
+            await discardRecording()
 
-            // Navigate back to waiting room after recording is stopped
+            // Navigate back to waiting room after recording is discarded
             print("🏠 Navigating back to waiting room...")
             navigation.currentFlow = .waitingToRecord(Optional(liveGame))
         }
     }
-    
+
+    // MARK: - Video Discard Helper
+
+    private func discardRecording() async {
+        print("🗑️ CleanVideoRecordingView: Discarding recording (game not finished)")
+
+        // Get the recording URL if it exists
+        if let recordingURL = recordingManager.getLastRecordingURL() {
+            print("   Found recording to discard: \(recordingURL.lastPathComponent)")
+
+            // Delete the video file
+            do {
+                if FileManager.default.fileExists(atPath: recordingURL.path) {
+                    try FileManager.default.removeItem(at: recordingURL)
+                    print("   ✅ Deleted video file: \(recordingURL.lastPathComponent)")
+                } else {
+                    print("   ⚠️ Video file doesn't exist at path: \(recordingURL.path)")
+                }
+            } catch {
+                print("   ❌ Failed to delete video file: \(error.localizedDescription)")
+            }
+
+            // Clear the recording manager's reference
+            await recordingManager.clearLastRecording()
+        } else {
+            print("   No recording to discard")
+        }
+
+        // Clear score timeline tracker
+        _ = ScoreTimelineTracker.shared.stopRecording()
+        print("   ✅ Cleared score timeline tracker")
+
+        print("✅ Recording discarded successfully")
+    }
+
     // MARK: - Timer and UI Update Methods
     
     private func startOverlayUpdateTimer() {
