@@ -609,11 +609,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 case .portraitUpsideDown:
                     rotationAngle = 270
                 case .landscapeLeft:
-                    rotationAngle = 180  // Device home button on left
+                    rotationAngle = 180  // Home button on left - matches preview and real-time recorder
                 case .landscapeRight:
-                    rotationAngle = 0  // Device home button on right
+                    rotationAngle = 0    // Home button on right - matches preview and real-time recorder
                 default:
-                    rotationAngle = 0 // Default to landscape right
+                    rotationAngle = 180 // Default to landscape
                 }
 
                 if connection.isVideoRotationAngleSupported(rotationAngle) {
