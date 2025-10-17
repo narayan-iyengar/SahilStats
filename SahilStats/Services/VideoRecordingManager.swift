@@ -205,9 +205,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portraitUpsideDown:
             rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 180  // Device home button on left
+            rotationAngle = 0    // Device home button on left - swapped back
         case .landscapeRight:
-            rotationAngle = 0    // Device home button on right
+            rotationAngle = 180  // Device home button on right - swapped back
         default:
             return
         }
@@ -245,9 +245,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portraitUpsideDown:
             rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 180  // Device home button on left
+            rotationAngle = 0    // Device home button on left - swapped back
         case .landscapeRight:
-            rotationAngle = 0    // Device home button on right
+            rotationAngle = 180  // Device home button on right - swapped back
         default:
             print("⚠️ Invalid orientation in performOrientationUpdate: \(orientation.rawValue)")
             return
@@ -609,9 +609,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 case .portraitUpsideDown:
                     rotationAngle = 270
                 case .landscapeLeft:
-                    rotationAngle = 180  // Home button on left - matches preview and real-time recorder
+                    rotationAngle = 0    // Home button on left - swapped back
                 case .landscapeRight:
-                    rotationAngle = 0    // Home button on right - matches preview and real-time recorder
+                    rotationAngle = 180  // Home button on right - swapped back
                 default:
                     rotationAngle = 180 // Default to landscape
                 }
@@ -658,6 +658,13 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     func getLastRecordingURL() -> URL? {
         return outputURL
+    }
+
+    /// Clear the last recording URL reference (used when discarding recordings)
+    @MainActor
+    func clearLastRecording() {
+        outputURL = nil
+        print("🗑️ Cleared last recording URL reference")
     }
 
     /// Update game data during recording
