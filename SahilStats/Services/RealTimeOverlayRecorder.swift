@@ -128,11 +128,11 @@ class RealTimeOverlayRecorder: NSObject {
                 case .portraitUpsideDown:
                     rotationAngle = 270
                 case .landscapeLeft:
-                    rotationAngle = 270
+                    rotationAngle = 180  // Home button on left - swapped to match preview
                 case .landscapeRight:
-                    rotationAngle = 180  // User's position - Dynamic Island on left
+                    rotationAngle = 0    // Home button on right - swapped to match preview
                 default:
-                    rotationAngle = 180  // Default to landscape right
+                    rotationAngle = 180  // Default to landscape
                 }
 
                 if connection.isVideoRotationAngleSupported(rotationAngle) {
