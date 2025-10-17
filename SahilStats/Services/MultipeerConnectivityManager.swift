@@ -535,14 +535,25 @@ extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
 private extension MultipeerConnectivityManager {
     func startKeepAlive() {
         stopKeepAlive()
-        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.sendMessage(Message(type: .pong, payload: nil))
+
+        // Use RunLoop.common mode to ensure timer fires even during UI interactions and camera initialization
+        keepAliveTimer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+            // Send keep-alive on background queue to not block main thread during camera setup
+            DispatchQueue.global(qos: .utility).async {
+                self?.sendMessage(Message(type: .pong, payload: nil))
+            }
         }
+
+        // Add to common run loop modes so it continues during camera initialization
+        RunLoop.main.add(keepAliveTimer!, forMode: .common)
+
+        print("💓 Keep-alive started (2s interval, background queue)")
     }
 
     func stopKeepAlive() {
         keepAliveTimer?.invalidate()
         keepAliveTimer = nil
+        print("💓 Keep-alive stopped")
     }
 }
 
