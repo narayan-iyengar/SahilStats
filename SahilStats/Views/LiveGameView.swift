@@ -86,7 +86,6 @@ struct LiveGameView: View {
              }
         }
         .navigationBarHidden(true)
-        .statusBarHidden(true)
         .onChange(of: firebaseService.getCurrentLiveGame()) { oldGame, newGame in
              // If game just ended (went from existing to nil)
              if oldGame != nil && newGame == nil && shouldAutoDismissWhenGameEnds {
@@ -397,11 +396,6 @@ struct LiveGameControllerView: View {
     @State private var lastServerUpdate: Date = Date()
     
     
-    // NEW: Header collapse state
-    @State private var headerHeight: CGFloat = 0
-    @State private var isHeaderCollapsed = false
-    @State private var scrollOffset: CGFloat = 0
-    
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
@@ -425,21 +419,6 @@ struct LiveGameControllerView: View {
     private var isGameRunning: Bool {
         serverGameState.isRunning
     }
-    
-    // NEW: Compute header states
-     private var expandedHeaderHeight: CGFloat {
-         isIPad ? 400 : 320 // Adjust based on your actual header size
-     }
-     
-     private var collapsedHeaderHeight: CGFloat {
-         isIPad ? 120 : 100 // Minimal header size
-     }
-     
-     private var headerProgress: Double {
-         guard expandedHeaderHeight > collapsedHeaderHeight else { return 1.0 }
-         let progress = (headerHeight - collapsedHeaderHeight) / (expandedHeaderHeight - collapsedHeaderHeight)
-         return max(0, min(1, progress))
-     }
     
     
     
@@ -537,21 +516,23 @@ struct LiveGameControllerView: View {
                 startInitialTimeTracking()
             }
             
-            // START KEEP-ALIVE MECHANISMS IMMEDIATELY
-            if deviceControl.hasControl {
-                print("❤️ Starting ping and game state announcement timers")
+            // START KEEP-ALIVE MECHANISMS ONLY FOR MULTI-DEVICE GAMES
+            if deviceControl.hasControl && (serverGameState.isMultiDeviceSetup ?? false) {
+                print("❤️ [Multi-Device] Starting ping and game state announcement timers")
                 startPinging()
                 startAnnouncingGameState()
-            }
-            
-            // Request recording state after connection is stable
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                if multipeer.connectionState.isConnected {
-                    print("📤 Requesting recording state from recorder")
-                    multipeer.sendRequestForRecordingState()
-                } else {
-                    print("⚠️ WARNING: Not connected when requesting recording state!")
+
+                // Request recording state after connection is stable
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if multipeer.connectionState.isConnected {
+                        print("📤 Requesting recording state from recorder")
+                        multipeer.sendRequestForRecordingState()
+                    } else {
+                        print("⚠️ WARNING: Not connected when requesting recording state!")
+                    }
                 }
+            } else if !( serverGameState.isMultiDeviceSetup ?? false) {
+                print("📱 [Single-Device] Skipping multipeer mechanisms")
             }
         }
         .onDisappear {
@@ -657,11 +638,11 @@ struct LiveGameControllerView: View {
     
     
     
-    // MARK: - FIXED: Single Game Header (All Info in One Place)
+    // MARK: - Fixed Game Header
     @ViewBuilder
     private func fixedGameHeader() -> some View {
         VStack(spacing: isIPad ? 6 : 4) {
-            // Done button at the top
+            // Done button with device status
             HStack {
                 Button(action: handleDone) {
                     HStack(spacing: 4) {
@@ -671,38 +652,34 @@ struct LiveGameControllerView: View {
                             .font(.system(size: 16, weight: .medium))
                     }
                     .foregroundColor(.blue)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
                 }
-                Spacer()
-            }
+                .contentShape(Rectangle())
+                .frame(minWidth: 80, alignment: .leading)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
 
-            // Device Control Status
-            CompactDeviceControlStatusCard(
-                hasControl: deviceControl.hasControl,
-                controllingUser: deviceControl.controllingUser,
-                canRequestControl: deviceControl.canRequestControl,
-                pendingRequest: deviceControl.pendingControlRequest,
-                isIPad: isIPad,
-                onRequestControl: requestControl,
-                showBluetoothStatus: (serverGameState.isMultiDeviceSetup ?? false) && DeviceRoleManager.shared.deviceRole == .controller,
-                isRecording: multipeer.isRemoteRecording ?? false,
-                onToggleRecording: DeviceRoleManager.shared.deviceRole == .controller ? {
-                    print("🎬 [DEBUG] Recording toggle tapped")
-                    print("   multipeer.connectionState: \(multipeer.connectionState)")
-                    print("   multipeer.isRemoteRecording: \(multipeer.isRemoteRecording ?? false)")
-                    
-                    let isRecording = self.multipeer.isRemoteRecording ?? false
-                    if isRecording {
-                        print("🎬 Controller sending STOP recording command")
-                        multipeer.sendStopRecording()
-                    } else {
-                        print("🎬 Controller sending START recording command")
-                        multipeer.sendStartRecording()
-                    }
-                } : nil
-            )
-            
+                Spacer()
+
+                // Device Control Status (moved to same row)
+                CompactDeviceControlStatusCard(
+                    hasControl: deviceControl.hasControl,
+                    controllingUser: deviceControl.controllingUser,
+                    canRequestControl: deviceControl.canRequestControl,
+                    pendingRequest: deviceControl.pendingControlRequest,
+                    isIPad: isIPad,
+                    onRequestControl: requestControl,
+                    showBluetoothStatus: (serverGameState.isMultiDeviceSetup ?? false) && DeviceRoleManager.shared.deviceRole == .controller,
+                    isRecording: multipeer.isRemoteRecording ?? false,
+                    onToggleRecording: DeviceRoleManager.shared.deviceRole == .controller ? {
+                        let isRecording = self.multipeer.isRemoteRecording ?? false
+                        if isRecording {
+                            multipeer.sendStopRecording()
+                        } else {
+                            multipeer.sendStartRecording()
+                        }
+                    } : nil
+                )
+            }
             // Clock Display
             CompactClockCard(
                 quarter: currentQuarter,
@@ -712,7 +689,7 @@ struct LiveGameControllerView: View {
                 isIPad: isIPad
             )
             .frame(maxWidth: .infinity)
-            
+
             // Score Display
             if deviceControl.hasControl {
                 CompactLiveScoreCard(
@@ -734,7 +711,7 @@ struct LiveGameControllerView: View {
                 )
                 .frame(maxWidth: .infinity)
             }
-            
+
             // Player Status
             PlayerStatusCard(
                 sahilOnBench: $sahilOnBench,
@@ -744,14 +721,9 @@ struct LiveGameControllerView: View {
                     updatePlayingStatus()
                 }
             )
-            
+
             // Game Controls
             if deviceControl.hasControl {
-                let _ = print("🔍 [DEBUG] Passing values to CompactGameControlsCard:")
-                let _ = print("   currentQuarter: \(currentQuarter)")
-                let _ = print("   serverGameState.numQuarter (maxQuarter): \(serverGameState.numQuarter)")
-                let _ = print("   serverGameState.gameFormat: \(serverGameState.gameFormat)")
-
                 CompactGameControlsCard(
                     currentQuarter: currentQuarter,
                     maxQuarter: serverGameState.numQuarter,
@@ -765,8 +737,8 @@ struct LiveGameControllerView: View {
                 )
             }
         }
-        .padding(.horizontal, isIPad ? 20 : 16)
-        .padding(.vertical, isIPad ? 12 : 8)
+        .padding(.horizontal, isIPad ? 12 : 10)
+        .padding(.vertical, isIPad ? 8 : 6)
         .background(
             Color(.systemBackground)
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
@@ -793,37 +765,72 @@ struct LiveGameControllerView: View {
                         .foregroundColor(.blue)
                     Spacer()
                 }
-                
-                VStack(spacing: isIPad ? 8 : 6) {
-                    SmartShootingStatCard(
-                        title: "2-Point Shots",
-                        shotType: .twoPoint,
-                        made: $currentStats.fg2m,
-                        attempted: $currentStats.fg2a,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    
-                    SmartShootingStatCard(
-                        title: "3-Point Shots",
-                        shotType: .threePoint,
-                        made: $currentStats.fg3m,
-                        attempted: $currentStats.fg3a,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    
-                    SmartShootingStatCard(
-                        title: "Free Throws",
-                        shotType: .freeThrow,
-                        made: $currentStats.ftm,
-                        attempted: $currentStats.fta,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
+
+                // iPad: Horizontal layout | iPhone: Vertical layout
+                if isIPad {
+                    HStack(spacing: 8) {
+                        SmartShootingStatCard(
+                            title: "2-Point Shots",
+                            shotType: .twoPoint,
+                            made: $currentStats.fg2m,
+                            attempted: $currentStats.fg2a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "3-Point Shots",
+                            shotType: .threePoint,
+                            made: $currentStats.fg3m,
+                            attempted: $currentStats.fg3a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "Free Throws",
+                            shotType: .freeThrow,
+                            made: $currentStats.ftm,
+                            attempted: $currentStats.fta,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+                    }
+                } else {
+                    VStack(spacing: 6) {
+                        SmartShootingStatCard(
+                            title: "2-Point Shots",
+                            shotType: .twoPoint,
+                            made: $currentStats.fg2m,
+                            attempted: $currentStats.fg2a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "3-Point Shots",
+                            shotType: .threePoint,
+                            made: $currentStats.fg3m,
+                            attempted: $currentStats.fg3a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "Free Throws",
+                            shotType: .freeThrow,
+                            made: $currentStats.ftm,
+                            attempted: $currentStats.fta,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+                    }
                 }
             }
             
@@ -1022,37 +1029,72 @@ struct LiveGameControllerView: View {
                         .foregroundColor(.blue)
                     Spacer()
                 }
-                
-                VStack(spacing: isIPad ? 8 : 6) {
-                    SmartShootingStatCard(
-                        title: "2-Point Shots",
-                        shotType: .twoPoint,
-                        made: $currentStats.fg2m,
-                        attempted: $currentStats.fg2a,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    
-                    SmartShootingStatCard(
-                        title: "3-Point Shots",
-                        shotType: .threePoint,
-                        made: $currentStats.fg3m,
-                        attempted: $currentStats.fg3a,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
-                    
-                    SmartShootingStatCard(
-                        title: "Free Throws",
-                        shotType: .freeThrow,
-                        made: $currentStats.ftm,
-                        attempted: $currentStats.fta,
-                        liveScore: $currentHomeScore,
-                        isIPad: isIPad,
-                        onStatChange: scheduleUpdate
-                    )
+
+                // iPad: Horizontal layout | iPhone: Vertical layout
+                if isIPad {
+                    HStack(spacing: 8) {
+                        SmartShootingStatCard(
+                            title: "2-Point Shots",
+                            shotType: .twoPoint,
+                            made: $currentStats.fg2m,
+                            attempted: $currentStats.fg2a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "3-Point Shots",
+                            shotType: .threePoint,
+                            made: $currentStats.fg3m,
+                            attempted: $currentStats.fg3a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "Free Throws",
+                            shotType: .freeThrow,
+                            made: $currentStats.ftm,
+                            attempted: $currentStats.fta,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+                    }
+                } else {
+                    VStack(spacing: 6) {
+                        SmartShootingStatCard(
+                            title: "2-Point Shots",
+                            shotType: .twoPoint,
+                            made: $currentStats.fg2m,
+                            attempted: $currentStats.fg2a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "3-Point Shots",
+                            shotType: .threePoint,
+                            made: $currentStats.fg3m,
+                            attempted: $currentStats.fg3a,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+
+                        SmartShootingStatCard(
+                            title: "Free Throws",
+                            shotType: .freeThrow,
+                            made: $currentStats.ftm,
+                            attempted: $currentStats.fta,
+                            liveScore: $currentHomeScore,
+                            isIPad: isIPad,
+                            onStatChange: scheduleUpdate
+                        )
+                    }
                 }
             }
             
@@ -1491,8 +1533,10 @@ struct LiveGameControllerView: View {
 
                 updatedGame.lastClockUpdate = now
 
-                // INSTANT: Send clock control immediately via multipeer (no delay!)
-                multipeer.sendClockControl(isRunning: updatedGame.isRunning, clockValue: localClockTime, timestamp: now)
+                // INSTANT: Send clock control immediately via multipeer (no delay!) - only for multi-device
+                if serverGameState.isMultiDeviceSetup ?? false {
+                    multipeer.sendClockControl(isRunning: updatedGame.isRunning, clockValue: localClockTime, timestamp: now)
+                }
 
                 try await firebaseService.updateLiveGame(updatedGame)
                 print("✅ Game clock toggle successful")
@@ -1567,8 +1611,10 @@ struct LiveGameControllerView: View {
                 localClockTime = newClockTime
                 currentQuarter = updatedGame.quarter
 
-                // INSTANT: Send period change immediately via multipeer (no delay!)
-                multipeer.sendPeriodChange(quarter: updatedGame.quarter, clockValue: newClockTime, gameFormat: updatedGame.gameFormat)
+                // INSTANT: Send period change immediately via multipeer (no delay!) - only for multi-device
+                if serverGameState.isMultiDeviceSetup ?? false {
+                    multipeer.sendPeriodChange(quarter: updatedGame.quarter, clockValue: newClockTime, gameFormat: updatedGame.gameFormat)
+                }
 
                 try await firebaseService.updateLiveGame(updatedGame)
                 print("✅ Advanced quarter to \(updatedGame.quarter)/\(updatedGame.numQuarter), scores preserved: \(currentHomeScore)-\(currentAwayScore)")
@@ -1592,8 +1638,10 @@ struct LiveGameControllerView: View {
 
         hasUnsavedChanges = true
 
-        // INSTANT: Send score updates immediately via multipeer (no delay!)
-        multipeer.sendScoreUpdate(homeScore: currentHomeScore, awayScore: currentAwayScore)
+        // INSTANT: Send score updates immediately via multipeer (no delay!) - only for multi-device
+        if serverGameState.isMultiDeviceSetup ?? false {
+            multipeer.sendScoreUpdate(homeScore: currentHomeScore, awayScore: currentAwayScore)
+        }
 
         updateTimer?.invalidate()
         updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
@@ -1744,9 +1792,11 @@ struct LiveGameControllerView: View {
 
                 print("✅ Game saved with ID: \(liveGameId)")
 
-                // CRITICAL: Send gameEnded message to recorder with the game ID
-                multipeer.sendGameEnded(gameId: liveGameId)
-                print("📤 Sent gameEnded message with gameId: \(liveGameId)")
+                // CRITICAL: Send gameEnded message to recorder with the game ID - only for multi-device
+                if serverGameState.isMultiDeviceSetup ?? false {
+                    multipeer.sendGameEnded(gameId: liveGameId)
+                    print("📤 Sent gameEnded message with gameId: \(liveGameId)")
+                }
 
                 // Delete the live game
                 try await firebaseService.deleteLiveGame(liveGameId)
