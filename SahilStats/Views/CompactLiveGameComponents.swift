@@ -44,29 +44,17 @@ struct CompactDeviceControlStatusCard: View {
         self.onToggleRecording = onToggleRecording
         
         // DEBUG: Print all the values when this view is created
-        print("🔍 [DEBUG] CompactDeviceControlStatusCard init:")
-        print("   hasControl: \(hasControl)")
-        print("   showBluetoothStatus: \(showBluetoothStatus)")
-        print("   isRecording: \(isRecording?.description ?? "nil")")
-        print("   onToggleRecording: \(onToggleRecording != nil ? "provided" : "nil")")
-        print("   Recording button will show: \(isRecording != nil && onToggleRecording != nil)")
+        //print("🔍 [DEBUG] CompactDeviceControlStatusCard init:")
+        //print("   hasControl: \(hasControl)")
+        //print("   showBluetoothStatus: \(showBluetoothStatus)")
+        //print("   isRecording: \(isRecording?.description ?? "nil")")
+        //print("   onToggleRecording: \(onToggleRecording != nil ? "provided" : "nil")")
+        //print("   Recording button will show: \(isRecording != nil && onToggleRecording != nil)")
     }
     
     var body: some View {
         HStack(spacing: isIPad ? 12 : 8) {
-            // Status indicator
-            Image(systemName: hasControl ? "gamecontroller.fill" : "eye.fill")
-                .foregroundColor(hasControl ? .green : .blue)
-                .font(isIPad ? .body : .caption)
-            
-            // Status text
-            Text(hasControl ? "Controlling" : "Viewing")
-                .font(isIPad ? .body : .caption)
-                .fontWeight(.medium)
-                .foregroundColor(hasControl ? .green : .blue)
-            
-            Spacer()
-            // ADD: Recording button (compact) - only if Bluetooth connected and controller
+            // Recording button (compact) - only if Bluetooth connected and controller
             if showBluetoothStatus, let toggleRecording = onToggleRecording {
                 Button(action: toggleRecording) {
                     HStack(spacing: 4) {
@@ -91,34 +79,31 @@ struct CompactDeviceControlStatusCard: View {
                 BluetoothStatusIndicator()
            }
             
-            // Request control button (compact)
-            if !hasControl {
-                if let pendingUser = pendingRequest {
-                    Text("Pending...")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(6)
-                } else if canRequestControl {
-                    Button("Request") {
-                        onRequestControl()
-                    }
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
+            // Status icon - RIGHT ALIGNED (no Spacer, at end of HStack)
+            if hasControl {
+                // Controller has control - show gamecontroller icon
+                Image(systemName: "gamecontroller.fill")
+                    .foregroundColor(.green)
+                    .font(isIPad ? .title3 : .body)
+            } else if let _ = pendingRequest {
+                // Control request pending - show hourglass
+                Image(systemName: "hourglass")
+                    .foregroundColor(.orange)
+                    .font(isIPad ? .title3 : .body)
+            } else if canRequestControl {
+                // Viewer can request control - clickable eye icon
+                Button(action: onRequestControl) {
+                    Image(systemName: "eye.fill")
+                        .foregroundColor(.blue)
+                        .font(isIPad ? .title3 : .body)
                 }
+            } else {
+                // Viewer mode but can't request - non-clickable eye
+                Image(systemName: "eye.fill")
+                    .foregroundColor(.blue)
+                    .font(isIPad ? .title3 : .body)
             }
         }
-        .padding(.horizontal, isIPad ? 16 : 12)
-        .padding(.vertical, isIPad ? 12 : 8)
-        .background(hasControl ? Color.green.opacity(0.08) : Color.blue.opacity(0.08))
-        .cornerRadius(isIPad ? 12 : 8)
     }
 }
 // MARK: - Compact Clock Card
@@ -578,12 +563,6 @@ struct LiveGameWatchView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Connection status indicator
-                HStack {
-                    ConnectionStatusIndicator(deviceRole: .viewer)
-                    Spacer()
-                }
-
                 // Device Control Status with Request Control button
                 CompactDeviceControlStatusCard(
                     hasControl: deviceControl.hasControl,
@@ -1123,60 +1102,86 @@ struct LiveScoreDisplayCard: View {
     }
 }
 
-// MARK: - Player Status Card
-
-// MARK: - FIXED Player Status Card - Controller Only
-
-// MARK: - Interactive Player Status Card (Controller Only)
+// MARK: - Player Status Card with Custom Toggle Style
 
 struct PlayerStatusCard: View {
     @Binding var sahilOnBench: Bool
     let isIPad: Bool
-    let hasControl: Bool // NEW: Add control check
+    let hasControl: Bool
     let onStatusChange: () -> Void
-    
+
     var body: some View {
-        HStack(spacing: isIPad ? 16 : 12) {
-            
-            //Spacer()
-            
-            if hasControl {
-                // INTERACTIVE: Only show buttons if user has control
-                HStack(spacing: isIPad ? 8 : 6) {
-                    // --- REPLACEMENT FOR "Court" BUTTON ---
-                    Button(action: {
-                        sahilOnBench = false
-                        onStatusChange()
-                    }) {
-                        Image(systemName: "figure.basketball") // <-- Icon instead of text
-                    }
-                    .buttonStyle(CompactStatusButtonStyle(isSelected: !sahilOnBench, isIPad: isIPad))
-                    
-                    // --- REPLACEMENT FOR "Bench" BUTTON ---
-                    Button(action: {
-                        sahilOnBench = true
-                        onStatusChange()
-                    }) {
-                        Image(systemName: "pause.circle") // <-- Icon instead of text
-                    }
-                    .buttonStyle(CompactStatusButtonStyle(isSelected: sahilOnBench, isIPad: isIPad))
+        if hasControl {
+            // INTERACTIVE: Custom toggle with status label inside
+            Toggle(isOn: Binding(
+                get: { sahilOnBench },
+                set: { newValue in
+                    sahilOnBench = newValue
+                    onStatusChange()
                 }
-            } else {
-                // READ-ONLY: Just show the current status
-                Text(sahilOnBench ? "On The Bench" : "On The Court")
-                    .font(isIPad ? .body : .subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(sahilOnBench ? .orange : .green)
-                    .padding(.horizontal, isIPad ? 12 : 10)
-                    .padding(.vertical, isIPad ? 6 : 5)
-                    .background((sahilOnBench ? Color.orange : Color.green).opacity(0.1))
-                    .cornerRadius(isIPad ? 8 : 6)
+            )) {
+                EmptyView()
             }
+            .toggleStyle(PlayerStatusToggleStyle(isOnBench: sahilOnBench, isIPad: isIPad))
+        } else {
+            // READ-ONLY: Show status badge
+            HStack(spacing: isIPad ? 6 : 4) {
+                Image(systemName: sahilOnBench ? "figure.stand" : "figure.basketball")
+                    .font(isIPad ? .caption : .caption2)
+                Text(sahilOnBench ? "Bench" : "Court")
+                    .font(isIPad ? .caption : .caption2)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, isIPad ? 12 : 10)
+            .padding(.vertical, isIPad ? 6 : 5)
+            .background(sahilOnBench ? Color.orange : Color.green)
+            .clipShape(Capsule())
         }
-        .padding(.horizontal, isIPad ? 16 : 12)
-        .padding(.vertical, isIPad ? 12 : 10)
-        .background(Color(.systemBackground))
-        .cornerRadius(isIPad ? 12 : 8)
+    }
+}
+
+// MARK: - Custom Toggle Style with Status Label
+
+struct PlayerStatusToggleStyle: ToggleStyle {
+    let isOnBench: Bool
+    let isIPad: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 0) {
+            // Left side - Court
+            HStack(spacing: isIPad ? 4 : 3) {
+                Image(systemName: "figure.basketball")
+                    .font(isIPad ? .caption : .caption2)
+                Text("Court")
+                    .font(isIPad ? .caption : .caption2)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(isOnBench ? .secondary : .white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, isIPad ? 6 : 5)
+            .background(isOnBench ? Color.clear : Color.green)
+            .clipShape(Capsule())
+
+            // Right side - Bench
+            HStack(spacing: isIPad ? 4 : 3) {
+                Image(systemName: "figure.stand")
+                    .font(isIPad ? .caption : .caption2)
+                Text("Bench")
+                    .font(isIPad ? .caption : .caption2)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(isOnBench ? .white : .secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, isIPad ? 6 : 5)
+            .background(isOnBench ? Color.orange : Color.clear)
+            .clipShape(Capsule())
+        }
+        .background(Color.gray.opacity(0.2))
+        .clipShape(Capsule())
+        .onTapGesture {
+            configuration.isOn.toggle()
+        }
     }
 }
 
@@ -1562,7 +1567,20 @@ struct SmartShootingStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    shotType == .twoPoint ? Color.blue.opacity(0.15) : (shotType == .threePoint ? Color.green.opacity(0.15) : Color.orange.opacity(0.15)),
+                    shotType == .twoPoint ? Color.blue.opacity(0.08) : (shotType == .threePoint ? Color.green.opacity(0.08) : Color.orange.opacity(0.08))
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                .stroke(shotType == .twoPoint ? Color.blue.opacity(0.3) : (shotType == .threePoint ? Color.green.opacity(0.3) : Color.orange.opacity(0.3)), lineWidth: 2)
+        )
         .cornerRadius(isIPad ? 16 : 12)
     }
 
@@ -1756,7 +1774,17 @@ struct RegularStatCard: View {
         .padding(.vertical, isIPad ? 20 : 16)
         .padding(.horizontal, isIPad ? 20 : 16)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.blue.opacity(0.15), Color.purple.opacity(0.12)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                .stroke(Color.purple.opacity(0.3), lineWidth: 2)
+        )
         .cornerRadius(isIPad ? 16 : 12)
     }
 }
@@ -1820,10 +1848,14 @@ struct CleanStatCard: View {
         .frame(maxWidth: .infinity)
         .background(
             LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.12), Color.purple.opacity(0.12)]),
+                gradient: Gradient(colors: [Color.blue.opacity(0.15), Color.purple.opacity(0.12)]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                .stroke(Color.purple.opacity(0.3), lineWidth: 2)
         )
         .cornerRadius(isIPad ? 16 : 12)
     }
