@@ -164,8 +164,11 @@ class TrustedDevicesManager: ObservableObject {
     /// Get my role when connecting to a specific peer
     func getMyRole(for peerID: MCPeerID) -> DeviceRole? {
         guard let peer = trustedPeers.first(where: { $0.id == peerID.displayName }) else {
+            print("⚠️ No saved role found for peer: \(peerID.displayName)")
+            print("   📝 Available trusted peers: \(trustedPeers.map { "\($0.id) (myRole: \($0.myRole))" }.joined(separator: ", "))")
             return nil
         }
+        print("✅ Found saved role for \(peerID.displayName): myRole=\(peer.myRole), theirRole=\(peer.role)")
         return DeviceRole(rawValue: peer.myRole)
     }
     

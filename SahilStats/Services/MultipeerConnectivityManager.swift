@@ -164,8 +164,16 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         // Use the SAVED role for this specific peer (from pairing)
         // This ensures each device uses the correct role they were assigned during pairing
-        let role = trustedDevices.getMyRole(for: peerID) ?? roleManager.roleForAutoConnection
-        print("🔄 Starting auto-connection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
+        let savedRole = trustedDevices.getMyRole(for: peerID)
+        let fallbackRole = roleManager.roleForAutoConnection
+        let role = savedRole ?? fallbackRole
+
+        if let saved = savedRole {
+            print("🔄 Starting auto-connection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
+        } else {
+            print("⚠️ No saved role for \(firstTrustedPeer.deviceName), using fallback: \(role.displayName)")
+        }
+        print("   📝 Debug: savedRole=\(savedRole?.displayName ?? "nil"), fallbackRole=\(fallbackRole.displayName)")
 
         shouldAutoReconnect = true
         startSession(role: role)
@@ -388,7 +396,11 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 self.connectedPeer = peerID
                 self.connectionState = .connected(to: peerID.displayName)
                 self.stopReconnectTimer() // Stop reconnect attempts once connected
-                self.startKeepAlive()
+
+                // Wait for MCSession to fully establish before starting keep-alive
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.startKeepAlive()
+                }
 
                 // Start Live Activity if not already active (for auto-connection path)
                 if !LiveActivityManager.shared.isActivityActive {
