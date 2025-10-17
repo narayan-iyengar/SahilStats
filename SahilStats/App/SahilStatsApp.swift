@@ -42,10 +42,6 @@ struct SahilStatsApp: App {
                     _ = FirebaseYouTubeAuthManager.shared
                 }
         }
-        .backgroundTask(.appRefresh("keepalive")) { _ in
-            // Keep connection alive in background
-            print("🔄 Background task keeping connection alive")
-        }
     }
 }
 

@@ -203,11 +203,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portrait:
             rotationAngle = 90
         case .portraitUpsideDown:
-            rotationAngle = 180
+            rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 270  // Swapped with landscapeRight
+            rotationAngle = 180  // Device home button on left
         case .landscapeRight:
-            rotationAngle = 180    // Try 0° - scoreboard currently vertical on left
+            rotationAngle = 0    // Device home button on right
         default:
             return
         }
@@ -245,9 +245,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .portraitUpsideDown:
             rotationAngle = 270
         case .landscapeLeft:
-            rotationAngle = 180  // Swapped with landscapeRight
+            rotationAngle = 180  // Device home button on left
         case .landscapeRight:
-            rotationAngle = 0    // Try 0° - scoreboard currently vertical on left
+            rotationAngle = 0    // Device home button on right
         default:
             print("⚠️ Invalid orientation in performOrientationUpdate: \(orientation.rawValue)")
             return
@@ -609,11 +609,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 case .portraitUpsideDown:
                     rotationAngle = 270
                 case .landscapeLeft:
-                    rotationAngle = 270  // Match preview orientation
+                    rotationAngle = 180  // Device home button on left
                 case .landscapeRight:
-                    rotationAngle = 180  // FIXED: Match preview orientation
+                    rotationAngle = 0  // Device home button on right
                 default:
-                    rotationAngle = 180 // Default to landscape right
+                    rotationAngle = 0 // Default to landscape right
                 }
 
                 if connection.isVideoRotationAngleSupported(rotationAngle) {
