@@ -44,14 +44,12 @@ struct SettingsView: View {
                     NavigationLink("Teams") {
                         TeamsSettingsView()
                     }
-                    
+
                     NavigationLink("Game Format") {
                         GameFormatSettingsView()
                     }
-                    
-                    NavigationLink("Live Games") {
-                        LiveGamesSettingsView()
-                    }
+
+                    LiveGameStatusRow()
                 }
                 
                 Section("Media & Recording") {
@@ -546,12 +544,12 @@ struct DevicePairingView: View {
 
 struct BackgroundConnectionIndicator: View {
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
-    
+
     var body: some View {
         VStack {
             HStack {
                 Spacer()
-                
+
                 HStack(spacing: 8) {
                     if multipeer.connectionState.isConnected {
                         Image(systemName: "checkmark.circle.fill")
@@ -574,8 +572,62 @@ struct BackgroundConnectionIndicator: View {
                 .shadow(color: .black.opacity(0.1), radius: 4)
             }
             .padding()
-            
+
             Spacer()
+        }
+    }
+}
+
+struct LiveGameStatusRow: View {
+    @StateObject private var firebaseService = FirebaseService.shared
+    @State private var showingDeleteAlert = false
+
+    var body: some View {
+        HStack {
+            // Status indicator
+            if firebaseService.hasLiveGame {
+                Image(systemName: "circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+                Text("Live game active")
+                    .foregroundColor(.secondary)
+            } else {
+                Image(systemName: "circle.fill")
+                    .foregroundColor(.gray)
+                    .font(.caption)
+                Text("No live games")
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Delete button
+            Button("Delete") {
+                showingDeleteAlert = true
+            }
+            .foregroundColor(.red)
+            .font(.subheadline)
+        }
+        .alert("Delete Live Games", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete All", role: .destructive) {
+                deleteAllLiveGames()
+            }
+        } message: {
+            Text("Are you sure you want to delete all live games?")
+        }
+        .onAppear {
+            firebaseService.startListening()
+        }
+    }
+
+    private func deleteAllLiveGames() {
+        Task {
+            do {
+                try await firebaseService.deleteAllLiveGames()
+            } catch {
+                print("Failed to delete live games: \(error)")
+            }
         }
     }
 }
