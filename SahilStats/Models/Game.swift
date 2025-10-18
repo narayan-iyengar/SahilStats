@@ -44,8 +44,9 @@ struct Game: Identifiable, Codable, Equatable {
     var editedBy: String?
 
     var achievements: [Achievement]
-    
+
     var youtubeVideoId: String?
+    var photosAssetId: String?
     var videoUploadedAt: Date?
     
     var totalPlayingTimeMinutes: Double = 0.0 // Total minutes on court
@@ -74,7 +75,7 @@ struct Game: Identifiable, Codable, Equatable {
         case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
         case createdAt, adminName, editedAt, editedBy, achievements
         case totalPlayingTimeMinutes, benchTimeMinutes, gameTimeTracking
-        case videoURL, youtubeVideoId, youtubeURL, videoUploadedAt
+        case videoURL, youtubeVideoId, photosAssetId, youtubeURL, videoUploadedAt
         case isMultiDeviceSetup
     }
     
@@ -268,6 +269,7 @@ struct Game: Identifiable, Codable, Equatable {
         adminName = try container.decodeIfPresent(String.self, forKey: .adminName)
         videoURL = try container.decodeIfPresent(String.self, forKey: .videoURL)
         youtubeVideoId = try container.decodeIfPresent(String.self, forKey: .youtubeVideoId)
+        photosAssetId = try container.decodeIfPresent(String.self, forKey: .photosAssetId)
         youtubeURL = try container.decodeIfPresent(String.self, forKey: .youtubeURL)
 
         // Handle videoUploadedAt
@@ -508,6 +510,10 @@ extension Game {
 
         if let youtubeVideoId = youtubeVideoId {
             data["youtubeVideoId"] = youtubeVideoId
+        }
+
+        if let photosAssetId = photosAssetId {
+            data["photosAssetId"] = photosAssetId
         }
 
         if let youtubeURL = youtubeURL {

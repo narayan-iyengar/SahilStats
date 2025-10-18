@@ -416,6 +416,30 @@ class FirebaseService: ObservableObject {
             } else {
                 print("⚠️ No YouTube video ID found for this game")
             }
+
+            // Delete Photos asset if it exists
+            if let photosAssetId = data["photosAssetId"] as? String {
+                print("🗑️ Deleting Photos asset: \(photosAssetId)")
+
+                await MainActor.run {
+                    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [photosAssetId], options: nil)
+                    if let asset = fetchResult.firstObject {
+                        PHPhotoLibrary.shared().performChanges({
+                            PHAssetChangeRequest.deleteAssets([asset] as NSArray)
+                        }) { success, error in
+                            if success {
+                                print("✅ Photos asset deleted successfully")
+                            } else {
+                                print("❌ Failed to delete Photos asset: \(error?.localizedDescription ?? "Unknown error")")
+                            }
+                        }
+                    } else {
+                        print("⚠️ Photos asset not found (may have been deleted already)")
+                    }
+                }
+            } else {
+                print("⚠️ No Photos asset ID found for this game")
+            }
         }
 
         // Delete the game document from Firebase
@@ -431,6 +455,17 @@ class FirebaseService: ObservableObject {
             print("✅ Updated game \(gameId) with local video URL")
         } catch {
             print("❌ Failed to update video URL: \(error.localizedDescription)")
+        }
+    }
+
+    func updateGamePhotosAssetId(gameId: String, photosAssetId: String) async {
+        do {
+            try await db.collection("games").document(gameId).updateData([
+                "photosAssetId": photosAssetId
+            ])
+            print("✅ Updated game \(gameId) with Photos asset ID")
+        } catch {
+            print("❌ Failed to update Photos asset ID: \(error.localizedDescription)")
         }
     }
     
