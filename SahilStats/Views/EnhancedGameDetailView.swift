@@ -38,6 +38,7 @@ struct CompleteGameDetailView: View {
     @State private var showingShareSheet = false
     @State private var showingVideoPlayer = false
     @State private var videoURLToPlay: URL?
+    @State private var photosAssetIdToPlay: String?
 
     // State for real-time updates
     @State private var gameListener: ListenerRegistration?
@@ -81,17 +82,14 @@ struct CompleteGameDetailView: View {
                         achievementsSection
                     }
 
-                    // Game Video Section (show if we have ANY video - YouTube or local)
-                    if game.youtubeVideoId != nil || game.videoURL != nil {
+                    // Game Video Section (show if we have ANY video - Photos, YouTube, or local)
+                    if game.photosAssetId != nil || game.youtubeVideoId != nil || game.videoURL != nil {
                         gameVideoSection
                             .onAppear {
                                 print("📹 Video section appeared:")
+                                print("   Photos Asset ID: \(game.photosAssetId ?? "nil")")
                                 print("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
                                 print("   Video URL: \(game.videoURL ?? "nil")")
-                                if let videoURLPath = game.videoURL {
-                                    let exists = FileManager.default.fileExists(atPath: videoURLPath)
-                                    print("   File exists: \(exists)")
-                                }
                             }
                     }
                     
@@ -143,8 +141,10 @@ struct CompleteGameDetailView: View {
             }
         }
         .sheet(isPresented: $showingVideoPlayer) {
-            if let videoURL = videoURLToPlay {
-                LocalVideoPlayerView(videoURL: videoURL)
+            if let photosAssetId = photosAssetIdToPlay {
+                PhotosVideoPlayerView(photosAssetId: photosAssetId)
+            } else if let videoURL = videoURLToPlay {
+                PhotosVideoPlayerView(videoURL: videoURL)
             }
         }
         .onAppear {
@@ -411,8 +411,69 @@ struct CompleteGameDetailView: View {
                 .fontWeight(.bold)
                 .foregroundColor(.red)
 
-            if let videoId = game.youtubeVideoId {
-                // YouTube video is available
+            if let photosAssetId = game.photosAssetId {
+                // Photos library video available (primary source)
+                Button(action: {
+                    playPhotosVideo(assetId: photosAssetId)
+                }) {
+                    HStack(spacing: isIPad ? 16 : 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
+                                .fill(Color.purple)
+                                .frame(width: isIPad ? 64 : 56, height: isIPad ? 64 : 56)
+
+                            Image(systemName: "play.circle.fill")
+                                .font(isIPad ? .title : .title2)
+                                .foregroundColor(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Watch Game Recording")
+                                .font(isIPad ? .title3 : .body)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+
+                            Text("Tap to play from Photos library")
+                                .font(isIPad ? .body : .caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right.circle.fill")
+                            .font(isIPad ? .title2 : .title3)
+                            .foregroundColor(.purple)
+                    }
+                    .padding(isIPad ? 20 : 16)
+                    .background(Color.purple.opacity(0.1))
+                    .cornerRadius(isIPad ? 16 : 12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                            .stroke(Color.purple.opacity(0.3), lineWidth: 2)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Show YouTube link if also available
+                if let videoId = game.youtubeVideoId {
+                    Link(destination: URL(string: "https://www.youtube.com/watch?v=\(videoId)")!) {
+                        HStack(spacing: isIPad ? 12 : 10) {
+                            Image(systemName: "play.rectangle.fill")
+                                .foregroundColor(.red)
+                            Text("Also available on YouTube")
+                                .font(isIPad ? .body : .caption)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                        .padding(isIPad ? 12 : 10)
+                        .background(Color.red.opacity(0.05))
+                        .cornerRadius(isIPad ? 10 : 8)
+                    }
+                }
+            } else if let videoId = game.youtubeVideoId {
+                // YouTube video is available (fallback)
                 Link(destination: URL(string: "https://www.youtube.com/watch?v=\(videoId)")!) {
                     HStack(spacing: isIPad ? 16 : 12) {
                         // YouTube play icon
@@ -560,6 +621,13 @@ struct CompleteGameDetailView: View {
 
     private func playLocalVideo(path: String) {
         videoURLToPlay = URL(fileURLWithPath: path)
+        photosAssetIdToPlay = nil
+        showingVideoPlayer = true
+    }
+
+    private func playPhotosVideo(assetId: String) {
+        photosAssetIdToPlay = assetId
+        videoURLToPlay = nil
         showingVideoPlayer = true
     }
 
@@ -764,6 +832,14 @@ struct CompleteGameDetailView: View {
             guard let data = document.data() else {
                 print("⚠️ Game document has no data")
                 return
+            }
+
+            // Update photosAssetId if it changed
+            if let photosAssetId = data["photosAssetId"] as? String {
+                if self.game.photosAssetId != photosAssetId {
+                    print("📸 Photos Asset ID updated: \(photosAssetId)")
+                    self.game.photosAssetId = photosAssetId
+                }
             }
 
             // Update videoURL if it changed

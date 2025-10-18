@@ -938,33 +938,37 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
     
     /// Saves the last recorded video to the user's photo library (requires user permission).
+    /// Returns the Photos asset identifier if successful, nil otherwise.
     @MainActor
-    func saveToPhotoLibrary() async {
+    func saveToPhotoLibrary() async -> String? {
         guard let url = getLastRecordingURL() else {
             print("❌ No video to save to photo library")
-            return
+            return nil
         }
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         if status == .notDetermined {
             let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             if newStatus != .authorized && newStatus != .limited {
                 print("❌ Photo Library access denied")
-                return
+                return nil
             }
         } else if status != .authorized && status != .limited {
             print("❌ Photo Library access denied")
-            return
+            return nil
         }
-        await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
+            var assetIdentifier: String?
             PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                assetIdentifier = request?.placeholderForCreatedAsset?.localIdentifier
             }) { success, error in
-                if success {
-                    print("✅ Video saved to photo library")
+                if success, let identifier = assetIdentifier {
+                    print("✅ Video saved to photo library with asset ID: \(identifier)")
+                    continuation.resume(returning: identifier)
                 } else {
                     print("❌ Failed to save video to photo library: \(error?.localizedDescription ?? "Unknown error")")
+                    continuation.resume(returning: nil)
                 }
-                continuation.resume()
             }
         }
     }
@@ -1051,56 +1055,61 @@ class VideoRecordingManager: NSObject, ObservableObject {
         Automatically uploaded by SahilStats
         """
 
-        print("📹 Queuing video for upload with title: \(title)")
-
-        // IMPORTANT: Copy the file for YouTube upload before saving to Photos
-        // Photos library MOVES the file, so we need a separate copy for YouTube
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let youtubeURL = documentsPath.appendingPathComponent("youtube_\(Date().timeIntervalSince1970).mov")
-
-        do {
-            try FileManager.default.copyItem(at: compositedURL, to: youtubeURL)
-            print("✅ Created copy for YouTube upload at: \(youtubeURL.lastPathComponent)")
-
-            // Queue the COPY for upload (not the original)
-            YouTubeUploadManager.shared.queueVideoForUpload(
-                videoURL: youtubeURL,
-                title: title,
-                description: description,
-                gameId: gameId
-            )
-
-            print("✅ Video queued for YouTube upload, now saving composited video to photo library")
-        } catch {
-            print("❌ Failed to create copy for YouTube: \(error)")
-            // Fallback: still try to queue the composited video
-            YouTubeUploadManager.shared.queueVideoForUpload(
-                videoURL: compositedURL,
-                title: title,
-                description: description,
-                gameId: gameId
-            )
-        }
+        print("📹 Processing video for upload...")
 
         // Update outputURL to point to composited video for photo library save
         self.outputURL = compositedURL
 
-        // Save the composited video to photo library
-        await saveToPhotoLibrary()
+        // Save the composited video to photo library and get asset identifier
+        let photosAssetId = await saveToPhotoLibrary()
 
-        // IMPORTANT: Store video URL in Firebase immediately (don't wait for YouTube upload)
-        // This ensures the video is available in game details even if YouTube upload is disabled
-        print("📹 Storing local video URL in Firebase...")
-        await FirebaseService.shared.updateGameVideoURL(gameId: gameId, videoURL: youtubeURL.path)
-        print("✅ Local video URL stored in Firebase: \(youtubeURL.path)")
+        guard let assetId = photosAssetId else {
+            print("❌ Failed to save video to Photos library")
+            return nil
+        }
+
+        print("✅ Video saved to Photos with asset ID: \(assetId)")
+
+        // IMPORTANT: Store Photos asset ID in Firebase (accessible across all devices)
+        print("📹 Storing Photos asset ID in Firebase...")
+        await FirebaseService.shared.updateGamePhotosAssetId(gameId: gameId, photosAssetId: assetId)
+        print("✅ Photos asset ID stored in Firebase: \(assetId)")
+
+        // Only queue for YouTube upload if enabled
+        if YouTubeUploadManager.shared.isYouTubeUploadEnabled {
+            print("📺 YouTube upload enabled - creating copy for upload...")
+
+            // Copy the file for YouTube upload
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let youtubeURL = documentsPath.appendingPathComponent("youtube_\(Date().timeIntervalSince1970).mov")
+
+            do {
+                try FileManager.default.copyItem(at: compositedURL, to: youtubeURL)
+                print("✅ Created copy for YouTube upload at: \(youtubeURL.lastPathComponent)")
+
+                // Queue the COPY for upload (not the original)
+                YouTubeUploadManager.shared.queueVideoForUpload(
+                    videoURL: youtubeURL,
+                    title: title,
+                    description: description,
+                    gameId: gameId
+                )
+
+                print("✅ Video queued for YouTube upload")
+            } catch {
+                print("❌ Failed to create copy for YouTube: \(error)")
+            }
+        } else {
+            print("⏸️ YouTube upload disabled - video only in Photos library")
+        }
 
         print("✅ saveRecordingAndQueueUpload completed")
 
         // Clear outputURL to prevent duplicate saves
         self.outputURL = nil
 
-        // Return the youtube copy URL (the one that persists)
-        return youtubeURL
+        // Return the composited URL for reference
+        return compositedURL
     }
 
 }
