@@ -37,6 +37,11 @@ struct CleanVideoRecordingView: View {
     // Zoom control
     @State private var currentZoomLevel: CGFloat = 1.0
 
+    // Screen dimming for battery saving during long recordings
+    @State private var isScreenDimmed = false
+    @State private var dimTimer: Timer?
+    @State private var wakeTimer: Timer?
+
     @State private var cancellables = Set<AnyCancellable>() // To hold our subscription
 
 
@@ -55,12 +60,20 @@ struct CleanVideoRecordingView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(.all)
 
-                SimpleScoreOverlay(
-                    overlayData: overlayData,
-                    orientation: orientationManager.orientation,
-                    recordingDuration: recordingManager.recordingTimeString,
-                    isRecording: recordingManager.isRecording
-                )
+                // Only show score overlay when not dimmed
+                if !isScreenDimmed {
+                    SimpleScoreOverlay(
+                        overlayData: overlayData,
+                        orientation: orientationManager.orientation,
+                        recordingDuration: recordingManager.recordingTimeString,
+                        isRecording: recordingManager.isRecording
+                    )
+                }
+
+                // Show dimmed screen saver when active
+                if isScreenDimmed {
+                    screenSaverOverlay
+                }
 
                 if orientationManager.isLandscape {
                     landscapeControls
@@ -89,6 +102,17 @@ struct CleanVideoRecordingView: View {
                     currentZoomLevel = actualZoom
                     print("📹 Camera ready - set initial zoom to \(actualZoom)x (ultra-wide)")
                 }
+            }
+        }
+        .onChange(of: recordingManager.isRecording) { _, isRecording in
+            if isRecording {
+                // Start dim timer when recording starts
+                startDimTimer()
+            } else {
+                // Cancel dim and wake timers when recording stops
+                cancelDimTimer()
+                cancelWakeTimer()
+                isScreenDimmed = false
             }
         }
         .alert("Camera Error", isPresented: $showingCameraError) {
@@ -131,7 +155,39 @@ struct CleanVideoRecordingView: View {
             Spacer()
         }
     }
-    
+
+    private var screenSaverOverlay: some View {
+        ZStack {
+            // Full screen black overlay
+            Color.black
+                .ignoresSafeArea()
+                .onTapGesture {
+                    handleScreenTap()
+                }
+
+            // Small REC indicator in corner
+            VStack {
+                HStack {
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                        Text("REC")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.6))
+                    .cornerRadius(8)
+                    .padding(.top, 50)
+                    .padding(.trailing, 20)
+                }
+                Spacer()
+            }
+        }
+    }
+
     private var loadingMessage: String {
         if cameraSetupAttempts == 0 {
             return "Starting Camera..."
@@ -219,11 +275,53 @@ struct CleanVideoRecordingView: View {
 
             recordingManager.stopCameraSession()
             stopOverlayUpdateTimer()
-            stopLocalClockTimer()  // NEW: Stop clock timer
+            stopLocalClockTimer()
+            cancelDimTimer()
+            cancelWakeTimer()
             UIApplication.shared.isIdleTimerDisabled = false
             cancellables.removeAll()
 
             print("✅ Cleanup complete")
+        }
+    }
+
+    // MARK: - Screen Dimming for Battery Saving
+
+    private func startDimTimer() {
+        print("🌙 Starting 30-second dim timer for battery saving")
+        cancelDimTimer()
+
+        dimTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { _ in
+            print("🌙 Dimming screen to save battery")
+            self.isScreenDimmed = true
+        }
+    }
+
+    private func cancelDimTimer() {
+        dimTimer?.invalidate()
+        dimTimer = nil
+    }
+
+    private func cancelWakeTimer() {
+        wakeTimer?.invalidate()
+        wakeTimer = nil
+    }
+
+    private func handleScreenTap() {
+        print("👆 Screen tapped - temporarily waking preview")
+
+        // Wake the screen
+        isScreenDimmed = false
+
+        // Cancel any existing wake timer
+        cancelWakeTimer()
+
+        // Auto re-dim after 15 seconds
+        wakeTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: false) { _ in
+            if self.recordingManager.isRecording {
+                print("🌙 Re-dimming screen after wake period")
+                self.isScreenDimmed = true
+            }
         }
     }
     
