@@ -45,9 +45,36 @@ struct RecorderReadyView: View {
                 
                 // System Status
                 systemStatusCard
-                
+
                 Spacer()
-                
+
+                // Setup Camera Button - Available as soon as connected (no game needed!)
+                if multipeer.connectionState.isConnected {
+                    Button(action: {
+                        showingRecordingView = true
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.title2)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Setup Camera")
+                                    .font(.headline)
+                                Text("Frame your shot and lock it in")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(20)
+                        .background(Color.orange)
+                        .foregroundColor(.white)
+                        .cornerRadius(16)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
+                }
+
                 // Emergency Exit (reusing DismissButton)
                 DismissButton(action: handleEmergencyExit)
                     .padding(.bottom, 40)
@@ -56,9 +83,8 @@ struct RecorderReadyView: View {
             
             // Fullscreen recording view when activated
             .fullScreenCover(isPresented: $showingRecordingView) {
-                if let game = effectiveGame {
-                    CleanVideoRecordingView(liveGame: game)
-                }
+                // Pass effectiveGame (can be nil for framing mode)
+                CleanVideoRecordingView(liveGame: effectiveGame)
             }
         }
         .preferredColorScheme(.dark)

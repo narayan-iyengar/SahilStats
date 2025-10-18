@@ -6,11 +6,11 @@ import Combine
 import MultipeerConnectivity
 
 struct CleanVideoRecordingView: View {
-    let liveGame: LiveGame
+    let liveGame: LiveGame?  // Now optional - may not exist during framing
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @StateObject private var orientationManager = OrientationManager()
     @ObservedObject private var navigation = NavigationCoordinator.shared
-    
+
     // Local state for overlay data
     @State private var overlayData: SimpleScoreOverlayData
     @State private var updateTimer: Timer?
@@ -25,24 +25,45 @@ struct CleanVideoRecordingView: View {
     @State private var clockAtStart: TimeInterval?
     @State private var isClockRunning = false
     @State private var clockUpdateTimer: Timer?
-    
+
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
-    
+
     // State for camera setup
     @State private var hasCameraSetup = false
     @State private var cameraSetupAttempts = 0
     @State private var showingCameraError = false
     @State private var cameraErrorMessage = ""
 
+    // Zoom control
+    @State private var currentZoomLevel: CGFloat = 1.0
+
+    // Framing mode - true when setting up camera before recording starts
+    @State private var isFramingMode: Bool
+
+    // Preserve camera - true when locking frame (camera should stay running)
+    @State private var shouldPreserveCamera = false
+
     @State private var cancellables = Set<AnyCancellable>() // To hold our subscription
 
 
-    init(liveGame: LiveGame) {
+    init(liveGame: LiveGame?) {
         self.liveGame = liveGame
-        self._overlayData = State(initialValue: SimpleScoreOverlayData(from: liveGame))
-        self._localGameState = State(initialValue: liveGame)
-        self._localClockValue = State(initialValue: liveGame.getCurrentClock())
-        self._isClockRunning = State(initialValue: liveGame.isRunning)
+
+        // Create placeholder game for framing mode
+        let placeholderGame = liveGame ?? LiveGame(
+            teamName: "Ready",
+            opponent: "to Record",
+            gameFormat: .quarters,
+            quarterLength: 12
+        )
+
+        self._overlayData = State(initialValue: SimpleScoreOverlayData(from: placeholderGame))
+        self._localGameState = State(initialValue: placeholderGame)
+        self._localClockValue = State(initialValue: placeholderGame.getCurrentClock())
+        self._isClockRunning = State(initialValue: placeholderGame.isRunning)
+
+        // Enable framing mode when no actual game exists yet
+        self._isFramingMode = State(initialValue: liveGame == nil)
     }
     
     var body: some View {
@@ -78,6 +99,16 @@ struct CleanVideoRecordingView: View {
         .onDisappear {
             cleanupView()
         }
+        .onChange(of: isCameraReady) { _, newValue in
+            if newValue {
+                // Set default zoom to 0.5x (ultra-wide) when camera is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    let actualZoom = recordingManager.setZoom(factor: 0.5)
+                    currentZoomLevel = actualZoom
+                    print("📹 Camera ready - set initial zoom to \(actualZoom)x (ultra-wide)")
+                }
+            }
+        }
         .alert("Camera Error", isPresented: $showingCameraError) {
             Button("Try Again") {
                 Task {
@@ -99,8 +130,27 @@ struct CleanVideoRecordingView: View {
                     DismissButton(action: handleDismiss, isIPad: false)
                         .padding(.leading, 20)
                         .padding(.top, 40)
-                    
+
                     Spacer()
+
+                    // Lock Frame button when in framing mode
+                    if isFramingMode {
+                        Button(action: lockFrameAndReturn) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "lock.fill")
+                                    .font(.title3)
+                                Text("Lock Frame")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(Color.green)
+                            .cornerRadius(12)
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.top, 40)
+                    }
                 }
                 Spacer()
             }
@@ -112,6 +162,23 @@ struct CleanVideoRecordingView: View {
             HStack {
                 DismissButton(action: handleDismiss, isIPad: false)
                 Spacer()
+
+                // Lock Frame button when in framing mode
+                if isFramingMode {
+                    Button(action: lockFrameAndReturn) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.fill")
+                                .font(.title3)
+                            Text("Lock Frame")
+                                .font(.headline)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.green)
+                        .cornerRadius(12)
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -187,8 +254,25 @@ struct CleanVideoRecordingView: View {
     private func cleanupView() {
         print("🎥 CleanVideoRecordingView: Cleaning up view")
 
-        // CRITICAL: Save any recording before cleanup
         Task { @MainActor in
+            // Check if we should preserve the camera (locking frame vs dismissing)
+            if shouldPreserveCamera {
+                print("🔒 Preserving camera session - user locked frame")
+                print("   Camera will stay running for quick restart")
+
+                // Still do basic cleanup but DON'T stop camera
+                stopOverlayUpdateTimer()
+                stopLocalClockTimer()
+                UIApplication.shared.isIdleTimerDisabled = false
+                cancellables.removeAll()
+
+                print("✅ Cleanup complete (camera preserved)")
+                return
+            }
+
+            // Normal cleanup flow - stop everything
+            print("🛑 Full cleanup - stopping camera and saving recordings")
+
             // Stop recording if still active
             if recordingManager.isRecording {
                 print("⚠️ Recording still active during cleanup - stopping...")
@@ -320,6 +404,11 @@ struct CleanVideoRecordingView: View {
         case .startRecording:
             print("📱 Received startRecording command via publisher.")
             Task { @MainActor in
+                // Exit framing mode when recording starts
+                if isFramingMode {
+                    print("   Exiting framing mode - recording is starting")
+                    isFramingMode = false
+                }
                 await self.recordingManager.startRecording(liveGame: self.liveGame)
                 self.multipeer.sendRecordingStateUpdate(isRecording: true)
             }
@@ -563,7 +652,37 @@ struct CleanVideoRecordingView: View {
             self.navigation.returnToDashboard()
         }
     }
-    
+
+    private func lockFrameAndReturn() {
+        print("🔒 CleanVideoRecordingView: Locking frame and returning to waiting room")
+        print("   Preserving camera session for quick restart")
+
+        // Set flag BEFORE navigating away (so cleanupView knows to preserve camera)
+        shouldPreserveCamera = true
+
+        Task { @MainActor in
+            // Switch off framing mode - camera is now locked
+            isFramingMode = false
+
+            // Stop timers but DON'T stop camera session
+            stopOverlayUpdateTimer()
+            stopLocalClockTimer()
+
+            // Reset orientation lock
+            AppDelegate.orientationLock = .portrait
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            }
+
+            UIApplication.shared.isIdleTimerDisabled = false
+            cancellables.removeAll()
+
+            // Navigate back to waiting room (camera stays running!)
+            print("🏠 Returning to waiting room with camera locked and ready...")
+            navigation.currentFlow = .waitingToRecord(Optional(liveGame))
+        }
+    }
+
     private func handleDismiss() {
         print("🎬 CleanVideoRecordingView: handleDismiss called - navigating back to waiting room")
         print("🎬 Current recording state: isRecording=\(recordingManager.isRecording)")
