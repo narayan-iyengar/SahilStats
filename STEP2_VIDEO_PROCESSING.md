@@ -6,8 +6,12 @@ I've implemented the complete video download and frame extraction pipeline:
 
 ### 📦 New Files
 
-1. **Services/POC/YouTubeDownloader.swift** - Downloads YouTube videos
-2. **Services/POC/VideoFrameExtractor.swift** - Extracts frames from video
+1. **Services/StatsRetriever.swift** - Retrieves actual stats from Firebase for baseline comparison
+2. **Services/YouTubeDownloader.swift** - Downloads YouTube videos using yt-dlp
+3. **Services/VideoFrameExtractor.swift** - Extracts frames from video at 1 FPS
+4. **Views/VideoPOCView.swift** - Main PoC UI with 3-step workflow
+
+✅ **Files are already in the Xcode project** - No manual addition needed!
 
 ### ✨ Features
 
@@ -20,43 +24,20 @@ I've implemented the complete video download and frame extraction pipeline:
 
 ## Setup
 
-### Step 1: Add New Files to Xcode
+### Step 1: yt-dlp Installation (Already Done ✅)
 
-**Add these files to your Xcode project:**
+yt-dlp is already installed at `/opt/homebrew/bin/yt-dlp` (version 2025.10.14)
 
-```
-Services/POC/YouTubeDownloader.swift
-Services/POC/VideoFrameExtractor.swift
-```
+The app will automatically use it for YouTube downloads.
 
-**Method:**
-1. In Xcode, right-click project navigator
-2. "Add Files to SahilStats..."
-3. Select both files
-4. ✅ Uncheck "Copy items if needed"
-5. ✅ Select "Create groups"
-6. ✅ Check "SahilStats" target
+### Step 2: Build and Run
 
-### Step 2: Install yt-dlp (Optional but Recommended)
+**In Xcode:**
+1. Open `SahilStats.xcodeproj`
+2. Select iPad simulator (e.g., "iPad Air (M2)")
+3. Build and run (⌘R)
 
-For automatic YouTube downloads:
-
-```bash
-brew install yt-dlp
-```
-
-**Without yt-dlp:**
-- App will prompt you to download manually
-- Download video from YouTube to ~/Downloads/
-- App will detect and use it
-
-### Step 3: Build and Run
-
-```bash
-# Build in Xcode (⌘B)
-# Or from command line:
-xcodebuild -scheme SahilStats -configuration Debug
-```
+The app will launch with all POC files included and ready to test.
 
 ## Testing Video Processing
 
