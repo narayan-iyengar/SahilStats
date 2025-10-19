@@ -66,19 +66,28 @@ class YouTubeDownloader {
         print("⚠️ Checking for cached/manually downloaded video...")
 
         // Check specific cached locations first (highest priority)
-        // /tmp is accessible from both simulator and Mac app
         let cachedPaths = [
-            URL(fileURLWithPath: "/tmp/POC_Videos/video.mp4"),
+            // App's Documents directory (always accessible, sandbox-safe)
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video.mp4"),
+            // Temporary directory
             FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.mp4"),
+            // /tmp (works for simulator)
+            URL(fileURLWithPath: "/tmp/POC_Videos/video.mp4"),
+            // User's Downloads (works outside sandbox)
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4")
         ]
 
+        print("   Checking paths:")
         for cachedPath in cachedPaths {
+            guard let cachedPath = cachedPath else { continue }
+            print("   - \(cachedPath.path)")
             if FileManager.default.fileExists(atPath: cachedPath.path) {
                 print("✅ Found cached video: \(cachedPath.path)")
                 return cachedPath
             }
         }
+
+        print("   ❌ Video not found in any checked location")
 
         // Then check common download directories for any video files
         let downloadsPaths = [
