@@ -616,8 +616,8 @@ class GameCalendarManager: ObservableObject {
                     if let colonRange = afterDash.range(of: ":") {
                         let eventName = String(afterDash[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
 
-                        // Return format: "Team - Type Event"
-                        let display = "\(teamPart) - \(typeWord.capitalized) \(eventName)"
+                        // Return format: "Type Event" (without team name since it's a placeholder)
+                        let display = "\(typeWord.capitalized) \(eventName)"
                         debugPrint("   🏆 Placeholder event detected: '\(display)'")
                         return display
                     }
