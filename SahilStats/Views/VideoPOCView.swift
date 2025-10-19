@@ -15,6 +15,15 @@ struct VideoPOCView: View {
     @State private var selectedVideo: TestVideo = .justHoop
     @State private var showingVideoSelection = false
 
+    // Video processing state
+    @State private var isProcessingVideo = false
+    @State private var downloadProgress: Double = 0
+    @State private var extractionProgress: Double = 0
+    @State private var extractedFrames: [VideoFrame] = []
+    @State private var videoMetadata: VideoMetadata?
+    @State private var processingError: String?
+    @State private var processingComplete = false
+
     enum TestVideo: String, CaseIterable {
         case justHoop = "Just Hoop"
         case teamElite = "Team Elite"
@@ -215,29 +224,156 @@ struct VideoPOCView: View {
                     .cornerRadius(16)
                     .shadow(radius: 2)
 
-                    // Step 2: Process Video (Coming Soon)
+                    // Step 2: Process Video with AI
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             Image(systemName: "2.circle.fill")
                                 .font(.title2)
-                                .foregroundColor(.gray)
-                            Text("Process Video with AI")
+                                .foregroundColor(retrievedGame == nil ? .gray : .blue)
+                            Text("Download & Extract Frames")
                                 .font(.headline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(retrievedGame == nil ? .gray : .primary)
                         }
 
-                        Text("Next step: Upload the YouTube video and process it with AI to extract stats.")
+                        Text("Download the YouTube video and extract frames for AI processing (1 frame per second).")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
 
-                        Text("Coming soon...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .italic()
-                            .frame(maxWidth: .infinity)
+                        if processingComplete {
+                            // Success state
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("Processing Complete!")
+                                        .fontWeight(.semibold)
+                                }
+
+                                if let metadata = videoMetadata {
+                                    Divider()
+
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Video Metadata:")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+
+                                        HStack {
+                                            Text("Duration:")
+                                            Spacer()
+                                            Text(metadata.durationFormatted)
+                                        }
+                                        .font(.caption)
+
+                                        HStack {
+                                            Text("Resolution:")
+                                            Spacer()
+                                            Text("\(Int(metadata.resolution.width))x\(Int(metadata.resolution.height))")
+                                        }
+                                        .font(.caption)
+
+                                        HStack {
+                                            Text("Frames Extracted:")
+                                            Spacer()
+                                            Text("\(extractedFrames.count)")
+                                        }
+                                        .font(.caption)
+                                    }
+
+                                    // Show sample frames
+                                    if !extractedFrames.isEmpty {
+                                        Divider()
+
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Sample Frames:")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+
+                                            ScrollView(.horizontal, showsIndicators: false) {
+                                                HStack(spacing: 12) {
+                                                    ForEach(Array(extractedFrames.prefix(5).enumerated()), id: \.offset) { index, frame in
+                                                        VStack(spacing: 4) {
+                                                            Image(uiImage: frame.image)
+                                                                .resizable()
+                                                                .aspectRatio(contentMode: .fill)
+                                                                .frame(width: 120, height: 80)
+                                                                .cornerRadius(8)
+
+                                                            Text(frame.timestampFormatted)
+                                                                .font(.caption2)
+                                                                .foregroundColor(.secondary)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(8)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(12)
+
+                        } else if isProcessingVideo {
+                            // Processing in progress
+                            VStack(alignment: .leading, spacing: 16) {
+                                // Download progress
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Downloading video...")
+                                        Spacer()
+                                        Text("\(Int(downloadProgress * 100))%")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .font(.subheadline)
+
+                                    ProgressView(value: downloadProgress)
+                                }
+
+                                // Extraction progress
+                                if downloadProgress >= 1.0 {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text("Extracting frames...")
+                                            Spacer()
+                                            Text("\(Int(extractionProgress * 100))%")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .font(.subheadline)
+
+                                        ProgressView(value: extractionProgress)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+
+                        } else {
+                            // Not started yet
+                            Button(action: processVideo) {
+                                HStack {
+                                    Image(systemName: "video.fill")
+                                    Text("Download & Extract Frames")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(retrievedGame == nil ? Color.gray : Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(retrievedGame == nil)
+                        }
+
+                        if let error = processingError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(8)
+                        }
                     }
                     .padding()
                     .background(Color(.systemBackground))
@@ -356,6 +492,78 @@ struct VideoPOCView: View {
             print("✅ Updated POC_ACTUAL_STATS.md with retrieved stats")
         } catch {
             print("❌ Failed to write markdown file: \(error)")
+        }
+    }
+
+    private func processVideo() {
+        isProcessingVideo = true
+        processingError = nil
+        downloadProgress = 0
+        extractionProgress = 0
+        extractedFrames = []
+        videoMetadata = nil
+        processingComplete = false
+
+        Task {
+            do {
+                print("\n" + String(repeating: "=", count: 50))
+                print("🎬 STEP 2: VIDEO PROCESSING")
+                print(String(repeating: "=", count: 50))
+
+                // Step 2.1: Download video
+                print("\n📥 Step 2.1: Downloading video...")
+                let videoURL = try await YouTubeDownloader.shared.downloadVideo(
+                    youtubeURL: selectedVideo.youtubeURL
+                ) { progress in
+                    await MainActor.run {
+                        self.downloadProgress = progress
+                    }
+                }
+
+                // Step 2.2: Get video metadata
+                print("\n📊 Step 2.2: Analyzing video metadata...")
+                let metadata = try await VideoFrameExtractor.shared.getVideoMetadata(from: videoURL)
+
+                await MainActor.run {
+                    self.videoMetadata = metadata
+                }
+
+                // Step 2.3: Extract frames
+                print("\n🎬 Step 2.3: Extracting frames...")
+                let frames = try await VideoFrameExtractor.shared.extractFrames(
+                    from: videoURL,
+                    fps: 1.0
+                ) { progress, current, total in
+                    await MainActor.run {
+                        self.extractionProgress = progress
+                    }
+                }
+
+                // Step 2.4: Save frames to disk (optional, for debugging)
+                print("\n💾 Step 2.4: Saving frames to disk...")
+                let framesDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("POC_Frames", isDirectory: true)
+                try VideoFrameExtractor.shared.saveFramesToDisk(frames: frames, directory: framesDir)
+
+                await MainActor.run {
+                    self.extractedFrames = frames
+                    self.processingComplete = true
+                    self.isProcessingVideo = false
+                }
+
+                print("\n" + String(repeating: "=", count: 50))
+                print("✅ STEP 2 COMPLETE!")
+                print("   Frames extracted: \(frames.count)")
+                print("   Frames saved to: \(framesDir.path)")
+                print(String(repeating: "=", count: 50) + "\n")
+
+            } catch {
+                await MainActor.run {
+                    self.processingError = "Processing failed: \(error.localizedDescription)"
+                    self.isProcessingVideo = false
+                }
+                print("\n❌ Step 2 failed: \(error)")
+            }
         }
     }
 }
