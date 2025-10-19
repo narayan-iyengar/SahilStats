@@ -1,56 +1,63 @@
-# Actual Stats from Elements vs Team Elite Game
-
-## Purpose
-This file documents the actual stats from the Elements vs Team Elite game that are already stored in the SahilStats app. These stats will serve as our baseline for comparing AI-detected stats during the PoC.
+# Actual Stats from Elements vs JustHoop Game
 
 ## Video Reference
-- **YouTube URL**: https://youtu.be/z9AZQ1h8XyY?si=0iVGEN8axbBkRZax
+- **YouTube URL**: https://www.youtube.com/watch?v=f5M14MI-DJo
 - **Team**: Elements
-- **Opponent**: Team Elite
+- **Opponent**: JustHoop
 - **Sahil's Jersey**: #3
-- **Jersey Color**: WHITE
+- **Jersey Color**: BLACK
 
 ## Actual Stats (From Database)
 
-> **Note**: These stats need to be retrieved from Firebase. The game should be in the database with:
-> - `teamName`: "Elements"
-> - `opponent`: Contains "Team Elite" or similar
-
 ### Shooting Stats
-- **FG2M (2-Point Made)**: _[To be retrieved]_
-- **FG2A (2-Point Attempted)**: _[To be retrieved]_
-- **FG3M (3-Point Made)**: _[To be retrieved]_
-- **FG3A (3-Point Attempted)**: _[To be retrieved]_
-- **FTM (Free Throws Made)**: _[To be retrieved]_
-- **FTA (Free Throws Attempted)**: _[To be retrieved]_
-- **Total Points**: _[To be retrieved]_
+- **FG2M (2-Point Made)**: 2
+- **FG2A (2-Point Attempted)**: 5
+- **FG3M (3-Point Made)**: 0
+- **FG3A (3-Point Attempted)**: 3
+- **FTM (Free Throws Made)**: 2
+- **FTA (Free Throws Attempted)**: 2
+- **Total Points**: 6
 
 ### Calculated Percentages
-- **FG% (Field Goal %)**: _[To be calculated]_
-- **2PT%**: _[To be calculated]_
-- **3PT%**: _[To be calculated]_
-- **FT%**: _[To be calculated]_
+- **FG% (Field Goal %)**: 25.0%
+- **2PT%**: 40.0%
+- **3PT%**: 0.0%
+- **FT%**: 100.0%
+
+### Total Field Goals
+- **Total FGM**: 2
+- **Total FGA**: 8
 
 ### Other Stats
-- **Rebounds**: _[To be retrieved]_
-- **Assists**: _[To be retrieved]_
-- **Steals**: _[To be retrieved]_
-- **Blocks**: _[To be retrieved]_
-- **Fouls**: _[To be retrieved]_
-- **Turnovers**: _[To be retrieved]_
+- **Rebounds**: 0
+- **Assists**: 2
+- **Steals**: 1
+- **Blocks**: 2
+- **Fouls**: 0
+- **Turnovers**: 2
 
 ### Game Info
-- **Team Score**: _[To be retrieved]_
-- **Opponent Score**: _[To be retrieved]_
-- **Outcome**: _[To be retrieved]_
-- **Playing Time**: _[To be retrieved]_
+- **Team Score**: 31
+- **Opponent Score**: 29
+- **Outcome**: Win 🏆
+- **Playing Time**: 0.0 minutes
+- **Playing %**: 0.0%
 
-## Next Steps
+## PoC Success Criteria
 
-1. Query Firebase to retrieve the exact stats from this game
-2. Update this file with the actual numbers
-3. Use these as the baseline for AI accuracy comparison
+**Minimum Viable (70% accuracy target)**:
+- Detect 5+ out of 8 total shots
+- Classify makes/misses with 70%+ accuracy (1+ correct out of 2 makes)
+
+**Good Enough to Continue (80% accuracy)**:
+- Detect 6+ out of 8 total shots
+- Classify makes/misses with 80%+ accuracy
+
+**Production Ready (90% accuracy)**:
+- Detect 7+ out of 8 total shots
+- Classify makes/misses with 90%+ accuracy
 
 ---
 
-*Last Updated*: Pending data retrieval
+*Retrieved from Firebase*: 10/18/2025, 5:40 PM
+*Game ID*: b5kHXE7j5G2HddW3flFT
