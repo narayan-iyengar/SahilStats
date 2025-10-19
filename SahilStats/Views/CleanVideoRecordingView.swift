@@ -10,7 +10,8 @@ struct CleanVideoRecordingView: View {
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @StateObject private var orientationManager = OrientationManager()
     @ObservedObject private var navigation = NavigationCoordinator.shared
-    
+    @ObservedObject private var cameraSettings = CameraSettingsManager.shared
+
     // Local state for overlay data
     @State private var overlayData: SimpleScoreOverlayData
     @State private var updateTimer: Timer?
@@ -25,7 +26,7 @@ struct CleanVideoRecordingView: View {
     @State private var clockAtStart: TimeInterval?
     @State private var isClockRunning = false
     @State private var clockUpdateTimer: Timer?
-    
+
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
     // State for camera setup
@@ -215,7 +216,10 @@ struct CleanVideoRecordingView: View {
         startOverlayUpdateTimer()
         startLocalClockTimer()  // NEW: Start independent clock countdown
         setupBluetoothCallbacks()
-        UIApplication.shared.isIdleTimerDisabled = true
+
+        // Keep screen awake based on user preference
+        UIApplication.shared.isIdleTimerDisabled = cameraSettings.settings.keepRecorderScreenAwake
+        print("🌙 Screen sleep: \(cameraSettings.settings.keepRecorderScreenAwake ? "disabled (stays awake)" : "enabled (can sleep)")")
 
         // Skip camera setup if already running (started early in RecorderReadyView)
         if recordingManager.isCameraSessionRunning {

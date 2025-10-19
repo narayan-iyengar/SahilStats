@@ -22,11 +22,38 @@ struct RootNavigationView: View {
                 switch navigation.currentFlow {
                 case .dashboard:
                     MainTabView()
+                        .onAppear {
+                            // Always re-enable idle timer when returning to dashboard
+                            UIApplication.shared.isIdleTimerDisabled = false
+                            print("🌙 Dashboard: Idle timer enabled - screen can now sleep")
+                        }
                 case .gameSetup:
                     // This case is handled within MainTabView's navigation
                     GameSetupView()
+                        .onAppear {
+                            // Ensure idle timer is enabled during game setup
+                            UIApplication.shared.isIdleTimerDisabled = false
+                            print("🌙 GameSetup: Idle timer enabled - screen can now sleep")
+                        }
                 case .liveGame(let liveGame):
                     LiveGameView()
+                        .onAppear {
+                            // Only keep screen awake for multi-device games
+                            // Single-device stats-only games can sleep normally
+                            let isMultiDevice = liveGame.isMultiDeviceSetup ?? false
+                            UIApplication.shared.isIdleTimerDisabled = isMultiDevice
+
+                            if isMultiDevice {
+                                print("🔥 LiveGame (Multi-device): Idle timer disabled - screen stays awake")
+                            } else {
+                                print("🌙 LiveGame (Single-device): Idle timer enabled - screen can sleep")
+                            }
+                        }
+                        .onDisappear {
+                            // Re-enable idle timer when leaving live game
+                            UIApplication.shared.isIdleTimerDisabled = false
+                            print("🌙 LiveGame: Idle timer enabled - screen can sleep")
+                        }
                 case .recording(let liveGame):
                     CleanVideoRecordingView(liveGame: liveGame)
                 case .waitingToRecord(let liveGame):

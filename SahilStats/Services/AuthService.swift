@@ -462,6 +462,10 @@ extension AuthService {
     var isAnonymous: Bool {
         return currentUser?.isAnonymous ?? true
     }
+
+    var userId: String? {
+        return currentUser?.uid
+    }
 }
 
 extension AuthService.AuthError {

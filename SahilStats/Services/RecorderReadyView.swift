@@ -16,6 +16,7 @@ struct RecorderReadyView: View {
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @ObservedObject private var navigation = NavigationCoordinator.shared
     @ObservedObject private var firebaseService = FirebaseService.shared
+    @ObservedObject private var cameraSettings = CameraSettingsManager.shared
 
     @State private var connectionLostTime: Date?
     @State private var cancellables = Set<AnyCancellable>()
@@ -294,8 +295,9 @@ struct RecorderReadyView: View {
     private func setupView() {
         print("🎬 RecorderReadyView: Setting up recorder ready state")
 
-        // Keep screen awake
-        UIApplication.shared.isIdleTimerDisabled = true
+        // Keep screen awake based on user preference
+        UIApplication.shared.isIdleTimerDisabled = cameraSettings.settings.keepRecorderScreenAwake
+        print("🌙 Screen sleep: \(cameraSettings.settings.keepRecorderScreenAwake ? "disabled (stays awake)" : "enabled (can sleep)")")
 
         // Setup message handling for recording commands
         multipeer.messagePublisher

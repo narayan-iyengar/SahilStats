@@ -12,6 +12,30 @@ struct VideoPOCView: View {
     @State private var isRetrieving = false
     @State private var errorMessage: String?
     @State private var showingStats = false
+    @State private var selectedVideo: TestVideo = .justHoop
+    @State private var showingVideoSelection = false
+
+    enum TestVideo: String, CaseIterable {
+        case justHoop = "Just Hoop"
+        case teamElite = "Team Elite"
+
+        var displayName: String { rawValue }
+        var youtubeURL: String {
+            switch self {
+            case .justHoop: return "https://www.youtube.com/watch?v=f5M14MI-DJo"
+            case .teamElite: return "https://youtu.be/z9AZQ1h8XyY?si=0iVGEN8axbBkRZax"
+            }
+        }
+        var jerseyColor: String {
+            switch self {
+            case .justHoop: return "BLACK"
+            case .teamElite: return "WHITE"
+            }
+        }
+        var recommended: Bool {
+            self == .justHoop // Basket clearly visible
+        }
+    }
 
     var body: some View {
         NavigationView {
@@ -41,11 +65,55 @@ struct VideoPOCView: View {
                             Image(systemName: "1.circle.fill")
                                 .font(.title2)
                                 .foregroundColor(.blue)
-                            Text("Retrieve Actual Stats")
+                            Text("Select Test Video & Retrieve Stats")
                                 .font(.headline)
                         }
 
-                        Text("First, we need to get the actual stats from the Elements vs Team Elite game that's already in the database. This will be our baseline for comparison.")
+                        // Video Selection
+                        HStack {
+                            Text("Test Video:")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Button(action: {
+                                showingVideoSelection = true
+                            }) {
+                                HStack {
+                                    Text("Elements vs \(selectedVideo.displayName)")
+                                        .fontWeight(.medium)
+                                    if selectedVideo.recommended {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                    }
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Jersey: #3 \(selectedVideo.jerseyColor)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if selectedVideo.recommended {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.caption)
+                                    Text("Recommended: Basket clearly visible")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                        }
+                        .padding(.leading, 8)
+
+                        Text("Get the actual stats from the database. This will be our baseline for comparison.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
 
@@ -218,6 +286,26 @@ struct VideoPOCView: View {
                     DetailedStatsView(game: game)
                 }
             }
+            .confirmationDialog("Select Test Video", isPresented: $showingVideoSelection) {
+                ForEach(TestVideo.allCases, id: \.self) { video in
+                    Button(action: {
+                        selectedVideo = video
+                        // Clear retrieved game when switching videos
+                        retrievedGame = nil
+                        errorMessage = nil
+                    }) {
+                        HStack {
+                            Text("Elements vs \(video.displayName)")
+                            if video.recommended {
+                                Image(systemName: "star.fill")
+                            }
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Choose which game to use for the PoC test")
+            }
         }
     }
 
@@ -229,7 +317,14 @@ struct VideoPOCView: View {
 
         Task {
             do {
-                let game = try await StatsRetriever.shared.getElementsVsTeamEliteStats()
+                // Retrieve stats based on selected video
+                let game: Game?
+                switch selectedVideo {
+                case .justHoop:
+                    game = try await StatsRetriever.shared.getElementsVsJustHoopStats()
+                case .teamElite:
+                    game = try await StatsRetriever.shared.getElementsVsTeamEliteStats()
+                }
 
                 await MainActor.run {
                     if let game = game {
@@ -237,10 +332,10 @@ struct VideoPOCView: View {
                         StatsRetriever.shared.printDetailedStats(for: game)
 
                         // Also update the POC_ACTUAL_STATS.md file
-                        let markdown = StatsRetriever.shared.generateMarkdownSummary(for: game)
+                        let markdown = StatsRetriever.shared.generateMarkdownSummary(for: game, videoURL: selectedVideo.youtubeURL, jerseyColor: selectedVideo.jerseyColor)
                         saveMarkdownToFile(markdown)
                     } else {
-                        self.errorMessage = "No Elements vs Team Elite game found in database"
+                        self.errorMessage = "No Elements vs \(selectedVideo.displayName) game found in database"
                     }
                     self.isRetrieving = false
                 }
