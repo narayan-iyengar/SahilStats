@@ -351,6 +351,8 @@ class GameCalendarManager: ObservableObject {
             let eventTitle = event.title ?? "Untitled Event"
             let eventId = event.eventIdentifier ?? UUID().uuidString
 
+            forcePrint("🔍 Processing event: '\(eventTitle)'")
+
             // Skip ignored events
             if ignoredEventIds.contains(eventId) {
                 debugPrint("   🚫 Skipping ignored event: \(eventTitle)")
@@ -365,6 +367,7 @@ class GameCalendarManager: ObservableObject {
 
             // Try to parse opponent, fallback to full title if parsing fails
             let opponent = parseOpponent(from: eventTitle) ?? extractTournamentOpponent(from: eventTitle) ?? eventTitle
+            forcePrint("   ➡️ Parsed opponent: '\(opponent)'")
 
             return CalendarGame(
                 id: eventId,
