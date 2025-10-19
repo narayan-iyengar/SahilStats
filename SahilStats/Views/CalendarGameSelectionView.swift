@@ -439,7 +439,7 @@ struct GameConfirmationView: View {
             Form {
                 Section("Game Details") {
                     HStack {
-                        Text("Your Team")
+                        Text("Sahil's Team")
                         Spacer()
                         TextField("Team Name", text: $liveGame.teamName)
                             .multilineTextAlignment(.trailing)
