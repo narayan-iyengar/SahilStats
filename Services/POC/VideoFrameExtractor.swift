@@ -75,6 +75,9 @@ class VideoFrameExtractor {
                 if #available(iOS 18.0, *) {
                     cgImage = try await imageGenerator.image(at: time).image
                 } else {
+                    #if compiler(>=6.0)
+                    #warning("Using deprecated copyCGImage for iOS 17 compatibility")
+                    #endif
                     cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
                 }
                 let uiImage = UIImage(cgImage: cgImage)
@@ -120,6 +123,9 @@ class VideoFrameExtractor {
         if #available(iOS 18.0, *) {
             cgImage = try await imageGenerator.image(at: time).image
         } else {
+            #if compiler(>=6.0)
+            #warning("Using deprecated copyCGImage for iOS 17 compatibility")
+            #endif
             cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
         }
         let uiImage = UIImage(cgImage: cgImage)
@@ -157,8 +163,8 @@ class VideoFrameExtractor {
 
         let fileSize: Int64
         if let attrs = try? FileManager.default.attributesOfItem(atPath: videoURL.path),
-           let size = attrs[.size] as? Int64 {
-            fileSize = size
+           let fileSizeValue = attrs[.size] as? Int64 {
+            fileSize = fileSizeValue
         } else {
             fileSize = 0
         }
