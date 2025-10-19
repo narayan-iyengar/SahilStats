@@ -624,12 +624,12 @@ class GameCalendarManager: ObservableObject {
                 }
             }
 
-            // If no recognized prefix, treat as direct opponent format
-            // "Elements AAU - Warriors" → "Elements AAU vs Warriors"
+            // If no recognized prefix, just return the part after the dash as opponent
+            // "UNEQLD Boys 9/10U - Trunk or Treat" → "Trunk or Treat"
+            // "Elements AAU - Warriors" → "Warriors"
             if let opponent = cleanTeamName(afterDash), !opponent.isEmpty {
-                let display = "\(teamPart) vs \(opponent)"
-                debugPrint("   🏀 Direct format detected: '\(display)'")
-                return display
+                debugPrint("   🏀 Direct tournament event detected: opponent = '\(opponent)'")
+                return opponent
             }
         }
 
