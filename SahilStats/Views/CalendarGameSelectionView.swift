@@ -208,11 +208,21 @@ struct CalendarGameSelectionView: View {
     private func selectGame(_ calendarGame: GameCalendarManager.CalendarGame) {
         selectedCalendarGame = calendarGame
 
-        // Get user's default settings
+        // Get user's settings from SettingsManager (includes Firebase sync)
+        let settingsManager = SettingsManager.shared
+        let (gameFormat, quarterLength) = settingsManager.getDefaultGameSettings()
+
+        // Get team name from UserDefaults or email
+        let userDefaults = UserDefaults.standard
+        let teamName = userDefaults.string(forKey: "defaultTeamName")
+            ?? userDefaults.string(forKey: "teamName")
+            ?? authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized
+            ?? "Home"
+
         let settings = GameSettings(
-            teamName: authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized ?? "Home",
-            quarterLength: 8, // Default - user can edit
-            gameFormat: .quarters // Default - user can edit
+            teamName: teamName,
+            quarterLength: quarterLength,
+            gameFormat: gameFormat
         )
 
         // Create live game from calendar
@@ -428,6 +438,13 @@ struct GameConfirmationView: View {
         NavigationView {
             Form {
                 Section("Game Details") {
+                    HStack {
+                        Text("Your Team")
+                        Spacer()
+                        TextField("Team Name", text: $liveGame.teamName)
+                            .multilineTextAlignment(.trailing)
+                    }
+
                     HStack {
                         Text("Opponent")
                         Spacer()
