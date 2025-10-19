@@ -28,20 +28,35 @@ class YouTubeDownloader {
         print("📥 Starting YouTube video download...")
         print("   URL: \(youtubeURL)")
 
-        // For PoC, we'll use a manual download approach
-        // The user should download the video using a browser or yt-dlp
+        // Debug: Print environment info
+        #if targetEnvironment(simulator)
+        print("   Running on: iOS Simulator")
+        #elseif os(macOS)
+        print("   Running on: macOS")
+        #else
+        print("   Running on: Real iOS device")
+        #endif
 
         // Check if yt-dlp is available
         let ytDlpPath = "/opt/homebrew/bin/yt-dlp"
         let fileManager = FileManager.default
 
-        if fileManager.fileExists(atPath: ytDlpPath) {
-            // Use yt-dlp to download
+        print("   Checking for yt-dlp at: \(ytDlpPath)")
+        let ytDlpExists = fileManager.fileExists(atPath: ytDlpPath)
+        print("   yt-dlp exists: \(ytDlpExists)")
+
+        #if os(macOS) || targetEnvironment(simulator)
+        if ytDlpExists {
+            print("   ✅ Platform supports Process - will use yt-dlp")
             return try await downloadWithYtDlp(youtubeURL: youtubeURL, ytDlpPath: ytDlpPath, progress: progress)
         } else {
-            // Fallback: Check if video is already downloaded manually
+            print("   ⚠️ yt-dlp not found at expected path")
             return try await checkForManualDownload(youtubeURL: youtubeURL)
         }
+        #else
+        print("   ❌ Platform does not support Process - manual download only")
+        return try await checkForManualDownload(youtubeURL: youtubeURL)
+        #endif
     }
 
     /// Download using yt-dlp command line tool
@@ -118,10 +133,24 @@ class YouTubeDownloader {
 
     /// Check if video was manually downloaded
     private func checkForManualDownload(youtubeURL: String) async throws -> URL {
-        print("⚠️ yt-dlp not found - checking for manual download...")
+        print("⚠️ Checking for cached/manually downloaded video...")
 
-        // Check common download locations
+        // Check specific cached locations first (highest priority)
+        let cachedPaths = [
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4"),
+            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.mp4")
+        ]
+
+        for cachedPath in cachedPaths {
+            if FileManager.default.fileExists(atPath: cachedPath.path) {
+                print("✅ Found cached video: \(cachedPath.path)")
+                return cachedPath
+            }
+        }
+
+        // Then check common download directories for any video files
         let downloadsPaths = [
+            FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos", isDirectory: true),
             FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first,
             FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos", isDirectory: true)
         ]
@@ -137,7 +166,7 @@ class YouTubeDownloader {
                 }
 
                 if let firstVideo = videoFiles.first {
-                    print("✅ Found manually downloaded video: \(firstVideo.lastPathComponent)")
+                    print("✅ Found manually downloaded video: \(firstVideo.path)")
                     return firstVideo
                 }
             }
