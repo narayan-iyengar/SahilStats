@@ -479,6 +479,16 @@ class GameCalendarManager: ObservableObject {
         var teams: [String] = []
         let lowercased = title.lowercased()
 
+        // IMPORTANT: Skip " - " separator if it's followed by tentative/confirmed/scheduled/pending
+        // These are tournament placeholders, not team vs team games
+        if lowercased.contains(" - tentative:") ||
+           lowercased.contains(" - confirmed:") ||
+           lowercased.contains(" - scheduled:") ||
+           lowercased.contains(" - pending:") {
+            debugPrint("   ⏩ Skipping extractTeamNames - detected tournament placeholder format")
+            return []
+        }
+
         // Pattern: "Team1 vs Team2", "Team1 @ Team2", "Team1 at Team2", "Team1 - Team2"
         let separators = [
             " vs ", " vs. ", " v. ",
