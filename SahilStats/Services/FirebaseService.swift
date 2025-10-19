@@ -5,6 +5,7 @@ import FirebaseFirestore
 import FirebaseAuth
 import Combine
 import Network
+import Photos
 
 
 class FirebaseService: ObservableObject {

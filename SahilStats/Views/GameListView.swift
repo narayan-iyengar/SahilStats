@@ -242,6 +242,7 @@ struct GameListView: View {
                     }
                 }
                 
+                /*
                 // New Game button (only shown if user can create games)
                 if authService.canCreateGames {
                     Menu {
@@ -271,6 +272,7 @@ struct GameListView: View {
                             .foregroundColor(.orange)
                     }
                 }
+                 */
             }
         }
     }

@@ -8,6 +8,8 @@
 import Foundation
 import AVFoundation
 import Combine
+import FirebaseAuth
+import FirebaseFirestore
 
 struct CameraSettings: Codable {
 
@@ -82,6 +84,7 @@ struct CameraSettings: Codable {
     var codec: VideoCodec
     var customBitrate: Int?  // Nil = use default for resolution
     var stabilizationEnabled: Bool
+    var keepRecorderScreenAwake: Bool  // Keep screen awake during recording (for dedicated cameraman)
 
     // MARK: - Computed Properties
 
@@ -100,7 +103,8 @@ struct CameraSettings: Codable {
         frameRate: .fps30,
         codec: .h264,
         customBitrate: nil,
-        stabilizationEnabled: true
+        stabilizationEnabled: true,
+        keepRecorderScreenAwake: true  // Default to keeping screen awake during recording
     )
 }
 
@@ -115,24 +119,97 @@ class CameraSettingsManager: ObservableObject {
         }
     }
 
-    private let userDefaultsKey = "cameraSettings"
+    private let localStorageKey = "cameraSettings"
+    private var userId: String?
 
     private init() {
-        // Load saved settings or use defaults
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        // Load settings from local cache first (instant load)
+        if let data = UserDefaults.standard.data(forKey: localStorageKey),
            let decoded = try? JSONDecoder().decode(CameraSettings.self, from: data) {
             self.settings = decoded
-            print("📱 Loaded camera settings: \(decoded.resolution.displayName), \(decoded.frameRate.displayName)")
+            print("📱 Loaded camera settings from local cache")
         } else {
             self.settings = .default
             print("📱 Using default camera settings")
         }
+
+        // Load from Firebase in background
+        Task {
+            await loadFromFirebase()
+        }
+    }
+
+    func setUserId(_ userId: String) {
+        self.userId = userId
+        Task {
+            await loadFromFirebase()
+        }
+    }
+
+    private func loadFromFirebase() async {
+        guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
+            print("⚠️ No user ID available - using local settings only")
+            return
+        }
+
+        do {
+            let db = FirebaseFirestore.Firestore.firestore()
+            let document = try await db.collection("userSettings").document(userId).getDocument()
+
+            if let data = document.data()?["cameraSettings"] as? [String: Any] {
+                // Convert Firebase data to CameraSettings
+                if let jsonData = try? JSONSerialization.data(withJSONObject: data),
+                   let decoded = try? JSONDecoder().decode(CameraSettings.self, from: jsonData) {
+                    await MainActor.run {
+                        self.settings = decoded
+                        // Also save to local cache
+                        if let encoded = try? JSONEncoder().encode(decoded) {
+                            UserDefaults.standard.set(encoded, forKey: self.localStorageKey)
+                        }
+                        print("☁️ Loaded camera settings from Firebase")
+                    }
+                }
+            } else {
+                print("📱 No camera settings in Firebase - using current settings")
+                // Save current settings to Firebase
+                await saveToFirebase()
+            }
+        } catch {
+            print("❌ Failed to load camera settings from Firebase: \(error)")
+        }
     }
 
     private func saveSettings() {
+        // Save to local cache immediately (instant)
         if let encoded = try? JSONEncoder().encode(settings) {
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
-            print("💾 Camera settings saved")
+            UserDefaults.standard.set(encoded, forKey: localStorageKey)
+            print("💾 Camera settings saved to local cache")
+        }
+
+        // Save to Firebase in background
+        Task {
+            await saveToFirebase()
+        }
+    }
+
+    private func saveToFirebase() async {
+        guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
+            print("⚠️ No user ID available - skipping Firebase save")
+            return
+        }
+
+        do {
+            let db = FirebaseFirestore.Firestore.firestore()
+            let encoded = try JSONEncoder().encode(settings)
+            let json = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] ?? [:]
+
+            try await db.collection("userSettings").document(userId).setData([
+                "cameraSettings": json
+            ], merge: true)
+
+            print("☁️ Camera settings saved to Firebase")
+        } catch {
+            print("❌ Failed to save camera settings to Firebase: \(error)")
         }
     }
 

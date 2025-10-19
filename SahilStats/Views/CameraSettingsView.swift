@@ -124,10 +124,17 @@ struct CameraSettingsView: View {
             Section {
                 Toggle("Video Stabilization", isOn: $settingsManager.settings.stabilizationEnabled)
 
+                Toggle("Keep Screen Awake", isOn: $settingsManager.settings.keepRecorderScreenAwake)
+
             } header: {
                 Text("Camera Features")
             } footer: {
-                Text("Stabilization reduces camera shake for smoother videos.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Stabilization reduces camera shake for smoother videos.")
+
+                    Text("Keep Screen Awake prevents the screen from turning off during recording. Useful for dedicated cameramen who need to monitor the recording.")
+                        .padding(.top, 4)
+                }
             }
 
             // MARK: - Information

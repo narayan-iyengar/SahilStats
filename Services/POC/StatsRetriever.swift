@@ -15,25 +15,35 @@ class StatsRetriever {
 
     /// Retrieve actual stats for Elements vs Team Elite game
     func getElementsVsTeamEliteStats() async throws -> Game? {
+        return try await getElementsGameByOpponent(containing: "elite")
+    }
+
+    /// Retrieve actual stats for Elements vs Just Hoop game (RECOMMENDED - basket clearly visible)
+    func getElementsVsJustHoopStats() async throws -> Game? {
+        return try await getElementsGameByOpponent(containing: "hoop")
+    }
+
+    /// Generic method to retrieve Elements game by opponent name
+    private func getElementsGameByOpponent(containing searchTerm: String) async throws -> Game? {
         let db = Firestore.firestore()
 
-        print("🔍 Searching for Elements vs Team Elite game...")
+        print("🔍 Searching for Elements game with opponent containing '\(searchTerm)'...")
 
-        // Query for games where team is "Elements" and opponent contains "Team Elite" or "Elite"
+        // Query for games where team is "Elements"
         let snapshot = try await db.collection("games")
             .whereField("teamName", isEqualTo: "Elements")
             .getDocuments()
 
         print("📊 Found \(snapshot.documents.count) Elements games")
 
-        // Find the one matching Team Elite
+        // Find the one matching the search term
         for document in snapshot.documents {
             let data = document.data()
             if let opponent = data["opponent"] as? String {
                 print("   - Opponent: \(opponent)")
 
-                // Match "Team Elite", "Elite", or variations
-                if opponent.lowercased().contains("elite") {
+                // Match opponent name (case-insensitive)
+                if opponent.lowercased().contains(searchTerm.lowercased()) {
                     print("✅ Found matching game: Elements vs \(opponent)")
 
                     // Decode the game
@@ -45,8 +55,38 @@ class StatsRetriever {
             }
         }
 
-        print("⚠️ No Elements vs Team Elite game found")
+        print("⚠️ No Elements game found with opponent containing '\(searchTerm)'")
         return nil
+    }
+
+    /// List all Elements games to help find the right one
+    func listAllElementsGames() async throws -> [Game] {
+        let db = Firestore.firestore()
+
+        print("📋 Listing all Elements games...")
+
+        let snapshot = try await db.collection("games")
+            .whereField("teamName", isEqualTo: "Elements")
+            .getDocuments()
+
+        var games: [Game] = []
+
+        for document in snapshot.documents {
+            do {
+                var game = try document.data(as: Game.self)
+                game.id = document.documentID
+                games.append(game)
+
+                if let opponent = document.data()["opponent"] as? String {
+                    print("   - \(opponent) (Points: \(game.points), FG: \(game.fg2m + game.fg3m)/\(game.fg2a + game.fg3a))")
+                }
+            } catch {
+                print("   ❌ Error decoding game \(document.documentID): \(error)")
+            }
+        }
+
+        print("📊 Total Elements games: \(games.count)")
+        return games
     }
 
     /// Print detailed stats for a game
@@ -98,16 +138,16 @@ class StatsRetriever {
     }
 
     /// Generate markdown summary for documentation
-    func generateMarkdownSummary(for game: Game) -> String {
+    func generateMarkdownSummary(for game: Game, videoURL: String, jerseyColor: String) -> String {
         return """
-        # Actual Stats from Elements vs Team Elite Game
+        # Actual Stats from Elements vs \(game.opponent) Game
 
         ## Video Reference
-        - **YouTube URL**: https://youtu.be/z9AZQ1h8XyY?si=0iVGEN8axbBkRZax
+        - **YouTube URL**: \(videoURL)
         - **Team**: Elements
         - **Opponent**: \(game.opponent)
         - **Sahil's Jersey**: #3
-        - **Jersey Color**: WHITE
+        - **Jersey Color**: \(jerseyColor)
 
         ## Actual Stats (From Database)
 

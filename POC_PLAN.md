@@ -103,8 +103,23 @@ Step 3: Review Results
 - **Jersey Colors:**
   - Elements: WHITE jerseys
   - Team Elite: [to be determined from video]
-- **Sahil's Actual Stats:** [to be determined - will extract manually from video]
-- **Notes:** Primary test video for PoC
+- **Sahil's Actual Stats:** [stored in database - will retrieve]
+- **Notes:** First test video, basket may not be clearly visible
+
+**Video 2: Elements vs Just Hoop** ⭐ **RECOMMENDED FOR PoC**
+- **YouTube URL:** https://www.youtube.com/watch?v=f5M14MI-DJo
+- **Team:** Elements
+- **Opponent:** Just Hoop
+- **Sahil's Jersey:** #3
+- **Jersey Colors:**
+  - Elements: BLACK jerseys
+  - Just Hoop: [to be determined from video]
+- **Sahil's Actual Stats:** [to be retrieved from database]
+- **Notes:** Better video - basket is clearly visible, recommended for PoC testing
+- **Advantages:**
+  - Clear view of basket (critical for make/miss detection)
+  - Better for AI processing
+  - Will use this as primary test video
 
 ### Video Analysis Tasks:
 1. [ ] Download/access video

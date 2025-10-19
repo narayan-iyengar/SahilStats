@@ -73,12 +73,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     // Called when app enters background
     func applicationDidEnterBackground(_ application: UIApplication) {
         print("📱 App entered background - keeping connection alive")
-        // Don't reset anything, keep connection alive
+        // Reset idle timer to allow screen to sleep in background
+        UIApplication.shared.isIdleTimerDisabled = false
+        print("🌙 Idle timer enabled (background) - screen can now sleep")
     }
 
     // Called when app returns to foreground
     func applicationWillEnterForeground(_ application: UIApplication) {
         print("📱 App returning to foreground - checking connection")
+        // Ensure idle timer is enabled when returning to foreground
+        // (specific views will disable it if needed, like recording)
+        UIApplication.shared.isIdleTimerDisabled = false
+        print("🌙 Idle timer enabled (foreground) - screen can now sleep")
+
         Task { @MainActor in
             // Restart auto-connection if needed
             MultipeerConnectivityManager.shared.startAutoConnectionIfNeeded()
