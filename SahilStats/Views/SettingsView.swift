@@ -39,13 +39,28 @@ struct SettingsView: View {
                 }
             }
             
-            // Admin Features
-            if authService.showAdminFeatures {
-                Section("Developer") {
+            // Beta Features
+            Section {
+                Toggle("Enable Beta Features", isOn: $settingsManager.betaFeaturesEnabled)
+                    .toggleStyle(SwitchToggleStyle(tint: .orange))
+            } header: {
+                Text("Beta")
+            } footer: {
+                Text("Access experimental features that are still in development. These features may be unstable.")
+                    .font(.caption)
+            }
+
+            // Beta Features (only shown when beta toggle is ON)
+            if settingsManager.betaFeaturesEnabled {
+                Section("Beta Features") {
                     NavigationLink("AI Stats PoC") {
                         VideoPOCView()
                     }
                 }
+            }
+
+            // Admin Features
+            if authService.showAdminFeatures {
 
                 Section("Game Management") {
                     NavigationLink("Teams") {
@@ -54,6 +69,10 @@ struct SettingsView: View {
 
                     NavigationLink("Game Format") {
                         GameFormatSettingsView()
+                    }
+
+                    NavigationLink("Calendar Settings") {
+                        CalendarSettingsView()
                     }
 
                     LiveGameStatusRow()
@@ -73,18 +92,50 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section("Devices & Connectivity") {
-                    NavigationLink("Device Pairing") {
+                Section {
+                    // Consolidated: Device Pairing shows trusted devices inline
+                    NavigationLink("Device Pairing & Trusted Devices") {
                         DevicePairingMainView()
                     }
-                    
-                    NavigationLink("Trusted Devices") {
-                        TrustedDevicesSettingsView()
-                    }
-                    
+
                     Toggle("Auto-connect to Trusted Devices", isOn: $settingsManager.autoConnectEnabled)
                         .disabled(!trustedDevicesManager.hasTrustedDevices)
                         .toggleStyle(SwitchToggleStyle(tint: .orange))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Verbose Connection Logging", isOn: $settingsManager.verboseConnectionLogging)
+                            .toggleStyle(SwitchToggleStyle(tint: .orange))
+
+                        if settingsManager.verboseConnectionLogging {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Performance Impact")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.orange)
+
+                                    Text("Turn OFF before games at the gym. Logging slows down the connection and video recording.")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(8)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                } header: {
+                    Text("Devices & Connectivity")
+                } footer: {
+                    if settingsManager.verboseConnectionLogging {
+                        Text("⚠️ Verbose logging is ON - remember to disable before recording")
+                            .foregroundColor(.orange)
+                    }
                 }
             }
             
@@ -146,6 +197,20 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var verboseConnectionLogging: Bool = false {
+        didSet {
+            saveSettings()
+            // Update MultipeerConnectivityManager when this changes
+            MultipeerConnectivityManager.shared.setVerboseLogging(verboseConnectionLogging)
+        }
+    }
+
+    @Published var betaFeaturesEnabled: Bool = false {
+        didSet {
+            saveSettings()
+        }
+    }
+
     private var userId: String?
 
     private init() {
@@ -169,7 +234,14 @@ class SettingsManager: ObservableObject {
             self.autoConnectEnabled = true
         }
 
+        self.verboseConnectionLogging = UserDefaults.standard.bool(forKey: "verboseConnectionLogging")
+
+        self.betaFeaturesEnabled = UserDefaults.standard.bool(forKey: "betaFeaturesEnabled")
+
         print("📱 Loaded settings from local cache")
+
+        // Apply verbose logging setting to MultipeerConnectivityManager
+        MultipeerConnectivityManager.shared.setVerboseLogging(verboseConnectionLogging)
 
         // Load from Firebase in background
         Task {
@@ -222,6 +294,16 @@ class SettingsManager: ObservableObject {
                         UserDefaults.standard.set(autoConnect, forKey: "autoConnectEnabled")
                     }
 
+                    if let verboseLogging = data["verboseConnectionLogging"] as? Bool {
+                        self.verboseConnectionLogging = verboseLogging
+                        UserDefaults.standard.set(verboseLogging, forKey: "verboseConnectionLogging")
+                    }
+
+                    if let betaEnabled = data["betaFeaturesEnabled"] as? Bool {
+                        self.betaFeaturesEnabled = betaEnabled
+                        UserDefaults.standard.set(betaEnabled, forKey: "betaFeaturesEnabled")
+                    }
+
                     print("☁️ Loaded settings from Firebase")
                 }
             } else {
@@ -240,6 +322,8 @@ class SettingsManager: ObservableObject {
         UserDefaults.standard.set(enableMultiDevice, forKey: "enableMultiDevice")
         UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
         UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnectEnabled")
+        UserDefaults.standard.set(verboseConnectionLogging, forKey: "verboseConnectionLogging")
+        UserDefaults.standard.set(betaFeaturesEnabled, forKey: "betaFeaturesEnabled")
 
         // Save to Firebase in background
         Task {
@@ -260,7 +344,9 @@ class SettingsManager: ObservableObject {
                 "quarterLength": quarterLength,
                 "enableMultiDevice": enableMultiDevice,
                 "videoQuality": videoQuality,
-                "autoConnectEnabled": autoConnectEnabled
+                "autoConnectEnabled": autoConnectEnabled,
+                "verboseConnectionLogging": verboseConnectionLogging,
+                "betaFeaturesEnabled": betaFeaturesEnabled
             ], merge: true)
 
             print("☁️ Settings saved to Firebase")
@@ -289,11 +375,13 @@ struct DevicePairingMainView: View {
     @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     @State private var isPairing = false
-    
+    @State private var editingDevice: TrustedDevicesManager.TrustedPeer?
+    @State private var showingClearAllAlert = false
+
     var body: some View {
         List {
             Section {
-                if trustedDevicesManager.trustedDevices.isEmpty {
+                if trustedDevicesManager.allTrustedPeers.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("No Trusted Devices")
                             .foregroundColor(.secondary)
@@ -301,33 +389,64 @@ struct DevicePairingMainView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .listRowBackground(Color.clear)
                 } else {
-                    ForEach(trustedDevicesManager.trustedDevices) { device in
-                        HStack {
-                            Image(systemName: device.role == .controller ? "gamecontroller.fill" : "video.fill")
-                                .foregroundColor(device.role == .controller ? .blue : .red)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.displayName)
-                                    .font(.body)
-                                Text(device.role.displayName)
+                    ForEach(trustedDevicesManager.allTrustedPeers) { device in
+                        Button(action: {
+                            editingDevice = device
+                        }) {
+                            HStack {
+                                Image(systemName: device.role == "controller" ? "gamecontroller.fill" : "video.fill")
+                                    .foregroundColor(device.role == "controller" ? .blue : .red)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(device.displayName)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    HStack(spacing: 4) {
+                                        Text(device.role.capitalized)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        if device.friendlyName != nil {
+                                            Text("•")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text("Custom name")
+                                                .font(.caption)
+                                                .foregroundColor(.orange)
+                                        }
+                                    }
+                                }
+
+                                Spacer()
+
+                                if multipeer.connectedPeers.contains(where: { $0.displayName == device.id }) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                }
+
+                                Image(systemName: "chevron.right")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            
-                            Spacer()
-                            
-                            if multipeer.connectedPeers.contains(where: { $0.displayName == device.displayName }) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            trustedDevicesManager.removeTrustedPeer(trustedDevicesManager.allTrustedPeers[index])
                         }
                     }
                 }
             } header: {
                 Text("Paired Devices")
+            } footer: {
+                if !trustedDevicesManager.allTrustedPeers.isEmpty {
+                    Text("Tap a device to edit its name. Swipe to delete.")
+                        .font(.caption)
+                }
             }
-            
+
             Section {
                 NavigationLink(destination: DevicePairingView(isPairing: $isPairing)) {
                     HStack {
@@ -336,9 +455,32 @@ struct DevicePairingMainView: View {
                     }
                     .foregroundColor(.orange)
                 }
+
+                if !trustedDevicesManager.allTrustedPeers.isEmpty {
+                    Button(action: {
+                        showingClearAllAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                            Text("Clear All Devices")
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
             }
         }
         .navigationTitle("Device Pairing")
+        .sheet(item: $editingDevice) { device in
+            EditDeviceNameView(device: device)
+        }
+        .alert("Clear All Devices?", isPresented: $showingClearAllAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear All", role: .destructive) {
+                trustedDevicesManager.clearAllTrustedPeers()
+            }
+        } message: {
+            Text("This will remove all trusted devices. You'll need to pair them again.")
+        }
     }
 }
 
@@ -645,7 +787,7 @@ struct DevicePairingView: View {
         print("🔗 Attempting to pair with: \(peer.displayName)")
         
         // Check if we have a pending invitation from this peer
-        if let invitation = multipeer.pendingInvitations.first(where: { $0.peerID == peer }) {
+        if multipeer.pendingInvitations.first(where: { $0.peerID == peer }) != nil {
             print("✅ Found pending invitation from this peer, accepting it")
             multipeer.approveConnection(for: peer, remember: true)
         } else {
@@ -742,6 +884,105 @@ struct LiveGameStatusRow: View {
                 print("Failed to delete live games: \(error)")
             }
         }
+    }
+}
+
+// MARK: - Edit Device Name Sheet
+
+struct EditDeviceNameView: View {
+    let device: TrustedDevicesManager.TrustedPeer
+    @ObservedObject private var trustedDevicesManager = TrustedDevicesManager.shared
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var friendlyName: String
+    @State private var showingDeleteAlert = false
+
+    init(device: TrustedDevicesManager.TrustedPeer) {
+        self.device = device
+        _friendlyName = State(initialValue: device.friendlyName ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    HStack {
+                        Image(systemName: device.role == "controller" ? "gamecontroller.fill" : "video.fill")
+                            .foregroundColor(device.role == "controller" ? .blue : .red)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(device.deviceName)
+                                .font(.body)
+                            Text(device.role.capitalized)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Device Info")
+                }
+
+                Section {
+                    TextField("Friendly Name (optional)", text: $friendlyName)
+                        .textInputAutocapitalization(.words)
+
+                    if !friendlyName.isEmpty {
+                        Text("This name will be shown instead of '\(device.deviceName)'")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Custom Name")
+                } footer: {
+                    Text("Give this device a friendly name like 'Dad's iPhone' or 'Recording iPad'")
+                }
+
+                Section {
+                    Button(role: .destructive, action: {
+                        showingDeleteAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                            Text("Remove Device")
+                        }
+                    }
+                } footer: {
+                    Text("Remove this device from trusted devices. You'll need to pair it again to reconnect.")
+                }
+            }
+            .navigationTitle("Edit Device")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveChanges()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .alert("Remove Device?", isPresented: $showingDeleteAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Remove", role: .destructive) {
+                    trustedDevicesManager.removeTrustedPeer(device)
+                    dismiss()
+                }
+            } message: {
+                Text("This device will be removed from trusted devices. You'll need to pair it again to reconnect.")
+            }
+        }
+    }
+
+    private func saveChanges() {
+        let trimmedName = friendlyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newFriendlyName = trimmedName.isEmpty ? nil : trimmedName
+
+        trustedDevicesManager.updateFriendlyName(for: device, friendlyName: newFriendlyName)
+        dismiss()
     }
 }
 
