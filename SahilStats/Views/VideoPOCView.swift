@@ -515,7 +515,7 @@ struct VideoPOCView: View {
                 let videoURL = try await YouTubeDownloader.shared.downloadVideo(
                     youtubeURL: selectedVideo.youtubeURL
                 ) { progress in
-                    await MainActor.run {
+                    Task { @MainActor in
                         self.downloadProgress = progress
                     }
                 }
@@ -534,7 +534,7 @@ struct VideoPOCView: View {
                     from: videoURL,
                     fps: 1.0
                 ) { progress, current, total in
-                    await MainActor.run {
+                    Task { @MainActor in
                         self.extractionProgress = progress
                     }
                 }
