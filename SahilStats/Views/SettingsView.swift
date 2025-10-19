@@ -9,6 +9,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseCore
+import FirebaseFirestore
 import Combine
 import MultipeerConnectivity
 
@@ -40,6 +41,12 @@ struct SettingsView: View {
             
             // Admin Features
             if authService.showAdminFeatures {
+                Section("Developer") {
+                    NavigationLink("AI Stats PoC") {
+                        VideoPOCView()
+                    }
+                }
+
                 Section("Game Management") {
                     NavigationLink("Teams") {
                         TeamsSettingsView()
@@ -108,54 +115,160 @@ struct SettingsView: View {
 
 class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
-    
+
     @Published var gameFormat: GameFormat {
         didSet {
-            UserDefaults.standard.set(gameFormat.rawValue, forKey: "gameFormat")
+            saveSettings()
         }
     }
-    
+
     @Published var quarterLength: Int {
         didSet {
-            UserDefaults.standard.set(quarterLength, forKey: "quarterLength")
+            saveSettings()
         }
     }
-    
+
     @Published var enableMultiDevice: Bool = false {
         didSet {
-            UserDefaults.standard.set(enableMultiDevice, forKey: "enableMultiDevice")
+            saveSettings()
         }
     }
 
     @Published var videoQuality: String = "High" {
         didSet {
-            UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
+            saveSettings()
         }
     }
+
     @Published var autoConnectEnabled: Bool = true {
         didSet {
-            UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnectEnabled")
+            saveSettings()
         }
     }
-    
-    
+
+    private var userId: String?
+
     private init() {
-        // Load saved settings or use defaults
+        // Load from local cache first (instant load)
         if let savedFormat = UserDefaults.standard.string(forKey: "gameFormat"),
            let format = GameFormat(rawValue: savedFormat) {
             self.gameFormat = format
         } else {
-            self.gameFormat = .halves // Default to halves
+            self.gameFormat = .halves
         }
-        
+
         let savedLength = UserDefaults.standard.integer(forKey: "quarterLength")
-        self.quarterLength = savedLength > 0 ? savedLength : 20 // Default to 20 minutes
-        
+        self.quarterLength = savedLength > 0 ? savedLength : 20
+
         self.enableMultiDevice = UserDefaults.standard.bool(forKey: "enableMultiDevice")
         self.videoQuality = UserDefaults.standard.string(forKey: "videoQuality") ?? "High"
-        self.autoConnectEnabled = UserDefaults.standard.bool(forKey: "autoConnectEnabled")
+
+        if let autoConnect = UserDefaults.standard.object(forKey: "autoConnectEnabled") as? Bool {
+            self.autoConnectEnabled = autoConnect
+        } else {
+            self.autoConnectEnabled = true
+        }
+
+        print("📱 Loaded settings from local cache")
+
+        // Load from Firebase in background
+        Task {
+            await loadFromFirebase()
+        }
     }
-    
+
+    func setUserId(_ userId: String) {
+        self.userId = userId
+        Task {
+            await loadFromFirebase()
+        }
+    }
+
+    private func loadFromFirebase() async {
+        guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
+            print("⚠️ No user ID available - using local settings only")
+            return
+        }
+
+        do {
+            let db = FirebaseFirestore.Firestore.firestore()
+            let document = try await db.collection("userSettings").document(userId).getDocument()
+
+            if let data = document.data() {
+                await MainActor.run {
+                    if let formatString = data["gameFormat"] as? String,
+                       let format = GameFormat(rawValue: formatString) {
+                        self.gameFormat = format
+                        UserDefaults.standard.set(formatString, forKey: "gameFormat")
+                    }
+
+                    if let length = data["quarterLength"] as? Int {
+                        self.quarterLength = length
+                        UserDefaults.standard.set(length, forKey: "quarterLength")
+                    }
+
+                    if let multiDevice = data["enableMultiDevice"] as? Bool {
+                        self.enableMultiDevice = multiDevice
+                        UserDefaults.standard.set(multiDevice, forKey: "enableMultiDevice")
+                    }
+
+                    if let quality = data["videoQuality"] as? String {
+                        self.videoQuality = quality
+                        UserDefaults.standard.set(quality, forKey: "videoQuality")
+                    }
+
+                    if let autoConnect = data["autoConnectEnabled"] as? Bool {
+                        self.autoConnectEnabled = autoConnect
+                        UserDefaults.standard.set(autoConnect, forKey: "autoConnectEnabled")
+                    }
+
+                    print("☁️ Loaded settings from Firebase")
+                }
+            } else {
+                print("📱 No settings in Firebase - saving current settings")
+                await saveToFirebase()
+            }
+        } catch {
+            print("❌ Failed to load settings from Firebase: \(error)")
+        }
+    }
+
+    private func saveSettings() {
+        // Save to local cache immediately
+        UserDefaults.standard.set(gameFormat.rawValue, forKey: "gameFormat")
+        UserDefaults.standard.set(quarterLength, forKey: "quarterLength")
+        UserDefaults.standard.set(enableMultiDevice, forKey: "enableMultiDevice")
+        UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
+        UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnectEnabled")
+
+        // Save to Firebase in background
+        Task {
+            await saveToFirebase()
+        }
+    }
+
+    private func saveToFirebase() async {
+        guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
+            print("⚠️ No user ID available - skipping Firebase save")
+            return
+        }
+
+        do {
+            let db = FirebaseFirestore.Firestore.firestore()
+            try await db.collection("userSettings").document(userId).setData([
+                "gameFormat": gameFormat.rawValue,
+                "quarterLength": quarterLength,
+                "enableMultiDevice": enableMultiDevice,
+                "videoQuality": videoQuality,
+                "autoConnectEnabled": autoConnectEnabled
+            ], merge: true)
+
+            print("☁️ Settings saved to Firebase")
+        } catch {
+            print("❌ Failed to save settings to Firebase: \(error)")
+        }
+    }
+
     // Helper method to get default game settings for new games
     func getDefaultGameSettings() -> (format: GameFormat, length: Int) {
         return (gameFormat, quarterLength)
