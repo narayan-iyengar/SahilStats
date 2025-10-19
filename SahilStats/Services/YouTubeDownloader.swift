@@ -45,18 +45,10 @@ class YouTubeDownloader {
         let ytDlpExists = fileManager.fileExists(atPath: ytDlpPath)
         print("   yt-dlp exists: \(ytDlpExists)")
 
-        #if os(macOS) || targetEnvironment(simulator)
-        if ytDlpExists {
-            print("   ✅ Platform supports Process - will use yt-dlp")
-            return try await downloadWithYtDlp(youtubeURL: youtubeURL, ytDlpPath: ytDlpPath, progress: progress)
-        } else {
-            print("   ⚠️ yt-dlp not found at expected path")
-            return try await checkForManualDownload(youtubeURL: youtubeURL)
-        }
-        #else
-        print("   ❌ Platform does not support Process - manual download only")
+        // For PoC: Always use cached video (simplifies iOS simulator testing)
+        // Production will use direct recording from camera, not YouTube download
+        print("   📦 Using cached video approach (PoC mode)")
         return try await checkForManualDownload(youtubeURL: youtubeURL)
-        #endif
     }
 
     /// Download using yt-dlp command line tool
