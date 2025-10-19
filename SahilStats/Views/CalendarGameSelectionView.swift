@@ -180,27 +180,28 @@ struct CalendarGameSelectionView: View {
     // MARK: - Game List View
 
     private var gameListView: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                ForEach(calendarManager.upcomingGames) { game in
-                    CalendarGameCard(
-                        game: game,
-                        isIPad: isIPad,
-                        onSelect: {
-                            selectGame(game)
-                        }
-                    )
-                    .contextMenu {
-                        Button(role: .destructive, action: {
-                            calendarManager.ignoreEvent(game.id)
-                        }) {
-                            Label("Ignore This Game", systemImage: "eye.slash")
-                        }
+        List {
+            ForEach(calendarManager.upcomingGames) { game in
+                CalendarGameCard(
+                    game: game,
+                    isIPad: isIPad,
+                    onSelect: {
+                        selectGame(game)
+                    }
+                )
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive, action: {
+                        calendarManager.ignoreEvent(game.id)
+                    }) {
+                        Label("Ignore", systemImage: "eye.slash")
                     }
                 }
             }
-            .padding()
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Game Selection

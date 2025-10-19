@@ -166,11 +166,11 @@ struct GameListView: View {
                             selectCalendarGame(game)
                         }
                     )
-                    .contextMenu {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive, action: {
                             calendarManager.ignoreEvent(game.id)
                         }) {
-                            Label("Ignore This Game", systemImage: "eye.slash")
+                            Label("Ignore", systemImage: "eye.slash")
                         }
                     }
                 }
