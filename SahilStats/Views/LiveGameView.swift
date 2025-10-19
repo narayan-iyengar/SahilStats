@@ -382,7 +382,8 @@ struct LiveGameControllerView: View {
     @State private var hasUnsavedChanges = false
     @State private var clockSyncTimer: Timer?
     @State private var showingFinishAlert = false
-    
+    @State private var showingQRCode = false
+
     // Control transfer alerts
     @State private var showingControlRequestAlert = false
     @State private var requestingUser = ""
@@ -488,6 +489,9 @@ struct LiveGameControllerView: View {
         }
         .background(Color(.systemGroupedBackground))
         // Keep all your existing alerts and onChange handlers...
+        .sheet(isPresented: $showingQRCode) {
+            GameQRCodeDisplayView(liveGame: serverGameState)
+        }
         .alert("Finish Game", isPresented: $showingFinishAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Finish", role: .destructive) {
@@ -659,6 +663,16 @@ struct LiveGameControllerView: View {
                 .padding(.horizontal, 16)
 
                 Spacer()
+
+                // QR Code Button (only show for multi-device games when controlling)
+                if (serverGameState.isMultiDeviceSetup ?? false) && deviceControl.hasControl {
+                    Button(action: { showingQRCode = true }) {
+                        Image(systemName: "qrcode")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.horizontal, 8)
+                }
 
                 // Device Control Status (moved to same row)
                 CompactDeviceControlStatusCard(
