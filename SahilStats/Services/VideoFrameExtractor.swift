@@ -70,16 +70,8 @@ class VideoFrameExtractor {
         // Extract frames
         for (index, time) in timePoints.enumerated() {
             do {
-                // Use async version for iOS 18+
-                let cgImage: CGImage
-                if #available(iOS 18.0, *) {
-                    cgImage = try await imageGenerator.image(at: time).image
-                } else {
-                    #if compiler(>=6.0)
-                    #warning("Using deprecated copyCGImage for iOS 17 compatibility")
-                    #endif
-                    cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
-                }
+                // Use modern async API (iOS 18+)
+                let cgImage = try await imageGenerator.image(at: time).image
                 let uiImage = UIImage(cgImage: cgImage)
 
                 let frame = VideoFrame(
@@ -119,15 +111,7 @@ class VideoFrameExtractor {
         imageGenerator.appliesPreferredTrackTransform = true
 
         let time = CMTime(seconds: timestamp, preferredTimescale: 600)
-        let cgImage: CGImage
-        if #available(iOS 18.0, *) {
-            cgImage = try await imageGenerator.image(at: time).image
-        } else {
-            #if compiler(>=6.0)
-            #warning("Using deprecated copyCGImage for iOS 17 compatibility")
-            #endif
-            cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
-        }
+        let cgImage = try await imageGenerator.image(at: time).image
         let uiImage = UIImage(cgImage: cgImage)
 
         return VideoFrame(
