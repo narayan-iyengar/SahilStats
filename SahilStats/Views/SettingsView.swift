@@ -102,11 +102,11 @@ struct SettingsView: View {
                         .disabled(!trustedDevicesManager.hasTrustedDevices)
                         .toggleStyle(SwitchToggleStyle(tint: .orange))
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Verbose Connection Logging", isOn: $settingsManager.verboseConnectionLogging)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Verbose Logging", isOn: $settingsManager.verboseLoggingEnabled)
                             .toggleStyle(SwitchToggleStyle(tint: .orange))
 
-                        if settingsManager.verboseConnectionLogging {
+                        if settingsManager.verboseLoggingEnabled {
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundColor(.orange)
@@ -118,7 +118,7 @@ struct SettingsView: View {
                                         .fontWeight(.semibold)
                                         .foregroundColor(.orange)
 
-                                    Text("Turn OFF before games at the gym. Logging slows down the connection and video recording.")
+                                    Text("Turn OFF before games at the gym. Logging slows down performance and clutters the console.")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -132,7 +132,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Devices & Connectivity")
                 } footer: {
-                    if settingsManager.verboseConnectionLogging {
+                    if settingsManager.verboseLoggingEnabled {
                         Text("⚠️ Verbose logging is ON - remember to disable before recording")
                             .foregroundColor(.orange)
                     }
@@ -205,6 +205,12 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var verboseLoggingEnabled: Bool = false {
+        didSet {
+            saveSettings()
+        }
+    }
+
     @Published var betaFeaturesEnabled: Bool = false {
         didSet {
             saveSettings()
@@ -236,9 +242,11 @@ class SettingsManager: ObservableObject {
 
         self.verboseConnectionLogging = UserDefaults.standard.bool(forKey: "verboseConnectionLogging")
 
+        self.verboseLoggingEnabled = UserDefaults.standard.bool(forKey: "verboseLoggingEnabled")
+
         self.betaFeaturesEnabled = UserDefaults.standard.bool(forKey: "betaFeaturesEnabled")
 
-        print("📱 Loaded settings from local cache")
+        debugPrint("📱 Loaded settings from local cache")
 
         // Apply verbose logging setting to MultipeerConnectivityManager
         MultipeerConnectivityManager.shared.setVerboseLogging(verboseConnectionLogging)
@@ -299,19 +307,24 @@ class SettingsManager: ObservableObject {
                         UserDefaults.standard.set(verboseLogging, forKey: "verboseConnectionLogging")
                     }
 
+                    if let verboseEnabled = data["verboseLoggingEnabled"] as? Bool {
+                        self.verboseLoggingEnabled = verboseEnabled
+                        UserDefaults.standard.set(verboseEnabled, forKey: "verboseLoggingEnabled")
+                    }
+
                     if let betaEnabled = data["betaFeaturesEnabled"] as? Bool {
                         self.betaFeaturesEnabled = betaEnabled
                         UserDefaults.standard.set(betaEnabled, forKey: "betaFeaturesEnabled")
                     }
 
-                    print("☁️ Loaded settings from Firebase")
+                    debugPrint("☁️ Loaded settings from Firebase")
                 }
             } else {
-                print("📱 No settings in Firebase - saving current settings")
+                debugPrint("📱 No settings in Firebase - saving current settings")
                 await saveToFirebase()
             }
         } catch {
-            print("❌ Failed to load settings from Firebase: \(error)")
+            debugPrint("❌ Failed to load settings from Firebase: \(error)")
         }
     }
 
@@ -323,6 +336,7 @@ class SettingsManager: ObservableObject {
         UserDefaults.standard.set(videoQuality, forKey: "videoQuality")
         UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnectEnabled")
         UserDefaults.standard.set(verboseConnectionLogging, forKey: "verboseConnectionLogging")
+        UserDefaults.standard.set(verboseLoggingEnabled, forKey: "verboseLoggingEnabled")
         UserDefaults.standard.set(betaFeaturesEnabled, forKey: "betaFeaturesEnabled")
 
         // Save to Firebase in background
@@ -333,7 +347,7 @@ class SettingsManager: ObservableObject {
 
     private func saveToFirebase() async {
         guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
-            print("⚠️ No user ID available - skipping Firebase save")
+            debugPrint("⚠️ No user ID available - skipping Firebase save")
             return
         }
 
@@ -346,12 +360,13 @@ class SettingsManager: ObservableObject {
                 "videoQuality": videoQuality,
                 "autoConnectEnabled": autoConnectEnabled,
                 "verboseConnectionLogging": verboseConnectionLogging,
+                "verboseLoggingEnabled": verboseLoggingEnabled,
                 "betaFeaturesEnabled": betaFeaturesEnabled
             ], merge: true)
 
-            print("☁️ Settings saved to Firebase")
+            debugPrint("☁️ Settings saved to Firebase")
         } catch {
-            print("❌ Failed to save settings to Firebase: \(error)")
+            debugPrint("❌ Failed to save settings to Firebase: \(error)")
         }
     }
 

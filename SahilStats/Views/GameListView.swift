@@ -175,7 +175,7 @@ struct GameListView: View {
                     Spacer()
                     NavigationLink(destination: CalendarSettingsView()) {
                         HStack(spacing: 4) {
-                            Image(systemName: "calendar.badge.gearshape")
+                            Image(systemName: "gearshape")
                                 .font(.caption)
                             Text("Manage")
                                 .font(.caption)
