@@ -483,18 +483,18 @@ extension GameListView {
         debugPrint("🏀 Selected calendar game: \(calendarGame.opponent)")
         selectedCalendarGame = calendarGame
 
-        // Get the user's preferred team name (from UserDefaults or email)
-        let userDefaults = UserDefaults.standard
-        let defaultTeamName = userDefaults.string(forKey: "defaultTeamName")
-            ?? userDefaults.string(forKey: "teamName")
-            ?? authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized
-            ?? "Home"
+        // Get user's settings from SettingsManager (includes Firebase sync)
+        let settingsManager = SettingsManager.shared
+        let (gameFormat, quarterLength) = settingsManager.getDefaultGameSettings()
 
-        // Create game settings with user's team name and defaults
+        // Extract team name from calendar event title
+        // For "UNEQLD Boys 9/10U - Tentative: NBBA Tourney", extract "UNEQLD Boys 9/10U"
+        let teamName = extractTeamNameFromTitle(calendarGame.title)
+
         let settings = GameSettings(
-            teamName: defaultTeamName,
-            quarterLength: 8, // User can edit in confirmation screen
-            gameFormat: .quarters // User can edit in confirmation screen
+            teamName: teamName,
+            quarterLength: quarterLength,
+            gameFormat: gameFormat
         )
 
         // Create live game from calendar
@@ -503,6 +503,40 @@ extension GameListView {
 
         // Show confirmation screen (user can edit opponent, location, settings)
         showingGameConfirmation = true
+    }
+
+    // Extract team name from calendar event title
+    private func extractTeamNameFromTitle(_ title: String) -> String {
+        // Check for " - " pattern (tournament format)
+        if let dashRange = title.range(of: " - ") {
+            let teamPart = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Check for " at " pattern
+        if let atRange = title.range(of: " at ", options: .caseInsensitive) {
+            let teamPart = String(title[..<atRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Check for " vs " pattern
+        if let vsRange = title.range(of: " vs ", options: .caseInsensitive) {
+            let teamPart = String(title[..<vsRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Fallback to UserDefaults or email
+        let userDefaults = UserDefaults.standard
+        return userDefaults.string(forKey: "defaultTeamName")
+            ?? userDefaults.string(forKey: "teamName")
+            ?? authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized
+            ?? "Home"
     }
 
     private func startGameFromCalendar(_ liveGame: LiveGame) {

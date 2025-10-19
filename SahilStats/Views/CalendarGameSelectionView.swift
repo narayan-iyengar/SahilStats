@@ -324,9 +324,9 @@ struct CalendarGameCard: View {
                         )
                         .frame(width: isIPad ? 50 : 40)
 
-                    // Opponent info
+                    // Game matchup info
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(game.opponent)
+                        Text(gameMatchupText)
                             .font(isIPad ? .title2 : .title3)
                             .fontWeight(.bold)
                             .foregroundColor(.primary)
@@ -443,6 +443,42 @@ struct CalendarGameCard: View {
 
         // Otherwise return the full location
         return location
+    }
+
+    private var gameMatchupText: String {
+        // Extract team name from title
+        let teamName = extractTeamName(from: game.title)
+        // Return "Team vs Opponent" format
+        return "\(teamName) vs \(game.opponent)"
+    }
+
+    private func extractTeamName(from title: String) -> String {
+        // Check for " - " pattern (tournament format)
+        if let dashRange = title.range(of: " - ") {
+            let teamPart = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Check for " at " pattern
+        if let atRange = title.range(of: " at ", options: .caseInsensitive) {
+            let teamPart = String(title[..<atRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Check for " vs " pattern
+        if let vsRange = title.range(of: " vs ", options: .caseInsensitive) {
+            let teamPart = String(title[..<vsRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Fallback to a generic team name
+        return "Team"
     }
 }
 
