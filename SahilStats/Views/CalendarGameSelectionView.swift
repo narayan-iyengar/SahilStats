@@ -213,12 +213,9 @@ struct CalendarGameSelectionView: View {
         let settingsManager = SettingsManager.shared
         let (gameFormat, quarterLength) = settingsManager.getDefaultGameSettings()
 
-        // Get team name from UserDefaults or email
-        let userDefaults = UserDefaults.standard
-        let teamName = userDefaults.string(forKey: "defaultTeamName")
-            ?? userDefaults.string(forKey: "teamName")
-            ?? authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized
-            ?? "Home"
+        // Extract team name from calendar event title
+        // For "UNEQLD Boys 9/10U - Tentative: NBBA Tourney", extract "UNEQLD Boys 9/10U"
+        let teamName = extractTeamNameFromTitle(calendarGame.title)
 
         let settings = GameSettings(
             teamName: teamName,
@@ -232,6 +229,40 @@ struct CalendarGameSelectionView: View {
 
         // Show confirmation screen
         showingGameConfirmation = true
+    }
+
+    // Extract team name from calendar event title
+    private func extractTeamNameFromTitle(_ title: String) -> String {
+        // Check for " - " pattern (tournament format)
+        if let dashRange = title.range(of: " - ") {
+            let teamPart = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Check for " at " pattern
+        if let atRange = title.range(of: " at ", options: .caseInsensitive) {
+            let teamPart = String(title[..<atRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Check for " vs " pattern
+        if let vsRange = title.range(of: " vs ", options: .caseInsensitive) {
+            let teamPart = String(title[..<vsRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !teamPart.isEmpty {
+                return teamPart
+            }
+        }
+
+        // Fallback to UserDefaults or email
+        let userDefaults = UserDefaults.standard
+        return userDefaults.string(forKey: "defaultTeamName")
+            ?? userDefaults.string(forKey: "teamName")
+            ?? authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized
+            ?? "Home"
     }
 
     private func startGame(_ liveGame: LiveGame) {
