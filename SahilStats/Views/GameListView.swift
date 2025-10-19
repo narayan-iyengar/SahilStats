@@ -9,9 +9,10 @@ import FirebaseAuth
 struct GameListView: View {
     @ObservedObject private var firebaseService = FirebaseService.shared
     @ObservedObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var calendarManager = GameCalendarManager.shared
     @EnvironmentObject var authService: AuthService
     @StateObject private var filterManager = GameFilterManager()
-    
+
     @State private var selectedGame: Game?
     @State private var hoveredGameId: String?
     @State private var showingDeleteAlert = false
@@ -23,6 +24,12 @@ struct GameListView: View {
     @State private var showingRoleSelection = false
     @State private var showingDeleteError = false
     @State private var deleteErrorMessage = ""
+    @State private var showingCalendarGames = false
+    @State private var showingQRScanner = false
+    @State private var selectedCalendarGame: GameCalendarManager.CalendarGame?
+    @State private var editableGame: LiveGame?
+    @State private var showingGameConfirmation = false
+    @State private var showingQRCode = false
 
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -81,6 +88,27 @@ struct GameListView: View {
                 RoleSelectionSheet(liveGame: liveGame)
             }
         }
+        .sheet(isPresented: $showingCalendarGames) {
+            CalendarGameSelectionView()
+                .environmentObject(authService)
+        }
+        .fullScreenCover(isPresented: $showingQRScanner) {
+            QRCodeScannerView()
+        }
+        .sheet(isPresented: $showingGameConfirmation) {
+            if let game = editableGame {
+                GameConfirmationView(
+                    liveGame: game,
+                    onStart: startGameFromCalendar,
+                    onCancel: { showingGameConfirmation = false }
+                )
+            }
+        }
+        .fullScreenCover(isPresented: $showingQRCode) {
+            if let game = editableGame {
+                GameQRCodeDisplayView(liveGame: game)
+            }
+        }
         .refreshable {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
@@ -112,34 +140,54 @@ struct GameListView: View {
     private var contentView: some View {
         if firebaseService.isLoading {
             LoadingView()
-        } else if sortedGames.isEmpty {
+        } else if sortedGames.isEmpty && upcomingGames.isEmpty {
             EmptyStateView(canCreateGames: authService.canCreateGames, isIPad: isIPad)
         } else {
             List {
-                // Career Stats Section
-                if shouldShowCareerStats {
-                    Section {
-                        ModernCareerDashboard(
-                            stats: firebaseService.getCareerStats(),
-                            games: sortedGames,
-                            isViewingTrends: $isViewingTrends,
-                            isIPad: isIPad
-                        )
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: -35, leading: 0, bottom: 8, trailing: 0))
-                }
-                
-                // Games Section
-                if !isViewingTrends {
-                    gamesListSection
-                }
+                // Upcoming Games Section (from calendar)
+                upcomingGamesSection
+
+                // Past Games Section
+                gamesListSection
             }
             .listStyle(PlainListStyle())
         }
     }
     
+    @ViewBuilder
+    private var upcomingGamesSection: some View {
+        if !upcomingGames.isEmpty {
+            Section {
+                ForEach(upcomingGames) { game in
+                    CalendarGameCard(
+                        game: game,
+                        isIPad: isIPad,
+                        onSelect: {
+                            selectCalendarGame(game)
+                        }
+                    )
+                }
+            } header: {
+                HStack {
+                    Text("Upcoming Games")
+                        .font(isIPad ? .title2 : .headline)
+                        .fontWeight(.bold)
+                    Spacer()
+                    NavigationLink(destination: CalendarSettingsView()) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar.badge.gearshape")
+                                .font(.caption)
+                            Text("Manage")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.orange)
+                    }
+                }
+            }
+            .listRowBackground(Color(.systemBackground))
+        }
+    }
+
     @ViewBuilder
     private var gamesListSection: some View {
         // Active filters display
@@ -242,23 +290,31 @@ struct GameListView: View {
                     }
                 }
                 
-                /*
-                // New Game button (only shown if user can create games)
+                // New Game button with menu
                 if authService.canCreateGames {
                     Menu {
-                        // Quick Basketball Setup
-                        Button(action: { 
-                            NavigationCoordinator.shared.markUserHasInteracted()
-                            showingNewGame = true 
+                        // Calendar Games (NEW - Top priority!)
+                        Button(action: {
+                            showingCalendarGames = true
                         }) {
-                            Label("Setup New Game", systemImage: "plus.circle")
+                            Label("Upcoming Games", systemImage: "calendar")
                         }
-                        
-                        // Basketball Game Mode (Simplified)
-                        Button(action: { 
-                            startBasketballMode() 
+
+                        // QR Scanner (NEW - Easy pairing!)
+                        Button(action: {
+                            showingQRScanner = true
                         }) {
-                            Label("Basketball Game Mode", systemImage: "basketball")
+                            Label("Scan to Join Game", systemImage: "qrcode.viewfinder")
+                        }
+
+                        Divider()
+
+                        // Manual Setup (existing)
+                        Button(action: {
+                            NavigationCoordinator.shared.markUserHasInteracted()
+                            showingNewGame = true
+                        }) {
+                            Label("Manual Setup", systemImage: "plus.circle")
                         }
                     } label: {
                         Image(systemName: "plus.circle.fill")
@@ -272,7 +328,6 @@ struct GameListView: View {
                             .foregroundColor(.orange)
                     }
                 }
-                 */
             }
         }
     }
@@ -301,7 +356,12 @@ struct GamesSectionHeader: View {
 
 // MARK: - Computed Properties
 extension GameListView {
-    
+
+    private var upcomingGames: [GameCalendarManager.CalendarGame] {
+        // Get up to 5 upcoming games from calendar
+        Array(calendarManager.upcomingGames.prefix(5))
+    }
+
     /*
     private var sortedGames: [Game] {
         firebaseService.games.sorted { $0.timestamp > $1.timestamp }
@@ -313,7 +373,7 @@ extension GameListView {
             // This ensures they are treated as "older" and sorted to the end.
             let date1 = $0.timestamp ?? .distantPast
             let date2 = $1.timestamp ?? .distantPast
-            
+
             // Sort descending, so recent games appear first.
             return date1 > date2
         }
@@ -360,11 +420,7 @@ extension GameListView {
     private var hasActiveFilters: Bool {
         !effectiveSearchText.isEmpty || filterManager.activeFiltersCount > 0
     }
-    
-    private var shouldShowCareerStats: Bool {
-        !hasActiveFilters && !sortedGames.isEmpty
-    }
-    
+
     private var hasMoreGames: Bool {
         displayedGames.count < filteredGames.count
     }
@@ -420,12 +476,69 @@ extension GameListView {
         print("🏀 Starting Basketball Mode - Smart Device Setup")
         NavigationCoordinator.shared.markUserHasInteracted()
         NavigationCoordinator.shared.userExplicitlyJoinedGame = true
-        
+
         // This will automatically:
         // 1. iPad → Controller role (stats management)
         // 2. iPhone → Recorder role (camera on tripod)
         // 3. Auto-start recording when game begins
         showingNewGame = true
+    }
+
+    private func selectCalendarGame(_ calendarGame: GameCalendarManager.CalendarGame) {
+        print("🏀 Selected calendar game: \(calendarGame.opponent)")
+        selectedCalendarGame = calendarGame
+
+        // Get the user's preferred team name (from UserDefaults or email)
+        let userDefaults = UserDefaults.standard
+        let defaultTeamName = userDefaults.string(forKey: "defaultTeamName")
+            ?? userDefaults.string(forKey: "teamName")
+            ?? authService.currentUser?.email?.components(separatedBy: "@").first?.capitalized
+            ?? "Home"
+
+        // Create game settings with user's team name and defaults
+        let settings = GameSettings(
+            teamName: defaultTeamName,
+            quarterLength: 8, // User can edit in confirmation screen
+            gameFormat: .quarters // User can edit in confirmation screen
+        )
+
+        // Create live game from calendar
+        let liveGame = calendarManager.createLiveGameFromCalendar(calendarGame, settings: settings)
+        editableGame = liveGame
+
+        // Show confirmation screen (user can edit opponent, location, settings)
+        showingGameConfirmation = true
+    }
+
+    private func startGameFromCalendar(_ liveGame: LiveGame) {
+        Task {
+            do {
+                // Create live game in Firebase
+                let gameId = try await firebaseService.createLiveGame(liveGame)
+                print("✅ Live game created from calendar: \(gameId)")
+
+                // Update editableGame with the ID
+                var gameWithId = liveGame
+                gameWithId.id = gameId
+                editableGame = gameWithId
+
+                // Dismiss confirmation screen
+                await MainActor.run {
+                    showingGameConfirmation = false
+                }
+
+                // Show QR code for camera phone to scan
+                await MainActor.run {
+                    showingQRCode = true
+                }
+            } catch {
+                print("❌ Failed to create game from calendar: \(error)")
+                await MainActor.run {
+                    deleteErrorMessage = "Failed to create game: \(error.localizedDescription)"
+                    showingDeleteError = true
+                }
+            }
+        }
     }
 }
 
