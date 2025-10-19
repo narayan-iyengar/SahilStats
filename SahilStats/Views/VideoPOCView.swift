@@ -24,6 +24,19 @@ struct VideoPOCView: View {
     @State private var processingError: String?
     @State private var processingComplete = false
 
+    // Player detection state
+    @State private var isDetectingPlayer = false
+    @State private var detectionProgress: Double = 0
+    @State private var detectedPlayerFrames: Int = 0
+    @State private var detectionComplete = false
+    @State private var detectionError: String?
+
+    // Player selection state
+    @State private var showingPlayerSelection = false
+    @State private var detectedPeopleForSelection: [DetectedPerson] = []
+    @State private var selectionFrame: VideoFrame?
+    @State private var selectedPersonIndex: Int?
+
     enum TestVideo: String, CaseIterable {
         case justHoop = "Just Hoop"
         case teamElite = "Team Elite"
@@ -381,35 +394,114 @@ struct VideoPOCView: View {
                     .shadow(radius: 2)
                     .opacity(retrievedGame == nil ? 0.5 : 1.0)
 
-                    // Step 3: Compare Results (Coming Soon)
+                    // Step 3: Detect Player
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             Image(systemName: "3.circle.fill")
                                 .font(.title2)
-                                .foregroundColor(.gray)
-                            Text("Compare & Calculate Accuracy")
+                                .foregroundColor(processingComplete == false ? .gray : .blue)
+                            Text("Detect Player (#3)")
                                 .font(.headline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(processingComplete == false ? .gray : .primary)
                         }
 
-                        Text("Final step: Compare AI-detected stats with actual stats and calculate accuracy percentage.")
+                        Text("Use Apple Vision to find Sahil (#3 in \(selectedVideo.jerseyColor) jersey) across all frames.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
 
-                        Text("Coming soon...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .italic()
-                            .frame(maxWidth: .infinity)
+                        if detectionComplete {
+                            // Success state
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("Player Detection Complete!")
+                                        .fontWeight(.semibold)
+                                }
+
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Frames Analyzed:")
+                                        Spacer()
+                                        Text("300")
+                                    }
+                                    .font(.caption)
+
+                                    HStack {
+                                        Text("Player Detected In:")
+                                        Spacer()
+                                        Text("\(detectedPlayerFrames)")
+                                            .fontWeight(.bold)
+                                    }
+                                    .font(.caption)
+
+                                    HStack {
+                                        Text("Detection Rate:")
+                                        Spacer()
+                                        Text("\(String(format: "%.1f", Double(detectedPlayerFrames) / 300.0 * 100))%")
+                                            .fontWeight(.bold)
+                                    }
+                                    .font(.caption)
+                                }
+                            }
                             .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(8)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(12)
+
+                        } else if isDetectingPlayer {
+                            // Processing in progress
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Detecting player in frames...")
+                                    Spacer()
+                                    Text("\(Int(detectionProgress * 100))%")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .font(.subheadline)
+
+                                ProgressView(value: detectionProgress)
+
+                                Text("Found in \(detectedPlayerFrames) frames so far")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+
+                        } else {
+                            // Not started yet
+                            Button(action: detectPlayer) {
+                                HStack {
+                                    Image(systemName: "person.fill.viewfinder")
+                                    Text("Detect Player in Frames")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(processingComplete == false ? Color.gray : Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(processingComplete == false)
+                        }
+
+                        if let error = detectionError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(8)
+                        }
                     }
                     .padding()
                     .background(Color(.systemBackground))
                     .cornerRadius(16)
                     .shadow(radius: 2)
-                    .opacity(retrievedGame == nil ? 0.5 : 1.0)
+                    .opacity(processingComplete == false ? 0.5 : 1.0)
 
                     Spacer(minLength: 32)
                 }
@@ -421,6 +513,15 @@ struct VideoPOCView: View {
                 if let game = retrievedGame {
                     DetailedStatsView(game: game)
                 }
+            }
+            .sheet(isPresented: $showingPlayerSelection) {
+                PlayerSelectionView(
+                    frame: selectionFrame,
+                    people: detectedPeopleForSelection,
+                    onSelect: { index in
+                        startTrackingWithSelection(index)
+                    }
+                )
             }
             .confirmationDialog("Select Test Video", isPresented: $showingVideoSelection) {
                 ForEach(TestVideo.allCases, id: \.self) { video in
@@ -545,8 +646,11 @@ struct VideoPOCView: View {
                     .appendingPathComponent("POC_Frames", isDirectory: true)
                 try VideoFrameExtractor.shared.saveFramesToDisk(frames: frames, directory: framesDir)
 
+                // Only keep first 5 frames for UI preview (save memory)
+                let previewFrames = Array(frames.prefix(5))
+
                 await MainActor.run {
-                    self.extractedFrames = frames
+                    self.extractedFrames = previewFrames
                     self.processingComplete = true
                     self.isProcessingVideo = false
                 }
@@ -555,6 +659,7 @@ struct VideoPOCView: View {
                 print("✅ STEP 2 COMPLETE!")
                 print("   Frames extracted: \(frames.count)")
                 print("   Frames saved to: \(framesDir.path)")
+                print("   (Keeping 5 preview frames in memory)")
                 print(String(repeating: "=", count: 50) + "\n")
 
             } catch {
@@ -563,6 +668,137 @@ struct VideoPOCView: View {
                     self.isProcessingVideo = false
                 }
                 print("\n❌ Step 2 failed: \(error)")
+            }
+        }
+    }
+
+    private func detectPlayer() {
+        // Step 1: Show player selection UI
+        Task {
+            do {
+                print("\n" + String(repeating: "=", count: 50))
+                print("🎯 STEP 3: PLAYER DETECTION (Manual Selection)")
+                print(String(repeating: "=", count: 50))
+
+                // Load frames from disk
+                let framesDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("POC_Frames", isDirectory: true)
+
+                guard let frameFiles = try? FileManager.default.contentsOfDirectory(
+                    at: framesDir,
+                    includingPropertiesForKeys: nil
+                ).sorted(by: { $0.path < $1.path }) else {
+                    throw PlayerTracker.TrackingError.trackingFailed("Could not read frames from disk")
+                }
+
+                print("   Loaded \(frameFiles.count) frame files")
+
+                // Find a frame where Sahil should be (around 3:20 = 200 seconds)
+                // Sahil's first score at 20:16 (1,216 seconds)
+                // Use frame around 20:00 (1,200 seconds) for player selection
+                let selectionFrameIndex = min(1200, frameFiles.count - 1)
+                let selectionFrameFile = frameFiles[selectionFrameIndex]
+
+                guard let image = UIImage(contentsOfFile: selectionFrameFile.path) else {
+                    throw PlayerTracker.TrackingError.trackingFailed("Could not load selection frame")
+                }
+
+                let frame = VideoFrame(image: image, timestamp: Double(selectionFrameIndex), frameNumber: selectionFrameIndex)
+
+                // Detect all people in this frame
+                let people = try await PlayerTracker.shared.detectPeopleForSelection(in: frame)
+
+                guard !people.isEmpty else {
+                    throw PlayerTracker.TrackingError.noPlayersDetected
+                }
+
+                print("   Found \(people.count) people in frame \(selectionFrameIndex)")
+                print("   Showing selection UI...")
+
+                // Show selection UI
+                await MainActor.run {
+                    self.selectionFrame = frame
+                    self.detectedPeopleForSelection = people
+                    self.showingPlayerSelection = true
+                }
+
+            } catch {
+                await MainActor.run {
+                    self.detectionError = "Detection failed: \(error.localizedDescription)"
+                }
+                print("\n❌ Step 3 failed: \(error)")
+            }
+        }
+    }
+
+    private func startTrackingWithSelection(_ personIndex: Int) {
+        guard let frame = selectionFrame,
+              personIndex < detectedPeopleForSelection.count else {
+            return
+        }
+
+        let selectedPerson = detectedPeopleForSelection[personIndex]
+
+        isDetectingPlayer = true
+        detectionError = nil
+        detectionProgress = 0
+        detectedPlayerFrames = 0
+        detectionComplete = false
+        showingPlayerSelection = false
+
+        Task {
+            do {
+                print("\n🎯 Starting tracking with selected player...")
+                print("   Selected person \(personIndex) from frame \(frame.frameNumber)")
+
+                // Load all frames
+                let framesDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("POC_Frames", isDirectory: true)
+
+                let frameFiles = try FileManager.default.contentsOfDirectory(
+                    at: framesDir,
+                    includingPropertiesForKeys: nil
+                ).sorted(by: { $0.path < $1.path })
+
+                // Load frames into memory (only the ones we need to track through)
+                var frames: [VideoFrame] = []
+                for (index, frameFile) in frameFiles.enumerated() {
+                    if let image = UIImage(contentsOfFile: frameFile.path) {
+                        let videoFrame = VideoFrame(image: image, timestamp: Double(index), frameNumber: index)
+                        frames.append(videoFrame)
+                    }
+                }
+
+                // Track player through all frames
+                let trackedPeople = try await PlayerTracker.shared.trackPlayer(
+                    initialPerson: selectedPerson,
+                    throughFrames: frames
+                ) { progress, count in
+                    Task { @MainActor in
+                        self.detectionProgress = progress
+                        self.detectedPlayerFrames = count
+                    }
+                }
+
+                await MainActor.run {
+                    self.detectedPlayerFrames = trackedPeople.count
+                    self.detectionComplete = true
+                    self.isDetectingPlayer = false
+                }
+
+                print("\n" + String(repeating: "=", count: 50))
+                print("✅ STEP 3 COMPLETE!")
+                print("   Frames processed: \(frames.count)")
+                print("   Player tracked in: \(trackedPeople.count) frames")
+                print("   Tracking rate: \(String(format: "%.1f", Double(trackedPeople.count) / Double(frames.count) * 100))%")
+                print(String(repeating: "=", count: 50) + "\n")
+
+            } catch {
+                await MainActor.run {
+                    self.detectionError = "Tracking failed: \(error.localizedDescription)"
+                    self.isDetectingPlayer = false
+                }
+                print("\n❌ Tracking failed: \(error)")
             }
         }
     }
@@ -748,6 +984,75 @@ struct SimpleStatRow: View {
                 .fontWeight(.semibold)
         }
         .font(.subheadline)
+    }
+}
+
+// MARK: - Player Selection Sheet
+
+struct PlayerSelectionView: View {
+    let frame: VideoFrame?
+    let people: [DetectedPerson]
+    let onSelect: (Int) -> Void
+
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Instructions
+                    VStack(spacing: 8) {
+                        Text("Select Sahil (#3 in BLACK)")
+                            .font(.headline)
+
+                        Text("Tap the person wearing #3 to start tracking")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+
+                    // Show detected people as thumbnails
+                    ForEach(Array(people.enumerated()), id: \.offset) { index, person in
+                        Button(action: {
+                            onSelect(index)
+                        }) {
+                            VStack(spacing: 12) {
+                                // Show thumbnail
+                                if let thumbnail = PlayerTracker.shared.extractThumbnail(for: person, targetSize: CGSize(width: 300, height: 300)) {
+                                    Image(uiImage: thumbnail)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(maxWidth: 300, maxHeight: 300)
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.blue, lineWidth: 2)
+                                        )
+                                }
+
+                                Text("Person \(index + 1)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(16)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Select Player")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

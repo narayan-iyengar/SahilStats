@@ -724,7 +724,7 @@ struct CleanVideoRecordingView: View {
             }
 
             // Clear the recording manager's reference
-            await recordingManager.clearLastRecording()
+            recordingManager.clearLastRecording()
         } else {
             print("   No recording to discard")
         }

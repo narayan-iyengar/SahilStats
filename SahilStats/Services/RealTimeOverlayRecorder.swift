@@ -1113,9 +1113,6 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
         guard writer.status == .writing else { return }
 
         if audioInput.isReadyForMoreMediaData {
-            let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-            let adjustedTimestamp = CMTimeSubtract(timestamp, recordingStartTime ?? .zero)
-
             audioInput.append(sampleBuffer)
         }
     }

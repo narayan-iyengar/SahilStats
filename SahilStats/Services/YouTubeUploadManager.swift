@@ -180,7 +180,6 @@ class YouTubeUploadManager: ObservableObject {
 
                 await MainActor.run {
                     var shouldStopRetrying = false
-                    var isQuotaError = false
 
                     // Check if it's an auth error (401 or 403)
                     if let uploadError = error as? UploadError {
@@ -195,7 +194,6 @@ class YouTubeUploadManager: ObservableObject {
                         case .quotaExceeded:
                             print("⚠️ YouTube quota exceeded - stopping retry until quota resets")
                             shouldStopRetrying = true
-                            isQuotaError = true
 
                             // Store local video URL so users can watch locally while waiting for quota
                             Task {

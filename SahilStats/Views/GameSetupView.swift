@@ -38,7 +38,7 @@ struct GameSetupView: View {
             ConnectionWaitingRoomView()
         }
         .fullScreenCover(isPresented: $showingLiveGameView) {
-            if let game = createdLiveGame {
+            if createdLiveGame != nil {
                 LiveGameView() // Your existing live game view
             }
         }

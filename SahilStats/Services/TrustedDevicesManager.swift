@@ -179,7 +179,7 @@ class TrustedDevicesManager: ObservableObject {
             var peers = self.trustedPeers
             let initialCount = peers.count
             peers.removeAll { $0.id == peerID.displayName }
-            
+
             if peers.count < initialCount {
                 self.trustedPeers = peers
                 print("🗑️ Removed trusted peer: \(peerID.displayName)")
@@ -187,6 +187,12 @@ class TrustedDevicesManager: ObservableObject {
                 print("⚠️ Peer not found for removal: \(peerID.displayName)")
             }
         }
+    }
+
+    /// Remove a peer from trusted devices using TrustedPeer object
+    func removeTrustedPeer(_ peer: TrustedPeer) {
+        let peerID = MCPeerID(displayName: peer.id)
+        removeTrustedPeer(peerID)
     }
     
     /// Update last connected timestamp for a peer
@@ -227,6 +233,12 @@ class TrustedDevicesManager: ObservableObject {
             print("✏️ Updated friendly name for \(peerID.displayName) to '\(friendlyName ?? "default")'")
         }
     }
+
+    /// Update friendly name for a trusted peer using TrustedPeer object
+    func updateFriendlyName(for peer: TrustedPeer, friendlyName: String?) {
+        let peerID = MCPeerID(displayName: peer.id)
+        updateFriendlyName(peerID, friendlyName: friendlyName)
+    }
     
     /// Get all trusted peers
     var allTrustedPeers: [TrustedPeer] {
@@ -249,6 +261,11 @@ class TrustedDevicesManager: ObservableObject {
             self?.trustedPeers = []
             print("🗑️ Cleared all trusted devices")
         }
+    }
+
+    /// Clear all trusted peers (alias for clearAllTrustedDevices)
+    func clearAllTrustedPeers() {
+        clearAllTrustedDevices()
     }
     
     /// Remove a trusted device by TrustedDevice object

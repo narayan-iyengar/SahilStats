@@ -44,7 +44,15 @@ class VideoFrameExtractor {
         let frameInterval = 1.0 / fps
         let totalFrames = Int(durationSeconds * fps)
 
-        print("   Extracting ~\(totalFrames) frames (1 every \(String(format: "%.1f", frameInterval))s)")
+        // Safety check: limit frames for PoC (prevent memory issues)
+        let maxFrames = 2700 // ~45 minutes at 1fps (full game)
+        if totalFrames > maxFrames {
+            print("   ⚠️ WARNING: Video reports \(totalFrames) frames (\(String(format: "%.1f", durationSeconds))s)")
+            print("   ⚠️ This seems incorrect. Limiting to \(maxFrames) frames for safety.")
+            print("   ⚠️ Video metadata may be corrupted. Please check video duration.")
+        }
+
+        print("   Extracting ~\(min(totalFrames, maxFrames)) frames (1 every \(String(format: "%.1f", frameInterval))s)")
 
         // Create image generator
         let imageGenerator = AVAssetImageGenerator(asset: asset)
@@ -59,7 +67,9 @@ class VideoFrameExtractor {
         var currentTime: Double = 0
         var timePoints: [CMTime] = []
 
-        while currentTime < durationSeconds {
+        let effectiveDuration = min(durationSeconds, Double(maxFrames) * frameInterval)
+
+        while currentTime < effectiveDuration {
             let cmTime = CMTime(seconds: currentTime, preferredTimescale: 600)
             timePoints.append(cmTime)
             currentTime += frameInterval

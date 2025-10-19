@@ -1788,7 +1788,7 @@ struct LiveGameControllerView: View {
 
                 // Use setData to save with specific ID (NOT addGame which creates new ID)
                 let db = Firestore.firestore()
-                try await db.collection("games").document(liveGameId).setData(from: finalGameWithId)
+                try db.collection("games").document(liveGameId).setData(from: finalGameWithId)
 
                 print("✅ Game saved with ID: \(liveGameId)")
 

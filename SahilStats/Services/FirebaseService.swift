@@ -313,9 +313,9 @@ class FirebaseService: ObservableObject {
         guard let id = liveGame.id else {
             throw NSError(domain: "FirebaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Live game ID is required"])
         }
-        
+
         do {
-            try await db.collection("liveGames").document(id).setData(from: liveGame)
+            try db.collection("liveGames").document(id).setData(from: liveGame)
             print("✅ Live game updated successfully: \(id)")
         } catch {
             print("❌ Failed to update live game: \(error)")
@@ -471,9 +471,9 @@ class FirebaseService: ObservableObject {
     }
     
     // MARK: - Teams
-    
+
     func addTeam(_ team: Team) async throws {
-        _ = try await db.collection("teams").addDocument(from: team)
+        _ = try db.collection("teams").addDocument(from: team)
     }
     
     func deleteTeam(_ teamId: String) async throws {

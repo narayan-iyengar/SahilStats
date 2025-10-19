@@ -84,7 +84,7 @@ class VideoOverlayCompositor {
 
             if let audioTrack = audioTracks.first,
                let compAudioTrack = compositionAudioTrack {
-                try await audioTrack.load(.timeRange)
+                _ = try await audioTrack.load(.timeRange)
                 try compAudioTrack.insertTimeRange(
                     CMTimeRange(start: .zero, duration: duration),
                     of: audioTrack,

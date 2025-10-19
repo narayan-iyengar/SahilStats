@@ -71,6 +71,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Resources/test_video.mp4,
 			);
 			target = 8BFE142C2E7B5A8E00CED835 /* SahilStats */;
 		};

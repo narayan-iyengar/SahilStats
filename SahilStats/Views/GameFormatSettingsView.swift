@@ -8,13 +8,15 @@ import SwiftUI
 
 struct GameFormatSettingsView: View {
     @StateObject private var settingsManager = SettingsManager.shared
-    
+
     var body: some View {
         List {
             Section {
+                // Use Picker like in GameSetupView
                 Picker("Format", selection: $settingsManager.gameFormat) {
-                    Text("Halves").tag(GameFormat.halves)
-                    Text("Quarters").tag(GameFormat.quarters)
+                    ForEach(GameFormat.allCases, id: \.self) { format in
+                        Text(format.displayName).tag(format)
+                    }
                 }
                 .pickerStyle(.segmented)
             } header: {
@@ -22,21 +24,15 @@ struct GameFormatSettingsView: View {
             } footer: {
                 Text("Choose whether games are divided into halves or quarters.")
             }
-            
+
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        TextField("Minutes", value: $settingsManager.quarterLength, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
-                        Text("minutes")
-                            .foregroundColor(.secondary)
-                    }
-                }
+                // Use Stepper with +/- buttons like in GameSetupView
+                Stepper("\(settingsManager.gameFormat.quarterName) Length: \(settingsManager.quarterLength) min",
+                        value: $settingsManager.quarterLength, in: 1...30)
             } header: {
                 Text("Length per \(settingsManager.gameFormat.quarterName)")
             } footer: {
-                Text("Set the duration for each \(settingsManager.gameFormat.quarterName.lowercased()).")
+                Text("Set the duration for each \(settingsManager.gameFormat.quarterName.lowercased()). This will be used as the default for new games.")
             }
         }
         .navigationTitle("Game Format")

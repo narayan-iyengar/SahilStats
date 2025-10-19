@@ -65,21 +65,32 @@ class YouTubeDownloader {
     private func checkForManualDownload(youtubeURL: String) async throws -> URL {
         print("⚠️ Checking for cached/manually downloaded video...")
 
+        // Check bundled test video first (for device testing)
+        if let bundledVideoPath = Bundle.main.path(forResource: "test_video", ofType: "mp4") {
+            let bundledURL = URL(fileURLWithPath: bundledVideoPath)
+            print("✅ Found bundled test video: \(bundledURL.path)")
+            return bundledURL
+        }
+
         // Check specific cached locations first (highest priority)
         // Support both .mp4 and .ts extensions (yt-dlp sometimes downloads as .ts)
         let cachedPaths = [
             // App's Documents directory (always accessible, sandbox-safe)
-            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video.ts"),
             FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video.mp4"),
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video_720p.mp4"),
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video.ts"),
             // Temporary directory
-            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.ts"),
+            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video_720p.mp4"),
             FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.mp4"),
+            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.ts"),
             // /tmp (works for simulator)
-            URL(fileURLWithPath: "/tmp/POC_Videos/video.ts"),
+            URL(fileURLWithPath: "/tmp/POC_Videos/video_720p.mp4"),
             URL(fileURLWithPath: "/tmp/POC_Videos/video.mp4"),
+            URL(fileURLWithPath: "/tmp/POC_Videos/video.ts"),
             // User's Downloads (works outside sandbox)
-            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.ts"),
-            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4")
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video_720p.mp4"),
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4"),
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.ts")
         ]
 
         print("   Checking paths:")

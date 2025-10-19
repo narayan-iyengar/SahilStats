@@ -9,6 +9,16 @@ import SwiftUI
 final class MultipeerConnectivityManager: NSObject, ObservableObject {
     static let shared = MultipeerConnectivityManager()
 
+    // MARK: - Debug Configuration
+    /// Controlled by Settings toggle - defaults to OFF for production/gym use
+    private static var enableVerboseLogging = false
+
+    /// Update verbose logging setting (called from Settings)
+    func setVerboseLogging(_ enabled: Bool) {
+        Self.enableVerboseLogging = enabled
+        log("Verbose logging \(enabled ? "enabled" : "disabled")")
+    }
+
     // MARK: - State Machine
     enum ConnectionState: Equatable {
         case idle
@@ -41,7 +51,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         }
 
         static func getFriendlyName(for peerDisplayName: String) -> String {
-            let peerID = MCPeerID(displayName: peerDisplayName)
+            _ = MCPeerID(displayName: peerDisplayName)
             if let trustedPeer = TrustedDevicesManager.shared.allTrustedPeers.first(where: { $0.id == peerDisplayName }) {
                 return trustedPeer.displayName // Uses friendlyName if set, otherwise deviceName
             }
@@ -86,6 +96,11 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         let id = UUID()
         let type: MessageType
         let payload: [String: String]?
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case payload
+        }
     }
 
     // MARK: - Private Properties
@@ -127,10 +142,144 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     private var lastUsedRole: DeviceRole?
     private var shouldAutoReconnect = false
 
+    // MARK: - Adaptive Keep-Alive
+    private var isRecordingActive: Bool = false {
+        didSet {
+            if isRecordingActive != oldValue {
+                print("📹 Recording state changed: \(isRecordingActive ? "STARTED" : "STOPPED")")
+                // Restart keep-alive with new interval if connected
+                if connectionState.isConnected {
+                    print("🔄 Restarting keep-alive with adaptive interval...")
+                    startKeepAlive()
+                }
+            }
+        }
+    }
+
+    // MARK: - Diagnostic Logging
+    private var connectionDiagnostics = ConnectionDiagnostics()
+
+    struct ConnectionDiagnostics {
+        var connectionAttempts: Int = 0
+        var successfulConnections: Int = 0
+        var disconnections: Int = 0
+        var lastConnectionTime: Date?
+        var lastDisconnectionTime: Date?
+        var lastDisconnectionReason: String = "None"
+        var keepAliveSent: Int = 0
+        var keepAliveReceived: Int = 0
+        var messagesReceived: Int = 0
+        var messagesSent: Int = 0
+        var currentSessionStartTime: Date?
+        var longestSessionDuration: TimeInterval = 0
+        var averageSessionDuration: TimeInterval = 0
+        private var sessionDurations: [TimeInterval] = []
+
+        mutating func recordConnection() {
+            connectionAttempts += 1
+            successfulConnections += 1
+            lastConnectionTime = Date()
+            currentSessionStartTime = Date()
+        }
+
+        mutating func recordDisconnection(reason: String = "Unknown") {
+            disconnections += 1
+            lastDisconnectionTime = Date()
+            lastDisconnectionReason = reason
+
+            // Calculate session duration
+            if let startTime = currentSessionStartTime {
+                let duration = Date().timeIntervalSince(startTime)
+                sessionDurations.append(duration)
+                longestSessionDuration = max(longestSessionDuration, duration)
+                averageSessionDuration = sessionDurations.reduce(0, +) / Double(sessionDurations.count)
+            }
+            currentSessionStartTime = nil
+        }
+
+        mutating func recordKeepAliveSent() {
+            keepAliveSent += 1
+        }
+
+        mutating func recordKeepAliveReceived() {
+            keepAliveReceived += 1
+        }
+
+        mutating func recordMessageSent() {
+            messagesSent += 1
+        }
+
+        mutating func recordMessageReceived() {
+            messagesReceived += 1
+        }
+
+        func currentSessionDuration() -> TimeInterval? {
+            guard let startTime = currentSessionStartTime else { return nil }
+            return Date().timeIntervalSince(startTime)
+        }
+
+        func printDiagnostics() {
+            print("""
+
+            ═══════════════════════════════════════════════════════════════
+            📊 MULTIPEER CONNECTION DIAGNOSTICS
+            ═══════════════════════════════════════════════════════════════
+
+            CONNECTION STATISTICS:
+              • Total Connection Attempts: \(connectionAttempts)
+              • Successful Connections:    \(successfulConnections)
+              • Total Disconnections:      \(disconnections)
+              • Connection Success Rate:   \(connectionAttempts > 0 ? String(format: "%.1f%%", Double(successfulConnections) / Double(connectionAttempts) * 100) : "N/A")
+
+            SESSION METRICS:
+              • Longest Session:           \(formatDuration(longestSessionDuration))
+              • Average Session:           \(formatDuration(averageSessionDuration))
+              • Current Session:           \(currentSessionDuration().map { formatDuration($0) } ?? "Not connected")
+
+            LAST CONNECTION:
+              • Connected:                 \(lastConnectionTime.map { formatDate($0) } ?? "Never")
+              • Disconnected:              \(lastDisconnectionTime.map { formatDate($0) } ?? "Never")
+              • Last Disconnect Reason:    \(lastDisconnectionReason)
+
+            KEEP-ALIVE STATISTICS:
+              • Keep-alive Sent:           \(keepAliveSent)
+              • Keep-alive Received:       \(keepAliveReceived)
+              • Keep-alive Health:         \(keepAliveReceived > 0 ? String(format: "%.1f%%", Double(keepAliveReceived) / Double(max(keepAliveSent, 1)) * 100) : "N/A")
+
+            MESSAGE STATISTICS:
+              • Messages Sent:             \(messagesSent)
+              • Messages Received:         \(messagesReceived)
+
+            ═══════════════════════════════════════════════════════════════
+
+            """)
+        }
+
+        private func formatDuration(_ duration: TimeInterval) -> String {
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            return String(format: "%dm %ds", minutes, seconds)
+        }
+
+        private func formatDate(_ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm:ss"
+            return formatter.string(from: date)
+        }
+    }
+
     private override init() {
         super.init()
         session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
         session.delegate = self
+    }
+
+    // MARK: - Conditional Logging Helper
+
+    /// Only prints if verbose logging is enabled - eliminates performance overhead in production
+    private func log(_ message: String) {
+        guard Self.enableVerboseLogging else { return }
+        print(message)
     }
 
     // MARK: - Auto-Connection
@@ -168,7 +317,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         let fallbackRole = roleManager.roleForAutoConnection
         let role = savedRole ?? fallbackRole
 
-        if let saved = savedRole {
+        if savedRole != nil {
             print("🔄 Starting auto-connection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
         } else {
             print("⚠️ No saved role for \(firstTrustedPeer.deviceName), using fallback: \(role.displayName)")
@@ -197,21 +346,61 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         print("🔄 Will attempt reconnection in 5 seconds...")
 
+        // Capture main-actor-isolated values before entering Sendable closure
+        let fallbackRole = self.lastUsedRole ?? .controller
+
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
             guard let self = self else { return }
 
-            // Get the saved role for our trusted peer (same logic as startAutoConnectionIfNeeded)
-            let trustedDevices = TrustedDevicesManager.shared
-            guard let firstTrustedPeer = trustedDevices.allTrustedPeers.first else {
-                print("⚠️ No trusted peers available for reconnection")
-                return
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                // Get the saved role for our trusted peer (same logic as startAutoConnectionIfNeeded)
+                let trustedDevices = TrustedDevicesManager.shared
+                guard let firstTrustedPeer = trustedDevices.allTrustedPeers.first else {
+                    print("⚠️ No trusted peers available for reconnection")
+                    return
+                }
+
+                let peerID = MCPeerID(displayName: firstTrustedPeer.id)
+                let role = trustedDevices.getMyRole(for: peerID) ?? fallbackRole
+
+                print("🔄 Attempting automatic reconnection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
+                self.startSession(role: role)
             }
+        }
+    }
 
-            let peerID = MCPeerID(displayName: firstTrustedPeer.id)
-            let role = trustedDevices.getMyRole(for: peerID) ?? (self.lastUsedRole ?? .controller)
+    // HOTSPOT FIX: Immediate reconnection for transient hotspot disconnects
+    private func startReconnectTimerImmediate() {
+        stopReconnectTimer()
 
-            print("🔄 Attempting automatic reconnection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
-            self.startSession(role: role)
+        guard shouldAutoReconnect else { return }
+
+        print("🔄 IMMEDIATE RECONNECT: Attempting reconnection in 1 second...")
+
+        // Capture main-actor-isolated values before entering Sendable closure
+        let fallbackRole = self.lastUsedRole ?? .controller
+
+        reconnectTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                // Get the saved role for our trusted peer
+                let trustedDevices = TrustedDevicesManager.shared
+                guard let firstTrustedPeer = trustedDevices.allTrustedPeers.first else {
+                    print("⚠️ No trusted peers available for immediate reconnection")
+                    return
+                }
+
+                let peerID = MCPeerID(displayName: firstTrustedPeer.id)
+                let role = trustedDevices.getMyRole(for: peerID) ?? fallbackRole
+
+                print("🔄 IMMEDIATE RECONNECT: Reconnecting as \(role.displayName)")
+                self.startSession(role: role)
+            }
         }
     }
 
@@ -284,6 +473,13 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         do {
             let data = try JSONEncoder().encode(message)
             try session.send(data, toPeers: [peer], with: .reliable)
+
+            // DIAGNOSTICS: Track messages sent
+            connectionDiagnostics.recordMessageSent()
+            if message.type == .pong {
+                connectionDiagnostics.recordKeepAliveSent()
+            }
+
             if message.type != .ping && message.type != .pong {
                 print("📤 Sent message: \(message.type)")
             }
@@ -328,6 +524,83 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     func sendRequestForRecordingState() {
         sendMessage(Message(type: .requestRecordingState, payload: nil))
+    }
+
+    // MARK: - Recording State Management
+
+    /// Notify connection manager that recording has started
+    /// This reduces keep-alive frequency to avoid interfering with video encoding
+    func notifyRecordingStarted() {
+        isRecordingActive = true
+    }
+
+    /// Notify connection manager that recording has stopped
+    /// This increases keep-alive frequency for better connection stability
+    func notifyRecordingStopped() {
+        isRecordingActive = false
+    }
+
+    // MARK: - Diagnostics
+
+    /// Print detailed connection diagnostics (only when verbose logging enabled)
+    func printDiagnostics() {
+        guard Self.enableVerboseLogging else { return }
+        connectionDiagnostics.printDiagnostics()
+    }
+
+    /// Get current session health as a string
+    func getSessionHealth() -> String {
+        guard let duration = connectionDiagnostics.currentSessionDuration() else {
+            return "Not connected"
+        }
+
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        let keepAliveHealth = connectionDiagnostics.keepAliveReceived > 0 ?
+            Double(connectionDiagnostics.keepAliveReceived) / Double(max(connectionDiagnostics.keepAliveSent, 1)) * 100 : 0
+
+        return String(format: "Connected: %dm %ds | Keep-alive: %.0f%%", minutes, seconds, keepAliveHealth)
+    }
+
+    /// Get connection statistics for displaying in UI (without Xcode)
+    func getConnectionStats() -> ConnectionStats {
+        return ConnectionStats(
+            isConnected: connectionState.isConnected,
+            sessionDuration: connectionDiagnostics.currentSessionDuration() ?? 0,
+            totalConnections: connectionDiagnostics.successfulConnections,
+            totalDisconnections: connectionDiagnostics.disconnections,
+            keepAliveHealth: connectionDiagnostics.keepAliveReceived > 0 ?
+                Double(connectionDiagnostics.keepAliveReceived) / Double(max(connectionDiagnostics.keepAliveSent, 1)) : 0,
+            messagesSent: connectionDiagnostics.messagesSent,
+            messagesReceived: connectionDiagnostics.messagesReceived
+        )
+    }
+
+    struct ConnectionStats {
+        let isConnected: Bool
+        let sessionDuration: TimeInterval
+        let totalConnections: Int
+        let totalDisconnections: Int
+        let keepAliveHealth: Double  // 0.0 to 1.0
+        let messagesSent: Int
+        let messagesReceived: Int
+
+        var sessionDurationFormatted: String {
+            let minutes = Int(sessionDuration) / 60
+            let seconds = Int(sessionDuration) % 60
+            return String(format: "%dm %ds", minutes, seconds)
+        }
+
+        var keepAliveHealthPercent: String {
+            return String(format: "%.0f%%", keepAliveHealth * 100)
+        }
+
+        var healthEmoji: String {
+            if !isConnected { return "❌" }
+            if keepAliveHealth >= 0.95 { return "✅" }
+            if keepAliveHealth >= 0.80 { return "⚠️" }
+            return "🔴"
+        }
     }
 
     // MARK: - Event-Driven Real-Time Updates
@@ -390,7 +663,12 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     connectedPeers: []
                 )
             case .connected:
+                // ALWAYS log connections (critical info)
                 print("✅ MPC Connected to \(peerID.displayName)")
+
+                // DIAGNOSTICS: Record successful connection
+                self.connectionDiagnostics.recordConnection()
+
                 self.browser?.stopBrowsingForPeers() // Stop searching once connected
                 self.advertiser?.stopAdvertisingPeer()
                 self.connectedPeer = peerID
@@ -400,6 +678,14 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 // Wait for MCSession to fully establish before starting keep-alive
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.startKeepAlive()
+                }
+
+                // Verbose diagnostics only when debugging
+                self.log("📊 Connection established - current stats:")
+                self.log("   Connections: \(self.connectionDiagnostics.successfulConnections)")
+                self.log("   Disconnections: \(self.connectionDiagnostics.disconnections)")
+                if self.connectionDiagnostics.disconnections > 0 {
+                    self.log("   ⚠️ Last disconnect: \(self.connectionDiagnostics.lastDisconnectionReason)")
                 }
 
                 // Start Live Activity if not already active (for auto-connection path)
@@ -427,8 +713,22 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     print("🏝️ Skipping notification (Live Activity is active)")
                 }
             case .notConnected:
+                // ALWAYS log disconnections (critical info)
                 print("❌ MPC Disconnected from \(peerID.displayName)")
                 if self.connectedPeer == peerID {
+                    // DIAGNOSTICS: Record disconnection with reason
+                    let duration = self.connectionDiagnostics.currentSessionDuration()
+                    let reason = duration != nil ? String(format: "Session lasted %.0fs", duration!) : "Never connected"
+                    self.connectionDiagnostics.recordDisconnection(reason: reason)
+
+                    // Verbose diagnostics only when debugging
+                    self.log("📊 Disconnection recorded:")
+                    self.log("   Total disconnections: \(self.connectionDiagnostics.disconnections)")
+                    self.log("   Session duration: \(reason)")
+                    if let avgDuration = self.connectionDiagnostics.averageSessionDuration > 0 ? self.connectionDiagnostics.averageSessionDuration : nil {
+                        self.log("   Average session: \(String(format: "%.0fs", avgDuration))")
+                    }
+
                     self.connectedPeer = nil
                     self.connectionState = .disconnected(to: peerID.displayName)
                     self.stopKeepAlive()
@@ -451,9 +751,11 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                         print("🏝️ Skipping notification (Live Activity is active)")
                     }
 
-                    // Attempt automatic reconnection if enabled
+                    // HOTSPOT FIX: Attempt IMMEDIATE reconnection (don't wait 5 seconds)
+                    // Hotspot disconnects are usually temporary - reconnect ASAP
                     if self.shouldAutoReconnect {
-                        self.startReconnectTimer()
+                        print("🔄 HOTSPOT RECONNECT: Attempting immediate reconnection...")
+                        self.startReconnectTimerImmediate()
                     }
                 }
             @unknown default:
@@ -465,6 +767,12 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         if let message = try? JSONDecoder().decode(Message.self, from: data) {
             DispatchQueue.main.async {
+                // DIAGNOSTICS: Track messages received
+                self.connectionDiagnostics.recordMessageReceived()
+                if message.type == .pong {
+                    self.connectionDiagnostics.recordKeepAliveReceived()
+                }
+
                 if message.type == .ping { self.sendMessage(Message(type: .pong, payload: nil)) }
 
                 // Update recording state based on messages from recorder
@@ -543,29 +851,70 @@ extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
     }
 }
 
-// MARK: - Keep-Alive
+// MARK: - Keep-Alive (HOTSPOT OPTIMIZED)
 private extension MultipeerConnectivityManager {
     func startKeepAlive() {
         stopKeepAlive()
 
-        // Use RunLoop.common mode to ensure timer fires even during UI interactions and camera initialization
-        keepAliveTimer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
-            // Send keep-alive on background queue to not block main thread during camera setup
-            DispatchQueue.global(qos: .utility).async {
-                self?.sendMessage(Message(type: .pong, payload: nil))
+        // ADAPTIVE KEEP-ALIVE FOR HOTSPOT STABILITY
+        // iOS Personal Hotspot sleeps after ~30s of no data
+        // We need to prevent sleep WITHOUT overwhelming the device during recording
+
+        // When NOT recording: 10s interval (frequent enough to prevent sleep, light CPU load)
+        // When recording: 20s interval (still prevents sleep, minimal interference with video encoding)
+        let keepAliveInterval: TimeInterval = isRecordingActive ? 20.0 : 10.0
+
+        log("💓 Starting keep-alive with \(keepAliveInterval)s interval (recording: \(isRecordingActive))")
+
+        // Timer MUST be on main thread for reliability (background threads can be suspended)
+        var keepAliveCount = 0
+        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: keepAliveInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                keepAliveCount += 1
+
+                // CRITICAL: Send with actual payload data to prevent hotspot sleep
+                // Zero-byte messages may be ignored by iOS power management
+                let timestamp = String(Date().timeIntervalSince1970)
+                let keepAliveMessage = Message(
+                    type: .pong,
+                    payload: ["timestamp": timestamp, "keepalive": "active"]
+                )
+
+                // Send on MAIN thread to prevent suspension
+                self.sendMessage(keepAliveMessage)
+
+                // DIAGNOSTICS: Only log if verbose logging enabled
+                if Self.enableVerboseLogging {
+                    // Print session health every 6 keep-alives (~1 minute)
+                    if keepAliveCount % 6 == 0 {
+                        let health = self.getSessionHealth()
+                        print("📊 [~1 min] Session health: \(health)")
+                    }
+
+                    // Print detailed stats every 30 keep-alives (~5 minutes)
+                    if keepAliveCount % 30 == 0 {
+                        print("📊 [~5 min] Printing detailed diagnostics:")
+                        self.printDiagnostics()
+                    }
+                }
             }
         }
 
-        // Add to common run loop modes so it continues during camera initialization
+        // CRITICAL: Use .common mode so timer fires during ALL run loop modes
+        // This prevents suspension during camera operations, scrolling, etc.
         RunLoop.main.add(keepAliveTimer!, forMode: .common)
 
-        print("💓 Keep-alive started (2s interval, background queue)")
+        log("💓 HOTSPOT-OPTIMIZED Keep-alive started (\(keepAliveInterval)s interval, main thread, with payload)")
     }
 
     func stopKeepAlive() {
         keepAliveTimer?.invalidate()
         keepAliveTimer = nil
-        print("💓 Keep-alive stopped")
+        log("💓 Keep-alive stopped")
     }
 }
 
@@ -619,9 +968,9 @@ extension MultipeerConnectivityManager {
             return .disabled
         case .searching:
             return .scanning
-        case .connecting(let name):
+        case .connecting:
             return .connecting
-        case .connected(let name):
+        case .connected:
             return .connected
         case .disconnected(let name):
             return .error("Disconnected from \(name)")
