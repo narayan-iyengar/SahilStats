@@ -74,7 +74,7 @@ extension AuthService {
                 FirebaseYouTubeAuthManager.shared.checkYouTubeAuthorization()
             }
         } catch {
-            print("Google Sign-In error: \(error)")
+            forcePrint("Google Sign-In error: \(error)")
             throw error
         }
     }
@@ -226,24 +226,24 @@ struct YouTubeSettingsSection: View {
     private func authorizeYouTube() {
         Task {
             do {
-                print("🔍 Starting YouTube authorization")
-                print("🔍 GIDSignIn currentUser: \(GIDSignIn.sharedInstance.currentUser?.profile?.email ?? "nil")")
+                debugPrint("🔍 Starting YouTube authorization")
+                forcePrint("🔍 GIDSignIn currentUser: \(GIDSignIn.sharedInstance.currentUser?.profile?.email ?? "nil")")
 
                 // Always use the full Google Sign-In flow to get YouTube scopes
                 // Even if Firebase Auth shows signed in, we need GIDSignIn currentUser
                 if GIDSignIn.sharedInstance.currentUser == nil {
-                    print("📝 Need to sign in with Google for YouTube")
+                    forcePrint("📝 Need to sign in with Google for YouTube")
                     try await authService.signInWithGoogleForYouTube()
                 } else {
-                    print("✅ GIDSignIn user exists, requesting YouTube scope")
+                    forcePrint("✅ GIDSignIn user exists, requesting YouTube scope")
                     try await youtubeAuth.requestYouTubeAccess()
                 }
-                print("✅ YouTube authorized successfully")
+                debugPrint("✅ YouTube authorized successfully")
             } catch {
                 await MainActor.run {
                     showingError = true
                 }
-                print("❌ YouTube authorization failed: \(error.localizedDescription)")
+                forcePrint("❌ YouTube authorization failed: \(error.localizedDescription)")
             }
         }
     }
@@ -251,14 +251,14 @@ struct YouTubeSettingsSection: View {
     private func revokeYouTubeAccess() {
         Task {
             do {
-                print("🔓 Revoking YouTube access")
+                debugPrint("🔓 Revoking YouTube access")
                 try await youtubeAuth.revokeYouTubeAccess()
-                print("✅ YouTube access revoked successfully")
+                debugPrint("✅ YouTube access revoked successfully")
             } catch {
                 await MainActor.run {
                     showingError = true
                 }
-                print("❌ Failed to revoke YouTube access: \(error.localizedDescription)")
+                forcePrint("❌ Failed to revoke YouTube access: \(error.localizedDescription)")
             }
         }
     }

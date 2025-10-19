@@ -15,7 +15,7 @@ struct LottieView: UIViewRepresentable {
         // Find the exact path to your animation file in the app bundle.
         // Make sure the file extension here matches your file ('lottie' or 'json').
         guard let path = Bundle.main.path(forResource: name, ofType: "json") else {
-            print("Error: Lottie file '\(name).json' not found.")
+            debugPrint("Error: Lottie file '\(name).json' not found.")
             return view
         }
         

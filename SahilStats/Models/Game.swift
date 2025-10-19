@@ -951,7 +951,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
         self.currentTimeSegment = nil  // ✅ This ensures startInitialTimeTracking() will be called
         self.timeSegments = []         // ✅ Start with empty completed segments
 
-        print("🔥 NEW LiveGame created - currentTimeSegment is NIL: \(currentTimeSegment == nil)")
+        debugPrint("🔥 NEW LiveGame created - currentTimeSegment is NIL: \(currentTimeSegment == nil)")
     }
 }
 
@@ -1124,8 +1124,8 @@ extension LiveGame {
         self.timeSegments = timeSegments
         self.currentTimeSegment = currentTimeSegment
         
-        print("🔍 DECODED LiveGame - currentTimeSegment: \(currentTimeSegment != nil ? "EXISTS" : "NIL")")
-        print("🔍 DECODED LiveGame - timeSegments count: \(timeSegments.count)")
+        debugPrint("🔍 DECODED LiveGame - currentTimeSegment: \(currentTimeSegment != nil ? "EXISTS" : "NIL")")
+        debugPrint("🔍 DECODED LiveGame - timeSegments count: \(timeSegments.count)")
     }
     
     

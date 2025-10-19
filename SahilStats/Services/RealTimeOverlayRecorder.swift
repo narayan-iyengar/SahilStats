@@ -70,37 +70,37 @@ class RealTimeOverlayRecorder: NSObject {
     // MARK: - Public API
 
     func setupOutputs(for session: AVCaptureSession) -> Bool {
-        print("🎥 RealTimeOverlayRecorder: Setting up outputs")
+        debugPrint("🎥 RealTimeOverlayRecorder: Setting up outputs")
 
         // Detect output resolution from session preset
         switch session.sessionPreset {
         case .hd4K3840x2160:
             outputWidth = 3840
             outputHeight = 2160
-            print("📹 Using 4K resolution (3840x2160)")
+            debugPrint("📹 Using 4K resolution (3840x2160)")
         case .hd1920x1080:
             outputWidth = 1920
             outputHeight = 1080
-            print("📹 Using 1080p resolution (1920x1080)")
+            debugPrint("📹 Using 1080p resolution (1920x1080)")
         case .hd1280x720:
             outputWidth = 1280
             outputHeight = 720
-            print("📹 Using 720p resolution (1280x720)")
+            debugPrint("📹 Using 720p resolution (1280x720)")
         case .high, .medium:
             outputWidth = 1280
             outputHeight = 720
-            print("📹 Using 720p resolution (high/medium preset)")
+            debugPrint("📹 Using 720p resolution (high/medium preset)")
         default:
             outputWidth = 1280
             outputHeight = 720
-            print("📹 Using 720p resolution (default)")
+            debugPrint("📹 Using 720p resolution (default)")
         }
 
         // Remove existing movie file output if present
         for output in session.outputs {
             if output is AVCaptureMovieFileOutput {
                 session.removeOutput(output)
-                print("🗑️ Removed AVCaptureMovieFileOutput")
+                debugPrint("🗑️ Removed AVCaptureMovieFileOutput")
             }
         }
 
@@ -115,7 +115,7 @@ class RealTimeOverlayRecorder: NSObject {
         if session.canAddOutput(videoOutput) {
             session.addOutput(videoOutput)
             self.videoDataOutput = videoOutput
-            print("✅ Added AVCaptureVideoDataOutput")
+            debugPrint("✅ Added AVCaptureVideoDataOutput")
 
             // CRITICAL FIX: Set video orientation on the connection
             if let connection = videoOutput.connection(with: .video) {
@@ -137,17 +137,17 @@ class RealTimeOverlayRecorder: NSObject {
 
                 if connection.isVideoRotationAngleSupported(rotationAngle) {
                     connection.videoRotationAngle = rotationAngle
-                    print("🎥 Set initial video rotation to \(rotationAngle)° for device orientation: \(deviceOrientation.rawValue)")
+                    debugPrint("🎥 Set initial video rotation to \(rotationAngle)° for device orientation: \(deviceOrientation.rawValue)")
                 } else {
-                    print("⚠️ Rotation angle \(rotationAngle)° not supported")
+                    debugPrint("⚠️ Rotation angle \(rotationAngle)° not supported")
                     let supportedAngles = [0.0, 90.0, 180.0, 270.0].filter { connection.isVideoRotationAngleSupported($0) }
-                    print("   Supported angles: \(supportedAngles)")
+                    debugPrint("   Supported angles: \(supportedAngles)")
                 }
             } else {
-                print("⚠️ No video connection available to set rotation")
+                debugPrint("⚠️ No video connection available to set rotation")
             }
         } else {
-            print("❌ Cannot add video data output")
+            forcePrint("❌ Cannot add video data output")
             return false
         }
 
@@ -158,9 +158,9 @@ class RealTimeOverlayRecorder: NSObject {
         if session.canAddOutput(audioOutput) {
             session.addOutput(audioOutput)
             self.audioDataOutput = audioOutput
-            print("✅ Added AVCaptureAudioDataOutput")
+            debugPrint("✅ Added AVCaptureAudioDataOutput")
         } else {
-            print("❌ Cannot add audio data output")
+            forcePrint("❌ Cannot add audio data output")
             return false
         }
 
@@ -168,13 +168,13 @@ class RealTimeOverlayRecorder: NSObject {
     }
 
     func startRecording(liveGame: LiveGame) -> URL? {
-        print("🎥 RealTimeOverlayRecorder: Starting recording")
-        print("   Game: \(liveGame.teamName) vs \(liveGame.opponent)")
-        print("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
-        print("   Clock: \(liveGame.currentClockDisplay)")
+        debugPrint("🎥 RealTimeOverlayRecorder: Starting recording")
+        debugPrint("   Game: \(liveGame.teamName) vs \(liveGame.opponent)")
+        debugPrint("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
+        debugPrint("   Clock: \(liveGame.currentClockDisplay)")
 
         guard !isRecording else {
-            print("❌ Already recording")
+            forcePrint("❌ Already recording")
             return nil
         }
 
@@ -182,24 +182,24 @@ class RealTimeOverlayRecorder: NSObject {
         videoQueue.sync {
             self.currentLiveGame = liveGame
         }
-        print("✅ Current game stored for overlay updates (thread-safe)")
+        debugPrint("✅ Current game stored for overlay updates (thread-safe)")
 
         // Create output URL
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let url = documentsPath.appendingPathComponent("realtime_\(Date().timeIntervalSince1970).mov")
         self.outputURL = url
-        print("📁 Output URL: \(url.path)")
+        debugPrint("📁 Output URL: \(url.path)")
 
         // Initialize asset writer
-        print("🎬 Setting up asset writer...")
+        debugPrint("🎬 Setting up asset writer...")
         guard setupAssetWriter(outputURL: url) else {
-            print("❌ Failed to setup asset writer")
+            forcePrint("❌ Failed to setup asset writer")
             return nil
         }
-        print("✅ Asset writer setup complete")
+        debugPrint("✅ Asset writer setup complete")
 
         // Start overlay update timer
-        print("🎨 Starting overlay updates...")
+        debugPrint("🎨 Starting overlay updates...")
         startOverlayUpdates()
 
         isRecording = true
@@ -207,70 +207,70 @@ class RealTimeOverlayRecorder: NSObject {
         frameCount = 0 // Reset frame counter
         overlayUpdateCount = 0 // Reset overlay counter
 
-        print("✅ Recording started successfully")
-        print("   Output URL: \(url.lastPathComponent)")
-        print("   isRecording: \(isRecording)")
+        debugPrint("✅ Recording started successfully")
+        debugPrint("   Output URL: \(url.lastPathComponent)")
+        debugPrint("   isRecording: \(isRecording)")
         return url
     }
 
     func stopRecording(completion: @escaping (URL?) -> Void) {
-        print("🎥 RealTimeOverlayRecorder: Stopping recording")
-        print("   Total frames written: \(frameCount)")
-        print("   Total overlay updates: \(overlayUpdateCount)")
-        print("   isRecording: \(isRecording)")
+        debugPrint("🎥 RealTimeOverlayRecorder: Stopping recording")
+        debugPrint("   Total frames written: \(frameCount)")
+        debugPrint("   Total overlay updates: \(overlayUpdateCount)")
+        debugPrint("   isRecording: \(isRecording)")
 
         guard isRecording else {
-            print("❌ Not currently recording")
+            forcePrint("❌ Not currently recording")
             completion(nil)
             return
         }
 
         isRecording = false
-        print("✅ Set isRecording = false")
+        debugPrint("✅ Set isRecording = false")
 
         stopOverlayUpdates()
-        print("✅ Stopped overlay updates")
+        debugPrint("✅ Stopped overlay updates")
 
         // Finish writing
         videoWriterInput?.markAsFinished()
         audioWriterInput?.markAsFinished()
-        print("✅ Marked inputs as finished")
+        debugPrint("✅ Marked inputs as finished")
 
         guard let writer = assetWriter else {
-            print("❌ No asset writer")
+            forcePrint("❌ No asset writer")
             completion(nil)
             return
         }
 
         let outputURL = self.outputURL
-        print("📁 Output URL: \(outputURL?.path ?? "nil")")
+        debugPrint("📁 Output URL: \(outputURL?.path ?? "nil")")
 
-        print("🎬 Calling writer.finishWriting()...")
+        debugPrint("🎬 Calling writer.finishWriting()...")
         writer.finishWriting {
             DispatchQueue.main.async {
                 if writer.status == .completed {
-                    print("✅ Recording completed successfully")
-                    print("   Final frame count: \(self.frameCount)")
+                    debugPrint("✅ Recording completed successfully")
+                    debugPrint("   Final frame count: \(self.frameCount)")
                     if let url = outputURL {
                         let fileExists = FileManager.default.fileExists(atPath: url.path)
-                        print("   File exists: \(fileExists)")
+                        debugPrint("   File exists: \(fileExists)")
                         if fileExists {
                             do {
                                 let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
                                 let fileSize = attrs[.size] as? Int64 ?? 0
-                                print("   File size: \(fileSize) bytes (\(Double(fileSize) / 1_000_000) MB)")
+                                debugPrint("   File size: \(fileSize) bytes (\(Double(fileSize) / 1_000_000) MB)")
                             } catch {
-                                print("   Could not get file size: \(error)")
+                                debugPrint("   Could not get file size: \(error)")
                             }
                         }
                     }
                     completion(outputURL)
                 } else if let error = writer.error {
-                    print("❌ Recording failed: \(error)")
+                    forcePrint("❌ Recording failed: \(error)")
                     completion(nil)
                 } else {
-                    print("❌ Recording failed with unknown error")
-                    print("   Writer status: \(writer.status.rawValue)")
+                    forcePrint("❌ Recording failed with unknown error")
+                    debugPrint("   Writer status: \(writer.status.rawValue)")
                     completion(nil)
                 }
             }
@@ -278,12 +278,12 @@ class RealTimeOverlayRecorder: NSObject {
     }
 
     func updateGame(_ liveGame: LiveGame) {
-        print("📊 RealTimeOverlayRecorder.updateGame() called:")
-        print("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
-        print("   Clock: \(liveGame.currentClockDisplay)")
-        print("   Period: Q\(liveGame.quarter)")
-        print("   Teams: \(liveGame.teamName) vs \(liveGame.opponent)")
-        print("   Is Running: \(liveGame.isRunning)")
+        debugPrint("📊 RealTimeOverlayRecorder.updateGame() called:")
+        debugPrint("   Score: \(liveGame.homeScore)-\(liveGame.awayScore)")
+        debugPrint("   Clock: \(liveGame.currentClockDisplay)")
+        debugPrint("   Period: Q\(liveGame.quarter)")
+        debugPrint("   Teams: \(liveGame.teamName) vs \(liveGame.opponent)")
+        debugPrint("   Is Running: \(liveGame.isRunning)")
 
         // CRITICAL FIX: Update game data on videoQueue to ensure thread safety
         // This ensures overlay rendering always has consistent game data
@@ -298,8 +298,8 @@ class RealTimeOverlayRecorder: NSObject {
         // CRITICAL FIX: Use actual game running state, not clock value
         // This fixes the issue where clock would continue after period changes
         if newClockTime != lastClockTime || gameIsRunning != isClockRunning {
-            print("   ⏱️ Clock changed from \(formatSecondsToClockDisplay(lastClockTime)) to \(liveGame.currentClockDisplay)")
-            print("   ⏱️ isRunning changed from \(isClockRunning) to \(gameIsRunning)")
+            debugPrint("   ⏱️ Clock changed from \(formatSecondsToClockDisplay(lastClockTime)) to \(liveGame.currentClockDisplay)")
+            debugPrint("   ⏱️ isRunning changed from \(isClockRunning) to \(gameIsRunning)")
             lastClockTime = newClockTime
             lastClockUpdateTime = Date()
             isClockRunning = gameIsRunning  // Use actual game state!
@@ -310,9 +310,9 @@ class RealTimeOverlayRecorder: NSObject {
     }
 
     func showEndGameBanner(game: LiveGame) {
-        print("🏆 RealTimeOverlayRecorder: Showing end game banner")
-        print("   Final Score: \(game.homeScore)-\(game.awayScore)")
-        print("   Teams: \(game.teamName) vs \(game.opponent)")
+        debugPrint("🏆 RealTimeOverlayRecorder: Showing end game banner")
+        debugPrint("   Final Score: \(game.homeScore)-\(game.awayScore)")
+        debugPrint("   Teams: \(game.teamName) vs \(game.opponent)")
 
         // Determine winner
         let winner: String
@@ -339,7 +339,7 @@ class RealTimeOverlayRecorder: NSObject {
         // Force overlay update
         DispatchQueue.main.async {
             self.updateOverlay()
-            print("✅ End game banner overlay updated")
+            forcePrint("✅ End game banner overlay updated")
         }
     }
 
@@ -369,7 +369,7 @@ class RealTimeOverlayRecorder: NSObject {
                     AVVideoMaxKeyFrameIntervalKey: 30
                 ]
             ]
-            print("📹 Asset writer configured for \(outputWidth)x\(outputHeight) @ \(bitRate/1_000_000)Mbps")
+            debugPrint("📹 Asset writer configured for \(outputWidth)x\(outputHeight) @ \(bitRate/1_000_000)Mbps")
 
             let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
             videoInput.expectsMediaDataInRealTime = true
@@ -380,9 +380,9 @@ class RealTimeOverlayRecorder: NSObject {
             if writer.canAdd(videoInput) {
                 writer.add(videoInput)
                 self.videoWriterInput = videoInput
-                print("✅ Added video input to asset writer")
+                debugPrint("✅ Added video input to asset writer")
             } else {
-                print("❌ Cannot add video input")
+                forcePrint("❌ Cannot add video input")
                 return false
             }
 
@@ -413,16 +413,16 @@ class RealTimeOverlayRecorder: NSObject {
             if writer.canAdd(audioInput) {
                 writer.add(audioInput)
                 self.audioWriterInput = audioInput
-                print("✅ Added audio input to asset writer")
+                debugPrint("✅ Added audio input to asset writer")
             } else {
-                print("❌ Cannot add audio input")
+                forcePrint("❌ Cannot add audio input")
             }
 
             self.assetWriter = writer
             return true
 
         } catch {
-            print("❌ Failed to create asset writer: \(error)")
+            forcePrint("❌ Failed to create asset writer: \(error)")
             return false
         }
     }
@@ -430,8 +430,8 @@ class RealTimeOverlayRecorder: NSObject {
     // MARK: - Overlay Management
 
     private func startOverlayUpdates() {
-        print("🎨 RealTimeOverlayRecorder: Starting overlay update timer")
-        print("   Current game: \(currentLiveGame?.teamName ?? "nil") vs \(currentLiveGame?.opponent ?? "nil")")
+        debugPrint("🎨 RealTimeOverlayRecorder: Starting overlay update timer")
+        debugPrint("   Current game: \(currentLiveGame?.teamName ?? "nil") vs \(currentLiveGame?.opponent ?? "nil")")
 
         // Update overlay 4 times per second (reduced from 10Hz to save memory)
         // Still smooth enough for clock countdown, but uses 60% less memory
@@ -441,17 +441,17 @@ class RealTimeOverlayRecorder: NSObject {
             }
             if let timer = self?.overlayUpdateTimer {
                 RunLoop.main.add(timer, forMode: .common)
-                print("✅ Overlay update timer scheduled and added to run loop")
+                debugPrint("✅ Overlay update timer scheduled and added to run loop")
             } else {
-                print("❌ Failed to create overlay update timer")
+                forcePrint("❌ Failed to create overlay update timer")
             }
         }
 
         // Generate initial overlay on main thread (UIGraphicsImageRenderer requires main thread!)
-        print("🎨 Generating initial overlay...")
+        debugPrint("🎨 Generating initial overlay...")
         DispatchQueue.main.async {
             self.updateOverlay()
-            print("✅ Initial overlay generated")
+            debugPrint("✅ Initial overlay generated")
         }
     }
 
@@ -477,14 +477,14 @@ class RealTimeOverlayRecorder: NSObject {
 
             // ALWAYS log every 100 calls to verify timer is firing
             if overlayUpdateCount % 100 == 0 || showingBanner {
-                print("⏱️ updateOverlay() called \(overlayUpdateCount) times")
-                print("   currentLiveGame: \(game != nil ? "EXISTS" : "NIL!")")
-                print("   showingEndGameBanner: \(showingBanner)")
+                debugPrint("⏱️ updateOverlay() called \(overlayUpdateCount) times")
+                debugPrint("   currentLiveGame: \(game != nil ? "EXISTS" : "NIL!")")
+                debugPrint("   showingEndGameBanner: \(showingBanner)")
             }
 
             guard let game = game else {
                 if overlayUpdateCount % 100 == 0 {
-                    print("❌ ERROR: currentLiveGame is NIL - overlay cannot be rendered!")
+                    forcePrint("❌ ERROR: currentLiveGame is NIL - overlay cannot be rendered!")
                 }
                 return
             }
@@ -496,12 +496,12 @@ class RealTimeOverlayRecorder: NSObject {
             let shouldLog = overlayUpdateCount % 12 == 0
             if shouldLog {
                 let interpolatedClock = getInterpolatedClockDisplay()
-                print("🎨 Overlay updated (\(overlayUpdateCount) updates): \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock)")
-                print("   Raw clock from game: \(game.currentClockDisplay)")
-                print("   Interpolated clock: \(interpolatedClock)")
-                print("   Overlay image generated: \(overlayImage != nil ? "YES" : "NO")")
+                debugPrint("🎨 Overlay updated (\(overlayUpdateCount) updates): \(game.teamName) \(game.homeScore)-\(game.awayScore) \(game.opponent) | Clock: \(interpolatedClock)")
+                debugPrint("   Raw clock from game: \(game.currentClockDisplay)")
+                debugPrint("   Interpolated clock: \(interpolatedClock)")
+                debugPrint("   Overlay image generated: \(overlayImage != nil ? "YES" : "NO")")
                 if let img = overlayImage {
-                    print("   Overlay image size: \(img.size.width)x\(img.size.height)")
+                    debugPrint("   Overlay image size: \(img.size.width)x\(img.size.height)")
                 }
             }
 
@@ -515,8 +515,8 @@ class RealTimeOverlayRecorder: NSObject {
 
             if shouldLog && overlayImage != nil {
                 let pointer = Unmanaged.passUnretained(overlayImage!).toOpaque()
-                print("   ✅ Stored overlay - pointer: \(String(describing: pointer))")
-                print("   ✅ Cached CGImage for performance")
+                debugPrint("   ✅ Stored overlay - pointer: \(String(describing: pointer))")
+                debugPrint("   ✅ Cached CGImage for performance")
             }
         }
     }
@@ -560,7 +560,7 @@ class RealTimeOverlayRecorder: NSObject {
         return autoreleasepool {
             // Get banner data with proper synchronization
             guard let bannerData = videoQueue.sync(execute: { return self.endGameBannerData }) else {
-                print("❌ No banner data available")
+                forcePrint("❌ No banner data available")
                 return nil
             }
 
@@ -815,7 +815,7 @@ class RealTimeOverlayRecorder: NSObject {
         return autoreleasepool {
             guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
                 if frameCount % 100 == 0 {
-                    print("❌ composeFrame: No image buffer in sample buffer!")
+                    forcePrint("❌ composeFrame: No image buffer in sample buffer!")
                 }
                 return nil
             }
@@ -863,7 +863,7 @@ class RealTimeOverlayRecorder: NSObject {
 
             // Log rotation angle for debugging (only every 120 frames)
             if frameCount % 120 == 0 {
-                print("📹 Rotation: \(rotationAngle)° | Frame: \(frameCount)")
+                debugPrint("📹 Rotation: \(rotationAngle)° | Frame: \(frameCount)")
             }
 
             // Create CGImage from camera frame
@@ -914,10 +914,10 @@ class RealTimeOverlayRecorder: NSObject {
 
                 // Log every 120 frames
                 if frameCount % 120 == 0 {
-                    print("🎨 Drawing overlay on frame \(frameCount)")
+                    debugPrint("🎨 Drawing overlay on frame \(frameCount)")
                 }
             } else if frameCount % 60 == 0 {
-                print("⚠️ NO OVERLAY IMAGE to draw on frame \(frameCount)")
+                debugPrint("⚠️ NO OVERLAY IMAGE to draw on frame \(frameCount)")
             }
 
             return outputBuffer
@@ -1008,7 +1008,7 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
             // Only log first few times to avoid spam
             if Self.delegateCallCount < 3 {
                 Self.delegateCallCount += 1
-                print("⚠️ captureOutput called but isRecording=false")
+                debugPrint("⚠️ captureOutput called but isRecording=false")
             }
             return
         }
@@ -1016,9 +1016,9 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
         // Log first few delegate callbacks
         if frameCount < 3 {
             if output == videoDataOutput {
-                print("📹 captureOutput: VIDEO frame received (frameCount: \(frameCount))")
+                debugPrint("📹 captureOutput: VIDEO frame received (frameCount: \(frameCount))")
             } else if output == audioDataOutput {
-                print("🔊 captureOutput: AUDIO sample received")
+                debugPrint("🔊 captureOutput: AUDIO sample received")
             }
         }
 
@@ -1035,7 +1035,7 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
             guard let writer = assetWriter,
                   let videoInput = videoWriterInput,
                   let adaptor = pixelBufferAdaptor else {
-                print("⚠️ handleVideoFrame: Missing writer/input/adaptor")
+                debugPrint("⚠️ handleVideoFrame: Missing writer/input/adaptor")
                 return
             }
 
@@ -1045,25 +1045,25 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
                 recordingStartTime = timestamp
                 lastVideoTimestamp = timestamp
 
-                print("🎬 First video frame received!")
-                print("   Timestamp: \(CMTimeGetSeconds(timestamp))s")
-                print("   Writer status: \(writer.status.rawValue)")
+                debugPrint("🎬 First video frame received!")
+                debugPrint("   Timestamp: \(CMTimeGetSeconds(timestamp))s")
+                debugPrint("   Writer status: \(writer.status.rawValue)")
 
                 if writer.status == .unknown {
                     writer.startWriting()
                     writer.startSession(atSourceTime: timestamp)
-                    print("✅ Started asset writer session at time: \(CMTimeGetSeconds(timestamp))")
+                    debugPrint("✅ Started asset writer session at time: \(CMTimeGetSeconds(timestamp))")
                 } else {
-                    print("⚠️ Writer status not .unknown, it's: \(writer.status.rawValue)")
+                    debugPrint("⚠️ Writer status not .unknown, it's: \(writer.status.rawValue)")
                 }
             }
 
             guard writer.status == .writing else {
                 if writer.status == .failed {
-                    print("❌ Asset writer failed: \(String(describing: writer.error))")
+                    forcePrint("❌ Asset writer failed: \(String(describing: writer.error))")
                 } else if frameCount < 5 {
                     // Log status issues for first few frames
-                    print("⚠️ Writer status not .writing: \(writer.status.rawValue)")
+                    debugPrint("⚠️ Writer status not .writing: \(writer.status.rawValue)")
                 }
                 return
             }
@@ -1081,7 +1081,7 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
 
                     // Check for duplicate timestamps
                     if frameCount > 0 && CMTimeCompare(adjustedTimestamp, lastVideoTimestamp) == 0 {
-                        print("⚠️ DUPLICATE TIMESTAMP! Frame #\(frameCount) has same timestamp as previous frame: \(CMTimeGetSeconds(adjustedTimestamp))s")
+                        debugPrint("⚠️ DUPLICATE TIMESTAMP! Frame #\(frameCount) has same timestamp as previous frame: \(CMTimeGetSeconds(adjustedTimestamp))s")
                     }
 
                     lastVideoTimestamp = adjustedTimestamp
@@ -1089,15 +1089,15 @@ extension RealTimeOverlayRecorder: AVCaptureVideoDataOutputSampleBufferDelegate,
 
                     // Log first 5 frames, then every 30 frames
                     if frameCount <= 5 || frameCount % 30 == 0 {
-                        print("📹 Written frame #\(frameCount) at \(String(format: "%.3f", CMTimeGetSeconds(adjustedTimestamp)))s")
+                        debugPrint("📹 Written frame #\(frameCount) at \(String(format: "%.3f", CMTimeGetSeconds(adjustedTimestamp)))s")
                     }
                 } else {
-                    print("❌ Failed to compose frame at \(CMTimeGetSeconds(adjustedTimestamp))s")
+                    forcePrint("❌ Failed to compose frame at \(CMTimeGetSeconds(adjustedTimestamp))s")
                 }
             } else {
                 // Frame dropped because input not ready
                 if frameCount < 5 {
-                    print("⚠️ Video input not ready for frame (frameCount: \(frameCount))")
+                    debugPrint("⚠️ Video input not ready for frame (frameCount: \(frameCount))")
                 }
             }
         }

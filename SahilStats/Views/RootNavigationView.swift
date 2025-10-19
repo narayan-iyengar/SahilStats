@@ -25,7 +25,7 @@ struct RootNavigationView: View {
                         .onAppear {
                             // Always re-enable idle timer when returning to dashboard
                             UIApplication.shared.isIdleTimerDisabled = false
-                            print("🌙 Dashboard: Idle timer enabled - screen can now sleep")
+                            debugPrint("🌙 Dashboard: Idle timer enabled - screen can now sleep")
                         }
                 case .gameSetup:
                     // This case is handled within MainTabView's navigation
@@ -33,7 +33,7 @@ struct RootNavigationView: View {
                         .onAppear {
                             // Ensure idle timer is enabled during game setup
                             UIApplication.shared.isIdleTimerDisabled = false
-                            print("🌙 GameSetup: Idle timer enabled - screen can now sleep")
+                            debugPrint("🌙 GameSetup: Idle timer enabled - screen can now sleep")
                         }
                 case .liveGame(let liveGame):
                     LiveGameView()
@@ -44,15 +44,15 @@ struct RootNavigationView: View {
                             UIApplication.shared.isIdleTimerDisabled = isMultiDevice
 
                             if isMultiDevice {
-                                print("🔥 LiveGame (Multi-device): Idle timer disabled - screen stays awake")
+                                debugPrint("🔥 LiveGame (Multi-device): Idle timer disabled - screen stays awake")
                             } else {
-                                print("🌙 LiveGame (Single-device): Idle timer enabled - screen can sleep")
+                                debugPrint("🌙 LiveGame (Single-device): Idle timer enabled - screen can sleep")
                             }
                         }
                         .onDisappear {
                             // Re-enable idle timer when leaving live game
                             UIApplication.shared.isIdleTimerDisabled = false
-                            print("🌙 LiveGame: Idle timer enabled - screen can sleep")
+                            debugPrint("🌙 LiveGame: Idle timer enabled - screen can sleep")
                         }
                 case .recording(let liveGame):
                     CleanVideoRecordingView(liveGame: liveGame)
@@ -64,7 +64,7 @@ struct RootNavigationView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: navigation.currentFlow)
         .onAppear {
-            print("🏠 RootNavigationView: Appeared with currentFlow: \(navigation.currentFlow)")
+            debugPrint("🏠 RootNavigationView: Appeared with currentFlow: \(navigation.currentFlow)")
             // On fresh launch, if a game exists but the user hasn't joined,
             // ensure we stay on the dashboard to allow connections to establish.
             if firebaseService.hasLiveGame && !navigation.userExplicitlyJoinedGame {

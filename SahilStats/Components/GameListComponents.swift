@@ -258,7 +258,7 @@ struct AdminMenuSheet: View {
                     Button(action: {
                         // Switch roles locally and reconnect
                         if let peer = connectionManager.connectedPeer {
-                            print("🔄 User requested role switch - will disconnect and reconnect")
+                            debugPrint("🔄 User requested role switch - will disconnect and reconnect")
                             // Save the new roles
                             TrustedDevicesManager.shared.switchRoles(for: peer)
                             roleManager.toggleRole()
@@ -287,7 +287,7 @@ struct AdminMenuSheet: View {
             if connectionManager.connectionStatus.isConnected {
                 // Disconnect button
                 Button(action: {
-                    print("🔌 Disconnecting from device")
+                    debugPrint("🔌 Disconnecting from device")
                     connectionManager.disconnect()
                 }) {
                     Text("Disconnect")
@@ -300,7 +300,7 @@ struct AdminMenuSheet: View {
             } else {
                 // Connect/Scan button
                 Button(action: {
-                    print("🔍 Starting device scan...")
+                    debugPrint("🔍 Starting device scan...")
                     connectionManager.startBackgroundScanning()
                 }) {
                     HStack(spacing: 10) {

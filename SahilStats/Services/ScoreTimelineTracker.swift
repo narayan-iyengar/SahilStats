@@ -50,13 +50,13 @@ class ScoreTimelineTracker {
         snapshots.append(initialSnapshot)
         lastSnapshot = initialSnapshot
 
-        print("📊 ScoreTimelineTracker: Recording started")
-        print("   Initial: \(initialGame.teamName) \(initialGame.homeScore) - \(initialGame.awayScore) \(initialGame.opponent)")
+        debugPrint("📊 ScoreTimelineTracker: Recording started")
+        debugPrint("   Initial: \(initialGame.teamName) \(initialGame.homeScore) - \(initialGame.awayScore) \(initialGame.opponent)")
     }
 
     func updateScore(game: LiveGame) {
         guard let startTime = recordingStartTime else {
-            print("⚠️ ScoreTimelineTracker: Cannot update - recording not started")
+            debugPrint("⚠️ ScoreTimelineTracker: Cannot update - recording not started")
             return
         }
 
@@ -90,8 +90,8 @@ class ScoreTimelineTracker {
         lastSnapshot = snapshot
 
         if scoreChanged {
-            print("📊 ScoreTimelineTracker: Score changed at \(String(format: "%.1f", timestamp))s")
-            print("   New score: \(game.teamName) \(game.homeScore) - \(game.awayScore) \(game.opponent)")
+            debugPrint("📊 ScoreTimelineTracker: Score changed at \(String(format: "%.1f", timestamp))s")
+            debugPrint("   New score: \(game.teamName) \(game.homeScore) - \(game.awayScore) \(game.opponent)")
         }
         // Don't log every clock update to avoid spam
     }
@@ -99,13 +99,13 @@ class ScoreTimelineTracker {
     func stopRecording() -> [ScoreSnapshot] {
         let timeline = snapshots
 
-        print("📊 ScoreTimelineTracker: Recording stopped")
-        print("   Total snapshots: \(timeline.count)")
+        debugPrint("📊 ScoreTimelineTracker: Recording stopped")
+        debugPrint("   Total snapshots: \(timeline.count)")
 
         if timeline.count > 0 {
             let duration = timeline.last!.timestamp - timeline.first!.timestamp
-            print("   Duration: \(String(format: "%.1f", duration))s")
-            print("   Average: \(String(format: "%.1f", duration / Double(timeline.count)))s per snapshot")
+            debugPrint("   Duration: \(String(format: "%.1f", duration))s")
+            debugPrint("   Average: \(String(format: "%.1f", duration / Double(timeline.count)))s per snapshot")
         }
 
         // Reset state
@@ -144,9 +144,9 @@ class ScoreTimelineTracker {
         do {
             let data = try JSONEncoder().encode(timeline)
             try data.write(to: timelineURL)
-            print("✅ Score timeline saved: \(timelineURL.lastPathComponent)")
+            forcePrint("✅ Score timeline saved: \(timelineURL.lastPathComponent)")
         } catch {
-            print("❌ Failed to save timeline: \(error)")
+            forcePrint("❌ Failed to save timeline: \(error)")
         }
     }
 
@@ -157,10 +157,10 @@ class ScoreTimelineTracker {
         do {
             let data = try Data(contentsOf: timelineURL)
             let timeline = try JSONDecoder().decode([ScoreSnapshot].self, from: data)
-            print("✅ Score timeline loaded: \(timeline.count) snapshots")
+            debugPrint("✅ Score timeline loaded: \(timeline.count) snapshots")
             return timeline
         } catch {
-            print("❌ Failed to load timeline: \(error)")
+            forcePrint("❌ Failed to load timeline: \(error)")
             return nil
         }
     }

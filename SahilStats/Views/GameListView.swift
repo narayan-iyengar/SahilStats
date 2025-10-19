@@ -115,7 +115,7 @@ struct GameListView: View {
         .onAppear {
             firebaseService.startListening()
             updateDisplayedGames()
-            print("🔍 GameListView appeared - hasLiveGame: \(firebaseService.hasLiveGame)")
+            debugPrint("🔍 GameListView appeared - hasLiveGame: \(firebaseService.hasLiveGame)")
         }
         .onDisappear {
             firebaseService.stopListening()
@@ -448,7 +448,7 @@ extension GameListView {
                 try await firebaseService.updateGame(game)
                 filterManager.updateGameInDisplayed(game)
             } catch {
-                print("Failed to save game changes: \(error.localizedDescription)")
+                debugPrint("Failed to save game changes: \(error.localizedDescription)")
             }
         }
     }
@@ -457,9 +457,9 @@ extension GameListView {
         Task {
             do {
                 try await firebaseService.deleteGame(game.id ?? "")
-                print("✅ Game deleted successfully")
+                forcePrint("✅ Game deleted successfully")
             } catch {
-                print("Failed to delete game: \(error)")
+                debugPrint("Failed to delete game: \(error)")
 
                 // Show error to user
                 await MainActor.run {
@@ -473,7 +473,7 @@ extension GameListView {
     // MARK: - Basketball Mode Helper
     
     private func startBasketballMode() {
-        print("🏀 Starting Basketball Mode - Smart Device Setup")
+        debugPrint("🏀 Starting Basketball Mode - Smart Device Setup")
         NavigationCoordinator.shared.markUserHasInteracted()
         NavigationCoordinator.shared.userExplicitlyJoinedGame = true
 
@@ -485,7 +485,7 @@ extension GameListView {
     }
 
     private func selectCalendarGame(_ calendarGame: GameCalendarManager.CalendarGame) {
-        print("🏀 Selected calendar game: \(calendarGame.opponent)")
+        debugPrint("🏀 Selected calendar game: \(calendarGame.opponent)")
         selectedCalendarGame = calendarGame
 
         // Get the user's preferred team name (from UserDefaults or email)
@@ -515,7 +515,7 @@ extension GameListView {
             do {
                 // Create live game in Firebase
                 let gameId = try await firebaseService.createLiveGame(liveGame)
-                print("✅ Live game created from calendar: \(gameId)")
+                forcePrint("✅ Live game created from calendar: \(gameId)")
 
                 // Update editableGame with the ID
                 var gameWithId = liveGame
@@ -532,7 +532,7 @@ extension GameListView {
                     showingQRCode = true
                 }
             } catch {
-                print("❌ Failed to create game from calendar: \(error)")
+                forcePrint("❌ Failed to create game from calendar: \(error)")
                 await MainActor.run {
                     deleteErrorMessage = "Failed to create game: \(error.localizedDescription)"
                     showingDeleteError = true
@@ -1128,7 +1128,7 @@ struct RoleSelectionSheet: View {
     }
 
     private func selectRole(_ role: DeviceRole) {
-        print("🎯 Role selected: \(role)")
+        debugPrint("🎯 Role selected: \(role)")
         navigation.markUserHasInteracted()
         navigation.userExplicitlyJoinedGame = true
         roleManager.deviceRole = role
@@ -1146,13 +1146,13 @@ struct RoleSelectionSheet: View {
     }
 
     private func deleteLiveGame() {
-        print("🗑️ Admin deleting/canceling live game")
+        debugPrint("🗑️ Admin deleting/canceling live game")
         Task {
             do {
                 // Delete the live game from Firebase (no stats saved)
                 if let gameId = liveGame.id {
                     try await firebaseService.deleteLiveGame(gameId)
-                    print("✅ Live game deleted successfully")
+                    forcePrint("✅ Live game deleted successfully")
                 }
 
                 // Dismiss the sheet and return to dashboard
@@ -1161,7 +1161,7 @@ struct RoleSelectionSheet: View {
                     navigation.returnToDashboard()
                 }
             } catch {
-                print("❌ Error deleting live game: \(error)")
+                forcePrint("❌ Error deleting live game: \(error)")
             }
         }
     }

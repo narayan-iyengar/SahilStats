@@ -116,12 +116,12 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         if let savedUUID = UserDefaults.standard.string(forKey: persistentUUIDKey) {
             persistentUUID = savedUUID
-            print("📱 Using saved persistent UUID: \(persistentUUID)")
+            debugPrint("📱 Using saved persistent UUID: \(persistentUUID)")
         } else {
             // First launch - create and save a new UUID
             persistentUUID = UUID().uuidString
             UserDefaults.standard.set(persistentUUID, forKey: persistentUUIDKey)
-            print("📱 Created new persistent UUID: \(persistentUUID)")
+            debugPrint("📱 Created new persistent UUID: \(persistentUUID)")
         }
 
         // Get short ID from persistent UUID (last 4 chars)
@@ -130,7 +130,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         // Format: "Name's iPhone (A1B2)" or "Name's iPad (C3D4)"
         let displayName = "\(deviceName) (\(shortID))"
 
-        print("📱 Device ID: \(displayName)")
+        debugPrint("📱 Device ID: \(displayName)")
         return MCPeerID(displayName: displayName)
     }()
 
@@ -146,10 +146,10 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     private var isRecordingActive: Bool = false {
         didSet {
             if isRecordingActive != oldValue {
-                print("📹 Recording state changed: \(isRecordingActive ? "STARTED" : "STOPPED")")
+                debugPrint("📹 Recording state changed: \(isRecordingActive ? "STARTED" : "STOPPED")")
                 // Restart keep-alive with new interval if connected
                 if connectionState.isConnected {
-                    print("🔄 Restarting keep-alive with adaptive interval...")
+                    debugPrint("🔄 Restarting keep-alive with adaptive interval...")
                     startKeepAlive()
                 }
             }
@@ -219,7 +219,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         }
 
         func printDiagnostics() {
-            print("""
+            debugPrint("""
 
             ═══════════════════════════════════════════════════════════════
             📊 MULTIPEER CONNECTION DIAGNOSTICS
@@ -279,7 +279,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     /// Only prints if verbose logging is enabled - eliminates performance overhead in production
     private func log(_ message: String) {
         guard Self.enableVerboseLogging else { return }
-        print(message)
+        debugPrint(message)
     }
 
     // MARK: - Auto-Connection
@@ -291,20 +291,20 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         // Only auto-connect if we have trusted devices
         guard trustedDevices.hasTrustedDevices else {
-            print("⚠️ No trusted devices, skipping auto-connection")
+            debugPrint("⚠️ No trusted devices, skipping auto-connection")
             return
         }
 
         // Don't restart if already connected
         if connectionState.isConnected {
-            print("✅ Already connected, skipping auto-connection")
+            debugPrint("✅ Already connected, skipping auto-connection")
             shouldAutoReconnect = true // Enable reconnection if disconnect happens
             return
         }
 
         // Get the first trusted peer to determine what role to use
         guard let firstTrustedPeer = trustedDevices.allTrustedPeers.first else {
-            print("⚠️ No trusted peers available")
+            debugPrint("⚠️ No trusted peers available")
             return
         }
 
@@ -318,11 +318,11 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         let role = savedRole ?? fallbackRole
 
         if savedRole != nil {
-            print("🔄 Starting auto-connection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
+            debugPrint("🔄 Starting auto-connection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
         } else {
-            print("⚠️ No saved role for \(firstTrustedPeer.deviceName), using fallback: \(role.displayName)")
+            debugPrint("⚠️ No saved role for \(firstTrustedPeer.deviceName), using fallback: \(role.displayName)")
         }
-        print("   📝 Debug: savedRole=\(savedRole?.displayName ?? "nil"), fallbackRole=\(fallbackRole.displayName)")
+        debugPrint("   📝 Debug: savedRole=\(savedRole?.displayName ?? "nil"), fallbackRole=\(fallbackRole.displayName)")
 
         shouldAutoReconnect = true
         startSession(role: role)
@@ -344,7 +344,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         guard shouldAutoReconnect else { return }
 
-        print("🔄 Will attempt reconnection in 5 seconds...")
+        debugPrint("🔄 Will attempt reconnection in 5 seconds...")
 
         // Capture main-actor-isolated values before entering Sendable closure
         let fallbackRole = self.lastUsedRole ?? .controller
@@ -358,14 +358,14 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
                 // Get the saved role for our trusted peer (same logic as startAutoConnectionIfNeeded)
                 let trustedDevices = TrustedDevicesManager.shared
                 guard let firstTrustedPeer = trustedDevices.allTrustedPeers.first else {
-                    print("⚠️ No trusted peers available for reconnection")
+                    debugPrint("⚠️ No trusted peers available for reconnection")
                     return
                 }
 
                 let peerID = MCPeerID(displayName: firstTrustedPeer.id)
                 let role = trustedDevices.getMyRole(for: peerID) ?? fallbackRole
 
-                print("🔄 Attempting automatic reconnection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
+                debugPrint("🔄 Attempting automatic reconnection as \(role.displayName) (saved role for \(firstTrustedPeer.deviceName))")
                 self.startSession(role: role)
             }
         }
@@ -377,7 +377,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         guard shouldAutoReconnect else { return }
 
-        print("🔄 IMMEDIATE RECONNECT: Attempting reconnection in 1 second...")
+        debugPrint("🔄 IMMEDIATE RECONNECT: Attempting reconnection in 1 second...")
 
         // Capture main-actor-isolated values before entering Sendable closure
         let fallbackRole = self.lastUsedRole ?? .controller
@@ -391,14 +391,14 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
                 // Get the saved role for our trusted peer
                 let trustedDevices = TrustedDevicesManager.shared
                 guard let firstTrustedPeer = trustedDevices.allTrustedPeers.first else {
-                    print("⚠️ No trusted peers available for immediate reconnection")
+                    debugPrint("⚠️ No trusted peers available for immediate reconnection")
                     return
                 }
 
                 let peerID = MCPeerID(displayName: firstTrustedPeer.id)
                 let role = trustedDevices.getMyRole(for: peerID) ?? fallbackRole
 
-                print("🔄 IMMEDIATE RECONNECT: Reconnecting as \(role.displayName)")
+                debugPrint("🔄 IMMEDIATE RECONNECT: Reconnecting as \(role.displayName)")
                 self.startSession(role: role)
             }
         }
@@ -413,7 +413,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     func startSession(role: DeviceRole) {
         stopSession() // Ensure a clean slate
-        print("🚀 Starting Multipeer Session as \(role.displayName)")
+        debugPrint("🚀 Starting Multipeer Session as \(role.displayName)")
         connectionState = .searching
         lastUsedRole = role // Remember role for reconnection
 
@@ -428,12 +428,12 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             self.advertiser?.delegate = self
             self.advertiser?.startAdvertisingPeer()
 
-            print("📡 Both browsing and advertising as \(role.displayName)")
+            debugPrint("📡 Both browsing and advertising as \(role.displayName)")
         }
     }
 
     func stopSession() {
-        print("🛑 Stopping Multipeer Session")
+        debugPrint("🛑 Stopping Multipeer Session")
         browser?.stopBrowsingForPeers(); browser = nil
         advertiser?.stopAdvertisingPeer(); advertiser = nil
         session.disconnect()
@@ -448,7 +448,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     /// Both devices advertise and browse to find each other
     func startGenericDiscovery() {
         stopSession() // Ensure a clean slate
-        print("🔍 Starting Generic Discovery for Pairing")
+        debugPrint("🔍 Starting Generic Discovery for Pairing")
         connectionState = .searching
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -461,13 +461,13 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             self.advertiser?.delegate = self
             self.advertiser?.startAdvertisingPeer()
 
-            print("📡 Both browsing and advertising active for pairing")
+            debugPrint("📡 Both browsing and advertising active for pairing")
         }
     }
 
     func sendMessage(_ message: Message) {
         guard let peer = connectedPeer, !session.connectedPeers.isEmpty else {
-            print("⚠️ Cannot send message, no connected peer.")
+            debugPrint("⚠️ Cannot send message, no connected peer.")
             return
         }
         do {
@@ -481,10 +481,10 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             }
 
             if message.type != .ping && message.type != .pong {
-                print("📤 Sent message: \(message.type)")
+                debugPrint("📤 Sent message: \(message.type)")
             }
         } catch {
-            print("❌ Failed to send message: \(error.localizedDescription)")
+            forcePrint("❌ Failed to send message: \(error.localizedDescription)")
         }
     }
     
@@ -511,7 +511,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     func sendGameEnded(gameId: String) {
         sendMessage(Message(type: .gameEnded, payload: ["gameId": gameId]))
-        print("📤 Sent gameEnded message with gameId: \(gameId)")
+        debugPrint("📤 Sent gameEnded message with gameId: \(gameId)")
     }
 
     func sendPing() {
@@ -612,7 +612,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             "awayScore": String(awayScore)
         ]
         sendMessage(Message(type: .scoreUpdate, payload: payload))
-        print("⚡ [Instant] Sent score update: \(homeScore)-\(awayScore)")
+        debugPrint("⚡ [Instant] Sent score update: \(homeScore)-\(awayScore)")
     }
 
     /// Send immediate clock control (start/stop/pause)
@@ -623,7 +623,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             "timestamp": String(timestamp.timeIntervalSince1970)
         ]
         sendMessage(Message(type: .clockControl, payload: payload))
-        print("⚡ [Instant] Sent clock control: \(isRunning ? "START" : "PAUSE") at \(String(format: "%.0f", clockValue))s")
+        debugPrint("⚡ [Instant] Sent clock control: \(isRunning ? "START" : "PAUSE") at \(String(format: "%.0f", clockValue))s")
     }
 
     /// Send immediate period/quarter change
@@ -634,7 +634,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             "gameFormat": gameFormat.rawValue
         ]
         sendMessage(Message(type: .periodChange, payload: payload))
-        print("⚡ [Instant] Sent period change: Q\(quarter) | Clock: \(String(format: "%.0f", clockValue))s")
+        debugPrint("⚡ [Instant] Sent period change: Q\(quarter) | Clock: \(String(format: "%.0f", clockValue))s")
     }
 
     /// Send periodic clock sync (for drift correction)
@@ -664,7 +664,7 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 )
             case .connected:
                 // ALWAYS log connections (critical info)
-                print("✅ MPC Connected to \(peerID.displayName)")
+                debugPrint("✅ MPC Connected to \(peerID.displayName)")
 
                 // DIAGNOSTICS: Record successful connection
                 self.connectionDiagnostics.recordConnection()
@@ -691,7 +691,7 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 // Start Live Activity if not already active (for auto-connection path)
                 if !LiveActivityManager.shared.isActivityActive {
                     let deviceRole = DeviceRoleManager.shared.deviceRole
-                    print("🏝️ Auto-connection succeeded - starting Live Activity for \(deviceRole.displayName)")
+                    debugPrint("🏝️ Auto-connection succeeded - starting Live Activity for \(deviceRole.displayName)")
                     LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
                 }
 
@@ -708,13 +708,13 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                         deviceName: friendlyName,
                         isConnected: true
                     )
-                    print("📱 Sent connection notification (Live Activity not active)")
+                    debugPrint("📱 Sent connection notification (Live Activity not active)")
                 } else {
-                    print("🏝️ Skipping notification (Live Activity is active)")
+                    debugPrint("🏝️ Skipping notification (Live Activity is active)")
                 }
             case .notConnected:
                 // ALWAYS log disconnections (critical info)
-                print("❌ MPC Disconnected from \(peerID.displayName)")
+                forcePrint("❌ MPC Disconnected from \(peerID.displayName)")
                 if self.connectedPeer == peerID {
                     // DIAGNOSTICS: Record disconnection with reason
                     let duration = self.connectionDiagnostics.currentSessionDuration()
@@ -746,20 +746,20 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                             deviceName: friendlyName,
                             isConnected: false
                         )
-                        print("📱 Sent disconnection notification (Live Activity not active)")
+                        debugPrint("📱 Sent disconnection notification (Live Activity not active)")
                     } else {
-                        print("🏝️ Skipping notification (Live Activity is active)")
+                        debugPrint("🏝️ Skipping notification (Live Activity is active)")
                     }
 
                     // HOTSPOT FIX: Attempt IMMEDIATE reconnection (don't wait 5 seconds)
                     // Hotspot disconnects are usually temporary - reconnect ASAP
                     if self.shouldAutoReconnect {
-                        print("🔄 HOTSPOT RECONNECT: Attempting immediate reconnection...")
+                        debugPrint("🔄 HOTSPOT RECONNECT: Attempting immediate reconnection...")
                         self.startReconnectTimerImmediate()
                     }
                 }
             @unknown default:
-                print("❓ Unknown MPC state: \(state.rawValue)")
+                debugPrint("❓ Unknown MPC state: \(state.rawValue)")
             }
         }
     }
@@ -778,10 +778,10 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 // Update recording state based on messages from recorder
                 switch message.type {
                 case .startRecording:
-                    print("🎬 Controller received startRecording message - updating isRemoteRecording to true")
+                    debugPrint("🎬 Controller received startRecording message - updating isRemoteRecording to true")
                     self.isRemoteRecording = true
                 case .stopRecording:
-                    print("🎬 Controller received stopRecording message - updating isRemoteRecording to false")
+                    debugPrint("🎬 Controller received stopRecording message - updating isRemoteRecording to false")
                     self.isRemoteRecording = false
                 default:
                     break
@@ -789,7 +789,7 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
 
                 self.messagePublisher.send(message)
                 if message.type != .ping && message.type != .pong {
-                    print("📥 Received message: \(message.type)")
+                    debugPrint("📥 Received message: \(message.type)")
                 }
             }
         }
@@ -810,13 +810,13 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
         DispatchQueue.main.async {
             if !self.discoveredPeers.contains(where: { $0.displayName == peerID.displayName }) {
                 self.discoveredPeers.append(peerID)
-                print("📡 Discovered peer: \(peerID.displayName)")
+                debugPrint("📡 Discovered peer: \(peerID.displayName)")
             }
         }
 
         // Auto-invite trusted peers
         if TrustedDevicesManager.shared.isTrusted(peerID) {
-            print("✅ Found trusted peer, auto-inviting: \(peerID.displayName)")
+            debugPrint("✅ Found trusted peer, auto-inviting: \(peerID.displayName)")
             browser.invitePeer(peerID, to: session, withContext: nil, timeout: 30)
         }
     }
@@ -824,7 +824,7 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
         DispatchQueue.main.async {
             self.discoveredPeers.removeAll { $0.displayName == peerID.displayName }
-            print("📡 Lost peer: \(peerID.displayName)")
+            debugPrint("📡 Lost peer: \(peerID.displayName)")
         }
     }
 }
@@ -834,7 +834,7 @@ extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         // Automatically accept invitations from trusted devices
         if TrustedDevicesManager.shared.isTrusted(peerID) {
-            print("✅ Auto-accepting invitation from trusted peer: \(peerID.displayName)")
+            debugPrint("✅ Auto-accepting invitation from trusted peer: \(peerID.displayName)")
             invitationHandler(true, self.session)
         } else {
             // For pairing mode: add to pending invitations for user to approve
@@ -845,7 +845,7 @@ extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
                     invitationHandler: invitationHandler
                 )
                 self.pendingInvitations.append(invitation)
-                print("📩 Received invitation from untrusted peer: \(peerID.displayName) - awaiting approval")
+                debugPrint("📩 Received invitation from untrusted peer: \(peerID.displayName) - awaiting approval")
             }
         }
     }
@@ -892,12 +892,12 @@ private extension MultipeerConnectivityManager {
                     // Print session health every 6 keep-alives (~1 minute)
                     if keepAliveCount % 6 == 0 {
                         let health = self.getSessionHealth()
-                        print("📊 [~1 min] Session health: \(health)")
+                        debugPrint("📊 [~1 min] Session health: \(health)")
                     }
 
                     // Print detailed stats every 30 keep-alives (~5 minutes)
                     if keepAliveCount % 30 == 0 {
-                        print("📊 [~5 min] Printing detailed diagnostics:")
+                        debugPrint("📊 [~5 min] Printing detailed diagnostics:")
                         self.printDiagnostics()
                     }
                 }
@@ -999,14 +999,14 @@ extension MultipeerConnectivityManager {
             let role = trustedDevices.getMyRole(for: peerID) ?? roleManager.preferredRole
             let effectiveRole = role != .none ? role : .controller
 
-            print("🔍 Starting background scan with saved role: \(effectiveRole.displayName) for \(firstTrustedPeer.deviceName)")
+            debugPrint("🔍 Starting background scan with saved role: \(effectiveRole.displayName) for \(firstTrustedPeer.deviceName)")
             startSession(role: effectiveRole)
         } else {
             // No trusted devices - use preferred role
             let role = roleManager.preferredRole
             let effectiveRole = role != .none ? role : .controller
 
-            print("🔍 Starting background scan with preferred role: \(effectiveRole.displayName)")
+            debugPrint("🔍 Starting background scan with preferred role: \(effectiveRole.displayName)")
             startSession(role: effectiveRole)
         }
     }

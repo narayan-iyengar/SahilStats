@@ -60,20 +60,20 @@ class GameQRCodeManager {
         let qrData = GameQRData(liveGame: liveGame)
 
         guard let jsonData = try? JSONEncoder().encode(qrData) else {
-            print("❌ Failed to encode game data to JSON")
+            forcePrint("❌ Failed to encode game data to JSON")
             return nil
         }
 
         let jsonString = String(data: jsonData, encoding: .utf8) ?? ""
-        print("📱 Generating QR code with data:")
-        print("   Game ID: \(qrData.gameId)")
-        print("   Opponent: \(qrData.opponent)")
-        print("   JSON length: \(jsonString.count) characters")
+        debugPrint("📱 Generating QR code with data:")
+        debugPrint("   Game ID: \(qrData.gameId)")
+        debugPrint("   Opponent: \(qrData.opponent)")
+        debugPrint("   JSON length: \(jsonString.count) characters")
 
         filter.message = jsonData
 
         guard let outputImage = filter.outputImage else {
-            print("❌ Failed to generate QR code image")
+            forcePrint("❌ Failed to generate QR code image")
             return nil
         }
 
@@ -82,12 +82,12 @@ class GameQRCodeManager {
         let scaledImage = outputImage.transformed(by: transform)
 
         guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
-            print("❌ Failed to create CGImage from QR code")
+            forcePrint("❌ Failed to create CGImage from QR code")
             return nil
         }
 
         let uiImage = UIImage(cgImage: cgImage)
-        print("✅ QR code generated successfully")
+        debugPrint("✅ QR code generated successfully")
         return uiImage
     }
 
@@ -95,18 +95,18 @@ class GameQRCodeManager {
 
     func parseQRCode(from string: String) -> GameQRData? {
         guard let jsonData = string.data(using: .utf8) else {
-            print("❌ Failed to convert QR string to data")
+            forcePrint("❌ Failed to convert QR string to data")
             return nil
         }
 
         do {
             let qrData = try JSONDecoder().decode(GameQRData.self, from: jsonData)
-            print("✅ Successfully parsed QR code:")
-            print("   Game ID: \(qrData.gameId)")
-            print("   Opponent: \(qrData.opponent)")
+            debugPrint("✅ Successfully parsed QR code:")
+            debugPrint("   Game ID: \(qrData.gameId)")
+            debugPrint("   Opponent: \(qrData.opponent)")
             return qrData
         } catch {
-            print("❌ Failed to decode QR data: \(error)")
+            forcePrint("❌ Failed to decode QR data: \(error)")
             return nil
         }
     }

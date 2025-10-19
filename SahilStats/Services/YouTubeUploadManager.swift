@@ -23,7 +23,7 @@ class YouTubeUploadManager: ObservableObject {
     @Published var isYouTubeUploadEnabled: Bool {
         didSet {
             UserDefaults.standard.set(isYouTubeUploadEnabled, forKey: "isYouTubeUploadEnabled")
-            print("📺 YouTube upload \(isYouTubeUploadEnabled ? "enabled" : "disabled")")
+            debugPrint("📺 YouTube upload \(isYouTubeUploadEnabled ? "enabled" : "disabled")")
         }
     }
 
@@ -47,7 +47,7 @@ class YouTubeUploadManager: ObservableObject {
             .dropFirst() // Skip initial value
             .sink { [weak self] isWiFi in
                 if isWiFi {
-                    print("📡 WiFi detected - checking for pending uploads")
+                    debugPrint("📡 WiFi detected - checking for pending uploads")
                     self?.processPendingUploads()
                 }
             }
@@ -62,25 +62,25 @@ class YouTubeUploadManager: ObservableObject {
         description: String,
         gameId: String
     ) {
-        print("🎥 queueVideoForUpload called")
-        print("   Video URL: \(videoURL)")
-        print("   Title: \(title)")
-        print("   Game ID: \(gameId)")
-        print("   YouTube upload enabled: \(isYouTubeUploadEnabled)")
+        debugPrint("🎥 queueVideoForUpload called")
+        debugPrint("   Video URL: \(videoURL)")
+        debugPrint("   Title: \(title)")
+        debugPrint("   Game ID: \(gameId)")
+        debugPrint("   YouTube upload enabled: \(isYouTubeUploadEnabled)")
 
         // Check if YouTube uploads are disabled
         if !isYouTubeUploadEnabled {
-            print("⏸️ YouTube uploads are disabled - skipping queue")
-            print("   Local video saved at: \(videoURL.path)")
+            debugPrint("⏸️ YouTube uploads are disabled - skipping queue")
+            debugPrint("   Local video saved at: \(videoURL.path)")
             return
         }
 
         // Check if file exists
         let fileExists = FileManager.default.fileExists(atPath: videoURL.path)
-        print("   File exists: \(fileExists)")
+        debugPrint("   File exists: \(fileExists)")
 
         if !fileExists {
-            print("❌ Video file does not exist at path: \(videoURL.path)")
+            forcePrint("❌ Video file does not exist at path: \(videoURL.path)")
             return
         }
 
@@ -96,15 +96,15 @@ class YouTubeUploadManager: ObservableObject {
         pendingUploads.append(upload)
         savePendingUploads()
 
-        print("✅ Video queued for upload: \(title)")
-        print("   Total pending uploads: \(pendingUploads.count)")
+        debugPrint("✅ Video queued for upload: \(title)")
+        debugPrint("   Total pending uploads: \(pendingUploads.count)")
 
         // If on WiFi, start uploading immediately
         if wifinetworkMonitor.isWiFi {
-            print("📡 WiFi detected - starting upload process")
+            debugPrint("📡 WiFi detected - starting upload process")
             processPendingUploads()
         } else {
-            print("⚠️ Not on WiFi - upload will start when connected")
+            debugPrint("⚠️ Not on WiFi - upload will start when connected")
         }
     }
     
@@ -112,21 +112,21 @@ class YouTubeUploadManager: ObservableObject {
     
     func processPendingUploads() {
         guard wifinetworkMonitor.isWiFi else {
-            print("⚠️ Not on WiFi - uploads paused")
+            debugPrint("⚠️ Not on WiFi - uploads paused")
             return
         }
 
         guard !isUploading else {
-            print("⚠️ Already uploading")
+            debugPrint("⚠️ Already uploading")
             return
         }
 
         // Find first upload that hasn't exceeded max attempts
         guard let nextUpload = pendingUploads.first(where: { $0.uploadAttempts < 5 }) else {
             if !pendingUploads.isEmpty {
-                print("⚠️ All pending uploads have exceeded maximum attempts")
+                debugPrint("⚠️ All pending uploads have exceeded maximum attempts")
             } else {
-                print("✅ No pending uploads")
+                debugPrint("✅ No pending uploads")
             }
             return
         }
@@ -162,7 +162,7 @@ class YouTubeUploadManager: ObservableObject {
                     accessToken: accessToken
                 )
 
-                print("✅ Upload successful, video ID: \(videoId)")
+                debugPrint("✅ Upload successful, video ID: \(videoId)")
 
                 // Update progress: Saving metadata
                 await MainActor.run { self.uploadProgress = 0.95 }
@@ -176,7 +176,7 @@ class YouTubeUploadManager: ObservableObject {
                     self.completeUpload(upload, success: true)
                 }
             } catch {
-                print("❌ Upload failed: \(error.localizedDescription)")
+                forcePrint("❌ Upload failed: \(error.localizedDescription)")
 
                 await MainActor.run {
                     var shouldStopRetrying = false
@@ -185,14 +185,14 @@ class YouTubeUploadManager: ObservableObject {
                     if let uploadError = error as? UploadError {
                         switch uploadError {
                         case .uploadFailed(let statusCode, _) where statusCode == 401 || statusCode == 403:
-                            print("🔒 Authentication error detected - clearing stored tokens")
+                            debugPrint("🔒 Authentication error detected - clearing stored tokens")
                             // Clear tokens so user is forced to re-authorize
                             Task {
                                 try? await FirebaseYouTubeAuthManager.shared.revokeYouTubeAccess()
                             }
                             shouldStopRetrying = true
                         case .quotaExceeded:
-                            print("⚠️ YouTube quota exceeded - stopping retry until quota resets")
+                            debugPrint("⚠️ YouTube quota exceeded - stopping retry until quota resets")
                             shouldStopRetrying = true
 
                             // Store local video URL so users can watch locally while waiting for quota
@@ -216,7 +216,7 @@ class YouTubeUploadManager: ObservableObject {
 
                         // If too many attempts, mark for manual intervention
                         if self.pendingUploads[index].uploadAttempts >= 5 {
-                            print("⚠️ Upload failed after \(self.pendingUploads[index].uploadAttempts) attempts - stopping auto-retry")
+                            debugPrint("⚠️ Upload failed after \(self.pendingUploads[index].uploadAttempts) attempts - stopping auto-retry")
                         }
                     }
 
@@ -248,17 +248,17 @@ class YouTubeUploadManager: ObservableObject {
 
             // If the token is less than 45 minutes old, use it (more conservative)
             if Date().timeIntervalSince(tokenDate) < fortyFiveMinutesInSeconds {
-                print("✅ Using existing YouTube access token (age: \(Int(Date().timeIntervalSince(tokenDate) / 60)) minutes)")
+                debugPrint("✅ Using existing YouTube access token (age: \(Int(Date().timeIntervalSince(tokenDate) / 60)) minutes)")
                 return accessToken
             } else {
                 // Otherwise, refresh the token.
-                print("⌛️ YouTube access token is old (\(Int(Date().timeIntervalSince(tokenDate) / 60)) minutes), refreshing...")
+                debugPrint("⌛️ YouTube access token is old (\(Int(Date().timeIntervalSince(tokenDate) / 60)) minutes), refreshing...")
                 let newToken = try await FirebaseYouTubeAuthManager.shared.refreshAccessToken()
-                print("✅ Successfully refreshed YouTube access token")
+                debugPrint("✅ Successfully refreshed YouTube access token")
                 return newToken
             }
         } catch {
-            print("❌ Token fetch/refresh failed: \(error.localizedDescription)")
+            forcePrint("❌ Token fetch/refresh failed: \(error.localizedDescription)")
             throw UploadError.uploadFailed(statusCode: 401, message: "Unable to get valid YouTube token. Please re-authorize in Settings > YouTube.")
         }
     }
@@ -292,7 +292,7 @@ class YouTubeUploadManager: ObservableObject {
 
         // Get file size
         let fileSize = try FileManager.default.attributesOfItem(atPath: videoURL.path)[.size] as! Int
-        print("📹 Video file size: \(fileSize) bytes (\(fileSize / 1_000_000) MB)")
+        debugPrint("📹 Video file size: \(fileSize) bytes (\(fileSize / 1_000_000) MB)")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -302,29 +302,29 @@ class YouTubeUploadManager: ObservableObject {
         request.setValue("video/*", forHTTPHeaderField: "X-Upload-Content-Type")
         request.httpBody = metadataJSON
 
-        print("📤 YouTube Upload Request:")
-        print("   URL: \(url)")
-        print("   Method: POST")
-        print("   Content-Length: \(fileSize)")
+        debugPrint("📤 YouTube Upload Request:")
+        debugPrint("   URL: \(url)")
+        debugPrint("   Method: POST")
+        debugPrint("   Content-Length: \(fileSize)")
         if let metadataString = String(data: metadataJSON, encoding: .utf8) {
-            print("   Metadata: \(metadataString)")
+            debugPrint("   Metadata: \(metadataString)")
         }
 
         // Get upload URL
-        print("🌐 Sending resumable upload initialization request to YouTube...")
+        debugPrint("🌐 Sending resumable upload initialization request to YouTube...")
         let (initData, initResponse) = try await URLSession.shared.data(for: request)
 
         // Log response details
         if let httpResponse = initResponse as? HTTPURLResponse {
-            print("📡 YouTube API Response:")
-            print("   Status Code: \(httpResponse.statusCode)")
-            print("   Headers: \(httpResponse.allHeaderFields)")
+            debugPrint("📡 YouTube API Response:")
+            debugPrint("   Status Code: \(httpResponse.statusCode)")
+            debugPrint("   Headers: \(httpResponse.allHeaderFields)")
 
             if let responseBody = String(data: initData, encoding: .utf8) {
-                print("   Response Body: \(responseBody)")
+                debugPrint("   Response Body: \(responseBody)")
             }
         } else {
-            print("❌ Response is not HTTPURLResponse: \(type(of: initResponse))")
+            forcePrint("❌ Response is not HTTPURLResponse: \(type(of: initResponse))")
         }
 
         guard let httpResponse = initResponse as? HTTPURLResponse else {
@@ -335,7 +335,7 @@ class YouTubeUploadManager: ObservableObject {
         if httpResponse.statusCode == 400 {
             // Parse error response for quota limits
             if let responseBody = String(data: initData, encoding: .utf8) {
-                print("❌ YouTube API error 400. Response: \(responseBody)")
+                forcePrint("❌ YouTube API error 400. Response: \(responseBody)")
 
                 // Check if it's a quota error
                 if responseBody.contains("uploadLimitExceeded") {
@@ -351,8 +351,8 @@ class YouTubeUploadManager: ObservableObject {
 
         if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
             if let responseBody = String(data: initData, encoding: .utf8) {
-                print("❌ YouTube API auth error. Status: \(httpResponse.statusCode)")
-                print("   Response body: \(responseBody)")
+                forcePrint("❌ YouTube API auth error. Status: \(httpResponse.statusCode)")
+                debugPrint("   Response body: \(responseBody)")
             }
 
             // Provide helpful error message
@@ -364,14 +364,14 @@ class YouTubeUploadManager: ObservableObject {
         }
 
         guard let uploadURL = httpResponse.value(forHTTPHeaderField: "Location") else {
-            print("❌ No 'Location' header in response. Status: \(httpResponse.statusCode)")
+            forcePrint("❌ No 'Location' header in response. Status: \(httpResponse.statusCode)")
             if let responseBody = String(data: initData, encoding: .utf8) {
-                print("   Response body: \(responseBody)")
+                debugPrint("   Response body: \(responseBody)")
             }
             throw UploadError.uploadFailed(statusCode: httpResponse.statusCode, message: "YouTube API error (status \(httpResponse.statusCode)). Check logs for details.")
         }
 
-        print("✅ Got upload URL from YouTube: \(uploadURL)")
+        debugPrint("✅ Got upload URL from YouTube: \(uploadURL)")
 
         // Update progress: Starting file transfer
         await MainActor.run { self.uploadProgress = 0.3 }
@@ -413,12 +413,12 @@ class YouTubeUploadManager: ObservableObject {
         // Find the upload in our pending list to get the local video URL
         if let upload = pendingUploads.first(where: { $0.gameId == gameId }) {
             updateData["videoURL"] = upload.videoURL.path
-            print("📹 Storing local video URL: \(upload.videoURL.path)")
+            debugPrint("📹 Storing local video URL: \(upload.videoURL.path)")
         }
 
         try await db.collection("games").document(gameId).updateData(updateData)
 
-        print("✅ Saved video ID and local URL to game: \(gameId)")
+        forcePrint("✅ Saved video ID and local URL to game: \(gameId)")
     }
 
     private func saveLocalVideoURLToGame(videoURL: URL, gameId: String) async {
@@ -436,22 +436,22 @@ class YouTubeUploadManager: ObservableObject {
                 "videoURL": videoURL.path
             ], merge: true)
 
-            print("✅ Successfully saved local video URL to game: \(gameId)")
-            print("   📹 Local video: \(videoURL.lastPathComponent)")
+            forcePrint("✅ Successfully saved local video URL to game: \(gameId)")
+            debugPrint("   📹 Local video: \(videoURL.lastPathComponent)")
             if attempt > 1 {
-                print("   ✓ Saved on attempt \(attempt)")
+                debugPrint("   ✓ Saved on attempt \(attempt)")
             }
         } catch {
-            print("⚠️ Error saving local video URL (attempt \(attempt)/\(maxAttempts)): \(error.localizedDescription)")
+            debugPrint("⚠️ Error saving local video URL (attempt \(attempt)/\(maxAttempts)): \(error.localizedDescription)")
 
             // Retry on error (unless max attempts reached)
             if attempt < maxAttempts {
                 let delay = Double(attempt) * 2.0 // 2s, 4s, 6s...
-                print("   Retrying in \(Int(delay))s...")
+                debugPrint("   Retrying in \(Int(delay))s...")
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 await saveLocalVideoURLWithRetry(videoURL: videoURL, gameId: gameId, attempt: attempt + 1, maxAttempts: maxAttempts)
             } else {
-                print("❌ Failed to save local video URL after \(maxAttempts) attempts")
+                forcePrint("❌ Failed to save local video URL after \(maxAttempts) attempts")
             }
         }
     }
@@ -478,7 +478,7 @@ class YouTubeUploadManager: ObservableObject {
     
     private func completeUpload(_ upload: PendingUpload, success: Bool) {
         if success {
-            print("✅ Upload completed: \(upload.title)")
+            debugPrint("✅ Upload completed: \(upload.title)")
             
             // Remove from pending uploads
             if let index = pendingUploads.firstIndex(where: { $0.id == upload.id }) {
@@ -488,7 +488,7 @@ class YouTubeUploadManager: ObservableObject {
             // Optionally delete local file
             deleteLocalVideo(upload.videoURL)
         } else {
-            print("❌ Upload failed: \(upload.title)")
+            forcePrint("❌ Upload failed: \(upload.title)")
         }
         
         isUploading = false
@@ -525,9 +525,9 @@ class YouTubeUploadManager: ObservableObject {
     private func deleteLocalVideo(_ url: URL) {
         do {
             try FileManager.default.removeItem(at: url)
-            print("🗑️ Deleted local video: \(url.lastPathComponent)")
+            debugPrint("🗑️ Deleted local video: \(url.lastPathComponent)")
         } catch {
-            print("❌ Failed to delete local video: \(error)")
+            forcePrint("❌ Failed to delete local video: \(error)")
         }
     }
     
@@ -535,7 +535,7 @@ class YouTubeUploadManager: ObservableObject {
     
     func pauseUploads() {
         isUploading = false
-        print("⏸️ Uploads paused")
+        debugPrint("⏸️ Uploads paused")
     }
     
     func resumeUploads() {
@@ -553,7 +553,7 @@ class YouTubeUploadManager: ObservableObject {
                 isUploading = false
                 currentUpload = nil
                 uploadProgress = 0
-                print("⚠️ Cancelled active upload: \(upload.title)")
+                debugPrint("⚠️ Cancelled active upload: \(upload.title)")
             }
 
             // Delete the video file if it exists
@@ -561,7 +561,7 @@ class YouTubeUploadManager: ObservableObject {
 
             pendingUploads.remove(at: index)
             savePendingUploads()
-            print("❌ Removed from queue: \(upload.title)")
+            forcePrint("❌ Removed from queue: \(upload.title)")
 
             // Process next upload if available and not currently uploading
             if !isUploading && !pendingUploads.isEmpty && wifinetworkMonitor.isWiFi {
@@ -576,7 +576,7 @@ class YouTubeUploadManager: ObservableObject {
         // Remove all uploads that have exceeded retry limit
         pendingUploads.removeAll(where: { $0.uploadAttempts >= 5 })
         savePendingUploads()
-        print("🗑️ Cleared all failed uploads")
+        debugPrint("🗑️ Cleared all failed uploads")
     }
     
     func retryFailedUpload(_ uploadId: String) {
@@ -587,7 +587,7 @@ class YouTubeUploadManager: ObservableObject {
     // MARK: - YouTube Video Deletion
 
     func deleteYouTubeVideo(videoId: String) async throws {
-        print("🗑️ Attempting to delete YouTube video: \(videoId)")
+        debugPrint("🗑️ Attempting to delete YouTube video: \(videoId)")
 
         // Get fresh access token
         let accessToken = try await getFreshAccessToken()
@@ -610,24 +610,24 @@ class YouTubeUploadManager: ObservableObject {
 
         // YouTube returns 204 (No Content) on successful deletion
         if httpResponse.statusCode == 204 {
-            print("✅ Successfully deleted YouTube video: \(videoId)")
+            forcePrint("✅ Successfully deleted YouTube video: \(videoId)")
             return
         }
 
         // Handle errors
         if httpResponse.statusCode == 404 {
-            print("⚠️ YouTube video not found (may already be deleted): \(videoId)")
+            debugPrint("⚠️ YouTube video not found (may already be deleted): \(videoId)")
             return // Not an error - video is already gone
         }
 
         if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            print("❌ YouTube authorization error when deleting video")
+            forcePrint("❌ YouTube authorization error when deleting video")
             throw UploadError.uploadFailed(statusCode: httpResponse.statusCode, message: "YouTube authorization error. Please re-authorize in Settings.")
         }
 
         // Log unexpected errors
         if let responseBody = String(data: data, encoding: .utf8) {
-            print("❌ YouTube API error \(httpResponse.statusCode): \(responseBody)")
+            forcePrint("❌ YouTube API error \(httpResponse.statusCode): \(responseBody)")
         }
 
         throw UploadError.uploadFailed(statusCode: httpResponse.statusCode, message: "Failed to delete YouTube video (status \(httpResponse.statusCode))")

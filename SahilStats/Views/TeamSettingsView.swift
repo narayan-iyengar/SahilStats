@@ -85,7 +85,7 @@ struct TeamsSettingsView: View {
                 try await firebaseService.addTeam(team)
                 newTeamName = ""
             } catch {
-                print("Failed to add team: \(error)")
+                debugPrint("Failed to add team: \(error)")
             }
         }
     }
@@ -95,7 +95,7 @@ struct TeamsSettingsView: View {
             do {
                 try await firebaseService.deleteTeam(team.id ?? "")
             } catch {
-                print("Failed to delete team: \(error)")
+                debugPrint("Failed to delete team: \(error)")
             }
         }
     }

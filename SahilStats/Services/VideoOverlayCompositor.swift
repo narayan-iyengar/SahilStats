@@ -17,9 +17,9 @@ class VideoOverlayCompositor {
         scoreTimeline: [ScoreTimelineTracker.ScoreSnapshot],
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
-        print("🎨 VideoOverlayCompositor: Starting time-based overlay composition")
-        print("   Input: \(videoURL.lastPathComponent)")
-        print("   Timeline snapshots: \(scoreTimeline.count)")
+        debugPrint("🎨 VideoOverlayCompositor: Starting time-based overlay composition")
+        debugPrint("   Input: \(videoURL.lastPathComponent)")
+        debugPrint("   Timeline snapshots: \(scoreTimeline.count)")
 
         let asset = AVURLAsset(url: videoURL)
 
@@ -28,7 +28,7 @@ class VideoOverlayCompositor {
             do {
                 let tracks = try await asset.loadTracks(withMediaType: .video)
                 guard let videoTrack = tracks.first else {
-                    print("❌ No video track found")
+                    forcePrint("❌ No video track found")
                     completion(.failure(NSError(domain: "VideoOverlayCompositor", code: 1,
                                                userInfo: [NSLocalizedDescriptionKey: "No video track found"])))
                     return
@@ -36,7 +36,7 @@ class VideoOverlayCompositor {
 
                 await processVideo(asset: asset, videoTrack: videoTrack, scoreTimeline: scoreTimeline, videoURL: videoURL, completion: completion)
             } catch {
-                print("❌ Error loading video track: \(error)")
+                forcePrint("❌ Error loading video track: \(error)")
                 completion(.failure(error))
             }
         }
@@ -56,7 +56,7 @@ class VideoOverlayCompositor {
             withMediaType: .video,
             preferredTrackID: kCMPersistentTrackID_Invalid
         ) else {
-            print("❌ Could not create video track")
+            forcePrint("❌ Could not create video track")
             completion(.failure(NSError(domain: "VideoOverlayCompositor", code: 2,
                                        userInfo: [NSLocalizedDescriptionKey: "Could not create video track"])))
             return
@@ -92,10 +92,10 @@ class VideoOverlayCompositor {
                 )
             }
 
-            print("✅ Tracks added to composition")
+            debugPrint("✅ Tracks added to composition")
 
         } catch {
-            print("❌ Error adding tracks: \(error)")
+            forcePrint("❌ Error adding tracks: \(error)")
             completion(.failure(error))
             return
         }
@@ -107,7 +107,7 @@ class VideoOverlayCompositor {
             videoSize = try await videoTrack.load(.naturalSize)
             duration = try await asset.load(.duration)
         } catch {
-            print("❌ Error loading video properties: \(error)")
+            forcePrint("❌ Error loading video properties: \(error)")
             completion(.failure(error))
             return
         }
@@ -160,7 +160,7 @@ class VideoOverlayCompositor {
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
         ) else {
-            print("❌ Could not create export session")
+            forcePrint("❌ Could not create export session")
             completion(.failure(NSError(domain: "VideoOverlayCompositor", code: 3,
                                        userInfo: [NSLocalizedDescriptionKey: "Could not create export session"])))
             return
@@ -169,22 +169,22 @@ class VideoOverlayCompositor {
         exporter.outputFileType = .mov
         exporter.videoComposition = videoComposition
 
-        print("📤 Exporting video with animated overlay to: \(outputURL.lastPathComponent)")
+        debugPrint("📤 Exporting video with animated overlay to: \(outputURL.lastPathComponent)")
 
         do {
             try await exporter.export(to: outputURL, as: .mov)
 
-            print("✅ Video export completed successfully")
+            debugPrint("✅ Video export completed successfully")
 
             // Delete original video to save space
             try? FileManager.default.removeItem(at: videoURL)
-            print("🗑️ Deleted original video (without overlay)")
+            debugPrint("🗑️ Deleted original video (without overlay)")
 
             DispatchQueue.main.async {
                 completion(.success(outputURL))
             }
         } catch {
-            print("❌ Export failed: \(String(describing: error))")
+            forcePrint("❌ Export failed: \(String(describing: error))")
             DispatchQueue.main.async {
                 completion(.failure(error))
             }
@@ -198,8 +198,8 @@ class VideoOverlayCompositor {
         scoreTimeline: [ScoreTimelineTracker.ScoreSnapshot],
         videoDuration: TimeInterval
     ) -> CALayer {
-        print("🎨 Creating animated overlay layer for video size: \(videoSize)")
-        print("   Video duration: \(String(format: "%.1f", videoDuration))s")
+        debugPrint("🎨 Creating animated overlay layer for video size: \(videoSize)")
+        debugPrint("   Video duration: \(String(format: "%.1f", videoDuration))s")
 
         let overlayLayer = CALayer()
         overlayLayer.frame = CGRect(origin: .zero, size: videoSize)
@@ -208,7 +208,7 @@ class VideoOverlayCompositor {
         let isLandscape = videoSize.width > videoSize.height
 
         guard isLandscape else {
-            print("⚠️ Portrait video - no overlay added")
+            debugPrint("⚠️ Portrait video - no overlay added")
             return overlayLayer
         }
 
@@ -387,7 +387,7 @@ class VideoOverlayCompositor {
 
         overlayLayer.addSublayer(scoreboardContainer)
 
-        print("✅ Animated overlay layer created successfully")
+        forcePrint("✅ Animated overlay layer created successfully")
         return overlayLayer
     }
 
@@ -404,20 +404,20 @@ class VideoOverlayCompositor {
         videoDuration: TimeInterval
     ) {
         guard !scoreTimeline.isEmpty else {
-            print("❌ ERROR: No score timeline - overlay will be BLANK!")
-            print("   This means ScoreTimelineTracker didn't capture any data during recording")
+            forcePrint("❌ ERROR: No score timeline - overlay will be BLANK!")
+            debugPrint("   This means ScoreTimelineTracker didn't capture any data during recording")
             return
         }
 
-        print("🎬 Adding score animations for \(scoreTimeline.count) snapshots")
-        print("   First snapshot: \(scoreTimeline[0].homeTeam) \(scoreTimeline[0].homeScore) - \(scoreTimeline[0].awayScore) \(scoreTimeline[0].awayTeam)")
+        debugPrint("🎬 Adding score animations for \(scoreTimeline.count) snapshots")
+        debugPrint("   First snapshot: \(scoreTimeline[0].homeTeam) \(scoreTimeline[0].homeScore) - \(scoreTimeline[0].awayScore) \(scoreTimeline[0].awayTeam)")
         if scoreTimeline.count > 1 {
-            print("   Last snapshot: \(scoreTimeline.last!.homeTeam) \(scoreTimeline.last!.homeScore) - \(scoreTimeline.last!.awayScore) \(scoreTimeline.last!.awayTeam)")
+            debugPrint("   Last snapshot: \(scoreTimeline.last!.homeTeam) \(scoreTimeline.last!.homeScore) - \(scoreTimeline.last!.awayScore) \(scoreTimeline.last!.awayTeam)")
         }
 
         // INTERPOLATION: Create smooth clock countdown
         let interpolatedTimeline = interpolateClockValues(scoreTimeline: scoreTimeline, videoDuration: videoDuration)
-        print("   📈 Interpolated to \(interpolatedTimeline.count) snapshots for smooth clock")
+        debugPrint("   📈 Interpolated to \(interpolatedTimeline.count) snapshots for smooth clock")
 
         // Use interpolated timeline for smoother clock updates
         let timelineToUse = interpolatedTimeline
@@ -489,7 +489,7 @@ class VideoOverlayCompositor {
         createKeyframeAnimation(for: periodLayer, values: periodTexts, keyTimes: keyTimes, duration: videoDuration)
         createKeyframeAnimation(for: clockLayer, values: clockTimes, keyTimes: keyTimes, duration: videoDuration)
 
-        print("   ✅ Created keyframe animations with \(keyTimes.count) keyframes")
+        forcePrint("   ✅ Created keyframe animations with \(keyTimes.count) keyframes")
     }
 
     private static func createKeyframeAnimation(

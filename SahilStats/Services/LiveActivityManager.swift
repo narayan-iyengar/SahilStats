@@ -28,37 +28,37 @@ class LiveActivityManager: ObservableObject {
     func startActivity(deviceRole: DeviceRole) {
         // Feature flag check - skip if disabled
         guard Self.isEnabled else {
-            print("🏝️ Live Activity disabled via feature flag")
+            debugPrint("🏝️ Live Activity disabled via feature flag")
             return
         }
 
         // Only enable for viewer role - not useful for recorder (on tripod) or controller (using full app)
         guard deviceRole == .viewer else {
-            print("🏝️ Live Activity skipped for \(deviceRole.displayName) role (viewer only)")
+            debugPrint("🏝️ Live Activity skipped for \(deviceRole.displayName) role (viewer only)")
             return
         }
 
-        print("🏝️ LiveActivityManager: startActivity() called for role: \(deviceRole.displayName)")
+        debugPrint("🏝️ LiveActivityManager: startActivity() called for role: \(deviceRole.displayName)")
 
         // Don't start if already active
         guard !isActivityActive else {
-            print("📱 Live Activity already active")
+            debugPrint("📱 Live Activity already active")
             return
         }
 
         // Check if Live Activities are supported
         let authInfo = ActivityAuthorizationInfo()
-        print("🏝️ Live Activities authorization status: \(authInfo.areActivitiesEnabled)")
-        print("🏝️ Frequent pushes enabled: \(authInfo.frequentPushesEnabled)")
+        debugPrint("🏝️ Live Activities authorization status: \(authInfo.areActivitiesEnabled)")
+        debugPrint("🏝️ Frequent pushes enabled: \(authInfo.frequentPushesEnabled)")
 
         guard authInfo.areActivitiesEnabled else {
-            print("⚠️ Live Activities are NOT enabled")
-            print("   📱 User needs to enable in Settings → SahilStats → Allow Live Activities")
-            print("   This is why you're seeing notification banners instead of Dynamic Island")
+            debugPrint("⚠️ Live Activities are NOT enabled")
+            debugPrint("   📱 User needs to enable in Settings → SahilStats → Allow Live Activities")
+            debugPrint("   This is why you're seeing notification banners instead of Dynamic Island")
             return
         }
 
-        print("✅ Live Activities ARE enabled - attempting to start...")
+        debugPrint("✅ Live Activities ARE enabled - attempting to start...")
 
         let attributes = SahilStatsActivityAttributes(
             deviceRole: deviceRole.displayName
@@ -79,22 +79,22 @@ class LiveActivityManager: ObservableObject {
         )
 
         do {
-            print("🏝️ Requesting Live Activity with attributes: \(deviceRole.displayName)")
+            debugPrint("🏝️ Requesting Live Activity with attributes: \(deviceRole.displayName)")
             currentActivity = try Activity.request(
                 attributes: attributes,
                 content: .init(state: initialState, staleDate: nil),
                 pushType: nil
             )
             isActivityActive = true
-            print("✅ Live Activity started successfully for role: \(deviceRole.displayName)")
-            print("   Activity ID: \(currentActivity?.id ?? "unknown")")
+            debugPrint("✅ Live Activity started successfully for role: \(deviceRole.displayName)")
+            debugPrint("   Activity ID: \(currentActivity?.id ?? "unknown")")
         } catch {
-            print("❌ Failed to start Live Activity: \(error.localizedDescription)")
-            print("   Error details: \(error)")
+            forcePrint("❌ Failed to start Live Activity: \(error.localizedDescription)")
+            debugPrint("   Error details: \(error)")
 
             // Check if it's a common error
             if let activityError = error as? ActivityAuthorizationError {
-                print("   Authorization error: \(activityError)")
+                debugPrint("   Authorization error: \(activityError)")
             }
         }
     }
@@ -139,7 +139,7 @@ class LiveActivityManager: ObservableObject {
             await activity.update(
                 .init(state: updatedState, staleDate: nil)
             )
-            print("🔄 Live Activity updated: connection = \(connectionStatus.displayText), device = \(deviceName ?? "none")")
+            debugPrint("🔄 Live Activity updated: connection = \(connectionStatus.displayText), device = \(deviceName ?? "none")")
         }
     }
 
@@ -171,7 +171,7 @@ class LiveActivityManager: ObservableObject {
             await activity.update(
                 .init(state: updatedState, staleDate: nil)
             )
-            print("🔄 Live Activity updated: game state")
+            debugPrint("🔄 Live Activity updated: game state")
         }
     }
 
@@ -187,7 +187,7 @@ class LiveActivityManager: ObservableObject {
             await activity.update(
                 .init(state: updatedState, staleDate: nil)
             )
-            print("🔄 Live Activity updated: recording = \(isRecording)")
+            debugPrint("🔄 Live Activity updated: recording = \(isRecording)")
         }
     }
 
@@ -201,7 +201,7 @@ class LiveActivityManager: ObservableObject {
             await activity.end(nil, dismissalPolicy: .immediate)
             currentActivity = nil
             isActivityActive = false
-            print("⏹️ Live Activity stopped")
+            debugPrint("⏹️ Live Activity stopped")
         }
     }
 }

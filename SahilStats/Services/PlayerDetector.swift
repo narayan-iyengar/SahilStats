@@ -23,7 +23,7 @@ class PlayerDetector {
 
     /// Detect all people in a frame using body pose detection
     func detectPeople(in frame: VideoFrame) async throws -> [DetectedPerson] {
-        print("🔍 Detecting people in frame at \(String(format: "%.1f", frame.timestamp))s...")
+        debugPrint("🔍 Detecting people in frame at \(String(format: "%.1f", frame.timestamp))s...")
 
         guard let cgImage = frame.image.cgImage else {
             throw DetectionError.visionRequestFailed("Could not get CGImage from frame")
@@ -42,11 +42,11 @@ class PlayerDetector {
         }
 
         guard let observations = bodyPoseRequest.results, !observations.isEmpty else {
-            print("   ⚠️ No people detected in frame")
+            debugPrint("   ⚠️ No people detected in frame")
             return []
         }
 
-        print("   ✅ Detected \(observations.count) person(s)")
+        debugPrint("   ✅ Detected \(observations.count) person(s)")
 
         // Convert observations to DetectedPerson objects
         var detectedPeople: [DetectedPerson] = []
@@ -90,7 +90,7 @@ class PlayerDetector {
 
     /// Detect jersey number using OCR in the upper body region
     func detectJerseyNumber(for person: DetectedPerson) async throws -> String? {
-        print("   🔢 Detecting jersey number for person \(person.id)...")
+        debugPrint("   🔢 Detecting jersey number for person \(person.id)...")
 
         guard let cgImage = person.frame.image.cgImage else {
             return nil
@@ -118,7 +118,7 @@ class PlayerDetector {
 
         // Crop image to upper body region
         guard let croppedImage = cgImage.cropping(to: upperBodyRect) else {
-            print("      ⚠️ Could not crop to upper body region")
+            debugPrint("      ⚠️ Could not crop to upper body region")
             return nil
         }
 
@@ -133,12 +133,12 @@ class PlayerDetector {
         do {
             try requestHandler.perform([textRequest])
         } catch {
-            print("      ⚠️ OCR failed: \(error.localizedDescription)")
+            debugPrint("      ⚠️ OCR failed: \(error.localizedDescription)")
             return nil
         }
 
         guard let observations = textRequest.results, !observations.isEmpty else {
-            print("      ⚠️ No text detected")
+            debugPrint("      ⚠️ No text detected")
             return nil
         }
 
@@ -150,18 +150,18 @@ class PlayerDetector {
 
             // Check if it's a 1 or 2 digit number
             if let number = Int(text), number >= 0 && number <= 99 {
-                print("      ✅ Found jersey number: #\(number) (confidence: \(String(format: "%.2f", topCandidate.confidence)))")
+                debugPrint("      ✅ Found jersey number: #\(number) (confidence: \(String(format: "%.2f", topCandidate.confidence)))")
                 return String(number)
             }
         }
 
-        print("      ⚠️ No valid jersey number found")
+        debugPrint("      ⚠️ No valid jersey number found")
         return nil
     }
 
     /// Detect jersey color (simplified approach using average color in torso region)
     func detectJerseyColor(for person: DetectedPerson) async throws -> JerseyColor? {
-        print("   🎨 Detecting jersey color for person \(person.id)...")
+        debugPrint("   🎨 Detecting jersey color for person \(person.id)...")
 
         guard let cgImage = person.frame.image.cgImage else {
             return nil
@@ -196,7 +196,7 @@ class PlayerDetector {
         averageColor.getHue(nil, saturation: nil, brightness: &brightness, alpha: nil)
 
         let color: JerseyColor = brightness < 0.5 ? .black : .white
-        print("      ✅ Detected color: \(color.rawValue) (brightness: \(String(format: "%.2f", brightness)))")
+        debugPrint("      ✅ Detected color: \(color.rawValue) (brightness: \(String(format: "%.2f", brightness)))")
 
         return color
     }
@@ -234,7 +234,7 @@ class PlayerDetector {
         targetNumber: String,
         targetColor: JerseyColor
     ) async throws -> DetectedPerson? {
-        print("🎯 Looking for #\(targetNumber) in \(targetColor.rawValue) jersey...")
+        debugPrint("🎯 Looking for #\(targetNumber) in \(targetColor.rawValue) jersey...")
 
         // Detect all people
         let people = try await detectPeople(in: frame)
@@ -252,13 +252,13 @@ class PlayerDetector {
                 // Verify jersey color
                 if let color = try await detectJerseyColor(for: person),
                    color == targetColor {
-                    print("   ✅ Found target player: #\(number) in \(color.rawValue)")
+                    debugPrint("   ✅ Found target player: #\(number) in \(color.rawValue)")
                     return person
                 }
             }
         }
 
-        print("   ⚠️ Target player not found in this frame")
+        debugPrint("   ⚠️ Target player not found in this frame")
         return nil
     }
 }

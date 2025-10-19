@@ -18,12 +18,12 @@ class HardwareAcceleratedOverlayCompositor {
         scoreTimeline: [ScoreTimelineTracker.ScoreSnapshot],
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
-        print("🎨 HardwareAcceleratedOverlayCompositor: Starting GPU-accelerated composition")
-        print("   Video: \(videoURL.lastPathComponent)")
-        print("   Timeline snapshots: \(scoreTimeline.count)")
+        debugPrint("🎨 HardwareAcceleratedOverlayCompositor: Starting GPU-accelerated composition")
+        debugPrint("   Video: \(videoURL.lastPathComponent)")
+        debugPrint("   Timeline snapshots: \(scoreTimeline.count)")
 
         guard !scoreTimeline.isEmpty else {
-            print("⚠️ Empty score timeline, returning original video")
+            debugPrint("⚠️ Empty score timeline, returning original video")
             completion(.success(videoURL))
             return
         }
@@ -46,7 +46,7 @@ class HardwareAcceleratedOverlayCompositor {
             // Load video tracks asynchronously
             let videoTracks = try await asset.loadTracks(withMediaType: .video)
             guard let videoTrack = videoTracks.first else {
-                print("❌ No video track found")
+                forcePrint("❌ No video track found")
                 completion(.failure(NSError(domain: "Compositor", code: -1, userInfo: [NSLocalizedDescriptionKey: "No video track"])))
                 return
             }
@@ -56,10 +56,10 @@ class HardwareAcceleratedOverlayCompositor {
             let videoDuration = try await asset.load(.duration)
             let transform = try await videoTrack.load(.preferredTransform)
 
-            print("📹 Video properties:")
-            print("   Size: \(videoSize.width)x\(videoSize.height)")
-            print("   Duration: \(CMTimeGetSeconds(videoDuration))s")
-            print("   Transform: \(transform)")
+            debugPrint("📹 Video properties:")
+            debugPrint("   Size: \(videoSize.width)x\(videoSize.height)")
+            debugPrint("   Duration: \(CMTimeGetSeconds(videoDuration))s")
+            debugPrint("   Transform: \(transform)")
 
             // Create composition
             let composition = AVMutableComposition()
@@ -68,7 +68,7 @@ class HardwareAcceleratedOverlayCompositor {
                 withMediaType: .video,
                 preferredTrackID: kCMPersistentTrackID_Invalid
             ) else {
-                print("❌ Failed to create composition video track")
+                forcePrint("❌ Failed to create composition video track")
                 completion(.failure(NSError(domain: "Compositor", code: -2)))
                 return
             }
@@ -79,7 +79,7 @@ class HardwareAcceleratedOverlayCompositor {
                 of: videoTrack,
                 at: .zero
             )
-            print("✅ Video track added to composition")
+            debugPrint("✅ Video track added to composition")
 
             // Add audio track if present (using async API)
             let audioTracks = try await asset.loadTracks(withMediaType: .audio)
@@ -94,15 +94,15 @@ class HardwareAcceleratedOverlayCompositor {
                         of: audioTrack,
                         at: .zero
                     )
-                    print("✅ Audio track added to composition")
+                    debugPrint("✅ Audio track added to composition")
                 } catch {
-                    print("⚠️ Failed to add audio: \(error)")
+                    debugPrint("⚠️ Failed to add audio: \(error)")
                 }
             }
 
         // Calculate render size (accounting for transform)
         let renderSize = calculateRenderSize(naturalSize: videoSize, transform: transform)
-        print("📐 Render size: \(renderSize.width)x\(renderSize.height)")
+        debugPrint("📐 Render size: \(renderSize.width)x\(renderSize.height)")
 
         // Create video composition with Core Animation layers
         let videoComposition = createVideoComposition(
@@ -121,7 +121,7 @@ class HardwareAcceleratedOverlayCompositor {
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
         ) else {
-            print("❌ Failed to create export session")
+            forcePrint("❌ Failed to create export session")
             completion(.failure(NSError(domain: "Compositor", code: -3)))
             return
         }
@@ -130,21 +130,21 @@ class HardwareAcceleratedOverlayCompositor {
         exportSession.videoComposition = videoComposition
         exportSession.shouldOptimizeForNetworkUse = true
 
-        print("🎬 Starting GPU-accelerated export...")
-        print("   Output: \(outputURL.lastPathComponent)")
+        debugPrint("🎬 Starting GPU-accelerated export...")
+        debugPrint("   Output: \(outputURL.lastPathComponent)")
 
         do {
             try await exportSession.export(to: outputURL, as: .mov)
 
-            print("✅ GPU-accelerated export completed successfully!")
+            debugPrint("✅ GPU-accelerated export completed successfully!")
             let fileExists = FileManager.default.fileExists(atPath: outputURL.path)
-            print("   File exists: \(fileExists)")
+            debugPrint("   File exists: \(fileExists)")
 
             if fileExists {
                 // Get file size
                 if let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path),
                    let fileSize = attrs[.size] as? Int64 {
-                    print("   File size: \(Double(fileSize) / 1_000_000) MB")
+                    debugPrint("   File size: \(Double(fileSize) / 1_000_000) MB")
                 }
                 DispatchQueue.main.async {
                     completion(.success(outputURL))
@@ -155,14 +155,14 @@ class HardwareAcceleratedOverlayCompositor {
                 }
             }
         } catch {
-            print("❌ Export failed: \(String(describing: error))")
+            forcePrint("❌ Export failed: \(String(describing: error))")
             DispatchQueue.main.async {
                 completion(.failure(error))
             }
         }
 
         } catch {
-            print("❌ Error during video processing: \(error)")
+            forcePrint("❌ Error during video processing: \(error)")
             completion(.failure(error))
         }
     }
@@ -181,7 +181,7 @@ class HardwareAcceleratedOverlayCompositor {
         // Calculate correcting transform to fix orientation
         let angle = atan2(transform.b, transform.a)
         let degrees = angle * 180 / .pi
-        print("📐 Applying transform correction for \(degrees)° rotation")
+        debugPrint("📐 Applying transform correction for \(degrees)° rotation")
 
         let correctingTransform: CGAffineTransform
         if abs(degrees - 180) < 10 || abs(degrees + 180) < 10 {
@@ -189,21 +189,21 @@ class HardwareAcceleratedOverlayCompositor {
             let tx = renderSize.width
             let ty = renderSize.height
             correctingTransform = CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: tx, ty: ty)
-            print("📐 Applied 180° correcting transform")
+            debugPrint("📐 Applied 180° correcting transform")
         } else if abs(degrees - 90) < 10 {
             // 90° clockwise - correct to landscape
             let tx = renderSize.height
             correctingTransform = CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: tx)
-            print("📐 Applied 90° correcting transform")
+            debugPrint("📐 Applied 90° correcting transform")
         } else if abs(degrees + 90) < 10 || abs(degrees - 270) < 10 {
             // 270° or -90° - correct to landscape
             let ty = renderSize.width
             correctingTransform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: ty, ty: 0)
-            print("📐 Applied 270° correcting transform")
+            debugPrint("📐 Applied 270° correcting transform")
         } else {
             // 0° - no correction needed
             correctingTransform = .identity
-            print("📐 No transform correction needed")
+            debugPrint("📐 No transform correction needed")
         }
 
         // Create layer instruction using modern configuration API
@@ -226,7 +226,7 @@ class HardwareAcceleratedOverlayCompositor {
 
         // CRITICAL: Pass video duration in seconds for animations
         let videoDurationSeconds = CMTimeGetSeconds(videoDuration)
-        print("📊 Video duration: \(videoDurationSeconds)s, Timeline duration: \(scoreTimeline.last?.timestamp ?? 0)s")
+        debugPrint("📊 Video duration: \(videoDurationSeconds)s, Timeline duration: \(scoreTimeline.last?.timestamp ?? 0)s")
 
         // Create animated overlay layer with proper orientation
         let overlayLayer = createAnimatedOverlayLayer(
@@ -248,7 +248,7 @@ class HardwareAcceleratedOverlayCompositor {
         )
         let videoComposition = AVVideoComposition(configuration: compositionConfig)
 
-        print("✅ Core Animation layers created with GPU acceleration")
+        forcePrint("✅ Core Animation layers created with GPU acceleration")
 
         return videoComposition
     }
@@ -267,10 +267,10 @@ class HardwareAcceleratedOverlayCompositor {
         // Since we're correcting the video transform in the layer instruction,
         // the overlay should always use normal (non-flipped) geometry
         overlayContainer.isGeometryFlipped = true  // AVFoundation coordinate system is flipped by default
-        print("📐 Using standard AVFoundation geometry (flipped) for overlay")
+        debugPrint("📐 Using standard AVFoundation geometry (flipped) for overlay")
 
         // **NEW BITMAP APPROACH**: Pre-render scoreboard images with glassmorphism
-        print("🎨 Using bitmap-based overlay with glassmorphism effect")
+        debugPrint("🎨 Using bitmap-based overlay with glassmorphism effect")
         let bitmapLayers = createBitmapScoreboardLayers(
             size: size,
             scoreTimeline: scoreTimeline,
@@ -289,7 +289,7 @@ class HardwareAcceleratedOverlayCompositor {
         )
         overlayContainer.addSublayer(endSplashLayer)
 
-        print("✅ Created bitmap animated overlay with \(scoreTimeline.count) keyframes")
+        forcePrint("✅ Created bitmap animated overlay with \(scoreTimeline.count) keyframes")
 
         return overlayContainer
     }
@@ -341,7 +341,7 @@ class HardwareAcceleratedOverlayCompositor {
         }
 
         guard !events.isEmpty else {
-            print("⚠️ No scoreboard events within video duration")
+            debugPrint("⚠️ No scoreboard events within video duration")
             return []
         }
 
@@ -351,10 +351,10 @@ class HardwareAcceleratedOverlayCompositor {
             uniqueStates.insert(event.state)
         }
 
-        print("🎨 Bitmap overlay rendering:")
-        print("   Video duration: \(videoDurationSeconds)s")
-        print("   Unique scoreboard states: \(uniqueStates.count)")
-        print("   Timeline events: \(events.count)")
+        debugPrint("🎨 Bitmap overlay rendering:")
+        debugPrint("   Video duration: \(videoDurationSeconds)s")
+        debugPrint("   Unique scoreboard states: \(uniqueStates.count)")
+        debugPrint("   Timeline events: \(events.count)")
 
         // Pre-render an image for each unique state
         var stateImages: [ScoreboardState: CGImage] = [:]
@@ -386,7 +386,7 @@ class HardwareAcceleratedOverlayCompositor {
             }
         }
 
-        print("   ✅ Pre-rendered \(stateImages.count) bitmap images")
+        debugPrint("   ✅ Pre-rendered \(stateImages.count) bitmap images")
 
         // Create a layer for each unique state with opacity animation
         var layers: [CALayer] = []
@@ -438,7 +438,7 @@ class HardwareAcceleratedOverlayCompositor {
             layers.append(imageLayer)
         }
 
-        print("   ✅ Created \(layers.count) bitmap layers with opacity animations")
+        forcePrint("   ✅ Created \(layers.count) bitmap layers with opacity animations")
 
         return layers
     }
@@ -456,7 +456,7 @@ class HardwareAcceleratedOverlayCompositor {
         let overlayContainer = CALayer()
         overlayContainer.frame = CGRect(origin: .zero, size: size)
         overlayContainer.isGeometryFlipped = true
-        print("📐 Using legacy text-based overlay")
+        debugPrint("📐 Using legacy text-based overlay")
 
         // Scoreboard background
         let scoreboardLayer = createScoreboardBackground(size: size)
@@ -523,7 +523,7 @@ class HardwareAcceleratedOverlayCompositor {
         )
         overlayContainer.addSublayer(endSplashLayer)
 
-        print("✅ Created animated overlay with \(scoreTimeline.count) keyframes")
+        forcePrint("✅ Created animated overlay with \(scoreTimeline.count) keyframes")
 
         return overlayContainer
     }
@@ -643,7 +643,7 @@ class HardwareAcceleratedOverlayCompositor {
         }
 
         guard !events.isEmpty else {
-            print("⚠️ No score events within video duration")
+            debugPrint("⚠️ No score events within video duration")
             let layer = CATextLayer()
             layer.frame = CGRect(origin: .zero, size: frame.size)
             layer.string = "\(initialValue)"
@@ -661,10 +661,10 @@ class HardwareAcceleratedOverlayCompositor {
             uniqueScores.insert(event.value)
         }
 
-        print("🎬 Score animation for \(position == .home ? "HOME" : "AWAY") (opacity-based):")
-        print("   Video duration: \(videoDurationSeconds)s")
-        print("   Unique scores: \(uniqueScores.sorted())")
-        print("   Timeline events: \(events.count)")
+        debugPrint("🎬 Score animation for \(position == .home ? "HOME" : "AWAY") (opacity-based):")
+        debugPrint("   Video duration: \(videoDurationSeconds)s")
+        debugPrint("   Unique scores: \(uniqueScores.sorted())")
+        debugPrint("   Timeline events: \(events.count)")
 
         // For each unique score, create a layer with opacity animation
         for score in uniqueScores.sorted() {
@@ -714,7 +714,7 @@ class HardwareAcceleratedOverlayCompositor {
                 textLayer.opacity = Float(opacityValues.first ?? 0.0)
                 textLayer.add(animation, forKey: "opacityAnimation")
 
-                print("   Score \(score): \(keyTimes.count) keyframes")
+                debugPrint("   Score \(score): \(keyTimes.count) keyframes")
             } else {
                 // No keyframes - should never happen
                 textLayer.opacity = 0.0
@@ -723,7 +723,7 @@ class HardwareAcceleratedOverlayCompositor {
             containerLayer.addSublayer(textLayer)
         }
 
-        print("   ✅ Created \(uniqueScores.count) layers with opacity animations")
+        forcePrint("   ✅ Created \(uniqueScores.count) layers with opacity animations")
 
         return containerLayer
     }
@@ -773,7 +773,7 @@ class HardwareAcceleratedOverlayCompositor {
         }
 
         guard !events.isEmpty else {
-            print("⚠️ No clock events within video duration")
+            debugPrint("⚠️ No clock events within video duration")
             let layer = CATextLayer()
             layer.frame = CGRect(origin: .zero, size: frame.size)
             layer.string = timeline.first?.clockTime ?? "20:00"
@@ -795,10 +795,10 @@ class HardwareAcceleratedOverlayCompositor {
             }
         }
 
-        print("🎬 Clock animation (opacity-based):")
-        print("   Video duration: \(videoDurationSeconds)s")
-        print("   Unique times: \(uniqueTimes.count)")
-        print("   Timeline events: \(events.count)")
+        debugPrint("🎬 Clock animation (opacity-based):")
+        debugPrint("   Video duration: \(videoDurationSeconds)s")
+        debugPrint("   Unique times: \(uniqueTimes.count)")
+        debugPrint("   Timeline events: \(events.count)")
 
         // For each unique clock time, create a layer with opacity animation
         for clockTime in uniqueTimes {
@@ -855,7 +855,7 @@ class HardwareAcceleratedOverlayCompositor {
             containerLayer.addSublayer(textLayer)
         }
 
-        print("   ✅ Created \(uniqueTimes.count) clock layers with opacity animations")
+        forcePrint("   ✅ Created \(uniqueTimes.count) clock layers with opacity animations")
 
         return containerLayer
     }
@@ -906,7 +906,7 @@ class HardwareAcceleratedOverlayCompositor {
         }
 
         guard !events.isEmpty else {
-            print("⚠️ No period events within video duration")
+            debugPrint("⚠️ No period events within video duration")
             let layer = CATextLayer()
             layer.frame = CGRect(origin: .zero, size: frame.size)
             let firstSnapshot = timeline.first!
@@ -930,10 +930,10 @@ class HardwareAcceleratedOverlayCompositor {
             }
         }
 
-        print("🎬 Period animation (opacity-based):")
-        print("   Video duration: \(videoDurationSeconds)s")
-        print("   Unique periods: \(uniquePeriods)")
-        print("   Timeline events: \(events.count)")
+        debugPrint("🎬 Period animation (opacity-based):")
+        debugPrint("   Video duration: \(videoDurationSeconds)s")
+        debugPrint("   Unique periods: \(uniquePeriods)")
+        debugPrint("   Timeline events: \(events.count)")
 
         // For each unique period, create a layer with opacity animation
         for periodText in uniquePeriods {
@@ -990,7 +990,7 @@ class HardwareAcceleratedOverlayCompositor {
             containerLayer.addSublayer(textLayer)
         }
 
-        print("   ✅ Created \(uniquePeriods.count) period layers with opacity animations")
+        forcePrint("   ✅ Created \(uniquePeriods.count) period layers with opacity animations")
 
         return containerLayer
     }
@@ -1007,14 +1007,14 @@ class HardwareAcceleratedOverlayCompositor {
 
         // Get final score from last snapshot
         guard let finalSnapshot = timeline.last else {
-            print("⚠️ No final snapshot for end splash")
+            debugPrint("⚠️ No final snapshot for end splash")
             return splashContainer
         }
 
         // Find when game actually ends (last event within video duration)
         let eventsWithinVideo = timeline.filter { $0.timestamp <= videoDurationSeconds }
         guard let lastEvent = eventsWithinVideo.last else {
-            print("⚠️ No events within video duration for end splash")
+            debugPrint("⚠️ No events within video duration for end splash")
             return splashContainer
         }
 
@@ -1024,10 +1024,10 @@ class HardwareAcceleratedOverlayCompositor {
         let minimumSplashTime: TimeInterval = 0.5
 
         guard timeAfterLastEvent >= minimumSplashTime else {
-            print("⏭️ Skipping end splash - not enough time after last event")
-            print("   Last event: \(String(format: "%.1f", lastEvent.timestamp))s")
-            print("   Video duration: \(String(format: "%.1f", videoDurationSeconds))s")
-            print("   Time remaining: \(String(format: "%.1f", timeAfterLastEvent))s (need \(minimumSplashTime)s)")
+            debugPrint("⏭️ Skipping end splash - not enough time after last event")
+            debugPrint("   Last event: \(String(format: "%.1f", lastEvent.timestamp))s")
+            debugPrint("   Video duration: \(String(format: "%.1f", videoDurationSeconds))s")
+            debugPrint("   Time remaining: \(String(format: "%.1f", timeAfterLastEvent))s (need \(minimumSplashTime)s)")
             return splashContainer
         }
 
@@ -1164,10 +1164,10 @@ class HardwareAcceleratedOverlayCompositor {
         splashContainer.opacity = 0.0
         splashContainer.add(animation, forKey: "splashFadeIn")
 
-        print("🎬 Created end splash screen")
-        print("   Last event at: \(String(format: "%.1f", lastEvent.timestamp))s")
-        print("   Fade starts at: \(String(format: "%.1f", fadeStartTime))s")
-        print("   Fully visible at: \(String(format: "%.1f", fadeEndTime))s")
+        debugPrint("🎬 Created end splash screen")
+        debugPrint("   Last event at: \(String(format: "%.1f", lastEvent.timestamp))s")
+        debugPrint("   Fade starts at: \(String(format: "%.1f", fadeStartTime))s")
+        debugPrint("   Fully visible at: \(String(format: "%.1f", fadeEndTime))s")
 
         return splashContainer
     }

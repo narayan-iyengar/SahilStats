@@ -66,7 +66,7 @@ class FirebaseYouTubeAuthManager: ObservableObject {
         let hasAllScopes = scopes.allSatisfy { grantedScopes.contains($0) }
         
         if hasAllScopes {
-            print("User already has YouTube scopes")
+            debugPrint("User already has YouTube scopes")
             // Just store the existing tokens
             let accessToken = currentUser.accessToken.tokenString
             let refreshToken = currentUser.refreshToken.tokenString  // Remove the ?
@@ -81,7 +81,7 @@ class FirebaseYouTubeAuthManager: ObservableObject {
         }
         
         // Need to request additional scopes - use a fresh sign-in with scopes
-        print("Requesting additional YouTube scopes via fresh sign-in")
+        forcePrint("Requesting additional YouTube scopes via fresh sign-in")
         
         let result = try await GIDSignIn.sharedInstance.signIn(
             withPresenting: rootViewController,

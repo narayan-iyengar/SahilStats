@@ -25,29 +25,29 @@ class YouTubeDownloader {
     /// Note: For PoC, we'll use a simplified approach with yt-dlp if available,
     /// or provide instructions to manually download the video
     func downloadVideo(youtubeURL: String, progress: @escaping (Double) -> Void) async throws -> URL {
-        print("📥 Starting YouTube video download...")
-        print("   URL: \(youtubeURL)")
+        debugPrint("📥 Starting YouTube video download...")
+        debugPrint("   URL: \(youtubeURL)")
 
         // Debug: Print environment info
         #if targetEnvironment(simulator)
-        print("   Running on: iOS Simulator")
+        debugPrint("   Running on: iOS Simulator")
         #elseif os(macOS)
-        print("   Running on: macOS")
+        debugPrint("   Running on: macOS")
         #else
-        print("   Running on: Real iOS device")
+        debugPrint("   Running on: Real iOS device")
         #endif
 
         // Check if yt-dlp is available
         let ytDlpPath = "/opt/homebrew/bin/yt-dlp"
         let fileManager = FileManager.default
 
-        print("   Checking for yt-dlp at: \(ytDlpPath)")
+        debugPrint("   Checking for yt-dlp at: \(ytDlpPath)")
         let ytDlpExists = fileManager.fileExists(atPath: ytDlpPath)
-        print("   yt-dlp exists: \(ytDlpExists)")
+        debugPrint("   yt-dlp exists: \(ytDlpExists)")
 
         // For PoC: Always use cached video (simplifies iOS simulator testing)
         // Production will use direct recording from camera, not YouTube download
-        print("   📦 Using cached video approach (PoC mode)")
+        debugPrint("   📦 Using cached video approach (PoC mode)")
         return try await checkForManualDownload(youtubeURL: youtubeURL)
     }
 
@@ -63,12 +63,12 @@ class YouTubeDownloader {
 
     /// Check if video was manually downloaded
     private func checkForManualDownload(youtubeURL: String) async throws -> URL {
-        print("⚠️ Checking for cached/manually downloaded video...")
+        debugPrint("⚠️ Checking for cached/manually downloaded video...")
 
         // Check bundled test video first (for device testing)
         if let bundledVideoPath = Bundle.main.path(forResource: "test_video", ofType: "mp4") {
             let bundledURL = URL(fileURLWithPath: bundledVideoPath)
-            print("✅ Found bundled test video: \(bundledURL.path)")
+            debugPrint("✅ Found bundled test video: \(bundledURL.path)")
             return bundledURL
         }
 
@@ -93,17 +93,17 @@ class YouTubeDownloader {
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.ts")
         ]
 
-        print("   Checking paths:")
+        debugPrint("   Checking paths:")
         for cachedPath in cachedPaths {
             guard let cachedPath = cachedPath else { continue }
-            print("   - \(cachedPath.path)")
+            debugPrint("   - \(cachedPath.path)")
             if FileManager.default.fileExists(atPath: cachedPath.path) {
-                print("✅ Found cached video: \(cachedPath.path)")
+                debugPrint("✅ Found cached video: \(cachedPath.path)")
                 return cachedPath
             }
         }
 
-        print("   ❌ Video not found in any checked location")
+        forcePrint("   ❌ Video not found in any checked location")
 
         // Then check common download directories for any video files
         let downloadsPaths = [
@@ -123,7 +123,7 @@ class YouTubeDownloader {
                 }
 
                 if let firstVideo = videoFiles.first {
-                    print("✅ Found manually downloaded video: \(firstVideo.path)")
+                    debugPrint("✅ Found manually downloaded video: \(firstVideo.path)")
                     return firstVideo
                 }
             }
@@ -147,7 +147,7 @@ class YouTubeDownloader {
 
         """
 
-        print(instructions)
+        debugPrint(instructions)
         throw DownloadError.downloadFailed("Manual download required. See console for instructions.")
     }
 

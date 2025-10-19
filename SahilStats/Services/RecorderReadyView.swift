@@ -293,11 +293,11 @@ struct RecorderReadyView: View {
     // MARK: - Lifecycle Methods
     
     private func setupView() {
-        print("🎬 RecorderReadyView: Setting up recorder ready state")
+        debugPrint("🎬 RecorderReadyView: Setting up recorder ready state")
 
         // Keep screen awake based on user preference
         UIApplication.shared.isIdleTimerDisabled = cameraSettings.settings.keepRecorderScreenAwake
-        print("🌙 Screen sleep: \(cameraSettings.settings.keepRecorderScreenAwake ? "disabled (stays awake)" : "enabled (can sleep)")")
+        debugPrint("🌙 Screen sleep: \(cameraSettings.settings.keepRecorderScreenAwake ? "disabled (stays awake)" : "enabled (can sleep)")")
 
         // Setup message handling for recording commands
         multipeer.messagePublisher
@@ -313,7 +313,7 @@ struct RecorderReadyView: View {
             .sink { liveGames in
                 // If we don't have game info yet and a live game appears, use it
                 if self.receivedLiveGame == nil, let game = self.firebaseService.getCurrentLiveGame() {
-                    print("📱 RecorderReadyView: Live game detected from Firebase: \(game.teamName) vs \(game.opponent)")
+                    debugPrint("📱 RecorderReadyView: Live game detected from Firebase: \(game.teamName) vs \(game.opponent)")
                     self.receivedLiveGame = game
                 }
             }
@@ -333,11 +333,11 @@ struct RecorderReadyView: View {
 
         // DON'T setup camera here - it causes connection drops and blocks UI
         // Camera will be set up when recording starts in CleanVideoRecordingView
-        print("✅ RecorderReadyView ready - waiting for recording command")
+        debugPrint("✅ RecorderReadyView ready - waiting for recording command")
     }
     
     private func cleanupView() {
-        print("🎬 RecorderReadyView: Cleaning up")
+        debugPrint("🎬 RecorderReadyView: Cleaning up")
         UIApplication.shared.isIdleTimerDisabled = false
         UIDevice.current.isBatteryMonitoringEnabled = false
         batteryTimer?.invalidate()
@@ -345,32 +345,32 @@ struct RecorderReadyView: View {
     }
     
     private func handleConnectionChange(oldState: MultipeerConnectivityManager.ConnectionState, newState: MultipeerConnectivityManager.ConnectionState) {
-        print("🔄 RecorderReadyView: Connection changed from \(oldState) to \(newState)")
+        debugPrint("🔄 RecorderReadyView: Connection changed from \(oldState) to \(newState)")
 
         switch newState {
         case .connected:
             // Connection restored
             connectionLostTime = nil
-            print("✅ Connection restored - ready for recording commands")
+            debugPrint("✅ Connection restored - ready for recording commands")
 
         case .disconnected:
             // Connection lost - start tracking time and attempt reconnection
             if connectionLostTime == nil {
                 connectionLostTime = Date()
-                print("⚠️ Connection lost - will attempt auto-reconnect and continue if recording")
+                debugPrint("⚠️ Connection lost - will attempt auto-reconnect and continue if recording")
 
                 // Start reconnection attempts
                 startReconnectionAttempts()
             }
 
         case .connecting:
-            print("🔄 Attempting to reconnect...")
+            debugPrint("🔄 Attempting to reconnect...")
 
         case .idle:
-            print("⚠️ Connection idle - not connected")
+            debugPrint("⚠️ Connection idle - not connected")
 
         case .searching:
-            print("🔍 Searching for controller...")
+            debugPrint("🔍 Searching for controller...")
         }
     }
     
@@ -378,7 +378,7 @@ struct RecorderReadyView: View {
         // If we're already recording and lose connection, keep recording
         // and try to reconnect in the background
         
-        print("🔄 Starting auto-reconnection attempts")
+        debugPrint("🔄 Starting auto-reconnection attempts")
         
         // Use existing MultipeerConnectivity auto-reconnection for trusted devices
         // The connection manager will handle the reconnection automatically
@@ -388,7 +388,7 @@ struct RecorderReadyView: View {
             if let lostTime = self.connectionLostTime {
                 let timeLost = Date().timeIntervalSince(lostTime)
                 if timeLost > 60 {
-                    print("⚠️ Extended disconnection (\(Int(timeLost))s) - but continuing to record")
+                    debugPrint("⚠️ Extended disconnection (\(Int(timeLost))s) - but continuing to record")
                     // Continue recording anyway - controller can reconnect when they return
                 }
             }
@@ -396,13 +396,13 @@ struct RecorderReadyView: View {
     }
     
     private func handleRecordingMessage(_ message: MultipeerConnectivityManager.Message) {
-        print("📱 RecorderReadyView: Received message: \(message.type)")
+        debugPrint("📱 RecorderReadyView: Received message: \(message.type)")
 
         switch message.type {
         case .gameStarting:
-            print("🎮 Received gameStarting message - fetching game info from Firebase")
+            debugPrint("🎮 Received gameStarting message - fetching game info from Firebase")
             if let gameId = message.payload?["gameId"] as? String {
-                print("   Game ID: \(gameId)")
+                debugPrint("   Game ID: \(gameId)")
                 // Fetch the game info from Firebase and update our state
                 Task {
                     do {
@@ -410,36 +410,36 @@ struct RecorderReadyView: View {
                         let document = try await db.collection("liveGames").document(gameId).getDocument()
                         if let game = try? document.data(as: LiveGame.self) {
                             await MainActor.run {
-                                print("✅ Received game info: \(game.teamName) vs \(game.opponent)")
+                                debugPrint("✅ Received game info: \(game.teamName) vs \(game.opponent)")
                                 var gameWithId = game
                                 gameWithId.id = gameId
                                 self.receivedLiveGame = gameWithId
                             }
                         }
                     } catch {
-                        print("❌ Failed to fetch game info: \(error)")
+                        forcePrint("❌ Failed to fetch game info: \(error)")
                     }
                 }
             }
 
         case .startRecording:
-            print("🎬 Received START RECORDING command")
+            debugPrint("🎬 Received START RECORDING command")
             startRecordingTransition()
 
         case .stopRecording:
-            print("🎬 Received STOP RECORDING command")
+            debugPrint("🎬 Received STOP RECORDING command")
             // If we're in ready state, this doesn't apply to us
 
         case .gameEnded:
             // If we're showing the recording view, let CleanVideoRecordingView handle this
             // It has a 2-second delay to capture the end game button press and splash screen
             if showingRecordingView {
-                print("🎬 Game ended - but recording view is active, letting it handle cleanup with proper delay")
+                debugPrint("🎬 Game ended - but recording view is active, letting it handle cleanup with proper delay")
                 return
             }
 
             // Only handle if we're still in the ready/waiting state (recording never started)
-            print("🎬 Game ended - returning to dashboard")
+            debugPrint("🎬 Game ended - returning to dashboard")
             navigation.returnToDashboard()
 
         default:
@@ -448,16 +448,16 @@ struct RecorderReadyView: View {
     }
     
     private func startRecordingTransition() {
-        print("🎬 Starting transition to recording view")
+        debugPrint("🎬 Starting transition to recording view")
 
         // Ensure we have camera access
         guard recordingManager.canRecordVideo else {
-            print("❌ Cannot start recording - no camera access")
+            forcePrint("❌ Cannot start recording - no camera access")
             return
         }
 
         // Transition immediately - CleanVideoRecordingView will handle camera setup
-        print("✅ Transitioning to recording view - camera will be set up there")
+        debugPrint("✅ Transitioning to recording view - camera will be set up there")
         showingRecordingView = true
     }
     
@@ -492,7 +492,7 @@ struct RecorderReadyView: View {
     }
     
     private func handleEmergencyExit() {
-        print("🚨 Emergency exit from recorder ready view - returning to dashboard")
+        debugPrint("🚨 Emergency exit from recorder ready view - returning to dashboard")
         navigation.returnToDashboard()
     }
 }

@@ -80,7 +80,7 @@ struct LiveGameView: View {
             Spacer()
         }
         .onAppear {
-            print("LiveGameView appeared - Role: \(roleManager.deviceRole)")
+            debugPrint("LiveGameView appeared - Role: \(roleManager.deviceRole)")
             if firebaseService.getCurrentLiveGame() != nil {
                  shouldAutoDismissWhenGameEnds = true
              }
@@ -89,7 +89,7 @@ struct LiveGameView: View {
         .onChange(of: firebaseService.getCurrentLiveGame()) { oldGame, newGame in
              // If game just ended (went from existing to nil)
              if oldGame != nil && newGame == nil && shouldAutoDismissWhenGameEnds {
-                 print("🎮 Live game ended, auto-dismissing...")
+                 debugPrint("🎮 Live game ended, auto-dismissing...")
                  // Clear role first
                  Task {
                      await roleManager.clearDeviceRole()
@@ -518,21 +518,21 @@ struct LiveGameControllerView: View {
             
             // START KEEP-ALIVE MECHANISMS ONLY FOR MULTI-DEVICE GAMES
             if deviceControl.hasControl && (serverGameState.isMultiDeviceSetup ?? false) {
-                print("❤️ [Multi-Device] Starting ping and game state announcement timers")
+                debugPrint("❤️ [Multi-Device] Starting ping and game state announcement timers")
                 startPinging()
                 startAnnouncingGameState()
 
                 // Request recording state after connection is stable
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                     if multipeer.connectionState.isConnected {
-                        print("📤 Requesting recording state from recorder")
+                        debugPrint("📤 Requesting recording state from recorder")
                         multipeer.sendRequestForRecordingState()
                     } else {
-                        print("⚠️ WARNING: Not connected when requesting recording state!")
+                        debugPrint("⚠️ WARNING: Not connected when requesting recording state!")
                     }
                 }
             } else if !( serverGameState.isMultiDeviceSetup ?? false) {
-                print("📱 [Single-Device] Skipping multipeer mechanisms")
+                debugPrint("📱 [Single-Device] Skipping multipeer mechanisms")
             }
         }
         .onDisappear {
@@ -567,7 +567,7 @@ struct LiveGameControllerView: View {
     
     private func startPinging() {
         stopPinging() // Prevent duplicate timers
-        print("❤️ [Controller] Starting to ping recorder every 2.5 seconds.")
+        debugPrint("❤️ [Controller] Starting to ping recorder every 2.5 seconds.")
         pingTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
             // Only send pings if this device has control
             if deviceControl.hasControl {
@@ -581,7 +581,7 @@ struct LiveGameControllerView: View {
     private func stopPinging() {
         pingTimer?.invalidate()
         pingTimer = nil
-        print("💔 [Controller] Stopped pinging recorder.")
+        debugPrint("💔 [Controller] Stopped pinging recorder.")
     }
     
     
@@ -590,7 +590,7 @@ struct LiveGameControllerView: View {
         // Invalidate any existing timer to prevent duplicates
         stopAnnouncingGameState()
 
-        print("📢 [Controller] Starting to announce game state every 15 seconds (backup only).")
+        debugPrint("📢 [Controller] Starting to announce game state every 15 seconds (backup only).")
 
         // Send one announcement immediately upon starting
         announceGameState()
@@ -609,7 +609,7 @@ struct LiveGameControllerView: View {
     private func stopAnnouncingGameState() {
         gameStateAnnounceTimer?.invalidate()
         gameStateAnnounceTimer = nil
-        print("📢 [Controller] Stopped announcing game state.")
+        debugPrint("📢 [Controller] Stopped announcing game state.")
     }
 
     private func announceGameState() {
@@ -632,7 +632,7 @@ struct LiveGameControllerView: View {
         multipeer.sendGameState(gameState)
         // Log only every 10 announcements to reduce noise (30 seconds)
         if (Int(Date().timeIntervalSince1970) % 30 == 0) {
-            print("📢 [Controller] Sent game state: \(currentHomeScore)-\(currentAwayScore) | Clock: \(String(format: "%.0f", localClockTime))s")
+            debugPrint("📢 [Controller] Sent game state: \(currentHomeScore)-\(currentAwayScore) | Clock: \(String(format: "%.0f", localClockTime))s")
         }
     }
     
@@ -1203,7 +1203,7 @@ struct LiveGameControllerView: View {
     private func endCurrentTimeSegment() async throws -> LiveGame {
         guard var currentSegment = serverGameState.currentTimeSegment else {
             // If there's no active segment, just return the current state
-            print("📍 No active time segment to end")
+            debugPrint("📍 No active time segment to end")
             return serverGameState
         }
         
@@ -1219,15 +1219,15 @@ struct LiveGameControllerView: View {
         // 🔥 CRITICAL FIX: Update the stored cumulative totals
         if currentSegment.isOnCourt {
             updatedGame.totalPlayingTimeMinutes += segmentDuration
-            print("📍 Added \(segmentDuration) minutes to PLAYING time (new total: \(updatedGame.totalPlayingTimeMinutes))")
+            debugPrint("📍 Added \(segmentDuration) minutes to PLAYING time (new total: \(updatedGame.totalPlayingTimeMinutes))")
         } else {
             updatedGame.benchTimeMinutes += segmentDuration
-            print("📍 Added \(segmentDuration) minutes to BENCH time (new total: \(updatedGame.benchTimeMinutes))")
+            debugPrint("📍 Added \(segmentDuration) minutes to BENCH time (new total: \(updatedGame.benchTimeMinutes))")
         }
         
-        print("📍 Ending time segment: \(currentSegment.isOnCourt ? "Court" : "Bench"), Duration: \(segmentDuration) minutes")
-        print("📍 UPDATED TOTALS - Playing: \(updatedGame.totalPlayingTimeMinutes), Bench: \(updatedGame.benchTimeMinutes)")
-        print("📍 Total segments: \(updatedGame.timeSegments.count)")
+        debugPrint("📍 Ending time segment: \(currentSegment.isOnCourt ? "Court" : "Bench"), Duration: \(segmentDuration) minutes")
+        debugPrint("📍 UPDATED TOTALS - Playing: \(updatedGame.totalPlayingTimeMinutes), Bench: \(updatedGame.benchTimeMinutes)")
+        debugPrint("📍 Total segments: \(updatedGame.timeSegments.count)")
         
         // Save to Firebase with updated totals
         try await firebaseService.updateLiveGame(updatedGame)
@@ -1238,20 +1238,20 @@ struct LiveGameControllerView: View {
 
     private func updatePlayingStatus() {
         
-        print("🔥 DEBUG: updatePlayingStatus() CALLED")
+        debugPrint("🔥 DEBUG: updatePlayingStatus() CALLED")
         let wasOnCourt = serverGameState.currentTimeSegment?.isOnCourt ?? true
         let isNowOnCourt = !sahilOnBench
 
-        print("🔥 DEBUG: wasOnCourt: \(wasOnCourt), isNowOnCourt: \(isNowOnCourt)")
-        print("🔥 DEBUG: sahilOnBench: \(sahilOnBench)")
+        debugPrint("🔥 DEBUG: wasOnCourt: \(wasOnCourt), isNowOnCourt: \(isNowOnCourt)")
+        debugPrint("🔥 DEBUG: sahilOnBench: \(sahilOnBench)")
         
         // DEBUG: Print current status
-        print("🔍 Status change: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
+        debugPrint("🔍 Status change: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
 
         
         // Only update time tracking if status actually changed
         if wasOnCourt != isNowOnCourt {
-            print("📍 Playing status changed: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
+            debugPrint("📍 Playing status changed: \(wasOnCourt ? "Court" : "Bench") → \(isNowOnCourt ? "Court" : "Bench")")
             
             Task {
                 do {
@@ -1270,14 +1270,14 @@ struct LiveGameControllerView: View {
                     updatedGame.sahilOnBench = sahilOnBench // Update bench status too
                     
                     try await firebaseService.updateLiveGame(updatedGame)
-                    print("✅ Time tracking updated successfully")
+                    forcePrint("✅ Time tracking updated successfully")
                     
                 } catch {
-                    print("❌ Failed to update time tracking: \(error)")
+                    forcePrint("❌ Failed to update time tracking: \(error)")
                 }
             }
         } else {
-            print("🔥 DEBUG: No status change, calling scheduleUpdate()")
+            debugPrint("🔥 DEBUG: No status change, calling scheduleUpdate()")
             scheduleUpdate()
         }
     }
@@ -1299,7 +1299,7 @@ struct LiveGameControllerView: View {
         
         Task {
             try await firebaseService.updateLiveGame(updatedGame)
-            print("✅ Initial time tracking started")
+            debugPrint("✅ Initial time tracking started")
         }
     }
     // MARK: - All existing methods remain the same...
@@ -1343,7 +1343,7 @@ struct LiveGameControllerView: View {
     }
     
     private func syncNonClockDataWithServer(_ game: LiveGame) {
-        print("--- Syncing Non-Clock Data with Server ---")
+        debugPrint("--- Syncing Non-Clock Data with Server ---")
         
         currentStats = game.playerStats
         currentHomeScore = game.homeScore
@@ -1353,7 +1353,7 @@ struct LiveGameControllerView: View {
         
         if !deviceControl.hasControl ||
            abs(localClockTime - game.getCurrentClock()) > 5.0 {
-            print("🔄 Syncing clock due to large difference or no control")
+            debugPrint("🔄 Syncing clock due to large difference or no control")
             localClockTime = game.getCurrentClock()
         }
         
@@ -1363,10 +1363,10 @@ struct LiveGameControllerView: View {
     private func syncWithServer() {
         let game = serverGameState
         
-        print("--- Initial Sync with Server ---")
-        print("Server isRunning: \(game.isRunning)")
-        print("Server clock: \(game.clock)")
-        print("Calculated current clock: \(game.getCurrentClock())")
+        debugPrint("--- Initial Sync with Server ---")
+        debugPrint("Server isRunning: \(game.isRunning)")
+        debugPrint("Server clock: \(game.clock)")
+        debugPrint("Calculated current clock: \(game.getCurrentClock())")
         
         currentStats = game.playerStats
         currentHomeScore = game.homeScore
@@ -1375,42 +1375,42 @@ struct LiveGameControllerView: View {
         sahilOnBench = game.sahilOnBench ?? false
         localClockTime = game.getCurrentClock()
         
-        print("Local clock initialized to: \(localClockTime)")
+        debugPrint("Local clock initialized to: \(localClockTime)")
     }
     
     private func autoGrantInitialControl() {
         guard authService.showAdminFeatures,
               let userEmail = authService.currentUser?.email else {
-            print("❌ Auto-grant failed: Not admin or no email")
+            forcePrint("❌ Auto-grant failed: Not admin or no email")
             return
         }
         
         let game = serverGameState
         
-        print("--- Auto-Grant Control Check ---")
-        print("Device ID: \(deviceControl.deviceId)")
-        print("Server Controlling Device: \(game.controllingDeviceId ?? "nil")")
-        print("Server Controlling User: \(game.controllingUserEmail ?? "nil")")
-        print("Current User: \(userEmail)")
-        print("Device Has Control: \(deviceControl.hasControl)")
+        debugPrint("--- Auto-Grant Control Check ---")
+        debugPrint("Device ID: \(deviceControl.deviceId)")
+        debugPrint("Server Controlling Device: \(game.controllingDeviceId ?? "nil")")
+        debugPrint("Server Controlling User: \(game.controllingUserEmail ?? "nil")")
+        debugPrint("Current User: \(userEmail)")
+        debugPrint("Device Has Control: \(deviceControl.hasControl)")
         
         if game.controllingDeviceId == deviceControl.deviceId &&
            game.controllingUserEmail == userEmail &&
            !deviceControl.hasControl {
             
-            print("🔧 FORCE SYNC: Server says we have control but local state disagrees")
+            debugPrint("🔧 FORCE SYNC: Server says we have control but local state disagrees")
             deviceControl.updateControlStatus(for: game, userEmail: userEmail)
             return
         }
         
         if game.controllingDeviceId == nil || game.controllingUserEmail == nil {
-            print("✅ Auto-granting control - no one has it")
+            debugPrint("✅ Auto-granting control - no one has it")
             
             Task {
                 do {
                     _ = try await deviceControl.requestControl(for: game, userEmail: userEmail)
                 } catch {
-                    print("❌ Failed to auto-grant control: \(error)")
+                    forcePrint("❌ Failed to auto-grant control: \(error)")
                 }
             }
         }
@@ -1437,10 +1437,10 @@ struct LiveGameControllerView: View {
     }
     
     private func checkForControlRequests(_ game: LiveGame) {
-        print("--- Checking for Control Requests ---")
-        print("Device has control: \(deviceControl.hasControl)")
-        print("Control requested by: \(game.controlRequestedBy ?? "None")")
-        print("Control requesting device: \(game.controlRequestingDeviceId ?? "None")")
+        debugPrint("--- Checking for Control Requests ---")
+        debugPrint("Device has control: \(deviceControl.hasControl)")
+        debugPrint("Control requested by: \(game.controlRequestedBy ?? "None")")
+        debugPrint("Control requesting device: \(game.controlRequestingDeviceId ?? "None")")
         
         var isRequestActive = false
         if let requestTimestamp = game.controlRequestTimestamp {
@@ -1448,7 +1448,7 @@ struct LiveGameControllerView: View {
             isRequestActive = timeElapsed <= 120
             
             if !isRequestActive {
-                print("⏰ Control request has expired")
+                debugPrint("⏰ Control request has expired")
                 return
             }
         }
@@ -1460,14 +1460,14 @@ struct LiveGameControllerView: View {
            isRequestActive,
            !showingControlRequestAlert {
             
-            print("✅ Showing control request alert")
+            debugPrint("✅ Showing control request alert")
             self.requestingUser = requestingUser
             self.requestingDeviceId = requestingDeviceId
             showingControlRequestAlert = true
         }
         
         if (game.controlRequestedBy == nil || !isRequestActive) && showingControlRequestAlert {
-            print("Hiding control request alert - no pending request or expired")
+            debugPrint("Hiding control request alert - no pending request or expired")
             showingControlRequestAlert = false
         }
     }
@@ -1514,21 +1514,21 @@ struct LiveGameControllerView: View {
                 updatedGame.sahilOnBench = sahilOnBench
 
                 if updatedGame.isRunning {
-                    print("🛑 Pausing game")
+                    debugPrint("🛑 Pausing game")
                     updatedGame.isRunning = false
                     updatedGame.clock = localClockTime
                     updatedGame.clockStartTime = nil
                     updatedGame.clockAtStart = nil
-                    print("Paused at: \(localClockTime)")
-                    print("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
+                    debugPrint("Paused at: \(localClockTime)")
+                    debugPrint("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
                 } else {
-                    print("▶️ Starting game")
+                    debugPrint("▶️ Starting game")
                     updatedGame.isRunning = true
                     updatedGame.clockStartTime = now
                     updatedGame.clockAtStart = localClockTime
                     updatedGame.clock = localClockTime
-                    print("Started with clock: \(localClockTime)")
-                    print("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
+                    debugPrint("Started with clock: \(localClockTime)")
+                    debugPrint("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
                 }
 
                 updatedGame.lastClockUpdate = now
@@ -1539,10 +1539,10 @@ struct LiveGameControllerView: View {
                 }
 
                 try await firebaseService.updateLiveGame(updatedGame)
-                print("✅ Game clock toggle successful")
+                debugPrint("✅ Game clock toggle successful")
 
             } catch {
-                print("❌ Game clock toggle failed: \(error)")
+                forcePrint("❌ Game clock toggle failed: \(error)")
                 self.error = error.localizedDescription
             }
         }
@@ -1572,7 +1572,7 @@ struct LiveGameControllerView: View {
                 updatedGame.lastClockUpdate = now
 
                 try await firebaseService.updateLiveGame(updatedGame)
-                print("✅ Added minute, scores preserved: \(currentHomeScore)-\(currentAwayScore)")
+                debugPrint("✅ Added minute, scores preserved: \(currentHomeScore)-\(currentAwayScore)")
             } catch {
                 self.error = error.localizedDescription
             }
@@ -1589,8 +1589,8 @@ struct LiveGameControllerView: View {
 
                 // CRITICAL FIX: Validate we're not already at the last period
                 if updatedGame.quarter >= updatedGame.numQuarter {
-                    print("❌ Cannot advance quarter - already at final period (\(updatedGame.quarter)/\(updatedGame.numQuarter))")
-                    print("   This should call finishGame() instead!")
+                    forcePrint("❌ Cannot advance quarter - already at final period (\(updatedGame.quarter)/\(updatedGame.numQuarter))")
+                    debugPrint("   This should call finishGame() instead!")
                     return
                 }
 
@@ -1617,7 +1617,7 @@ struct LiveGameControllerView: View {
                 }
 
                 try await firebaseService.updateLiveGame(updatedGame)
-                print("✅ Advanced quarter to \(updatedGame.quarter)/\(updatedGame.numQuarter), scores preserved: \(currentHomeScore)-\(currentAwayScore)")
+                forcePrint("✅ Advanced quarter to \(updatedGame.quarter)/\(updatedGame.numQuarter), scores preserved: \(currentHomeScore)-\(currentAwayScore)")
             } catch {
                 self.error = error.localizedDescription
             }
@@ -1684,7 +1684,7 @@ struct LiveGameControllerView: View {
    
 
     private func handleDone() {
-        print("🏠 Done button pressed - returning to dashboard")
+        debugPrint("🏠 Done button pressed - returning to dashboard")
         // Clean up navigation state
         navigation.returnToDashboard()
         // Actually dismiss the view
@@ -1700,18 +1700,18 @@ struct LiveGameControllerView: View {
                 let finalServerState = try await endCurrentTimeSegment()
 
                 // 🔍 DEBUG: Print detailed playing time information
-                print("🔍 ========== FINAL GAME TIME DEBUG ==========")
-                print("📊 Raw Stored Values:")
-                print("   totalPlayingTimeMinutes: \(finalServerState.totalPlayingTimeMinutes)")
-                print("   benchTimeMinutes: \(finalServerState.benchTimeMinutes)")
-                print("   timeSegments count: \(finalServerState.timeSegments.count)")
+                debugPrint("🔍 ========== FINAL GAME TIME DEBUG ==========")
+                debugPrint("📊 Raw Stored Values:")
+                debugPrint("   totalPlayingTimeMinutes: \(finalServerState.totalPlayingTimeMinutes)")
+                debugPrint("   benchTimeMinutes: \(finalServerState.benchTimeMinutes)")
+                debugPrint("   timeSegments count: \(finalServerState.timeSegments.count)")
                 
                 // Show each completed segment
                 for (index, segment) in finalServerState.timeSegments.enumerated() {
                     let durationSeconds = segment.durationMinutes * 60
                     let minutes = Int(durationSeconds) / 60
                     let seconds = Int(durationSeconds) % 60
-                    print("   Segment \(index + 1): \(segment.isOnCourt ? "Court" : "Bench") - \(minutes)m \(seconds)s")
+                    debugPrint("   Segment \(index + 1): \(segment.isOnCourt ? "Court" : "Bench") - \(minutes)m \(seconds)s")
                 }
                 
                 // Check if there's still an active segment (shouldn't be any after endCurrentTimeSegment)
@@ -1719,9 +1719,9 @@ struct LiveGameControllerView: View {
                     let currentDuration = Date().timeIntervalSince(current.startTime)
                     let minutes = Int(currentDuration) / 60
                     let seconds = Int(currentDuration) % 60
-                    print("   ⚠️ WARNING: Still has active segment: \(current.isOnCourt ? "Court" : "Bench") - \(minutes)m \(seconds)s")
+                    debugPrint("   ⚠️ WARNING: Still has active segment: \(current.isOnCourt ? "Court" : "Bench") - \(minutes)m \(seconds)s")
                 } else {
-                    print("   ✅ No active segment (correct)")
+                    debugPrint("   ✅ No active segment (correct)")
                 }
                 
                 // Calculate totals using the computed properties
@@ -1729,7 +1729,7 @@ struct LiveGameControllerView: View {
                 let totalBenchTime = finalServerState.totalBenchTime
                 let totalTime = totalPlayingTime + totalBenchTime
                 
-                print("📈 Computed Totals (what will be saved to Game):")
+                debugPrint("📈 Computed Totals (what will be saved to Game):")
                 let playingMinutes = Int(totalPlayingTime)
                 let playingSeconds = Int((totalPlayingTime - Double(playingMinutes)) * 60)
                 let benchMinutes = Int(totalBenchTime)
@@ -1737,16 +1737,16 @@ struct LiveGameControllerView: View {
                 let totalMinutes = Int(totalTime)
                 let totalSecondsRemainder = Int((totalTime - Double(totalMinutes)) * 60)
                 
-                print("   Total Playing Time: \(playingMinutes)m \(playingSeconds)s (\(totalPlayingTime) minutes)")
-                print("   Total Bench Time: \(benchMinutes)m \(benchSeconds)s (\(totalBenchTime) minutes)")
-                print("   Total Game Time: \(totalMinutes)m \(totalSecondsRemainder)s (\(totalTime) minutes)")
+                debugPrint("   Total Playing Time: \(playingMinutes)m \(playingSeconds)s (\(totalPlayingTime) minutes)")
+                debugPrint("   Total Bench Time: \(benchMinutes)m \(benchSeconds)s (\(totalBenchTime) minutes)")
+                debugPrint("   Total Game Time: \(totalMinutes)m \(totalSecondsRemainder)s (\(totalTime) minutes)")
                 
                 if totalTime > 0 {
                     let percentage = (totalPlayingTime / totalTime) * 100
-                    print("   Playing Percentage: \(String(format: "%.1f", percentage))%")
+                    debugPrint("   Playing Percentage: \(String(format: "%.1f", percentage))%")
                 }
                 
-                print("🔍 ==========================================")
+                debugPrint("🔍 ==========================================")
 
                 // 2. Create the final Game object with correct time data.
                 let finalGame = Game(
@@ -1790,25 +1790,25 @@ struct LiveGameControllerView: View {
                 let db = Firestore.firestore()
                 try db.collection("games").document(liveGameId).setData(from: finalGameWithId)
 
-                print("✅ Game saved with ID: \(liveGameId)")
+                forcePrint("✅ Game saved with ID: \(liveGameId)")
 
                 // CRITICAL: Send gameEnded message to recorder with the game ID - only for multi-device
                 if serverGameState.isMultiDeviceSetup ?? false {
                     multipeer.sendGameEnded(gameId: liveGameId)
-                    print("📤 Sent gameEnded message with gameId: \(liveGameId)")
+                    debugPrint("📤 Sent gameEnded message with gameId: \(liveGameId)")
                 }
 
                 // Delete the live game
                 try await firebaseService.deleteLiveGame(liveGameId)
 
                 // 🔍 DEBUG: Print what's actually in the Game object before saving
-                print("🔍 ========== FINAL GAME OBJECT DEBUG ==========")
-                print("📊 Game Object Time Values:")
-                print("   finalGame.totalPlayingTimeMinutes: \(finalGame.totalPlayingTimeMinutes)")
-                print("   finalGame.benchTimeMinutes: \(finalGame.benchTimeMinutes)")
-                print("   finalGame.gameTimeTracking.count: \(finalGame.gameTimeTracking.count)")
-                print("   finalGame.playingTimePercentage: \(finalGame.playingTimePercentage)")
-                print("🔍 =============================================")
+                debugPrint("🔍 ========== FINAL GAME OBJECT DEBUG ==========")
+                debugPrint("📊 Game Object Time Values:")
+                debugPrint("   finalGame.totalPlayingTimeMinutes: \(finalGame.totalPlayingTimeMinutes)")
+                debugPrint("   finalGame.benchTimeMinutes: \(finalGame.benchTimeMinutes)")
+                debugPrint("   finalGame.gameTimeTracking.count: \(finalGame.gameTimeTracking.count)")
+                debugPrint("   finalGame.playingTimePercentage: \(finalGame.playingTimePercentage)")
+                debugPrint("🔍 =============================================")
 
                 await MainActor.run {
                     navigation.returnToDashboard()

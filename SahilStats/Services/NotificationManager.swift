@@ -27,10 +27,10 @@ class NotificationManager: NSObject, ObservableObject {
             await MainActor.run {
                 self.isAuthorized = granted
             }
-            print("📱 Notification authorization: \(granted ? "Granted" : "Denied")")
+            debugPrint("📱 Notification authorization: \(granted ? "Granted" : "Denied")")
             return granted
         } catch {
-            print("❌ Error requesting notification authorization: \(error)")
+            forcePrint("❌ Error requesting notification authorization: \(error)")
             return false
         }
     }
@@ -63,9 +63,9 @@ class NotificationManager: NSObject, ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Error sending connection notification: \(error)")
+                forcePrint("❌ Error sending connection notification: \(error)")
             } else {
-                print("✅ Connection notification sent: \(deviceName) - \(isConnected ? "Connected" : "Disconnected")")
+                debugPrint("✅ Connection notification sent: \(deviceName) - \(isConnected ? "Connected" : "Disconnected")")
             }
         }
     }
@@ -85,9 +85,9 @@ class NotificationManager: NSObject, ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Error sending game start notification: \(error)")
+                forcePrint("❌ Error sending game start notification: \(error)")
             } else {
-                print("✅ Game start notification sent")
+                debugPrint("✅ Game start notification sent")
             }
         }
     }
@@ -107,9 +107,9 @@ class NotificationManager: NSObject, ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Error sending recording notification: \(error)")
+                forcePrint("❌ Error sending recording notification: \(error)")
             } else {
-                print("✅ Recording notification sent: \(isRecording ? "Started" : "Stopped")")
+                debugPrint("✅ Recording notification sent: \(isRecording ? "Started" : "Stopped")")
             }
         }
     }
@@ -131,9 +131,9 @@ class NotificationManager: NSObject, ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Error sending notification: \(error)")
+                forcePrint("❌ Error sending notification: \(error)")
             } else {
-                print("✅ Notification sent: \(title)")
+                debugPrint("✅ Notification sent: \(title)")
             }
         }
     }

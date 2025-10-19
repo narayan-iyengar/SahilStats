@@ -60,7 +60,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     // Called when app is about to terminate
     func applicationWillTerminate(_ application: UIApplication) {
-        print("🛑 App terminating - resetting roles and stopping connections")
+        forcePrint("🛑 App terminating - resetting roles and stopping connections")
         Task { @MainActor in
             // Clear device role
             await DeviceRoleManager.shared.clearDeviceRole()
@@ -72,19 +72,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     // Called when app enters background
     func applicationDidEnterBackground(_ application: UIApplication) {
-        print("📱 App entered background - keeping connection alive")
+        forcePrint("📱 App entered background - keeping connection alive")
         // Reset idle timer to allow screen to sleep in background
         UIApplication.shared.isIdleTimerDisabled = false
-        print("🌙 Idle timer enabled (background) - screen can now sleep")
+        debugPrint("🌙 Idle timer enabled (background) - screen can now sleep")
     }
 
     // Called when app returns to foreground
     func applicationWillEnterForeground(_ application: UIApplication) {
-        print("📱 App returning to foreground - checking connection")
+        forcePrint("📱 App returning to foreground - checking connection")
         // Ensure idle timer is enabled when returning to foreground
         // (specific views will disable it if needed, like recording)
         UIApplication.shared.isIdleTimerDisabled = false
-        print("🌙 Idle timer enabled (foreground) - screen can now sleep")
+        debugPrint("🌙 Idle timer enabled (foreground) - screen can now sleep")
 
         Task { @MainActor in
             // Restart auto-connection if needed
@@ -107,7 +107,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
                                didReceive response: UNNotificationResponse,
                                withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
-        print("📱 Notification tapped: \(userInfo)")
+        debugPrint("📱 Notification tapped: \(userInfo)")
         completionHandler()
     }
 }

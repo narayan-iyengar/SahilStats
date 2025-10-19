@@ -119,7 +119,7 @@ class TrustedDevicesManager: ObservableObject {
     func addTrustedPeer(_ peerID: MCPeerID, theirRole: DeviceRole, myRole: DeviceRole) {
         // Don't add duplicates
         guard !isTrusted(peerID) else {
-            print("⚠️ Peer already trusted: \(peerID.displayName)")
+            debugPrint("⚠️ Peer already trusted: \(peerID.displayName)")
             updateLastConnected(peerID)
             return
         }
@@ -129,7 +129,7 @@ class TrustedDevicesManager: ObservableObject {
         peers.append(newPeer)
         trustedPeers = peers
 
-        print("✅ Added trusted peer: \(peerID.displayName) - They: \(theirRole.displayName), Me: \(myRole.displayName)")
+        debugPrint("✅ Added trusted peer: \(peerID.displayName) - They: \(theirRole.displayName), Me: \(myRole.displayName)")
     }
 
     /// Legacy method for backward compatibility
@@ -157,18 +157,18 @@ class TrustedDevicesManager: ObservableObject {
             )
             peers[index] = peer
             trustedPeers = peers
-            print("🔄 Switched roles with \(peerID.displayName) - They: \(peer.role), Me: \(peer.myRole)")
+            debugPrint("🔄 Switched roles with \(peerID.displayName) - They: \(peer.role), Me: \(peer.myRole)")
         }
     }
 
     /// Get my role when connecting to a specific peer
     func getMyRole(for peerID: MCPeerID) -> DeviceRole? {
         guard let peer = trustedPeers.first(where: { $0.id == peerID.displayName }) else {
-            print("⚠️ No saved role found for peer: \(peerID.displayName)")
-            print("   📝 Available trusted peers: \(trustedPeers.map { "\($0.id) (myRole: \($0.myRole))" }.joined(separator: ", "))")
+            debugPrint("⚠️ No saved role found for peer: \(peerID.displayName)")
+            debugPrint("   📝 Available trusted peers: \(trustedPeers.map { "\($0.id) (myRole: \($0.myRole))" }.joined(separator: ", "))")
             return nil
         }
-        print("✅ Found saved role for \(peerID.displayName): myRole=\(peer.myRole), theirRole=\(peer.role)")
+        forcePrint("✅ Found saved role for \(peerID.displayName): myRole=\(peer.myRole), theirRole=\(peer.role)")
         return DeviceRole(rawValue: peer.myRole)
     }
     
@@ -182,9 +182,9 @@ class TrustedDevicesManager: ObservableObject {
 
             if peers.count < initialCount {
                 self.trustedPeers = peers
-                print("🗑️ Removed trusted peer: \(peerID.displayName)")
+                debugPrint("🗑️ Removed trusted peer: \(peerID.displayName)")
             } else {
-                print("⚠️ Peer not found for removal: \(peerID.displayName)")
+                debugPrint("⚠️ Peer not found for removal: \(peerID.displayName)")
             }
         }
     }
@@ -230,7 +230,7 @@ class TrustedDevicesManager: ObservableObject {
             )
             peers[index] = peer
             trustedPeers = peers
-            print("✏️ Updated friendly name for \(peerID.displayName) to '\(friendlyName ?? "default")'")
+            debugPrint("✏️ Updated friendly name for \(peerID.displayName) to '\(friendlyName ?? "default")'")
         }
     }
 
@@ -259,7 +259,7 @@ class TrustedDevicesManager: ObservableObject {
     func clearAllTrustedDevices() {
         DispatchQueue.main.async { [weak self] in
             self?.trustedPeers = []
-            print("🗑️ Cleared all trusted devices")
+            debugPrint("🗑️ Cleared all trusted devices")
         }
     }
 

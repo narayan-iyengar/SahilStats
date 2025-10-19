@@ -221,7 +221,7 @@ struct CalendarGameSelectionView: View {
             do {
                 // Create live game in Firebase
                 let gameId = try await firebaseService.createLiveGame(liveGame)
-                print("✅ Live game created with ID: \(gameId)")
+                forcePrint("✅ Live game created with ID: \(gameId)")
 
                 // Update editableGame with the ID
                 var gameWithId = liveGame
@@ -245,7 +245,7 @@ struct CalendarGameSelectionView: View {
                 }
 
             } catch {
-                print("❌ Failed to create live game: \(error)")
+                forcePrint("❌ Failed to create live game: \(error)")
             }
         }
     }

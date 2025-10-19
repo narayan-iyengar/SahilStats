@@ -51,10 +51,10 @@ struct GameSetupView: View {
                     // Only controller proceeds to game form
                     // Recorder goes to waiting room until controller creates game
                     if roleManager.preferredRole == .controller {
-                        print("✅ Handshake complete. Controller proceeding to create game.")
+                        debugPrint("✅ Handshake complete. Controller proceeding to create game.")
                         setupMode = .gameForm
                     } else {
-                        print("✅ Recorder connected. Navigating to waiting room...")
+                        debugPrint("✅ Recorder connected. Navigating to waiting room...")
                         NavigationCoordinator.shared.currentFlow = .waitingToRecord(nil)
                     }
                 }
@@ -138,18 +138,18 @@ struct GameSetupView: View {
 
                     // Check if already connected
                     if multipeer.connectionState.isConnected {
-                        print("✅ Already connected, skipping waiting room")
+                        debugPrint("✅ Already connected, skipping waiting room")
                         // Directly proceed based on role
                         if roleManager.preferredRole == .controller {
                             setupMode = .gameForm
                         } else {
                             // Recorder navigates to waiting room immediately
-                            print("✅ Recorder ready. Navigating to waiting room...")
+                            debugPrint("✅ Recorder ready. Navigating to waiting room...")
                             NavigationCoordinator.shared.currentFlow = .waitingToRecord(nil)
                         }
                     } else {
                         // Not connected, show waiting room and start scanning
-                        print("🔍 Not connected, starting connection process")
+                        debugPrint("🔍 Not connected, starting connection process")
                         let role = roleManager.roleForAutoConnection
                         multipeer.startSession(role: role)
                         showingConnectionWaitingRoom = true
@@ -437,7 +437,7 @@ struct GameSetupView: View {
             // Check connection only if multi-device mode
             if isMultiDevice {
                 guard case .connected = multipeer.connectionState else {
-                    print("❌ Cannot start game, not connected.")
+                    forcePrint("❌ Cannot start game, not connected.")
                     return
                 }
             }
@@ -448,23 +448,23 @@ struct GameSetupView: View {
             // Set device role for multi-device games
             if isMultiDevice, let gameId = liveGame.id {
                 // Set the device role based on preferred role
-                print("🎯 Controller setting deviceRole to \(roleManager.preferredRole.displayName) for game \(gameId)")
+                debugPrint("🎯 Controller setting deviceRole to \(roleManager.preferredRole.displayName) for game \(gameId)")
                 try await DeviceRoleManager.shared.setDeviceRole(roleManager.preferredRole, for: gameId)
-                print("✅ Controller deviceRole set successfully")
+                debugPrint("✅ Controller deviceRole set successfully")
 
                 // Send game starting message to connected device
-                print("📤 Sending gameStarting message to recorder")
+                debugPrint("📤 Sending gameStarting message to recorder")
                 multipeer.sendGameStarting(gameId: gameId)
 
                 // Give the recorder a moment to receive the message and set their role
                 try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
                 // Send start recording command to transition recorder to recording view
-                print("📤 Sending startRecording command to recorder")
+                debugPrint("📤 Sending startRecording command to recorder")
                 multipeer.sendStartRecording()
             }
 
-            print("🎬 Controller transitioning to live game view")
+            debugPrint("🎬 Controller transitioning to live game view")
             showingLiveGameView = true
         }
     }

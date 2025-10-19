@@ -70,13 +70,13 @@ class WifiNetworkMonitor: ObservableObject {
                 
                 // Trigger callback when WiFi becomes available
                 if self.isWiFi && !self.previousWiFiState {
-                    print("✅ WiFi connection detected!")
+                    debugPrint("✅ WiFi connection detected!")
                     self.onWiFiConnected?()
                 }
                 
                 self.previousWiFiState = self.isWiFi
                 
-                print("📡 Network status: \(self.connectionType.displayName)")
+                debugPrint("📡 Network status: \(self.connectionType.displayName)")
             }
         }
         

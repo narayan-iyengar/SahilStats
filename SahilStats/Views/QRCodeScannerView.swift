@@ -85,7 +85,7 @@ struct QRCodeScannerView: View {
     }
 
     private func handleQRCodeScanned(_ code: String) {
-        print("📱 QR Code scanned: \(code.prefix(50))...")
+        debugPrint("📱 QR Code scanned: \(code.prefix(50))...")
 
         guard let qrData = GameQRCodeManager.shared.parseQRCode(from: code) else {
             errorMessage = "Invalid QR code. Please scan a SahilStats game code."
@@ -99,7 +99,7 @@ struct QRCodeScannerView: View {
             return
         }
 
-        print("✅ Parsed game: \(liveGame.teamName) vs \(liveGame.opponent)")
+        debugPrint("✅ Parsed game: \(liveGame.teamName) vs \(liveGame.opponent)")
 
         // Show confirmation before joining
         scannedGame = liveGame
@@ -116,7 +116,7 @@ struct QRCodeScannerView: View {
 
                 // Set device role as recorder (camera phone)
                 try await roleManager.setDeviceRole(.recorder, for: gameId)
-                print("✅ Device role set to recorder")
+                debugPrint("✅ Device role set to recorder")
 
                 // Navigate to recording view
                 await MainActor.run {
@@ -270,7 +270,7 @@ class QRScannerViewControllerImpl: UIViewController, AVCaptureMetadataOutputObje
         captureSession = AVCaptureSession()
 
         guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
-            print("❌ Failed to get video capture device")
+            forcePrint("❌ Failed to get video capture device")
             return
         }
 
@@ -279,7 +279,7 @@ class QRScannerViewControllerImpl: UIViewController, AVCaptureMetadataOutputObje
         do {
             videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
         } catch {
-            print("❌ Failed to create video input: \(error)")
+            forcePrint("❌ Failed to create video input: \(error)")
             return
         }
 
@@ -288,7 +288,7 @@ class QRScannerViewControllerImpl: UIViewController, AVCaptureMetadataOutputObje
         if captureSession.canAddInput(videoInput) {
             captureSession.addInput(videoInput)
         } else {
-            print("❌ Failed to add video input")
+            forcePrint("❌ Failed to add video input")
             return
         }
 
@@ -300,7 +300,7 @@ class QRScannerViewControllerImpl: UIViewController, AVCaptureMetadataOutputObje
             metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
             metadataOutput.metadataObjectTypes = [.qr]
         } else {
-            print("❌ Failed to add metadata output")
+            forcePrint("❌ Failed to add metadata output")
             return
         }
 

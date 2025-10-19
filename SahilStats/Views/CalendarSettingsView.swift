@@ -210,26 +210,26 @@ struct CalendarSettingsView: View {
         availableCalendars = calendarManager.getAvailableCalendars()
             .sorted { $0.title < $1.title }
 
-        print("📅 Loaded \(availableCalendars.count) calendars")
+        debugPrint("📅 Loaded \(availableCalendars.count) calendars")
         for calendar in availableCalendars {
-            print("   - \(calendar.title) (\(calendar.source.title))")
+            debugPrint("   - \(calendar.title) (\(calendar.source.title))")
         }
     }
 
     private func toggleCalendar(_ calendar: EKCalendar) {
         if selectedCalendarIds.contains(calendar.calendarIdentifier) {
             selectedCalendarIds.remove(calendar.calendarIdentifier)
-            print("❌ Deselected calendar: \(calendar.title)")
+            forcePrint("❌ Deselected calendar: \(calendar.title)")
         } else {
             selectedCalendarIds.insert(calendar.calendarIdentifier)
-            print("✅ Selected calendar: \(calendar.title)")
+            debugPrint("✅ Selected calendar: \(calendar.title)")
         }
     }
 
     private func saveSelections() {
         let selectedIds = Array(selectedCalendarIds)
         calendarManager.saveSelectedCalendars(selectedIds)
-        print("💾 Saved \(selectedIds.count) selected calendar(s)")
+        debugPrint("💾 Saved \(selectedIds.count) selected calendar(s)")
     }
 }
 

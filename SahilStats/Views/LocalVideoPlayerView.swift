@@ -53,14 +53,14 @@ struct LocalVideoPlayerView: View {
     }
 
     private func setupPlayer() {
-        print("🎥 Setting up video player for: \(videoURL.path)")
+        debugPrint("🎥 Setting up video player for: \(videoURL.path)")
 
         // Check if file exists
         if FileManager.default.fileExists(atPath: videoURL.path) {
             player = AVPlayer(url: videoURL)
-            print("✅ Video player created successfully")
+            forcePrint("✅ Video player created successfully")
         } else {
-            print("❌ Video file not found at: \(videoURL.path)")
+            forcePrint("❌ Video file not found at: \(videoURL.path)")
         }
     }
 }

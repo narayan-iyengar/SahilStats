@@ -88,10 +88,10 @@ struct SimpleScoreOverlay: View {
             }
         }
         .onAppear {
-            print("📄 SimpleScoreOverlay appeared - orientation: \(orientation.debugDescription), isLandscape: \(isLandscape)")
+            debugPrint("📄 SimpleScoreOverlay appeared - orientation: \(orientation.debugDescription), isLandscape: \(isLandscape)")
         }
         .onChange(of: orientation) { oldValue, newValue in
-            print("📄 SimpleScoreOverlay orientation changed: \(oldValue.debugDescription) -> \(newValue.debugDescription), isLandscape: \(isLandscape)")
+            debugPrint("📄 SimpleScoreOverlay orientation changed: \(oldValue.debugDescription) -> \(newValue.debugDescription), isLandscape: \(isLandscape)")
             // Stop animation when orientation changes
             if isLandscape {
                 rotationAnimation = false

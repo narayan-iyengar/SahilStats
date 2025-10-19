@@ -51,7 +51,7 @@ class DeviceRoleManager: ObservableObject {
     func setPreferredRole(_ role: DeviceRole) {
         preferredRole = role
         UserDefaults.standard.set(role.rawValue, forKey: preferredRoleKey)
-        print("✅ Preferred role set to: \(role.displayName)")
+        debugPrint("✅ Preferred role set to: \(role.displayName)")
     }
 
     /// Toggle between controller and recorder roles
@@ -353,7 +353,7 @@ struct DeviceRoleSelectionView: View {
                     dismiss()
                 }
             } catch {
-                print("Failed to set device role: \(error)")
+                debugPrint("Failed to set device role: \(error)")
             }
         }
     }

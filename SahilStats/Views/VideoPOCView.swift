@@ -590,9 +590,9 @@ struct VideoPOCView: View {
 
         do {
             try markdown.write(to: fileURL, atomically: true, encoding: .utf8)
-            print("✅ Updated POC_ACTUAL_STATS.md with retrieved stats")
+            debugPrint("✅ Updated POC_ACTUAL_STATS.md with retrieved stats")
         } catch {
-            print("❌ Failed to write markdown file: \(error)")
+            forcePrint("❌ Failed to write markdown file: \(error)")
         }
     }
 
@@ -607,12 +607,12 @@ struct VideoPOCView: View {
 
         Task {
             do {
-                print("\n" + String(repeating: "=", count: 50))
-                print("🎬 STEP 2: VIDEO PROCESSING")
-                print(String(repeating: "=", count: 50))
+                debugPrint("\n" + String(repeating: "=", count: 50))
+                debugPrint("🎬 STEP 2: VIDEO PROCESSING")
+                debugPrint(String(repeating: "=", count: 50))
 
                 // Step 2.1: Download video
-                print("\n📥 Step 2.1: Downloading video...")
+                debugPrint("\n📥 Step 2.1: Downloading video...")
                 let videoURL = try await YouTubeDownloader.shared.downloadVideo(
                     youtubeURL: selectedVideo.youtubeURL
                 ) { progress in
@@ -622,7 +622,7 @@ struct VideoPOCView: View {
                 }
 
                 // Step 2.2: Get video metadata
-                print("\n📊 Step 2.2: Analyzing video metadata...")
+                debugPrint("\n📊 Step 2.2: Analyzing video metadata...")
                 let metadata = try await VideoFrameExtractor.shared.getVideoMetadata(from: videoURL)
 
                 await MainActor.run {
@@ -630,7 +630,7 @@ struct VideoPOCView: View {
                 }
 
                 // Step 2.3: Extract frames
-                print("\n🎬 Step 2.3: Extracting frames...")
+                debugPrint("\n🎬 Step 2.3: Extracting frames...")
                 let frames = try await VideoFrameExtractor.shared.extractFrames(
                     from: videoURL,
                     fps: 1.0
@@ -641,7 +641,7 @@ struct VideoPOCView: View {
                 }
 
                 // Step 2.4: Save frames to disk (optional, for debugging)
-                print("\n💾 Step 2.4: Saving frames to disk...")
+                debugPrint("\n💾 Step 2.4: Saving frames to disk...")
                 let framesDir = FileManager.default.temporaryDirectory
                     .appendingPathComponent("POC_Frames", isDirectory: true)
                 try VideoFrameExtractor.shared.saveFramesToDisk(frames: frames, directory: framesDir)
@@ -655,19 +655,19 @@ struct VideoPOCView: View {
                     self.isProcessingVideo = false
                 }
 
-                print("\n" + String(repeating: "=", count: 50))
-                print("✅ STEP 2 COMPLETE!")
-                print("   Frames extracted: \(frames.count)")
-                print("   Frames saved to: \(framesDir.path)")
-                print("   (Keeping 5 preview frames in memory)")
-                print(String(repeating: "=", count: 50) + "\n")
+                debugPrint("\n" + String(repeating: "=", count: 50))
+                debugPrint("✅ STEP 2 COMPLETE!")
+                debugPrint("   Frames extracted: \(frames.count)")
+                debugPrint("   Frames saved to: \(framesDir.path)")
+                debugPrint("   (Keeping 5 preview frames in memory)")
+                debugPrint(String(repeating: "=", count: 50) + "\n")
 
             } catch {
                 await MainActor.run {
                     self.processingError = "Processing failed: \(error.localizedDescription)"
                     self.isProcessingVideo = false
                 }
-                print("\n❌ Step 2 failed: \(error)")
+                forcePrint("\n❌ Step 2 failed: \(error)")
             }
         }
     }
@@ -676,9 +676,9 @@ struct VideoPOCView: View {
         // Step 1: Show player selection UI
         Task {
             do {
-                print("\n" + String(repeating: "=", count: 50))
-                print("🎯 STEP 3: PLAYER DETECTION (Manual Selection)")
-                print(String(repeating: "=", count: 50))
+                debugPrint("\n" + String(repeating: "=", count: 50))
+                debugPrint("🎯 STEP 3: PLAYER DETECTION (Manual Selection)")
+                debugPrint(String(repeating: "=", count: 50))
 
                 // Load frames from disk
                 let framesDir = FileManager.default.temporaryDirectory
@@ -691,7 +691,7 @@ struct VideoPOCView: View {
                     throw PlayerTracker.TrackingError.trackingFailed("Could not read frames from disk")
                 }
 
-                print("   Loaded \(frameFiles.count) frame files")
+                debugPrint("   Loaded \(frameFiles.count) frame files")
 
                 // Find a frame where Sahil should be (around 3:20 = 200 seconds)
                 // Sahil's first score at 20:16 (1,216 seconds)
@@ -712,8 +712,8 @@ struct VideoPOCView: View {
                     throw PlayerTracker.TrackingError.noPlayersDetected
                 }
 
-                print("   Found \(people.count) people in frame \(selectionFrameIndex)")
-                print("   Showing selection UI...")
+                debugPrint("   Found \(people.count) people in frame \(selectionFrameIndex)")
+                debugPrint("   Showing selection UI...")
 
                 // Show selection UI
                 await MainActor.run {
@@ -726,7 +726,7 @@ struct VideoPOCView: View {
                 await MainActor.run {
                     self.detectionError = "Detection failed: \(error.localizedDescription)"
                 }
-                print("\n❌ Step 3 failed: \(error)")
+                forcePrint("\n❌ Step 3 failed: \(error)")
             }
         }
     }
@@ -748,8 +748,8 @@ struct VideoPOCView: View {
 
         Task {
             do {
-                print("\n🎯 Starting tracking with selected player...")
-                print("   Selected person \(personIndex) from frame \(frame.frameNumber)")
+                debugPrint("\n🎯 Starting tracking with selected player...")
+                debugPrint("   Selected person \(personIndex) from frame \(frame.frameNumber)")
 
                 // Load all frames
                 let framesDir = FileManager.default.temporaryDirectory
@@ -786,19 +786,19 @@ struct VideoPOCView: View {
                     self.isDetectingPlayer = false
                 }
 
-                print("\n" + String(repeating: "=", count: 50))
-                print("✅ STEP 3 COMPLETE!")
-                print("   Frames processed: \(frames.count)")
-                print("   Player tracked in: \(trackedPeople.count) frames")
-                print("   Tracking rate: \(String(format: "%.1f", Double(trackedPeople.count) / Double(frames.count) * 100))%")
-                print(String(repeating: "=", count: 50) + "\n")
+                debugPrint("\n" + String(repeating: "=", count: 50))
+                debugPrint("✅ STEP 3 COMPLETE!")
+                debugPrint("   Frames processed: \(frames.count)")
+                debugPrint("   Player tracked in: \(trackedPeople.count) frames")
+                debugPrint("   Tracking rate: \(String(format: "%.1f", Double(trackedPeople.count) / Double(frames.count) * 100))%")
+                debugPrint(String(repeating: "=", count: 50) + "\n")
 
             } catch {
                 await MainActor.run {
                     self.detectionError = "Tracking failed: \(error.localizedDescription)"
                     self.isDetectingPlayer = false
                 }
-                print("\n❌ Tracking failed: \(error)")
+                forcePrint("\n❌ Tracking failed: \(error)")
             }
         }
     }

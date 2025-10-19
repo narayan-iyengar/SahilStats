@@ -83,11 +83,11 @@ struct PhotosVideoPlayerView: View {
     private func setupPlayer() {
         if let assetId = photosAssetId {
             // Load from Photos library
-            print("🎥 Loading video from Photos library: \(assetId)")
+            debugPrint("🎥 Loading video from Photos library: \(assetId)")
             loadVideoFromPhotos(assetId: assetId)
         } else if let url = videoURL {
             // Load from file URL
-            print("🎥 Loading video from URL: \(url.path)")
+            debugPrint("🎥 Loading video from URL: \(url.path)")
             loadVideoFromURL(url: url)
         } else {
             errorMessage = "No video source provided"
@@ -98,12 +98,12 @@ struct PhotosVideoPlayerView: View {
         let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
 
         guard let asset = fetchResult.firstObject else {
-            print("❌ Photos asset not found: \(assetId)")
+            forcePrint("❌ Photos asset not found: \(assetId)")
             errorMessage = "Video not found in Photos library"
             return
         }
 
-        print("✅ Found Photos asset, requesting video...")
+        debugPrint("✅ Found Photos asset, requesting video...")
 
         let options = PHVideoRequestOptions()
         options.isNetworkAccessAllowed = true
@@ -112,10 +112,10 @@ struct PhotosVideoPlayerView: View {
         PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, info in
             DispatchQueue.main.async {
                 if let avAsset = avAsset {
-                    print("✅ Video loaded from Photos library")
+                    debugPrint("✅ Video loaded from Photos library")
                     self.player = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
                 } else {
-                    print("❌ Failed to load video from Photos")
+                    forcePrint("❌ Failed to load video from Photos")
                     self.errorMessage = "Unable to load video from Photos library"
                 }
             }
@@ -125,9 +125,9 @@ struct PhotosVideoPlayerView: View {
     private func loadVideoFromURL(url: URL) {
         if FileManager.default.fileExists(atPath: url.path) {
             player = AVPlayer(url: url)
-            print("✅ Video player created from URL")
+            forcePrint("✅ Video player created from URL")
         } else {
-            print("❌ Video file not found at: \(url.path)")
+            forcePrint("❌ Video file not found at: \(url.path)")
             errorMessage = "Video file not found"
         }
     }

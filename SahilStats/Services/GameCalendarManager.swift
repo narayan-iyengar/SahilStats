@@ -87,10 +87,10 @@ class GameCalendarManager: ObservableObject {
             }
 
             if self.hasCalendarAccess {
-                print("✅ Calendar access granted")
+                debugPrint("✅ Calendar access granted")
                 self.loadUpcomingGames()
             } else {
-                print("⚠️ Calendar access not granted: \(status.rawValue)")
+                debugPrint("⚠️ Calendar access not granted: \(status.rawValue)")
             }
         }
     }
@@ -102,7 +102,7 @@ class GameCalendarManager: ObservableObject {
                 await MainActor.run {
                     self.hasCalendarAccess = granted
                     if granted {
-                        print("✅ Calendar full access granted")
+                        debugPrint("✅ Calendar full access granted")
                         self.loadUpcomingGames()
                     }
                 }
@@ -112,14 +112,14 @@ class GameCalendarManager: ObservableObject {
                 await MainActor.run {
                     self.hasCalendarAccess = granted
                     if granted {
-                        print("✅ Calendar access granted")
+                        debugPrint("✅ Calendar access granted")
                         self.loadUpcomingGames()
                     }
                 }
                 return granted
             }
         } catch {
-            print("❌ Calendar access request failed: \(error)")
+            forcePrint("❌ Calendar access request failed: \(error)")
             await MainActor.run {
                 self.hasCalendarAccess = false
             }
@@ -136,21 +136,21 @@ class GameCalendarManager: ObservableObject {
     func saveSelectedCalendars(_ calendarIdentifiers: [String]) {
         selectedCalendars = calendarIdentifiers
         userDefaults.set(calendarIdentifiers, forKey: selectedCalendarsKey)
-        print("✅ Saved selected calendars: \(calendarIdentifiers)")
+        forcePrint("✅ Saved selected calendars: \(calendarIdentifiers)")
         loadUpcomingGames()
     }
 
     private func loadSelectedCalendars() {
         if let saved = userDefaults.array(forKey: selectedCalendarsKey) as? [String] {
             selectedCalendars = saved
-            print("📅 Loaded selected calendars: \(saved)")
+            debugPrint("📅 Loaded selected calendars: \(saved)")
         }
     }
 
     func saveWeekendsOnlySetting(_ value: Bool) {
         weekendsOnly = value
         userDefaults.set(value, forKey: weekendsOnlyKey)
-        print("✅ Saved weekends-only setting: \(value)")
+        forcePrint("✅ Saved weekends-only setting: \(value)")
         loadUpcomingGames()
     }
 
@@ -158,10 +158,10 @@ class GameCalendarManager: ObservableObject {
         // Default to true if not set
         if userDefaults.object(forKey: weekendsOnlyKey) != nil {
             weekendsOnly = userDefaults.bool(forKey: weekendsOnlyKey)
-            print("📅 Loaded weekends-only setting: \(weekendsOnly)")
+            debugPrint("📅 Loaded weekends-only setting: \(weekendsOnly)")
         } else {
             weekendsOnly = true
-            print("📅 Using default weekends-only setting: true")
+            debugPrint("📅 Using default weekends-only setting: true")
         }
     }
 
@@ -169,7 +169,7 @@ class GameCalendarManager: ObservableObject {
 
     func loadUpcomingGames() {
         guard hasCalendarAccess else {
-            print("⚠️ Cannot load games - no calendar access")
+            debugPrint("⚠️ Cannot load games - no calendar access")
             return
         }
 
@@ -186,11 +186,11 @@ class GameCalendarManager: ObservableObject {
         }
 
         guard !calendarsToSearch.isEmpty else {
-            print("⚠️ No calendars to search")
+            debugPrint("⚠️ No calendars to search")
             return
         }
 
-        print("🔍 Searching \(calendarsToSearch.count) calendar(s) for games")
+        debugPrint("🔍 Searching \(calendarsToSearch.count) calendar(s) for games")
 
         // Search from today to 30 days in future
         let now = Date()
@@ -203,7 +203,7 @@ class GameCalendarManager: ObservableObject {
         )
 
         let events = eventStore.events(matching: predicate)
-        print("📅 Found \(events.count) total events")
+        debugPrint("📅 Found \(events.count) total events")
 
         // Optionally filter to weekend events only
         let filteredEvents: [EKEvent]
@@ -213,10 +213,10 @@ class GameCalendarManager: ObservableObject {
                 // weekday: 1 = Sunday, 7 = Saturday
                 return weekday == 1 || weekday == 7
             }
-            print("📅 Found \(filteredEvents.count) weekend events (weekends-only filter enabled)")
+            debugPrint("📅 Found \(filteredEvents.count) weekend events (weekends-only filter enabled)")
         } else {
             filteredEvents = events
-            print("📅 Showing all \(filteredEvents.count) events (weekends-only filter disabled)")
+            debugPrint("📅 Showing all \(filteredEvents.count) events (weekends-only filter disabled)")
         }
 
         // Parse all filtered events and filter out practices/training
@@ -225,7 +225,7 @@ class GameCalendarManager: ObservableObject {
 
             // Skip practice and training events
             if isPracticeOrTraining(eventTitle) {
-                print("   ⏭️ Skipping practice/training event: \(eventTitle)")
+                debugPrint("   ⏭️ Skipping practice/training event: \(eventTitle)")
                 return nil
             }
 
@@ -246,10 +246,10 @@ class GameCalendarManager: ObservableObject {
 
         DispatchQueue.main.async {
             self.upcomingGames = games.sorted { $0.startTime < $1.startTime }
-            print("🏀 Found \(games.count) basketball game(s)")
+            debugPrint("🏀 Found \(games.count) basketball game(s)")
 
             for game in games.prefix(3) {
-                print("   - \(game.opponent) at \(game.timeString) on \(game.dateString)")
+                debugPrint("   - \(game.opponent) at \(game.timeString) on \(game.dateString)")
             }
         }
     }
@@ -278,15 +278,15 @@ class GameCalendarManager: ObservableObject {
 
             if team1IsUsers && !team2IsUsers {
                 // Team 1 is user's team, team 2 is opponent
-                print("   📝 Parsed teams: \(team1) (user) vs \(team2) (opponent)")
+                debugPrint("   📝 Parsed teams: \(team1) (user) vs \(team2) (opponent)")
                 return team2
             } else if team2IsUsers && !team1IsUsers {
                 // Team 2 is user's team, team 1 is opponent
-                print("   📝 Parsed teams: \(team2) (user) vs \(team1) (opponent)")
+                debugPrint("   📝 Parsed teams: \(team2) (user) vs \(team1) (opponent)")
                 return team1
             } else if !team1IsUsers && !team2IsUsers {
                 // Neither matches - assume second team is opponent
-                print("   📝 Parsed teams: \(team1) vs \(team2) (assuming \(team2) is opponent)")
+                debugPrint("   📝 Parsed teams: \(team1) vs \(team2) (assuming \(team2) is opponent)")
                 return team2
             }
         }
@@ -317,13 +317,13 @@ class GameCalendarManager: ObservableObject {
 
         // Exact match
         if userLower == calendarLower {
-            print("   ✅ Exact match: '\(userTeam)' == '\(calendarTeam)'")
+            debugPrint("   ✅ Exact match: '\(userTeam)' == '\(calendarTeam)'")
             return true
         }
 
         // Check if calendar team starts with user team (e.g., "Elements" matches "Elements AAU")
         if calendarLower.hasPrefix(userLower + " ") || calendarLower.hasPrefix(userLower) {
-            print("   ✅ Prefix match: '\(userTeam)' matches start of '\(calendarTeam)'")
+            debugPrint("   ✅ Prefix match: '\(userTeam)' matches start of '\(calendarTeam)'")
             return true
         }
 
@@ -331,7 +331,7 @@ class GameCalendarManager: ObservableObject {
         // This handles cases like "Uneqld" in "Uneqld Boys 9/10U"
         let calendarWords = calendarLower.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         if calendarWords.contains(userLower) {
-            print("   ✅ Word match: '\(userTeam)' found as word in '\(calendarTeam)'")
+            debugPrint("   ✅ Word match: '\(userTeam)' found as word in '\(calendarTeam)'")
             return true
         }
 
@@ -372,7 +372,7 @@ class GameCalendarManager: ObservableObject {
                 }
 
                 if teams.count == 2 {
-                    print("   🔍 Found teams using '\(separator)': \(teams[0]) vs \(teams[1])")
+                    debugPrint("   🔍 Found teams using '\(separator)': \(teams[0]) vs \(teams[1])")
                     return teams
                 }
             }
@@ -449,7 +449,7 @@ class GameCalendarManager: ObservableObject {
         // TODO: Could also pull from recent games in Firebase
         // For now, if we don't have a saved team name, we'll rely on the second team being the opponent
 
-        print("   📋 Known user team names: \(teamNames.isEmpty ? "none (will assume second team is opponent)" : teamNames.joined(separator: ", "))")
+        debugPrint("   📋 Known user team names: \(teamNames.isEmpty ? "none (will assume second team is opponent)" : teamNames.joined(separator: ", "))")
 
         return teamNames
     }
@@ -457,10 +457,10 @@ class GameCalendarManager: ObservableObject {
     // MARK: - Game Creation
 
     func createLiveGameFromCalendar(_ calendarGame: CalendarGame, settings: GameSettings) -> LiveGame {
-        print("🏀 Creating live game from calendar event:")
-        print("   Opponent: \(calendarGame.opponent)")
-        print("   Location: \(calendarGame.location)")
-        print("   Time: \(calendarGame.timeString)")
+        debugPrint("🏀 Creating live game from calendar event:")
+        debugPrint("   Opponent: \(calendarGame.opponent)")
+        debugPrint("   Location: \(calendarGame.location)")
+        debugPrint("   Time: \(calendarGame.timeString)")
 
         return LiveGame(
             teamName: settings.teamName,
@@ -475,7 +475,7 @@ class GameCalendarManager: ObservableObject {
     // MARK: - Manual Refresh
 
     func refreshGames() {
-        print("🔄 Manual refresh requested")
+        debugPrint("🔄 Manual refresh requested")
         loadUpcomingGames()
     }
 }

@@ -148,7 +148,7 @@ class LocationManager: NSObject, ObservableObject {
             guard let self = self else { return }
             
             if let error = error {
-                print("MapKit reverse geocoding error: \(error)")
+                debugPrint("MapKit reverse geocoding error: \(error)")
                 DispatchQueue.main.async {
                     self.error = .geocodingFailed
                     self.isLoading = false
@@ -227,7 +227,7 @@ extension LocationManager: CLLocationManagerDelegate {
         DispatchQueue.main.async {
             self.isLoading = false
             self.error = .unavailable
-            print("Location manager failed with error: \(error.localizedDescription)")
+            debugPrint("Location manager failed with error: \(error.localizedDescription)")
         }
     }
     

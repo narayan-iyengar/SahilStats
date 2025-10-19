@@ -445,18 +445,18 @@ struct CompactGameControlsCard: View {
 
                 Button(advanceQuarterText) {
                     // DEBUG: Print values to diagnose the issue
-                    print("🔍 [DEBUG] End Period Button Pressed:")
-                    print("   currentQuarter: \(currentQuarter)")
-                    print("   maxQuarter: \(maxQuarter)")
-                    print("   gameFormat: \(gameFormat)")
-                    print("   Button text: \(advanceQuarterText)")
-                    print("   Condition (currentQuarter < maxQuarter): \(currentQuarter < maxQuarter)")
+                    debugPrint("🔍 [DEBUG] End Period Button Pressed:")
+                    debugPrint("   currentQuarter: \(currentQuarter)")
+                    debugPrint("   maxQuarter: \(maxQuarter)")
+                    debugPrint("   gameFormat: \(gameFormat)")
+                    debugPrint("   Button text: \(advanceQuarterText)")
+                    debugPrint("   Condition (currentQuarter < maxQuarter): \(currentQuarter < maxQuarter)")
 
                     if currentQuarter < maxQuarter {
-                        print("   ✅ Calling onAdvanceQuarter() - should advance to next period")
+                        debugPrint("   ✅ Calling onAdvanceQuarter() - should advance to next period")
                         onAdvanceQuarter()
                     } else {
-                        print("   ❌ Calling onFinishGame() - should end the game")
+                        debugPrint("   ❌ Calling onFinishGame() - should end the game")
                         onFinishGame()
                     }
                 }
@@ -680,9 +680,9 @@ struct LiveGameWatchView: View {
                     for: serverGameState,
                     userEmail: authService.currentUser?.email
                 )
-                print("✅ Control requested successfully")
+                debugPrint("✅ Control requested successfully")
             } catch {
-                print("❌ Failed to request control: \(error)")
+                forcePrint("❌ Failed to request control: \(error)")
             }
         }
     }

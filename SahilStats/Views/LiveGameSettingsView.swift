@@ -63,7 +63,7 @@ struct LiveGamesSettingsView: View {
             do {
                 try await firebaseService.deleteAllLiveGames()
             } catch {
-                print("Failed to delete live games: \(error)")
+                debugPrint("Failed to delete live games: \(error)")
             }
         }
     }

@@ -26,7 +26,7 @@ class NavigationCoordinator: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        print("📱 NavigationCoordinator: Initializing")
+        debugPrint("📱 NavigationCoordinator: Initializing")
         setupObservers()
     }
 
@@ -40,13 +40,13 @@ class NavigationCoordinator: ObservableObject {
     }
 
     func resumeLiveGame() {
-        print("🎯 Resuming live game")
+        debugPrint("🎯 Resuming live game")
         markUserHasInteracted()
         userExplicitlyJoinedGame = true
 
         // Start Live Activity for all roles (shows connection status in Dynamic Island)
         let deviceRole = DeviceRoleManager.shared.deviceRole
-        print("🏝️ Starting Live Activity for \(deviceRole.displayName)")
+        debugPrint("🏝️ Starting Live Activity for \(deviceRole.displayName)")
         LiveActivityManager.shared.startActivity(deviceRole: deviceRole)
 
         if let liveGame = liveGameManager.liveGame {
@@ -57,7 +57,7 @@ class NavigationCoordinator: ObservableObject {
     }
 
     func returnToDashboard() {
-        print("🏠 Returning to dashboard")
+        debugPrint("🏠 Returning to dashboard")
 
         // Stop Live Activity when leaving game
         LiveActivityManager.shared.stopActivity()
@@ -67,7 +67,7 @@ class NavigationCoordinator: ObservableObject {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
         }
-        print("🔄 Reset orientation lock to portrait")
+        debugPrint("🔄 Reset orientation lock to portrait")
 
         currentFlow = .dashboard
         userExplicitlyJoinedGame = false
@@ -79,7 +79,7 @@ class NavigationCoordinator: ObservableObject {
 
     func markUserHasInteracted() {
         if !hasUserInteractedWithApp {
-            print("👤 User interaction marked")
+            debugPrint("👤 User interaction marked")
             hasUserInteractedWithApp = true
         }
     }
@@ -92,43 +92,43 @@ class NavigationCoordinator: ObservableObject {
     }
 
     private func handleLiveGameChange(_ liveGame: LiveGame?) {
-        print("📱 handleLiveGameChange called. Should allow auto-nav: \(shouldAllowAutoNavigation)")
+        debugPrint("📱 handleLiveGameChange called. Should allow auto-nav: \(shouldAllowAutoNavigation)")
 
         // This guard is now the single point of control. It prevents any navigation
         // until the user has taken an explicit action to join or start a game.
         guard shouldAllowAutoNavigation else {
             if Date().timeIntervalSince(appStartTime) <= startupGracePeriod {
-                print("📱 Ignoring live game change - app just started.")
+                debugPrint("📱 Ignoring live game change - app just started.")
             } else {
-                print("📱 Ignoring live game change - user has not explicitly joined a game.")
+                debugPrint("📱 Ignoring live game change - user has not explicitly joined a game.")
             }
             return
         }
 
         if let game = liveGame {
-            print("🎮 Live game is active: \(game.id ?? "unknown"). Navigating.")
+            debugPrint("🎮 Live game is active: \(game.id ?? "unknown"). Navigating.")
             navigateToGameFlow(game)
         } else {
-            print("🎮 Live game ended. Returning to dashboard.")
+            debugPrint("🎮 Live game ended. Returning to dashboard.")
             returnToDashboard()
         }
     }
     
     private func navigateToGameFlow(_ liveGame: LiveGame) {
         let currentRole = DeviceRoleManager.shared.deviceRole
-        print("🎯 navigateToGameFlow called with role: \(currentRole)")
+        debugPrint("🎯 navigateToGameFlow called with role: \(currentRole)")
 
         switch currentRole {
         case .recorder:
-            print("🎬 Role is Recorder. Showing READY state.")
+            debugPrint("🎬 Role is Recorder. Showing READY state.")
             currentFlow = .waitingToRecord(Optional(liveGame))
         case .controller, .viewer:
-            print("🎮 Role is Controller/Viewer. Navigating to live game view.")
+            debugPrint("🎮 Role is Controller/Viewer. Navigating to live game view.")
             currentFlow = .liveGame(liveGame)
         case .none:
             // If no role is set, stay in dashboard
             // The user will tap the Live pill which shows a role selection sheet
-            print("❓ No role set for existing game. User should tap Live pill to select role.")
+            debugPrint("❓ No role set for existing game. User should tap Live pill to select role.")
         }
     }
 }

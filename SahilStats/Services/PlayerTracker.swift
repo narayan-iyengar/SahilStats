@@ -22,7 +22,7 @@ class PlayerTracker {
 
     /// Detect all people in a frame and return them for manual selection
     func detectPeopleForSelection(in frame: VideoFrame) async throws -> [DetectedPerson] {
-        print("🔍 Detecting people for manual selection at \(String(format: "%.1f", frame.timestamp))s...")
+        debugPrint("🔍 Detecting people for manual selection at \(String(format: "%.1f", frame.timestamp))s...")
 
         guard let cgImage = frame.image.cgImage else {
             throw TrackingError.trackingFailed("Could not get CGImage from frame")
@@ -39,11 +39,11 @@ class PlayerTracker {
         }
 
         guard let observations = detectRequest.results, !observations.isEmpty else {
-            print("   ⚠️ No people detected in frame")
+            debugPrint("   ⚠️ No people detected in frame")
             return []
         }
 
-        print("   ✅ Detected \(observations.count) person(s)")
+        debugPrint("   ✅ Detected \(observations.count) person(s)")
 
         // Convert to DetectedPerson objects
         var detectedPeople: [DetectedPerson] = []
@@ -72,9 +72,9 @@ class PlayerTracker {
         throughFrames frames: [VideoFrame],
         progress: @escaping (Double, Int) -> Void
     ) async throws -> [DetectedPerson] {
-        print("🎯 Starting player tracking...")
-        print("   Initial bounding box: \(initialPerson.boundingBox)")
-        print("   Tracking through \(frames.count) frames")
+        debugPrint("🎯 Starting player tracking...")
+        debugPrint("   Initial bounding box: \(initialPerson.boundingBox)")
+        debugPrint("   Tracking through \(frames.count) frames")
 
         var trackedPeople: [DetectedPerson] = []
 
@@ -119,7 +119,7 @@ class PlayerTracker {
                     lastSuccessfulBox = observation.boundingBox
 
                     if index % 20 == 0 {
-                        print("   ✅ Frame \(index): Tracked (confidence: \(String(format: "%.2f", observation.confidence)))")
+                        debugPrint("   ✅ Frame \(index): Tracked (confidence: \(String(format: "%.2f", observation.confidence)))")
                     }
                 } else {
                     // Lost tracking, try to re-detect
@@ -131,14 +131,14 @@ class PlayerTracker {
                         trackingRequest = nil
 
                         if index % 20 == 0 {
-                            print("   🔄 Frame \(index): Re-detected after tracking loss")
+                            debugPrint("   🔄 Frame \(index): Re-detected after tracking loss")
                         }
                     } else {
                         // Complete tracking loss - reset tracker
                         trackingRequest = nil
 
                         if index % 20 == 0 {
-                            print("   ⚠️ Frame \(index): Lost tracking")
+                            debugPrint("   ⚠️ Frame \(index): Lost tracking")
                         }
                     }
                 }
@@ -150,13 +150,13 @@ class PlayerTracker {
                     trackingRequest = nil // Reset for next frame
 
                     if index % 20 == 0 {
-                        print("   🔄 Frame \(index): Recovered from error via re-detection")
+                        debugPrint("   🔄 Frame \(index): Recovered from error via re-detection")
                     }
                 } else {
                     trackingRequest = nil
 
                     if index % 20 == 0 {
-                        print("   ⚠️ Frame \(index): Tracking error - \(error.localizedDescription)")
+                        debugPrint("   ⚠️ Frame \(index): Tracking error - \(error.localizedDescription)")
                     }
                 }
             }
@@ -168,9 +168,9 @@ class PlayerTracker {
             }
         }
 
-        print("✅ Tracking complete!")
-        print("   Successfully tracked in \(trackedPeople.count)/\(frames.count) frames")
-        print("   Success rate: \(String(format: "%.1f", Double(trackedPeople.count) / Double(frames.count) * 100))%")
+        debugPrint("✅ Tracking complete!")
+        debugPrint("   Successfully tracked in \(trackedPeople.count)/\(frames.count) frames")
+        debugPrint("   Success rate: \(String(format: "%.1f", Double(trackedPeople.count) / Double(frames.count) * 100))%")
 
         return trackedPeople
     }

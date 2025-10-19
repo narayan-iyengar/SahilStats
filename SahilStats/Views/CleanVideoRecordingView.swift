@@ -101,7 +101,7 @@ struct CleanVideoRecordingView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     let actualZoom = recordingManager.setZoom(factor: 0.5)
                     currentZoomLevel = actualZoom
-                    print("📹 Camera ready - set initial zoom to \(actualZoom)x (ultra-wide)")
+                    debugPrint("📹 Camera ready - set initial zoom to \(actualZoom)x (ultra-wide)")
                 }
             }
         }
@@ -202,10 +202,10 @@ struct CleanVideoRecordingView: View {
     // MARK: - Setup and Cleanup Methods
     
     private func setupView() {
-        print("🎥 CleanVideoRecordingView: Setting up view")
-        print("🔗 CleanVideoRecordingView: Current multipeer connection state: \(multipeer.connectionState)")
-        print("🔗 CleanVideoRecordingView: Connected peers: \(multipeer.connectedPeers.map { $0.displayName })")
-        print("🔗 CleanVideoRecordingView: Is recording: \(recordingManager.isRecording)")
+        debugPrint("🎥 CleanVideoRecordingView: Setting up view")
+        debugPrint("🔗 CleanVideoRecordingView: Current multipeer connection state: \(multipeer.connectionState)")
+        debugPrint("🔗 CleanVideoRecordingView: Connected peers: \(multipeer.connectedPeers.map { $0.displayName })")
+        debugPrint("🔗 CleanVideoRecordingView: Is recording: \(recordingManager.isRecording)")
 
         AppDelegate.orientationLock = .landscape
         // Request orientation update (iOS 16+ compatible)
@@ -219,17 +219,17 @@ struct CleanVideoRecordingView: View {
 
         // Keep screen awake based on user preference
         UIApplication.shared.isIdleTimerDisabled = cameraSettings.settings.keepRecorderScreenAwake
-        print("🌙 Screen sleep: \(cameraSettings.settings.keepRecorderScreenAwake ? "disabled (stays awake)" : "enabled (can sleep)")")
+        debugPrint("🌙 Screen sleep: \(cameraSettings.settings.keepRecorderScreenAwake ? "disabled (stays awake)" : "enabled (can sleep)")")
 
         // Skip camera setup if already running (started early in RecorderReadyView)
         if recordingManager.isCameraSessionRunning {
-            print("✅ Camera session already running - marking as ready immediately")
+            debugPrint("✅ Camera session already running - marking as ready immediately")
             isCameraReady = true
         } else if !recordingManager.isRecording {
-            print("🎥 Camera session not running yet - setting up now")
+            debugPrint("🎥 Camera session not running yet - setting up now")
             setupCameraWithDelay()
         } else {
-            print("⚠️ Already recording - skipping camera setup to avoid interruption")
+            debugPrint("⚠️ Already recording - skipping camera setup to avoid interruption")
             isCameraReady = true
         }
         
@@ -237,33 +237,33 @@ struct CleanVideoRecordingView: View {
         multipeer.$connectionState
             .receive(on: DispatchQueue.main)
             .sink { connectionState in
-                print("🔗 CleanVideoRecordingView: Connection state changed to \(connectionState)")
+                debugPrint("🔗 CleanVideoRecordingView: Connection state changed to \(connectionState)")
                 
                 switch connectionState {
                 case .connected:
-                    print("✅ CleanVideoRecordingView: Successfully connected to controller")
+                    debugPrint("✅ CleanVideoRecordingView: Successfully connected to controller")
                     self.handleConnectionRestored()
                 case .connecting(let peerName):
-                    print("🔄 CleanVideoRecordingView: Attempting to connect to controller: \(peerName)")
+                    debugPrint("🔄 CleanVideoRecordingView: Attempting to connect to controller: \(peerName)")
                 case .disconnected:
-                    print("⚠️ CleanVideoRecordingView: Disconnected from controller")
+                    debugPrint("⚠️ CleanVideoRecordingView: Disconnected from controller")
                     self.handleConnectionLoss()
                 case .idle:
-                    print("⚠️ CleanVideoRecordingView: Connection is idle")
+                    debugPrint("⚠️ CleanVideoRecordingView: Connection is idle")
                 case .searching:
-                    print("🔍 CleanVideoRecordingView: Searching for controller")
+                    debugPrint("🔍 CleanVideoRecordingView: Searching for controller")
                 }
             }
             .store(in: &cancellables)
     }
     
     private func cleanupView() {
-        print("🎥 CleanVideoRecordingView: Cleaning up view")
+        debugPrint("🎥 CleanVideoRecordingView: Cleaning up view")
 
         Task { @MainActor in
             // Stop recording if still active
             if recordingManager.isRecording {
-                print("⚠️ Recording still active during cleanup - stopping...")
+                debugPrint("⚠️ Recording still active during cleanup - stopping...")
                 await recordingManager.stopRecording()
             }
 
@@ -285,18 +285,18 @@ struct CleanVideoRecordingView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             cancellables.removeAll()
 
-            print("✅ Cleanup complete")
+            debugPrint("✅ Cleanup complete")
         }
     }
 
     // MARK: - Screen Dimming for Battery Saving
 
     private func startDimTimer() {
-        print("🌙 Starting 30-second dim timer for battery saving")
+        debugPrint("🌙 Starting 30-second dim timer for battery saving")
         cancelDimTimer()
 
         dimTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { _ in
-            print("🌙 Dimming screen to save battery")
+            debugPrint("🌙 Dimming screen to save battery")
             self.isScreenDimmed = true
         }
     }
@@ -312,7 +312,7 @@ struct CleanVideoRecordingView: View {
     }
 
     private func handleScreenTap() {
-        print("👆 Screen tapped - temporarily waking preview")
+        debugPrint("👆 Screen tapped - temporarily waking preview")
 
         // Wake the screen
         isScreenDimmed = false
@@ -323,7 +323,7 @@ struct CleanVideoRecordingView: View {
         // Auto re-dim after 15 seconds
         wakeTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: false) { _ in
             if self.recordingManager.isRecording {
-                print("🌙 Re-dimming screen after wake period")
+                debugPrint("🌙 Re-dimming screen after wake period")
                 self.isScreenDimmed = true
             }
         }
@@ -331,7 +331,7 @@ struct CleanVideoRecordingView: View {
     
     private func setupCameraWithDelay() {
         // Setup camera on lower priority to not interfere with multipeer connection
-        print("🎥 CleanVideoRecordingView: Scheduling camera setup on background priority")
+        debugPrint("🎥 CleanVideoRecordingView: Scheduling camera setup on background priority")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { // Reduced delay to minimize connection drop window
             Task(priority: .background) {
                 await self.setupCamera()
@@ -341,13 +341,13 @@ struct CleanVideoRecordingView: View {
     
     private func setupCamera() async {
         guard !hasCameraSetup else {
-            print("🎥 CleanVideoRecordingView: Camera already setup, skipping")
+            debugPrint("🎥 CleanVideoRecordingView: Camera already setup, skipping")
             return
         }
         
         // IMPROVED: Don't start camera setup if we're already in the middle of attempts and failing
         guard cameraSetupAttempts < 3 else {
-            print("❌ CleanVideoRecordingView: Too many camera setup attempts, giving up")
+            forcePrint("❌ CleanVideoRecordingView: Too many camera setup attempts, giving up")
             await MainActor.run {
                 cameraErrorMessage = "Camera setup failed after multiple attempts. Please check camera permissions and try again."
                 showingCameraError = true
@@ -356,7 +356,7 @@ struct CleanVideoRecordingView: View {
         }
         
         cameraSetupAttempts += 1
-        print("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
+        debugPrint("🎥 CleanVideoRecordingView: Setting up camera (attempt \(cameraSetupAttempts))")
 
         // IMPROVED: Move camera setup to low priority background thread to not interfere with multipeer
         Task.detached(priority: .utility) {
@@ -371,20 +371,20 @@ struct CleanVideoRecordingView: View {
             }
             
             await MainActor.run {
-                print("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
+                debugPrint("🎥 CleanVideoRecordingView: Camera permission granted, setting up hardware...")
 
                 // CRITICAL: Setup camera hardware FIRST (creates the session)
                 if self.recordingManager.setupCamera() != nil {
-                    print("✅ Camera hardware setup completed")
+                    debugPrint("✅ Camera hardware setup completed")
                     self.hasCameraSetup = true
 
                     // NOW start the camera session (after it's been created)
                     self.recordingManager.startCameraSession()
-                    print("🎥 Camera session started")
+                    debugPrint("🎥 Camera session started")
 
                     // Give the camera session time to fully start before marking ready
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        print("✅ Marking camera as ready")
+                        debugPrint("✅ Marking camera as ready")
                         self.isCameraReady = true
                     }
                 } else {
@@ -396,7 +396,7 @@ struct CleanVideoRecordingView: View {
         }
     
     private func retryCameraSetup() async {
-        print("🔄 CleanVideoRecordingView: Retrying camera setup")
+        debugPrint("🔄 CleanVideoRecordingView: Retrying camera setup")
         hasCameraSetup = false
         isCameraReady = false
         await setupCamera()
@@ -404,7 +404,7 @@ struct CleanVideoRecordingView: View {
     
     // ** THIS IS THE CORRECTED VERSION **
     private func setupBluetoothCallbacks() {
-        print("📱 [CleanVideoRecordingView] Subscribing to multipeer message publisher.")
+        debugPrint("📱 [CleanVideoRecordingView] Subscribing to multipeer message publisher.")
         
         self.multipeer.messagePublisher
             .receive(on: DispatchQueue.main)
@@ -417,64 +417,64 @@ struct CleanVideoRecordingView: View {
     private func handleMessage(_ message: MultipeerConnectivityManager.Message) {
         // Filter out noisy pong messages from logs
         if message.type != .pong {
-            print("📱 [CleanVideoRecordingView] Received message: \(message.type)")
-            print("   Message payload: \(String(describing: message.payload))")
+            debugPrint("📱 [CleanVideoRecordingView] Received message: \(message.type)")
+            debugPrint("   Message payload: \(String(describing: message.payload))")
         }
 
         switch message.type {
         case .startRecording:
-            print("📱 Received startRecording command via publisher.")
+            debugPrint("📱 Received startRecording command via publisher.")
             Task { @MainActor in
                 await self.recordingManager.startRecording(liveGame: self.liveGame)
                 self.multipeer.sendRecordingStateUpdate(isRecording: true)
             }
         case .stopRecording:
-            print("📱 Received stopRecording command via publisher.")
+            debugPrint("📱 Received stopRecording command via publisher.")
             Task { @MainActor in
                 await self.recordingManager.stopRecording()
                 self.multipeer.sendRecordingStateUpdate(isRecording: false)
             }
         case .gameEnded:
-            print("📱 Received gameEnded command via publisher.")
-            print("   Payload: \(String(describing: message.payload))")
+            debugPrint("📱 Received gameEnded command via publisher.")
+            debugPrint("   Payload: \(String(describing: message.payload))")
 
             if let gameId = message.payload?["gameId"] as? String {
-                print("   ✅ Found gameId in payload: \(gameId)")
+                debugPrint("   ✅ Found gameId in payload: \(gameId)")
                 handleGameEnd(gameId: gameId)
             } else {
-                print("   ❌ No gameId found in payload!")
+                debugPrint("   ❌ No gameId found in payload!")
                 // Try to get it from liveGame instead
                 if let gameId = liveGame.id {
-                    print("   Using gameId from liveGame: \(gameId)")
+                    debugPrint("   Using gameId from liveGame: \(gameId)")
                     handleGameEnd(gameId: gameId)
                 } else {
-                    print("   ❌ No gameId available at all - cannot save recording")
+                    forcePrint("   ❌ No gameId available at all - cannot save recording")
                 }
             }
         case .gameState:
             // Receive full game state from controller (backup/recovery only - every 15s)
             if let payload = message.payload {
-                print("📱 [CleanVideoRecordingView] Received gameState update via multipeer (backup)")
+                debugPrint("📱 [CleanVideoRecordingView] Received gameState update via multipeer (backup)")
                 updateLocalGameState(from: payload)
             } else {
-                print("⚠️ [CleanVideoRecordingView] gameState message has no payload")
+                debugPrint("⚠️ [CleanVideoRecordingView] gameState message has no payload")
             }
         case .scoreUpdate:
             // INSTANT: Score changed on controller (0ms delay!)
             if let payload = message.payload {
-                print("⚡ [CleanVideoRecordingView] Received INSTANT score update")
+                debugPrint("⚡ [CleanVideoRecordingView] Received INSTANT score update")
                 updateScoreFromPayload(payload)
             }
         case .clockControl:
             // INSTANT: Clock started/stopped on controller (0ms delay!)
             if let payload = message.payload {
-                print("⚡ [CleanVideoRecordingView] Received INSTANT clock control")
+                debugPrint("⚡ [CleanVideoRecordingView] Received INSTANT clock control")
                 updateClockControlFromPayload(payload)
             }
         case .periodChange:
             // INSTANT: Period/quarter changed on controller (0ms delay!)
             if let payload = message.payload {
-                print("⚡ [CleanVideoRecordingView] Received INSTANT period change")
+                debugPrint("⚡ [CleanVideoRecordingView] Received INSTANT period change")
                 updatePeriodFromPayload(payload)
             }
         case .clockSync:
@@ -486,7 +486,7 @@ struct CleanVideoRecordingView: View {
             // Heartbeat message - ignore silently
             break
         default:
-            print("   Unhandled message type: \(message.type)")
+            debugPrint("   Unhandled message type: \(message.type)")
             break
         }
     }
@@ -501,7 +501,7 @@ struct CleanVideoRecordingView: View {
               let isRunningStr = payload["isRunning"] as? String,
               let teamName = payload["teamName"] as? String,
               let opponent = payload["opponent"] as? String else {
-            print("⚠️ [CleanVideoRecordingView] Invalid gameState payload")
+            debugPrint("⚠️ [CleanVideoRecordingView] Invalid gameState payload")
             return
         }
 
@@ -510,7 +510,7 @@ struct CleanVideoRecordingView: View {
               let awayScore = Int(awayScoreStr),
               let clock = Double(clockStr),
               let quarter = Int(quarterStr) else {
-            print("⚠️ [CleanVideoRecordingView] Failed to parse gameState values")
+            debugPrint("⚠️ [CleanVideoRecordingView] Failed to parse gameState values")
             return
         }
 
@@ -529,8 +529,8 @@ struct CleanVideoRecordingView: View {
         // Log every 10 updates to verify it's working (not too verbose)
         let timestamp = Int(Date().timeIntervalSince1970)
         if timestamp % 30 == 0 {
-            print("✅ [CleanVideoRecordingView] Updated local game state from multipeer:")
-            print("   Score: \(homeScore)-\(awayScore) | Clock: \(String(format: "%.0f", clock))s | Q\(quarter)")
+            debugPrint("✅ [CleanVideoRecordingView] Updated local game state from multipeer:")
+            debugPrint("   Score: \(homeScore)-\(awayScore) | Clock: \(String(format: "%.0f", clock))s | Q\(quarter)")
         }
     }
 
@@ -541,7 +541,7 @@ struct CleanVideoRecordingView: View {
               let awayScoreStr = payload["awayScore"] as? String,
               let homeScore = Int(homeScoreStr),
               let awayScore = Int(awayScoreStr) else {
-            print("⚠️ Invalid scoreUpdate payload")
+            debugPrint("⚠️ Invalid scoreUpdate payload")
             return
         }
 
@@ -549,7 +549,7 @@ struct CleanVideoRecordingView: View {
         localGameState.homeScore = homeScore
         localGameState.awayScore = awayScore
 
-        print("⚡ Score updated instantly: \(homeScore)-\(awayScore)")
+        debugPrint("⚡ Score updated instantly: \(homeScore)-\(awayScore)")
     }
 
     private func updateClockControlFromPayload(_ payload: [String: Any]) {
@@ -558,7 +558,7 @@ struct CleanVideoRecordingView: View {
               let timestampStr = payload["timestamp"] as? String,
               let clockValue = Double(clockValueStr),
               let timestamp = Double(timestampStr) else {
-            print("⚠️ Invalid clockControl payload")
+            debugPrint("⚠️ Invalid clockControl payload")
             return
         }
 
@@ -578,15 +578,15 @@ struct CleanVideoRecordingView: View {
             let latency = Date().timeIntervalSince(controllerTime)
             if latency > 0 && latency < 1.0 {  // Only adjust if latency is reasonable
                 localClockValue = max(0, clockValue - latency)
-                print("⚡ Clock started at \(String(format: "%.0f", localClockValue))s (adjusted for \(Int(latency * 1000))ms latency)")
+                debugPrint("⚡ Clock started at \(String(format: "%.0f", localClockValue))s (adjusted for \(Int(latency * 1000))ms latency)")
             } else {
-                print("⚡ Clock started at \(String(format: "%.0f", clockValue))s")
+                debugPrint("⚡ Clock started at \(String(format: "%.0f", clockValue))s")
             }
         } else {
             // Clock paused - stop local countdown
             clockStartTime = nil
             clockAtStart = nil
-            print("⚡ Clock paused at \(String(format: "%.0f", clockValue))s")
+            debugPrint("⚡ Clock paused at \(String(format: "%.0f", clockValue))s")
         }
 
         // Update game state
@@ -599,16 +599,16 @@ struct CleanVideoRecordingView: View {
               let clockValueStr = payload["clockValue"] as? String,
               let quarter = Int(quarterStr),
               let clockValue = Double(clockValueStr) else {
-            print("⚠️ Invalid periodChange payload")
+            debugPrint("⚠️ Invalid periodChange payload")
             return
         }
 
         // CRITICAL FIX: Validate quarter doesn't exceed game's max periods
         let maxQuarter = localGameState.numQuarter
         if quarter > maxQuarter {
-            print("❌ REJECTED period change - quarter \(quarter) exceeds maxQuarter \(maxQuarter)")
-            print("   This appears to be an 'End Game' signal, not a period change!")
-            print("   Ignoring this signal to prevent premature game end.")
+            forcePrint("❌ REJECTED period change - quarter \(quarter) exceeds maxQuarter \(maxQuarter)")
+            debugPrint("   This appears to be an 'End Game' signal, not a period change!")
+            debugPrint("   Ignoring this signal to prevent premature game end.")
             return
         }
 
@@ -621,7 +621,7 @@ struct CleanVideoRecordingView: View {
         clockStartTime = nil
         clockAtStart = nil
 
-        print("⚡ Period changed: Q\(quarter)/\(maxQuarter) | Clock reset to \(String(format: "%.0f", clockValue))s | Clock PAUSED")
+        debugPrint("⚡ Period changed: Q\(quarter)/\(maxQuarter) | Clock reset to \(String(format: "%.0f", clockValue))s | Clock PAUSED")
     }
 
     private func syncClockFromPayload(_ payload: [String: Any]) {
@@ -636,7 +636,7 @@ struct CleanVideoRecordingView: View {
         // Check for significant drift (>2 seconds)
         let drift = abs(localClockValue - clockValue)
         if drift > 2.0 {
-            print("⚠️ Clock drift detected: \(String(format: "%.1f", drift))s - syncing to \(String(format: "%.0f", clockValue))s")
+            debugPrint("⚠️ Clock drift detected: \(String(format: "%.1f", drift))s - syncing to \(String(format: "%.0f", clockValue))s")
             localClockValue = clockValue
 
             // If clock is running, restart from this synced value
@@ -648,56 +648,56 @@ struct CleanVideoRecordingView: View {
     }
 
     private func handleGameEnd(gameId: String) {
-        print("🎬 CleanVideoRecordingView: handleGameEnd called for gameId: \(gameId)")
-        print("   Current recording state: isRecording=\(recordingManager.isRecording)")
+        debugPrint("🎬 CleanVideoRecordingView: handleGameEnd called for gameId: \(gameId)")
+        debugPrint("   Current recording state: isRecording=\(recordingManager.isRecording)")
 
         Task { @MainActor in
             // Stop recording if active
             if recordingManager.isRecording {
-                print("🎬 Stopping recording...")
+                debugPrint("🎬 Stopping recording...")
                 await self.recordingManager.stopRecording()
-                print("✅ Recording stopped")
+                debugPrint("✅ Recording stopped")
             }
 
             // Check if we have a recording to save (even if it's already stopped)
             let hasRecording = recordingManager.getLastRecordingURL() != nil
-            print("   Has recording to save: \(hasRecording)")
+            debugPrint("   Has recording to save: \(hasRecording)")
 
             if hasRecording {
-                print("📹 Saving and queueing recording for upload...")
+                debugPrint("📹 Saving and queueing recording for upload...")
                 let timeline = ScoreTimelineTracker.shared.stopRecording()
-                print("   📊 Got timeline with \(timeline.count) snapshots")
+                debugPrint("   📊 Got timeline with \(timeline.count) snapshots")
                 await self.recordingManager.saveRecordingAndQueueUpload(liveGame: self.liveGame, scoreTimeline: timeline)
-                print("✅ Recording saved and queued for upload")
+                forcePrint("✅ Recording saved and queued for upload")
             } else {
-                print("⚠️ No recording to save")
+                debugPrint("⚠️ No recording to save")
             }
 
-            print("🏠 Returning to dashboard...")
+            debugPrint("🏠 Returning to dashboard...")
             self.navigation.returnToDashboard()
         }
     }
     
     private func handleDismiss() {
-        print("🎬 CleanVideoRecordingView: handleDismiss called - user backing out without finishing game")
-        print("🎬 Current recording state: isRecording=\(recordingManager.isRecording)")
+        debugPrint("🎬 CleanVideoRecordingView: handleDismiss called - user backing out without finishing game")
+        debugPrint("🎬 Current recording state: isRecording=\(recordingManager.isRecording)")
 
         Task { @MainActor in
             // Stop recording if active and notify controller
             if recordingManager.isRecording {
-                print("🎬 Stopping recording before dismissing...")
+                debugPrint("🎬 Stopping recording before dismissing...")
                 await recordingManager.stopRecording()
 
                 // Notify controller that recording has stopped
                 multipeer.sendRecordingStateUpdate(isRecording: false)
-                print("✅ Recording stopped and controller notified")
+                debugPrint("✅ Recording stopped and controller notified")
             }
 
             // DISCARD any recording - game was abandoned, not finished
             await discardRecording()
 
             // Navigate back to waiting room after recording is discarded
-            print("🏠 Navigating back to waiting room...")
+            debugPrint("🏠 Navigating back to waiting room...")
             navigation.currentFlow = .waitingToRecord(Optional(liveGame))
         }
     }
@@ -705,35 +705,35 @@ struct CleanVideoRecordingView: View {
     // MARK: - Video Discard Helper
 
     private func discardRecording() async {
-        print("🗑️ CleanVideoRecordingView: Discarding recording (game not finished)")
+        debugPrint("🗑️ CleanVideoRecordingView: Discarding recording (game not finished)")
 
         // Get the recording URL if it exists
         if let recordingURL = recordingManager.getLastRecordingURL() {
-            print("   Found recording to discard: \(recordingURL.lastPathComponent)")
+            debugPrint("   Found recording to discard: \(recordingURL.lastPathComponent)")
 
             // Delete the video file
             do {
                 if FileManager.default.fileExists(atPath: recordingURL.path) {
                     try FileManager.default.removeItem(at: recordingURL)
-                    print("   ✅ Deleted video file: \(recordingURL.lastPathComponent)")
+                    forcePrint("   ✅ Deleted video file: \(recordingURL.lastPathComponent)")
                 } else {
-                    print("   ⚠️ Video file doesn't exist at path: \(recordingURL.path)")
+                    debugPrint("   ⚠️ Video file doesn't exist at path: \(recordingURL.path)")
                 }
             } catch {
-                print("   ❌ Failed to delete video file: \(error.localizedDescription)")
+                forcePrint("   ❌ Failed to delete video file: \(error.localizedDescription)")
             }
 
             // Clear the recording manager's reference
             recordingManager.clearLastRecording()
         } else {
-            print("   No recording to discard")
+            debugPrint("   No recording to discard")
         }
 
         // Clear score timeline tracker
         _ = ScoreTimelineTracker.shared.stopRecording()
-        print("   ✅ Cleared score timeline tracker")
+        debugPrint("   ✅ Cleared score timeline tracker")
 
-        print("✅ Recording discarded successfully")
+        debugPrint("✅ Recording discarded successfully")
     }
 
     // MARK: - Timer and UI Update Methods
@@ -787,11 +787,11 @@ struct CleanVideoRecordingView: View {
         // Log every 5 seconds for normal monitoring (not too verbose)
         let shouldLog = callCount % 5 == 0
         if shouldLog {
-            print("🎮 CleanVideoRecordingView.updateOverlayData() - call #\(callCount) [from LOCAL state]")
-            print("   Score: \(currentGame.homeScore)-\(currentGame.awayScore)")
-            print("   Clock: \(currentGame.currentClockDisplay)")
-            print("   Period: Q\(currentGame.quarter)")
-            print("   isRecording: \(recordingManager.isRecording)")
+            debugPrint("🎮 CleanVideoRecordingView.updateOverlayData() - call #\(callCount) [from LOCAL state]")
+            debugPrint("   Score: \(currentGame.homeScore)-\(currentGame.awayScore)")
+            debugPrint("   Clock: \(currentGame.currentClockDisplay)")
+            debugPrint("   Period: Q\(currentGame.quarter)")
+            debugPrint("   isRecording: \(recordingManager.isRecording)")
         }
 
         overlayData = SimpleScoreOverlayData(
@@ -808,19 +808,19 @@ struct CleanVideoRecordingView: View {
             // Fallback: Also update score timeline for post-processing mode
             ScoreTimelineTracker.shared.updateScore(game: currentGame)
         } else if callCount % 5 == 0 {
-            print("   ⚠️ Not recording - skipping game data update")
+            debugPrint("   ⚠️ Not recording - skipping game data update")
         }
     }
     
     private func handleConnectionRestored() {
-        print("🔗 CleanVideoRecordingView: Connection to controller restored.")
+        debugPrint("🔗 CleanVideoRecordingView: Connection to controller restored.")
         // Optionally, reset any UI state or dismiss connection error alerts as needed.
         // For example:
         // self.showingConnectionError = false
     }
     
     private func handleConnectionLoss() {
-        print("🔗 CleanVideoRecordingView: Connection to controller lost.")
+        debugPrint("🔗 CleanVideoRecordingView: Connection to controller lost.")
         // Optionally, present an alert or UI state update for lost connection here.
     }
 }

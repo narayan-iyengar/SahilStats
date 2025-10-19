@@ -72,10 +72,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
     func startCameraSession() {
         guard !isRecording else { return }
-        print("🎥 VideoRecordingManager: startCameraSession called")
+        debugPrint("🎥 VideoRecordingManager: startCameraSession called")
 
         if _previewLayer == nil {
-            print("🎥 VideoRecordingManager: Setting up camera hardware...")
+            debugPrint("🎥 VideoRecordingManager: Setting up camera hardware...")
             _ = setupCamera()
         }
 
@@ -106,12 +106,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
             
             // IMPROVED: Check session state before starting
             if let session = self.captureSession, !session.isRunning {
-                print("🎥 VideoRecordingManager: Starting capture session...")
+                debugPrint("🎥 VideoRecordingManager: Starting capture session...")
                 session.startRunning()
                 
                 // Wait for session to fully start before updating orientation
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("🎥 VideoRecordingManager: Session started, updating orientation...")
+                    debugPrint("🎥 VideoRecordingManager: Session started, updating orientation...")
                     self.updatePreviewOrientation()
                     
                     // Trigger the onCameraReady callback if set
@@ -129,28 +129,28 @@ class VideoRecordingManager: NSObject, ObservableObject {
         guard let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
               let reasonIntegerValue = userInfoValue.integerValue,
               let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) else {
-            print("⚠️ Camera session interrupted for unknown reason")
+            debugPrint("⚠️ Camera session interrupted for unknown reason")
             return
         }
         
-        print("⚠️ Camera session interrupted: \(reason)")
+        debugPrint("⚠️ Camera session interrupted: \(reason)")
         
         switch reason {
         case .videoDeviceNotAvailableInBackground:
-            print("📱 Camera not available in background")
+            debugPrint("📱 Camera not available in background")
         case .audioDeviceInUseByAnotherClient:
-            print("🔊 Audio device in use by another client")
+            debugPrint("🔊 Audio device in use by another client")
         case .videoDeviceInUseByAnotherClient:
-            print("📷 Video device in use by another client")
+            debugPrint("📷 Video device in use by another client")
         case .videoDeviceNotAvailableWithMultipleForegroundApps:
-            print("📱 Camera not available with multiple foreground apps")
+            debugPrint("📱 Camera not available with multiple foreground apps")
         default:
-            print("⚠️ Other interruption reason: \(reason.rawValue)")
+            debugPrint("⚠️ Other interruption reason: \(reason.rawValue)")
         }
     }
     
     @objc private func sessionInterruptionEnded(notification: NSNotification) {
-        print("✅ Camera session interruption ended")
+        forcePrint("✅ Camera session interruption ended")
         
         // Restart session if needed
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -158,7 +158,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
                   let session = self.captureSession,
                   !session.isRunning else { return }
             
-            print("🔄 Restarting camera session after interruption")
+            debugPrint("🔄 Restarting camera session after interruption")
             session.startRunning()
         }
     }
@@ -185,7 +185,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     func updatePreviewOrientation() {
         guard let connection = previewLayer?.connection else {
-            print("Preview layer connection not available")
+            debugPrint("Preview layer connection not available")
             return
         }
 
@@ -193,7 +193,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
         // Only handle valid orientations
         guard orientation != .unknown && orientation != .faceUp && orientation != .faceDown else {
-            print("⚠️ Ignoring invalid orientation: \(orientation.rawValue)")
+            debugPrint("⚠️ Ignoring invalid orientation: \(orientation.rawValue)")
             return
         }
 
@@ -212,14 +212,14 @@ class VideoRecordingManager: NSObject, ObservableObject {
             return
         }
 
-        print("🔄 Updating preview orientation: \(orientation.rawValue) → \(rotationAngle)°")
+        debugPrint("🔄 Updating preview orientation: \(orientation.rawValue) → \(rotationAngle)°")
 
         if connection.isVideoRotationAngleSupported(rotationAngle) {
             UIView.animate(withDuration: 0.3) {
                 connection.videoRotationAngle = rotationAngle
             }
         } else {
-            print("⚠️ Rotation angle \(rotationAngle)° not supported")
+            debugPrint("⚠️ Rotation angle \(rotationAngle)° not supported")
         }
     }
     
@@ -231,7 +231,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
                     self.performOrientationUpdate(retryCount: retryCount + 1)
                 }
             } else {
-                print("⚠️ Preview layer connection not available after \(retryCount) retries")
+                debugPrint("⚠️ Preview layer connection not available after \(retryCount) retries")
             }
             return
         }
@@ -249,16 +249,16 @@ class VideoRecordingManager: NSObject, ObservableObject {
         case .landscapeRight:
             rotationAngle = 180  // Device home button on right - swapped back
         default:
-            print("⚠️ Invalid orientation in performOrientationUpdate: \(orientation.rawValue)")
+            debugPrint("⚠️ Invalid orientation in performOrientationUpdate: \(orientation.rawValue)")
             return
         }
 
-        print("🔄 performOrientationUpdate: \(orientation.rawValue) → \(rotationAngle)°")
+        debugPrint("🔄 performOrientationUpdate: \(orientation.rawValue) → \(rotationAngle)°")
 
         if connection.isVideoRotationAngleSupported(rotationAngle) {
             connection.videoRotationAngle = rotationAngle
         } else {
-            print("⚠️ Rotation angle \(rotationAngle)° not supported in performOrientationUpdate")
+            debugPrint("⚠️ Rotation angle \(rotationAngle)° not supported in performOrientationUpdate")
         }
     }
     
@@ -295,11 +295,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     func setupCamera() -> AVCaptureVideoPreviewLayer? {
         guard canRecordVideo else {
-            print("❌ Camera access not granted")
+            forcePrint("❌ Camera access not granted")
             return nil
         }
         
-        print("🎥 VideoRecordingManager: Setting up camera hardware...")
+        debugPrint("🎥 VideoRecordingManager: Setting up camera hardware...")
         configureAudioSession()
         
         do {
@@ -311,23 +311,23 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
             if session.canSetSessionPreset(desiredPreset) {
                 session.sessionPreset = desiredPreset
-                print("📹 Using \(settings.resolution.displayName) preset (\(settings.resolution.dimensions.width)×\(settings.resolution.dimensions.height))")
+                debugPrint("📹 Using \(settings.resolution.displayName) preset (\(settings.resolution.dimensions.width)×\(settings.resolution.dimensions.height))")
             } else {
                 // Fallback to lower resolutions if preferred isn't supported
-                print("⚠️ Preferred resolution \(settings.resolution.displayName) not supported, trying fallbacks...")
+                debugPrint("⚠️ Preferred resolution \(settings.resolution.displayName) not supported, trying fallbacks...")
 
                 if session.canSetSessionPreset(.hd1920x1080) {
                     session.sessionPreset = .hd1920x1080
-                    print("📹 Using 1080p fallback preset")
+                    debugPrint("📹 Using 1080p fallback preset")
                 } else if session.canSetSessionPreset(.hd1280x720) {
                     session.sessionPreset = .hd1280x720
-                    print("📹 Using 720p fallback preset")
+                    debugPrint("📹 Using 720p fallback preset")
                 } else if session.canSetSessionPreset(.high) {
                     session.sessionPreset = .high
-                    print("📹 Using high quality fallback preset")
+                    debugPrint("📹 Using high quality fallback preset")
                 } else {
                     session.sessionPreset = .medium
-                    print("⚠️ Using medium quality fallback preset (low-end device)")
+                    debugPrint("⚠️ Using medium quality fallback preset (low-end device)")
                 }
             }
             
@@ -337,14 +337,14 @@ class VideoRecordingManager: NSObject, ObservableObject {
             // First priority: Triple camera (ultra-wide 0.5x, wide 1x, telephoto 2x+) - iPhone 11 Pro and newer Pro models
             videoDevice = AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back)
             if videoDevice != nil {
-                print("📹 Using triple camera system (supports 0.5x ultra-wide zoom)")
+                debugPrint("📹 Using triple camera system (supports 0.5x ultra-wide zoom)")
             }
 
             // Second priority: Dual wide camera (ultra-wide 0.5x, wide 1x) - iPhone 11 and newer non-Pro models
             if videoDevice == nil {
                 videoDevice = AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back)
                 if videoDevice != nil {
-                    print("📹 Using dual wide camera system (supports 0.5x ultra-wide zoom)")
+                    debugPrint("📹 Using dual wide camera system (supports 0.5x ultra-wide zoom)")
                 }
             }
 
@@ -352,7 +352,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
             if videoDevice == nil {
                 videoDevice = AVCaptureDevice.default(.builtInDualCamera, for: .video, position: .back)
                 if videoDevice != nil {
-                    print("⚠️ Using dual camera (no ultra-wide - 0.5x zoom not available)")
+                    debugPrint("⚠️ Using dual camera (no ultra-wide - 0.5x zoom not available)")
                 }
             }
 
@@ -360,7 +360,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
             if videoDevice == nil {
                 videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
                 if videoDevice != nil {
-                    print("⚠️ Using wide angle camera only (no ultra-wide - 0.5x zoom not available)")
+                    debugPrint("⚠️ Using wide angle camera only (no ultra-wide - 0.5x zoom not available)")
                 }
             }
 
@@ -368,17 +368,17 @@ class VideoRecordingManager: NSObject, ObservableObject {
             if videoDevice == nil {
                 videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
                 if videoDevice != nil {
-                    print("⚠️ Using front camera as last resort")
+                    debugPrint("⚠️ Using front camera as last resort")
                 }
             }
 
             guard let device = videoDevice else {
-                print("❌ No camera device available at all")
+                forcePrint("❌ No camera device available at all")
                 return nil
             }
             
-            print("🎥 VideoRecordingManager: Found camera device: \(device.localizedName)")
-            print("📹 Zoom range: \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
+            debugPrint("🎥 VideoRecordingManager: Found camera device: \(device.localizedName)")
+            debugPrint("📹 Zoom range: \(device.minAvailableVideoZoomFactor)x - \(device.maxAvailableVideoZoomFactor)x")
 
             // Store device reference for zoom/focus controls
             self.currentVideoDevice = device
@@ -399,28 +399,28 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 // Set frame rate from user preferences
                 let formatDescription = device.activeFormat.formatDescription
                 let dimensions = CMVideoFormatDescriptionGetDimensions(formatDescription)
-                print("📹 Camera resolution: \(dimensions.width)x\(dimensions.height)")
+                debugPrint("📹 Camera resolution: \(dimensions.width)x\(dimensions.height)")
 
                 let desiredFPS = Int32(CameraSettingsManager.shared.settings.frameRate.rawValue)
                 for range in device.activeFormat.videoSupportedFrameRateRanges {
                     if range.minFrameRate <= Float64(desiredFPS) && range.maxFrameRate >= Float64(desiredFPS) {
                         device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: desiredFPS)
                         device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: desiredFPS)
-                        print("📹 Set frame rate to \(desiredFPS)fps from user settings")
+                        debugPrint("📹 Set frame rate to \(desiredFPS)fps from user settings")
                         break
                     }
                 }
 
                 // Enable video stabilization if requested
                 if CameraSettingsManager.shared.settings.stabilizationEnabled {
-                    print("📹 Video stabilization enabled in settings")
+                    debugPrint("📹 Video stabilization enabled in settings")
                 }
                 
                 device.unlockForConfiguration()
-                print("✅ Camera device configured for optimal stability")
+                debugPrint("✅ Camera device configured for optimal stability")
                 
             } catch {
-                print("⚠️ Could not configure camera device: \(error)")
+                debugPrint("⚠️ Could not configure camera device: \(error)")
                 // Continue anyway - basic functionality should still work
             }
             
@@ -428,9 +428,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             
             if session.canAddInput(videoInput) {
                 session.addInput(videoInput)
-                print("✅ Video input added to session")
+                debugPrint("✅ Video input added to session")
             } else {
-                print("❌ Cannot add video input")
+                forcePrint("❌ Cannot add video input")
                 return nil
             }
             
@@ -438,41 +438,41 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 let audioInput = try AVCaptureDeviceInput(device: audioDevice)
                 if session.canAddInput(audioInput) {
                     session.addInput(audioInput)
-                    print("✅ Audio input added to session")
+                    debugPrint("✅ Audio input added to session")
                 }
             }
 
             // Choose recording method based on feature flag
             if Self.useRealTimeOverlay {
                 // OPTION 1: Use real-time overlay recorder (burns overlay during recording)
-                print("🎨 Setting up real-time overlay recorder (Option 1)...")
+                debugPrint("🎨 Setting up real-time overlay recorder (Option 1)...")
                 let recorder = RealTimeOverlayRecorder()
                 if recorder.setupOutputs(for: session) {
                     self.realtimeRecorder = recorder
-                    print("✅ Real-time overlay recorder setup complete")
-                    print("   📹 Overlay will be burned into video during recording")
+                    debugPrint("✅ Real-time overlay recorder setup complete")
+                    debugPrint("   📹 Overlay will be burned into video during recording")
                 } else {
-                    print("❌ Failed to setup real-time recorder, falling back to post-processing")
+                    forcePrint("❌ Failed to setup real-time recorder, falling back to post-processing")
                     // Fallback to traditional recording
                     let movieOutput = AVCaptureMovieFileOutput()
                     if session.canAddOutput(movieOutput) {
                         session.addOutput(movieOutput)
                         self.videoOutput = movieOutput
-                        print("✅ Movie output added - will use post-processing")
+                        debugPrint("✅ Movie output added - will use post-processing")
                     } else {
-                        print("❌ Failed to add movie output")
+                        forcePrint("❌ Failed to add movie output")
                     }
                 }
             } else {
                 // OPTION 2: Use traditional recording with post-processing overlay
-                print("🎬 Setting up traditional recording (Option 2 - post-processing)...")
+                debugPrint("🎬 Setting up traditional recording (Option 2 - post-processing)...")
                 let movieOutput = AVCaptureMovieFileOutput()
                 if session.canAddOutput(movieOutput) {
                     session.addOutput(movieOutput)
                     self.videoOutput = movieOutput
-                    print("✅ Movie output added - will use post-processing overlay")
+                    debugPrint("✅ Movie output added - will use post-processing overlay")
                 } else {
-                    print("❌ Failed to add movie output")
+                    forcePrint("❌ Failed to add movie output")
                 }
             }
             
@@ -482,12 +482,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
             self.captureSession = session
             self._previewLayer = previewLayer
             
-            print("✅ Camera hardware setup completed successfully")
+            debugPrint("✅ Camera hardware setup completed successfully")
             
             return previewLayer
             
         } catch {
-            print("❌ Camera setup error: \(error)")
+            forcePrint("❌ Camera setup error: \(error)")
             self.error = error
             return nil
         }
@@ -503,22 +503,22 @@ class VideoRecordingManager: NSObject, ObservableObject {
                                        options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
             
             try audioSession.setActive(true)
-            print("✅ Audio session configured successfully")
+            debugPrint("✅ Audio session configured successfully")
             
         } catch let error as NSError {
-            print("❌ Audio session setup failed: \(error.localizedDescription)")
-            print("   Error code: \(error.code)")
-            print("   Error domain: \(error.domain)")
+            forcePrint("❌ Audio session setup failed: \(error.localizedDescription)")
+            debugPrint("   Error code: \(error.code)")
+            debugPrint("   Error domain: \(error.domain)")
             
             // --- FIX: Add a simpler fallback configuration ---
             do {
-                print("⚠️ Trying fallback audio session configuration...")
+                debugPrint("⚠️ Trying fallback audio session configuration...")
                 let audioSession = AVAudioSession.sharedInstance()
                 try audioSession.setCategory(.record, mode: .default)
                 try audioSession.setActive(true)
-                print("✅ Audio session configured with fallback settings")
+                debugPrint("✅ Audio session configured with fallback settings")
             } catch {
-                print("❌ Even fallback audio session failed: \(error.localizedDescription)")
+                forcePrint("❌ Even fallback audio session failed: \(error.localizedDescription)")
                 self.error = error
             }
         }
@@ -545,20 +545,20 @@ class VideoRecordingManager: NSObject, ObservableObject {
     // MARK: - Recording Control
     
     func startRecording(liveGame: LiveGame? = nil) async {
-        print("🎥 VideoRecordingManager: startRecording() called")
-        print("   Feature flag: useRealTimeOverlay = \(Self.useRealTimeOverlay)")
-        print("   realtimeRecorder exists: \(realtimeRecorder != nil)")
-        print("   videoOutput exists: \(videoOutput != nil)")
-        print("   isRecording: \(isRecording)")
-        print("   captureSession running: \(captureSession?.isRunning ?? false)")
+        debugPrint("🎥 VideoRecordingManager: startRecording() called")
+        debugPrint("   Feature flag: useRealTimeOverlay = \(Self.useRealTimeOverlay)")
+        debugPrint("   realtimeRecorder exists: \(realtimeRecorder != nil)")
+        debugPrint("   videoOutput exists: \(videoOutput != nil)")
+        debugPrint("   isRecording: \(isRecording)")
+        debugPrint("   captureSession running: \(captureSession?.isRunning ?? false)")
 
         guard !isRecording else {
-            print("❌ Cannot start recording - already recording")
+            forcePrint("❌ Cannot start recording - already recording")
             return
         }
 
         guard let game = liveGame else {
-            print("❌ Cannot start recording - liveGame is required")
+            forcePrint("❌ Cannot start recording - liveGame is required")
             return
         }
 
@@ -567,12 +567,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
         // Store the URL
         self.outputURL = outputURL
-        print("🎥 Recording to: \(outputURL)")
+        debugPrint("🎥 Recording to: \(outputURL)")
 
         // Choose recording method based on feature flag
         if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
             // OPTION 1: Real-time overlay recording
-            print("🎨 Starting real-time overlay recording (Option 1)...")
+            debugPrint("🎨 Starting real-time overlay recording (Option 1)...")
 
             if let recordingURL = recorder.startRecording(liveGame: game) {
                 // Update outputURL to match what recorder returned
@@ -588,15 +588,15 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
                     // Update Live Activity (disabled via feature flag for recorder device)
                     LiveActivityManager.shared.updateRecordingState(isRecording: true)
-                    print("✅ Real-time recording started - isRecording=true")
+                    debugPrint("✅ Real-time recording started - isRecording=true")
                 }
             } else {
-                print("❌ Failed to start real-time recording")
+                forcePrint("❌ Failed to start real-time recording")
             }
 
         } else if let videoOutput = videoOutput {
             // OPTION 2: Traditional recording with post-processing
-            print("🎬 Starting traditional recording (Option 2 - post-processing)...")
+            debugPrint("🎬 Starting traditional recording (Option 2 - post-processing)...")
 
             // Set video orientation and stabilization on recording connection
             if let connection = videoOutput.connection(with: .video) {
@@ -618,26 +618,26 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
                 if connection.isVideoRotationAngleSupported(rotationAngle) {
                     connection.videoRotationAngle = rotationAngle
-                    print("🎥 Set recording orientation to \(rotationAngle)° for device orientation: \(deviceOrientation.rawValue)")
+                    debugPrint("🎥 Set recording orientation to \(rotationAngle)° for device orientation: \(deviceOrientation.rawValue)")
                 } else {
-                    print("⚠️ Rotation angle \(rotationAngle)° NOT SUPPORTED - trying alternatives")
+                    debugPrint("⚠️ Rotation angle \(rotationAngle)° NOT SUPPORTED - trying alternatives")
                     let supportedAngles = [0.0, 90.0, 180.0, 270.0].filter { connection.isVideoRotationAngleSupported($0) }
-                    print("   Supported angles: \(supportedAngles)")
+                    debugPrint("   Supported angles: \(supportedAngles)")
                 }
 
                 // Apply video stabilization from settings
                 if CameraSettingsManager.shared.settings.stabilizationEnabled {
                     if connection.isVideoStabilizationSupported {
                         connection.preferredVideoStabilizationMode = .auto
-                        print("🎥 Video stabilization enabled for recording")
+                        debugPrint("🎥 Video stabilization enabled for recording")
                     } else {
-                        print("⚠️ Video stabilization not supported on this device/connection")
+                        debugPrint("⚠️ Video stabilization not supported on this device/connection")
                     }
                 }
             }
 
             videoOutput.startRecording(to: outputURL, recordingDelegate: self)
-            print("🎥 AVCaptureMovieFileOutput.startRecording() called")
+            debugPrint("🎥 AVCaptureMovieFileOutput.startRecording() called")
 
             await MainActor.run {
                 self.isRecording = true
@@ -649,10 +649,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
                 // Update Live Activity (disabled via feature flag for recorder device)
                 LiveActivityManager.shared.updateRecordingState(isRecording: true)
-                print("✅ Recording state updated - isRecording=true")
+                debugPrint("✅ Recording state updated - isRecording=true")
             }
         } else {
-            print("❌ Cannot start recording - no recording output available")
+            forcePrint("❌ Cannot start recording - no recording output available")
         }
     }
     
@@ -664,7 +664,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     @MainActor
     func clearLastRecording() {
         outputURL = nil
-        print("🗑️ Cleared last recording URL reference")
+        debugPrint("🗑️ Cleared last recording URL reference")
     }
 
     /// Update game data during recording
@@ -674,12 +674,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
         if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
             // OPTION 1: Update real-time recorder
             recorder.updateGame(liveGame)
-            print("🎨 Real-time overlay updated with game data")
+            debugPrint("🎨 Real-time overlay updated with game data")
         } else {
             // OPTION 2: Track for post-processing
             // Score timeline is automatically tracked by ScoreTimelineTracker
             // No action needed here - GPU will handle overlay during export
-            print("📊 Game data tracked for post-processing")
+            debugPrint("📊 Game data tracked for post-processing")
         }
     }
 
@@ -688,37 +688,37 @@ class VideoRecordingManager: NSObject, ObservableObject {
     func showEndGameBanner(liveGame: LiveGame) {
         if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
             recorder.showEndGameBanner(game: liveGame)
-            print("🏆 End game banner shown in real-time recorder")
+            debugPrint("🏆 End game banner shown in real-time recorder")
         } else {
-            print("⚠️ End game banner not supported in post-processing mode")
+            debugPrint("⚠️ End game banner not supported in post-processing mode")
         }
     }
 
     func stopRecording() async {
         guard isRecording else { return }
 
-        print("🎥 Stopping recording...")
-        print("   Feature flag: useRealTimeOverlay = \(Self.useRealTimeOverlay)")
+        debugPrint("🎥 Stopping recording...")
+        debugPrint("   Feature flag: useRealTimeOverlay = \(Self.useRealTimeOverlay)")
 
         // Choose stop method based on feature flag
         if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
             // OPTION 1: Stop real-time recording (async with completion)
-            print("🎨 Stopping real-time overlay recording (Option 1)...")
+            debugPrint("🎨 Stopping real-time overlay recording (Option 1)...")
 
             await withCheckedContinuation { continuation in
                 recorder.stopRecording { url in
                     if let url = url {
-                        print("✅ Real-time recording saved to: \(url)")
+                        forcePrint("✅ Real-time recording saved to: \(url)")
                         self.outputURL = url
                     } else {
-                        print("❌ Real-time recording failed")
+                        forcePrint("❌ Real-time recording failed")
                     }
                     continuation.resume()
                 }
             }
         } else if let videoOutput = videoOutput {
             // OPTION 2: Stop traditional recording
-            print("🎬 Stopping traditional recording (Option 2)...")
+            debugPrint("🎬 Stopping traditional recording (Option 2)...")
             videoOutput.stopRecording()
         }
 
@@ -732,7 +732,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
             // Update Live Activity (disabled via feature flag for recorder device)
             LiveActivityManager.shared.updateRecordingState(isRecording: false)
-            print("✅ Recording stopped - isRecording=false")
+            debugPrint("✅ Recording stopped - isRecording=false")
         }
     }
     
@@ -773,13 +773,13 @@ class VideoRecordingManager: NSObject, ObservableObject {
             device.torchMode = device.isTorchActive ? .off : .on
             device.unlockForConfiguration()
         } catch {
-            print("Flash toggle failed: \(error)")
+            debugPrint("Flash toggle failed: \(error)")
         }
     }
     
     func capturePhoto() {
         // Implement photo capture if needed
-        print("Photo capture requested")
+        debugPrint("Photo capture requested")
     }
     
     func flipCamera() {
@@ -812,7 +812,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 session.addInput(newInput)
             }
         } catch {
-            print("Camera flip failed: \(error)")
+            debugPrint("Camera flip failed: \(error)")
         }
         
         session.commitConfiguration()
@@ -826,7 +826,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     @discardableResult
     func setZoom(factor: CGFloat) -> CGFloat {
         guard let device = currentVideoDevice else {
-            print("⚠️ Cannot set zoom - no video device")
+            debugPrint("⚠️ Cannot set zoom - no video device")
             return 1.0
         }
 
@@ -846,7 +846,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
             return clampedFactor
         } catch {
-            print("⚠️ Failed to set zoom: \(error)")
+            debugPrint("⚠️ Failed to set zoom: \(error)")
             return device.videoZoomFactor
         }
     }
@@ -875,13 +875,13 @@ class VideoRecordingManager: NSObject, ObservableObject {
     /// Point coordinates should be normalized (0.0 to 1.0)
     func focusAt(point: CGPoint) {
         guard let device = currentVideoDevice else {
-            print("⚠️ Cannot focus - no video device")
+            debugPrint("⚠️ Cannot focus - no video device")
             return
         }
 
         guard device.isFocusPointOfInterestSupported,
               device.isFocusModeSupported(.autoFocus) else {
-            print("⚠️ Focus point of interest not supported on this device")
+            debugPrint("⚠️ Focus point of interest not supported on this device")
             return
         }
 
@@ -899,9 +899,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             }
 
             device.unlockForConfiguration()
-            print("📍 Focus set to point: (\(String(format: "%.2f", point.x)), \(String(format: "%.2f", point.y)))")
+            debugPrint("📍 Focus set to point: (\(String(format: "%.2f", point.x)), \(String(format: "%.2f", point.y)))")
         } catch {
-            print("⚠️ Failed to set focus: \(error)")
+            debugPrint("⚠️ Failed to set focus: \(error)")
         }
     }
 
@@ -920,9 +920,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             }
 
             device.unlockForConfiguration()
-            print("🔄 Reset to continuous autofocus")
+            debugPrint("🔄 Reset to continuous autofocus")
         } catch {
-            print("⚠️ Failed to reset focus: \(error)")
+            debugPrint("⚠️ Failed to reset focus: \(error)")
         }
     }
 
@@ -942,18 +942,18 @@ class VideoRecordingManager: NSObject, ObservableObject {
     @MainActor
     func saveToPhotoLibrary() async -> String? {
         guard let url = getLastRecordingURL() else {
-            print("❌ No video to save to photo library")
+            forcePrint("❌ No video to save to photo library")
             return nil
         }
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         if status == .notDetermined {
             let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             if newStatus != .authorized && newStatus != .limited {
-                print("❌ Photo Library access denied")
+                forcePrint("❌ Photo Library access denied")
                 return nil
             }
         } else if status != .authorized && status != .limited {
-            print("❌ Photo Library access denied")
+            forcePrint("❌ Photo Library access denied")
             return nil
         }
         return await withCheckedContinuation { continuation in
@@ -963,10 +963,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 assetIdentifier = request?.placeholderForCreatedAsset?.localIdentifier
             }) { success, error in
                 if success, let identifier = assetIdentifier {
-                    print("✅ Video saved to photo library with asset ID: \(identifier)")
+                    forcePrint("✅ Video saved to photo library with asset ID: \(identifier)")
                     continuation.resume(returning: identifier)
                 } else {
-                    print("❌ Failed to save video to photo library: \(error?.localizedDescription ?? "Unknown error")")
+                    forcePrint("❌ Failed to save video to photo library: \(error?.localizedDescription ?? "Unknown error")")
                     continuation.resume(returning: nil)
                 }
             }
@@ -979,7 +979,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
     func saveRecordingAndQueueUpload(liveGame: LiveGame, scoreTimeline: [ScoreTimelineTracker.ScoreSnapshot]) async -> URL? {
         // Prevent duplicate saves
         guard !isSavingVideo else {
-            print("⚠️ Already saving video - skipping duplicate save")
+            debugPrint("⚠️ Already saving video - skipping duplicate save")
             return nil
         }
 
@@ -990,23 +990,23 @@ class VideoRecordingManager: NSObject, ObservableObject {
         let teamName = liveGame.teamName
         let opponent = liveGame.opponent
 
-        print("📹 saveRecordingAndQueueUpload called")
-        print("   Game ID: \(gameId)")
-        print("   Teams: \(teamName) vs \(opponent)")
-        print("   Score timeline: \(scoreTimeline.count) snapshots")
-        print("   outputURL: \(String(describing: outputURL))")
+        debugPrint("📹 saveRecordingAndQueueUpload called")
+        debugPrint("   Game ID: \(gameId)")
+        debugPrint("   Teams: \(teamName) vs \(opponent)")
+        debugPrint("   Score timeline: \(scoreTimeline.count) snapshots")
+        debugPrint("   outputURL: \(String(describing: outputURL))")
 
         guard let originalURL = outputURL else {
-            print("❌ No recording to save and queue - outputURL is nil")
+            forcePrint("❌ No recording to save and queue - outputURL is nil")
             return nil
         }
 
         // Check if file exists
         let fileExists = FileManager.default.fileExists(atPath: originalURL.path)
-        print("   File exists at outputURL: \(fileExists)")
+        debugPrint("   File exists at outputURL: \(fileExists)")
 
         if !fileExists {
-            print("❌ Recording file does not exist at path: \(originalURL.path)")
+            forcePrint("❌ Recording file does not exist at path: \(originalURL.path)")
             return nil
         }
 
@@ -1018,12 +1018,12 @@ class VideoRecordingManager: NSObject, ObservableObject {
         // Choose post-processing based on feature flag
         if Self.useRealTimeOverlay {
             // OPTION 1: Real-time recording - overlay already burned in, skip post-processing
-            print("🎨 Using real-time recording (Option 1) - overlay already in video, skipping post-processing")
+            debugPrint("🎨 Using real-time recording (Option 1) - overlay already in video, skipping post-processing")
             compositedURL = originalURL
 
         } else {
             // OPTION 2: Traditional recording - add overlay via post-processing
-            print("🎨 Adding GPU-accelerated overlay with Core Animation (Option 2 - post-processing)...")
+            debugPrint("🎨 Adding GPU-accelerated overlay with Core Animation (Option 2 - post-processing)...")
 
             compositedURL = await withCheckedContinuation { continuation in
                 HardwareAcceleratedOverlayCompositor.addAnimatedOverlay(
@@ -1032,11 +1032,11 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 ) { result in
                     switch result {
                     case .success(let url):
-                        print("✅ GPU-accelerated overlay added successfully")
+                        forcePrint("✅ GPU-accelerated overlay added successfully")
                         continuation.resume(returning: url)
                     case .failure(let error):
-                        print("❌ Overlay composition failed: \(error)")
-                        print("   Falling back to original video")
+                        forcePrint("❌ Overlay composition failed: \(error)")
+                        debugPrint("   Falling back to original video")
                         continuation.resume(returning: originalURL)
                     }
                 }
@@ -1055,7 +1055,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
         Automatically uploaded by SahilStats
         """
 
-        print("📹 Processing video for upload...")
+        debugPrint("📹 Processing video for upload...")
 
         // Update outputURL to point to composited video for photo library save
         self.outputURL = compositedURL
@@ -1064,20 +1064,20 @@ class VideoRecordingManager: NSObject, ObservableObject {
         let photosAssetId = await saveToPhotoLibrary()
 
         guard let assetId = photosAssetId else {
-            print("❌ Failed to save video to Photos library")
+            forcePrint("❌ Failed to save video to Photos library")
             return nil
         }
 
-        print("✅ Video saved to Photos with asset ID: \(assetId)")
+        forcePrint("✅ Video saved to Photos with asset ID: \(assetId)")
 
         // IMPORTANT: Store Photos asset ID in Firebase (accessible across all devices)
-        print("📹 Storing Photos asset ID in Firebase...")
+        debugPrint("📹 Storing Photos asset ID in Firebase...")
         await FirebaseService.shared.updateGamePhotosAssetId(gameId: gameId, photosAssetId: assetId)
-        print("✅ Photos asset ID stored in Firebase: \(assetId)")
+        debugPrint("✅ Photos asset ID stored in Firebase: \(assetId)")
 
         // Only queue for YouTube upload if enabled
         if YouTubeUploadManager.shared.isYouTubeUploadEnabled {
-            print("📺 YouTube upload enabled - creating copy for upload...")
+            debugPrint("📺 YouTube upload enabled - creating copy for upload...")
 
             // Copy the file for YouTube upload
             let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -1085,7 +1085,7 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
             do {
                 try FileManager.default.copyItem(at: compositedURL, to: youtubeURL)
-                print("✅ Created copy for YouTube upload at: \(youtubeURL.lastPathComponent)")
+                forcePrint("✅ Created copy for YouTube upload at: \(youtubeURL.lastPathComponent)")
 
                 // Queue the COPY for upload (not the original)
                 YouTubeUploadManager.shared.queueVideoForUpload(
@@ -1095,15 +1095,15 @@ class VideoRecordingManager: NSObject, ObservableObject {
                     gameId: gameId
                 )
 
-                print("✅ Video queued for YouTube upload")
+                debugPrint("✅ Video queued for YouTube upload")
             } catch {
-                print("❌ Failed to create copy for YouTube: \(error)")
+                forcePrint("❌ Failed to create copy for YouTube: \(error)")
             }
         } else {
-            print("⏸️ YouTube upload disabled - video only in Photos library")
+            debugPrint("⏸️ YouTube upload disabled - video only in Photos library")
         }
 
-        print("✅ saveRecordingAndQueueUpload completed")
+        debugPrint("✅ saveRecordingAndQueueUpload completed")
 
         // Clear outputURL to prevent duplicate saves
         self.outputURL = nil
@@ -1118,29 +1118,29 @@ class VideoRecordingManager: NSObject, ObservableObject {
 
 extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        print("🎥 fileOutput delegate called - recording finished")
-        print("   Output URL: \(outputFileURL)")
-        print("   Error: \(String(describing: error))")
+        debugPrint("🎥 fileOutput delegate called - recording finished")
+        debugPrint("   Output URL: \(outputFileURL)")
+        debugPrint("   Error: \(String(describing: error))")
 
         if let error = error {
-            print("❌ Recording failed: \(error)")
+            forcePrint("❌ Recording failed: \(error)")
             DispatchQueue.main.async {
                 self.error = error
             }
         } else {
             // Check if file exists
             let fileExists = FileManager.default.fileExists(atPath: outputFileURL.path)
-            print("   File exists: \(fileExists)")
+            debugPrint("   File exists: \(fileExists)")
 
             if fileExists {
-                print("✅ Recording saved successfully to: \(outputFileURL)")
+                forcePrint("✅ Recording saved successfully to: \(outputFileURL)")
                 // Store the last successful recording
                 DispatchQueue.main.async {
                     self.outputURL = outputFileURL
-                    print("   outputURL stored in VideoRecordingManager")
+                    debugPrint("   outputURL stored in VideoRecordingManager")
                 }
             } else {
-                print("❌ Recording file does not exist at expected path")
+                forcePrint("❌ Recording file does not exist at expected path")
             }
         }
     }

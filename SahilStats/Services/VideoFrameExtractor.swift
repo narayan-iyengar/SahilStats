@@ -27,9 +27,9 @@ class VideoFrameExtractor {
         fps: Double = 1.0, // Default: 1 frame per second
         progress: @escaping (Double, Int, Int) -> Void // (progress, currentFrame, totalFrames)
     ) async throws -> [VideoFrame] {
-        print("🎬 Extracting frames from video...")
-        print("   URL: \(videoURL.path)")
-        print("   FPS: \(fps)")
+        debugPrint("🎬 Extracting frames from video...")
+        debugPrint("   URL: \(videoURL.path)")
+        debugPrint("   FPS: \(fps)")
 
         // Load video asset
         let asset = AVURLAsset(url: videoURL)
@@ -38,7 +38,7 @@ class VideoFrameExtractor {
         let duration = try await asset.load(.duration)
         let durationSeconds = CMTimeGetSeconds(duration)
 
-        print("   Duration: \(String(format: "%.1f", durationSeconds))s")
+        debugPrint("   Duration: \(String(format: "%.1f", durationSeconds))s")
 
         // Calculate frame interval
         let frameInterval = 1.0 / fps
@@ -47,12 +47,12 @@ class VideoFrameExtractor {
         // Safety check: limit frames for PoC (prevent memory issues)
         let maxFrames = 2700 // ~45 minutes at 1fps (full game)
         if totalFrames > maxFrames {
-            print("   ⚠️ WARNING: Video reports \(totalFrames) frames (\(String(format: "%.1f", durationSeconds))s)")
-            print("   ⚠️ This seems incorrect. Limiting to \(maxFrames) frames for safety.")
-            print("   ⚠️ Video metadata may be corrupted. Please check video duration.")
+            debugPrint("   ⚠️ WARNING: Video reports \(totalFrames) frames (\(String(format: "%.1f", durationSeconds))s)")
+            debugPrint("   ⚠️ This seems incorrect. Limiting to \(maxFrames) frames for safety.")
+            debugPrint("   ⚠️ Video metadata may be corrupted. Please check video duration.")
         }
 
-        print("   Extracting ~\(min(totalFrames, maxFrames)) frames (1 every \(String(format: "%.1f", frameInterval))s)")
+        debugPrint("   Extracting ~\(min(totalFrames, maxFrames)) frames (1 every \(String(format: "%.1f", frameInterval))s)")
 
         // Create image generator
         let imageGenerator = AVAssetImageGenerator(asset: asset)
@@ -75,7 +75,7 @@ class VideoFrameExtractor {
             currentTime += frameInterval
         }
 
-        print("   Time points generated: \(timePoints.count)")
+        debugPrint("   Time points generated: \(timePoints.count)")
 
         // Extract frames
         for (index, time) in timePoints.enumerated() {
@@ -100,16 +100,16 @@ class VideoFrameExtractor {
                 }
 
                 if index % 10 == 0 {
-                    print("   Extracted \(extractedCount)/\(totalFrames) frames...")
+                    debugPrint("   Extracted \(extractedCount)/\(totalFrames) frames...")
                 }
 
             } catch {
-                print("   ⚠️ Failed to extract frame at \(String(format: "%.1f", CMTimeGetSeconds(time)))s: \(error)")
+                debugPrint("   ⚠️ Failed to extract frame at \(String(format: "%.1f", CMTimeGetSeconds(time)))s: \(error)")
                 // Continue with next frame
             }
         }
 
-        print("✅ Frame extraction complete: \(frames.count) frames extracted")
+        debugPrint("✅ Frame extraction complete: \(frames.count) frames extracted")
 
         return frames
     }
@@ -148,7 +148,7 @@ class VideoFrameExtractor {
 
         let durationSeconds = CMTimeGetSeconds(duration)
 
-        print("""
+        debugPrint("""
         📊 Video Metadata:
            Duration: \(String(format: "%.1f", durationSeconds))s
            Resolution: \(Int(size.width))x\(Int(size.height))
@@ -178,8 +178,8 @@ class VideoFrameExtractor {
         // Create directory if needed
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        print("💾 Saving \(frames.count) frames to disk...")
-        print("   Directory: \(directory.path)")
+        debugPrint("💾 Saving \(frames.count) frames to disk...")
+        debugPrint("   Directory: \(directory.path)")
 
         for (index, frame) in frames.enumerated() {
             let filename = String(format: "frame_%04d_%.1fs.jpg", frame.frameNumber, frame.timestamp)
@@ -189,12 +189,12 @@ class VideoFrameExtractor {
                 try jpegData.write(to: fileURL)
 
                 if index % 20 == 0 {
-                    print("   Saved \(index + 1)/\(frames.count) frames...")
+                    debugPrint("   Saved \(index + 1)/\(frames.count) frames...")
                 }
             }
         }
 
-        print("✅ All frames saved to disk")
+        forcePrint("✅ All frames saved to disk")
     }
 }
 

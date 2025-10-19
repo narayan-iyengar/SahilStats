@@ -127,10 +127,10 @@ class CameraSettingsManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: localStorageKey),
            let decoded = try? JSONDecoder().decode(CameraSettings.self, from: data) {
             self.settings = decoded
-            print("📱 Loaded camera settings from local cache")
+            debugPrint("📱 Loaded camera settings from local cache")
         } else {
             self.settings = .default
-            print("📱 Using default camera settings")
+            debugPrint("📱 Using default camera settings")
         }
 
         // Load from Firebase in background
@@ -148,7 +148,7 @@ class CameraSettingsManager: ObservableObject {
 
     private func loadFromFirebase() async {
         guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
-            print("⚠️ No user ID available - using local settings only")
+            debugPrint("⚠️ No user ID available - using local settings only")
             return
         }
 
@@ -166,16 +166,16 @@ class CameraSettingsManager: ObservableObject {
                         if let encoded = try? JSONEncoder().encode(decoded) {
                             UserDefaults.standard.set(encoded, forKey: self.localStorageKey)
                         }
-                        print("☁️ Loaded camera settings from Firebase")
+                        debugPrint("☁️ Loaded camera settings from Firebase")
                     }
                 }
             } else {
-                print("📱 No camera settings in Firebase - using current settings")
+                debugPrint("📱 No camera settings in Firebase - using current settings")
                 // Save current settings to Firebase
                 await saveToFirebase()
             }
         } catch {
-            print("❌ Failed to load camera settings from Firebase: \(error)")
+            forcePrint("❌ Failed to load camera settings from Firebase: \(error)")
         }
     }
 
@@ -183,7 +183,7 @@ class CameraSettingsManager: ObservableObject {
         // Save to local cache immediately (instant)
         if let encoded = try? JSONEncoder().encode(settings) {
             UserDefaults.standard.set(encoded, forKey: localStorageKey)
-            print("💾 Camera settings saved to local cache")
+            debugPrint("💾 Camera settings saved to local cache")
         }
 
         // Save to Firebase in background
@@ -194,7 +194,7 @@ class CameraSettingsManager: ObservableObject {
 
     private func saveToFirebase() async {
         guard let userId = userId ?? FirebaseAuth.Auth.auth().currentUser?.uid else {
-            print("⚠️ No user ID available - skipping Firebase save")
+            debugPrint("⚠️ No user ID available - skipping Firebase save")
             return
         }
 
@@ -207,9 +207,9 @@ class CameraSettingsManager: ObservableObject {
                 "cameraSettings": json
             ], merge: true)
 
-            print("☁️ Camera settings saved to Firebase")
+            debugPrint("☁️ Camera settings saved to Firebase")
         } catch {
-            print("❌ Failed to save camera settings to Firebase: \(error)")
+            forcePrint("❌ Failed to save camera settings to Firebase: \(error)")
         }
     }
 

@@ -27,24 +27,24 @@ class StatsRetriever {
     private func getElementsGameByOpponent(containing searchTerm: String) async throws -> Game? {
         let db = Firestore.firestore()
 
-        print("🔍 Searching for Elements game with opponent containing '\(searchTerm)'...")
+        debugPrint("🔍 Searching for Elements game with opponent containing '\(searchTerm)'...")
 
         // Query for games where team is "Elements"
         let snapshot = try await db.collection("games")
             .whereField("teamName", isEqualTo: "Elements")
             .getDocuments()
 
-        print("📊 Found \(snapshot.documents.count) Elements games")
+        debugPrint("📊 Found \(snapshot.documents.count) Elements games")
 
         // Find the one matching the search term
         for document in snapshot.documents {
             let data = document.data()
             if let opponent = data["opponent"] as? String {
-                print("   - Opponent: \(opponent)")
+                debugPrint("   - Opponent: \(opponent)")
 
                 // Match opponent name (case-insensitive)
                 if opponent.lowercased().contains(searchTerm.lowercased()) {
-                    print("✅ Found matching game: Elements vs \(opponent)")
+                    debugPrint("✅ Found matching game: Elements vs \(opponent)")
 
                     // Decode the game
                     var game = try document.data(as: Game.self)
@@ -55,7 +55,7 @@ class StatsRetriever {
             }
         }
 
-        print("⚠️ No Elements game found with opponent containing '\(searchTerm)'")
+        debugPrint("⚠️ No Elements game found with opponent containing '\(searchTerm)'")
         return nil
     }
 
@@ -63,7 +63,7 @@ class StatsRetriever {
     func listAllElementsGames() async throws -> [Game] {
         let db = Firestore.firestore()
 
-        print("📋 Listing all Elements games...")
+        debugPrint("📋 Listing all Elements games...")
 
         let snapshot = try await db.collection("games")
             .whereField("teamName", isEqualTo: "Elements")
@@ -78,20 +78,20 @@ class StatsRetriever {
                 games.append(game)
 
                 if let opponent = document.data()["opponent"] as? String {
-                    print("   - \(opponent) (Points: \(game.points), FG: \(game.fg2m + game.fg3m)/\(game.fg2a + game.fg3a))")
+                    debugPrint("   - \(opponent) (Points: \(game.points), FG: \(game.fg2m + game.fg3m)/\(game.fg2a + game.fg3a))")
                 }
             } catch {
-                print("   ❌ Error decoding game \(document.documentID): \(error)")
+                forcePrint("   ❌ Error decoding game \(document.documentID): \(error)")
             }
         }
 
-        print("📊 Total Elements games: \(games.count)")
+        debugPrint("📊 Total Elements games: \(games.count)")
         return games
     }
 
     /// Print detailed stats for a game
     func printDetailedStats(for game: Game) {
-        print("""
+        debugPrint("""
 
         ═══════════════════════════════════════════
         📊 ACTUAL STATS: \(game.teamName) vs \(game.opponent)

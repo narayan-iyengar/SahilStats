@@ -64,7 +64,7 @@ class FirebaseService: ObservableObject {
 
         // Enable network logging in debug mode
         #if DEBUG
-        print("🔍 Firebase debug mode enabled")
+        debugPrint("🔍 Firebase debug mode enabled")
         #endif
     }
     
@@ -72,11 +72,11 @@ class FirebaseService: ObservableObject {
         networkMonitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
                 if path.status == .satisfied {
-                    print("✅ Network connection restored")
+                    debugPrint("✅ Network connection restored")
                     self?.connectionState = .connected
                     self?.handleNetworkReconnection()
                 } else {
-                    print("❌ Network connection lost")
+                    forcePrint("❌ Network connection lost")
                     self?.connectionState = .disconnected
                 }
             }
@@ -104,20 +104,20 @@ class FirebaseService: ObservableObject {
     }
     
     func stopListening() {
-        print("🔄 Stopping all Firestore listeners...")
-        
+        debugPrint("🔄 Stopping all Firestore listeners...")
+
         gamesListener?.remove()
         gamesListener = nil
-        
+
         teamsListener?.remove()
         teamsListener = nil
-        
+
         liveGamesListener?.remove()
         liveGamesListener = nil
-        
+
         retryTimer?.invalidate()
         retryTimer = nil
-        
+
         connectionState = .disconnected
     }
     
@@ -140,7 +140,7 @@ class FirebaseService: ObservableObject {
         }
         
         guard let documents = snapshot?.documents else {
-            print("⚠️ Games snapshot is nil")
+            debugPrint("⚠️ Games snapshot is nil")
             return
         }
         
@@ -150,9 +150,9 @@ class FirebaseService: ObservableObject {
                 game.id = document.documentID
                 return game
             } catch {
-                print("❌ Error decoding game \(document.documentID): \(error)")
+                forcePrint("❌ Error decoding game \(document.documentID): \(error)")
                 // Log the problematic document data for debugging
-                print("📄 Document data: \(document.data())")
+                debugPrint("📄 Document data: \(document.data())")
                 return nil
             }
         }
@@ -161,7 +161,7 @@ class FirebaseService: ObservableObject {
             self.games = newGames
             self.connectionState = .connected
             self.retryCount = 0
-            print("✅ Games loaded successfully: \(newGames.count) games")
+            debugPrint("✅ Games loaded successfully: \(newGames.count) games")
         }
     }
     
@@ -184,7 +184,7 @@ class FirebaseService: ObservableObject {
         }
         
         guard let documents = snapshot?.documents else {
-            print("⚠️ Teams snapshot is nil")
+            debugPrint("⚠️ Teams snapshot is nil")
             return
         }
         
@@ -194,14 +194,14 @@ class FirebaseService: ObservableObject {
                 team.id = document.documentID
                 return team
             } catch {
-                print("❌ Error decoding team \(document.documentID): \(error)")
+                forcePrint("❌ Error decoding team \(document.documentID): \(error)")
                 return nil
             }
         }
         
         DispatchQueue.main.async {
             self.teams = newTeams
-            print("✅ Teams loaded successfully: \(newTeams.count) teams")
+            debugPrint("✅ Teams loaded successfully: \(newTeams.count) teams")
         }
     }
     
@@ -223,7 +223,7 @@ class FirebaseService: ObservableObject {
         }
         
         guard let documents = snapshot?.documents else {
-            print("⚠️ LiveGames snapshot is nil")
+            debugPrint("⚠️ LiveGames snapshot is nil")
             return
         }
         
@@ -233,15 +233,15 @@ class FirebaseService: ObservableObject {
                 liveGame.id = document.documentID
                 return liveGame
             } catch {
-                print("❌ Error decoding live game \(document.documentID): \(error)")
-                print("📄 Document data: \(document.data())")
+                forcePrint("❌ Error decoding live game \(document.documentID): \(error)")
+                debugPrint("📄 Document data: \(document.data())")
                 return nil
             }
         }
         
         DispatchQueue.main.async {
             self.liveGames = newLiveGames
-            print("✅ Live games loaded successfully: \(newLiveGames.count) games")
+            debugPrint("✅ Live games loaded successfully: \(newLiveGames.count) games")
         }
     }
     
@@ -249,11 +249,11 @@ class FirebaseService: ObservableObject {
     
     private func handleListenerError(error: Error, listenerType: String, retryAction: @escaping () -> Void) {
         let nsError = error as NSError
-        
-        print("❌ \(listenerType) listener error: \(error.localizedDescription)")
-        print("📊 Error domain: \(nsError.domain)")
-        print("📊 Error code: \(nsError.code)")
-        print("📊 Error userInfo: \(nsError.userInfo)")
+
+        forcePrint("❌ \(listenerType) listener error: \(error.localizedDescription)")
+        debugPrint("📊 Error domain: \(nsError.domain)")
+        debugPrint("📊 Error code: \(nsError.code)")
+        debugPrint("📊 Error userInfo: \(nsError.userInfo)")
         
         DispatchQueue.main.async {
             self.connectionState = .error
@@ -266,9 +266,9 @@ class FirebaseService: ObservableObject {
             case 14: // UNAVAILABLE
                 scheduleRetry(for: listenerType, retryAction: retryAction)
             case 7: // PERMISSION_DENIED
-                print("🔒 Permission denied - check Firestore rules")
+                forcePrint("🔒 Permission denied - check Firestore rules")
             case 16: // UNAUTHENTICATED
-                print("🔐 User not authenticated")
+                forcePrint("🔐 User not authenticated")
             default:
                 scheduleRetry(for: listenerType, retryAction: retryAction)
             }
@@ -279,18 +279,18 @@ class FirebaseService: ObservableObject {
     
     private func scheduleRetry(for listenerType: String, retryAction: @escaping () -> Void) {
         guard retryCount < maxRetries else {
-            print("🚫 Max retries exceeded for \(listenerType)")
+            forcePrint("🚫 Max retries exceeded for \(listenerType)")
             return
         }
-        
+
         retryCount += 1
         let delay = TimeInterval(retryCount * 2) // Exponential backoff: 2s, 4s, 6s
-        
-        print("🔄 Scheduling retry \(retryCount)/\(maxRetries) for \(listenerType) in \(delay)s")
-        
+
+        debugPrint("🔄 Scheduling retry \(retryCount)/\(maxRetries) for \(listenerType) in \(delay)s")
+
         retryTimer?.invalidate()
         retryTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
-            print("🔄 Retrying \(listenerType) listener...")
+            debugPrint("🔄 Retrying \(listenerType) listener...")
             retryAction()
         }
     }
@@ -302,9 +302,9 @@ class FirebaseService: ObservableObject {
             var gameData = game
             gameData.createdAt = Date()
             try db.collection("games").addDocument(from: gameData)
-            print("✅ Game added successfully")
+            forcePrint("✅ Game added successfully")
         } catch {
-            print("❌ Failed to add game: \(error)")
+            forcePrint("❌ Failed to add game: \(error)")
             throw error
         }
     }
@@ -316,9 +316,9 @@ class FirebaseService: ObservableObject {
 
         do {
             try db.collection("liveGames").document(id).setData(from: liveGame)
-            print("✅ Live game updated successfully: \(id)")
+            debugPrint("✅ Live game updated successfully: \(id)")
         } catch {
-            print("❌ Failed to update live game: \(error)")
+            forcePrint("❌ Failed to update live game: \(error)")
             throw error
         }
     }
@@ -326,9 +326,9 @@ class FirebaseService: ObservableObject {
     // MARK: - Connection Status Helpers
     
     func forceReconnect() {
-        print("🔄 Force reconnecting to Firestore...")
+        debugPrint("🔄 Force reconnecting to Firestore...")
         stopListening()
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.startListening()
         }
@@ -361,11 +361,11 @@ class FirebaseService: ObservableObject {
         updatedGame.achievements = Achievement.getEarnedAchievements(for: updatedGame)
 
         try db.collection("games").document(gameId).setData(from: updatedGame)
-        print("✅ Game updated successfully: \(gameId)")
+        forcePrint("✅ Game updated successfully: \(gameId)")
     }
     
     func deleteGame(_ gameId: String) async throws {
-        print("🗑️ Deleting game: \(gameId)")
+        debugPrint("🗑️ Deleting game: \(gameId)")
 
         // First, get the game document to retrieve video URLs
         let document = try await db.collection("games").document(gameId).getDocument()
@@ -373,7 +373,7 @@ class FirebaseService: ObservableObject {
         if let data = document.data() {
             // Delete local video file if it exists
             if let videoPath = data["videoURL"] as? String {
-                print("🗑️ Attempting to delete local video file from stored path: \(videoPath)")
+                debugPrint("🗑️ Attempting to delete local video file from stored path: \(videoPath)")
 
                 // Extract filename from stored path (handles case where full path was stored)
                 let filename = URL(fileURLWithPath: videoPath).lastPathComponent
@@ -382,45 +382,45 @@ class FirebaseService: ObservableObject {
                 let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 let currentVideoURL = documentsPath.appendingPathComponent(filename)
 
-                print("   Looking for file: \(filename)")
-                print("   At current path: \(currentVideoURL.path)")
+                debugPrint("   Looking for file: \(filename)")
+                debugPrint("   At current path: \(currentVideoURL.path)")
 
                 do {
                     if FileManager.default.fileExists(atPath: currentVideoURL.path) {
                         try FileManager.default.removeItem(at: currentVideoURL)
-                        print("✅ Local video file deleted: \(filename)")
+                        forcePrint("✅ Local video file deleted: \(filename)")
                     } else {
-                        print("⚠️ Local video file not found: \(filename)")
-                        print("   (This is normal if the video was already deleted or never saved locally)")
+                        debugPrint("⚠️ Local video file not found: \(filename)")
+                        debugPrint("   (This is normal if the video was already deleted or never saved locally)")
                     }
                 } catch {
-                    print("❌ Failed to delete local video file: \(error.localizedDescription)")
+                    forcePrint("❌ Failed to delete local video file: \(error.localizedDescription)")
                     // Continue with deletion even if local file fails
                 }
             }
 
             // Delete YouTube video if it exists
             if let youtubeVideoId = data["youtubeVideoId"] as? String {
-                print("🗑️ Deleting YouTube video: \(youtubeVideoId)")
+                debugPrint("🗑️ Deleting YouTube video: \(youtubeVideoId)")
 
                 do {
                     try await YouTubeUploadManager.shared.deleteYouTubeVideo(videoId: youtubeVideoId)
-                    print("✅ YouTube video deleted successfully")
+                    forcePrint("✅ YouTube video deleted successfully")
                 } catch {
-                    print("❌ Failed to delete YouTube video: \(error.localizedDescription)")
-                    print("   Video ID: \(youtubeVideoId)")
-                    print("   Error details: \(error)")
+                    forcePrint("❌ Failed to delete YouTube video: \(error.localizedDescription)")
+                    debugPrint("   Video ID: \(youtubeVideoId)")
+                    debugPrint("   Error details: \(error)")
                     // Continue with game deletion even if YouTube delete fails
                     // This ensures the game is removed from the app even if YouTube API fails
                     // Common reasons: video already deleted, auth expired, network issue
                 }
             } else {
-                print("⚠️ No YouTube video ID found for this game")
+                debugPrint("⚠️ No YouTube video ID found for this game")
             }
 
             // Delete Photos asset if it exists
             if let photosAssetId = data["photosAssetId"] as? String {
-                print("🗑️ Deleting Photos asset: \(photosAssetId)")
+                debugPrint("🗑️ Deleting Photos asset: \(photosAssetId)")
 
                 await MainActor.run {
                     let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [photosAssetId], options: nil)
@@ -429,23 +429,23 @@ class FirebaseService: ObservableObject {
                             PHAssetChangeRequest.deleteAssets([asset] as NSArray)
                         }) { success, error in
                             if success {
-                                print("✅ Photos asset deleted successfully")
+                                forcePrint("✅ Photos asset deleted successfully")
                             } else {
-                                print("❌ Failed to delete Photos asset: \(error?.localizedDescription ?? "Unknown error")")
+                                forcePrint("❌ Failed to delete Photos asset: \(error?.localizedDescription ?? "Unknown error")")
                             }
                         }
                     } else {
-                        print("⚠️ Photos asset not found (may have been deleted already)")
+                        debugPrint("⚠️ Photos asset not found (may have been deleted already)")
                     }
                 }
             } else {
-                print("⚠️ No Photos asset ID found for this game")
+                debugPrint("⚠️ No Photos asset ID found for this game")
             }
         }
 
         // Delete the game document from Firebase
         try await db.collection("games").document(gameId).delete()
-        print("✅ Game document deleted from Firebase")
+        forcePrint("✅ Game document deleted from Firebase")
     }
 
     func updateGameVideoURL(gameId: String, videoURL: String) async {
@@ -453,9 +453,9 @@ class FirebaseService: ObservableObject {
             try await db.collection("games").document(gameId).updateData([
                 "videoURL": videoURL
             ])
-            print("✅ Updated game \(gameId) with local video URL")
+            debugPrint("✅ Updated game \(gameId) with local video URL")
         } catch {
-            print("❌ Failed to update video URL: \(error.localizedDescription)")
+            forcePrint("❌ Failed to update video URL: \(error.localizedDescription)")
         }
     }
 
@@ -464,9 +464,9 @@ class FirebaseService: ObservableObject {
             try await db.collection("games").document(gameId).updateData([
                 "photosAssetId": photosAssetId
             ])
-            print("✅ Updated game \(gameId) with Photos asset ID")
+            debugPrint("✅ Updated game \(gameId) with Photos asset ID")
         } catch {
-            print("❌ Failed to update Photos asset ID: \(error.localizedDescription)")
+            forcePrint("❌ Failed to update Photos asset ID: \(error.localizedDescription)")
         }
     }
     
@@ -493,20 +493,20 @@ class FirebaseService: ObservableObject {
     }
     
     func deleteAllLiveGames() async throws {
-        print("Attempting to delete all live games...")
+        debugPrint("Attempting to delete all live games...")
         let snapshot = try await db.collection("liveGames").getDocuments()
-        print("Found \(snapshot.documents.count) live games to delete")
-        
+        debugPrint("Found \(snapshot.documents.count) live games to delete")
+
         for document in snapshot.documents {
-            print("Deleting live game: \(document.documentID)")
+            debugPrint("Deleting live game: \(document.documentID)")
             try await document.reference.delete()
-            print("Deleted: \(document.documentID)")
+            debugPrint("Deleted: \(document.documentID)")
         }
-        
+
         // Clear device roles
         await DeviceRoleManager.shared.clearDeviceRole()
-        
-        print("All live games deleted and device roles cleared")
+
+        forcePrint("All live games deleted and device roles cleared")
     }
     
     // MARK: - Real-time Listeners
@@ -532,7 +532,7 @@ class FirebaseService: ObservableObject {
                         game.id = document.documentID
                         return game
                     } catch {
-                        print("Error decoding game: \(error)")
+                        forcePrint("Error decoding game: \(error)")
                         return nil
                     }
                 }
@@ -564,7 +564,7 @@ class FirebaseService: ObservableObject {
                         team.id = document.documentID
                         return team
                     } catch {
-                        print("Error decoding team: \(error)")
+                        forcePrint("Error decoding team: \(error)")
                         return nil
                     }
                 }
@@ -595,7 +595,7 @@ class FirebaseService: ObservableObject {
                         liveGame.id = document.documentID
                         return liveGame
                     } catch {
-                        print("Error decoding live game: \(error)")
+                        forcePrint("Error decoding live game: \(error)")
                         return nil
                     }
                 }
@@ -644,8 +644,8 @@ class FirebaseService: ObservableObject {
         
         // Delete from live games
         try await db.collection("liveGames").document(gameId).delete()
-        
-        print("✅ Game ended: \(gameId)")
+
+        forcePrint("✅ Game ended: \(gameId)")
     }
     
     func getCareerStats() -> CareerStats {
@@ -704,38 +704,38 @@ extension FirebaseService {
     // FIXED: Safer game creation with proper data validation
     func addGameSafely(_ game: Game) async throws {
         do {
-            print("🔍 Adding game with data validation...")
-            
+            debugPrint("🔍 Adding game with data validation...")
+
             // Use custom encoding instead of Codable
             let gameData = game.toFirestoreData()
-            
+
             // DIAGNOSTIC: Log data before sending
-            print("📊 Game data keys: \(gameData.keys)")
-            print("📊 Team: \(gameData["teamName"] ?? "nil")")
-            print("📊 Opponent: \(gameData["opponent"] ?? "nil")")
-            
+            debugPrint("📊 Game data keys: \(gameData.keys)")
+            debugPrint("📊 Team: \(gameData["teamName"] ?? "nil")")
+            debugPrint("📊 Opponent: \(gameData["opponent"] ?? "nil")")
+
             let docRef = try await db.collection("games").addDocument(data: gameData)
-            print("✅ Game added successfully with ID: \(docRef.documentID)")
-            
+            forcePrint("✅ Game added successfully with ID: \(docRef.documentID)")
+
         } catch let error as NSError {
-            print("❌ Failed to add game - Domain: \(error.domain)")
-            print("❌ Failed to add game - Code: \(error.code)")
-            print("❌ Failed to add game - Info: \(error.userInfo)")
-            
+            forcePrint("❌ Failed to add game - Domain: \(error.domain)")
+            forcePrint("❌ Failed to add game - Code: \(error.code)")
+            forcePrint("❌ Failed to add game - Info: \(error.userInfo)")
+
             // Provide more specific error information
             if error.domain == "FIRFirestoreErrorDomain" {
                 switch error.code {
                 case 3: // INVALID_ARGUMENT
-                    print("🔧 INVALID_ARGUMENT: Check for nil values or invalid data types")
+                    debugPrint("🔧 INVALID_ARGUMENT: Check for nil values or invalid data types")
                 case 7: // PERMISSION_DENIED
-                    print("🔧 PERMISSION_DENIED: Check Firestore security rules")
+                    forcePrint("🔧 PERMISSION_DENIED: Check Firestore security rules")
                 case 14: // UNAVAILABLE
-                    print("🔧 UNAVAILABLE: Network or server issues")
+                    forcePrint("🔧 UNAVAILABLE: Network or server issues")
                 default:
-                    print("🔧 Other Firestore error: \(error.localizedDescription)")
+                    forcePrint("🔧 Other Firestore error: \(error.localizedDescription)")
                 }
             }
-            
+
             throw error
         }
     }
@@ -748,23 +748,23 @@ extension FirebaseService {
         }
         
         do {
-            print("🔍 Updating live game with ID: \(id)")
-            
+            debugPrint("🔍 Updating live game with ID: \(id)")
+
             // Use custom encoding
             let gameData = liveGame.toFirestoreData()
-            
+
             // DIAGNOSTIC: Log problematic fields
             if let currentSegment = gameData["currentTimeSegment"] {
-                print("📊 Current segment data: \(currentSegment)")
+                debugPrint("📊 Current segment data: \(currentSegment)")
             }
-            
+
             try await db.collection("liveGames").document(id).setData(gameData)
-            print("✅ Live game updated successfully")
-            
+            debugPrint("✅ Live game updated successfully")
+
         } catch let error as NSError {
-            print("❌ Failed to update live game - Domain: \(error.domain)")
-            print("❌ Failed to update live game - Code: \(error.code)")
-            print("❌ Failed to update live game - Info: \(error.userInfo)")
+            forcePrint("❌ Failed to update live game - Domain: \(error.domain)")
+            forcePrint("❌ Failed to update live game - Code: \(error.code)")
+            forcePrint("❌ Failed to update live game - Info: \(error.userInfo)")
             throw error
         }
     }
@@ -785,12 +785,12 @@ class NetworkMonitor: ObservableObject {
                 await MainActor.run {
                     self.isConnected = true
                 }
-                print("✅ Firestore connectivity: OK")
+                debugPrint("✅ Firestore connectivity: OK")
             } catch {
                 await MainActor.run {
                     self.isConnected = false
                 }
-                print("❌ Firestore connectivity: FAILED - \(error)")
+                forcePrint("❌ Firestore connectivity: FAILED - \(error)")
             }
         }
     }
@@ -811,7 +811,7 @@ class FirestoreManager {
 
         db.settings = settings
 
-        print("✅ Firestore configured for stability")
+        debugPrint("✅ Firestore configured for stability")
     }
 }
 
@@ -830,10 +830,10 @@ class FirestoreRetryManager {
                 return try await operation()
             } catch {
                 lastError = error
-                print("❌ Attempt \(attempt)/\(maxRetries) failed: \(error)")
-                
+                forcePrint("❌ Attempt \(attempt)/\(maxRetries) failed: \(error)")
+
                 if attempt < maxRetries {
-                    print("⏱️ Retrying in \(delay) seconds...")
+                    debugPrint("⏱️ Retrying in \(delay) seconds...")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 }
             }

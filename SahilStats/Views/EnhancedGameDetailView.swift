@@ -55,12 +55,12 @@ struct CompleteGameDetailView: View {
                     // Header with game info
                     gameHeaderSection
                         .onAppear {
-                            print("🎮 Game Details Loaded:")
-                            print("   Game ID: \(game.id ?? "nil")")
-                            print("   Title: \(game.teamName) vs \(game.opponent)")
-                            print("   Date: \(game.formattedDate)")
-                            print("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
-                            print("   Video URL: \(game.videoURL ?? "nil")")
+                            debugPrint("🎮 Game Details Loaded:")
+                            debugPrint("   Game ID: \(game.id ?? "nil")")
+                            debugPrint("   Title: \(game.teamName) vs \(game.opponent)")
+                            debugPrint("   Date: \(game.formattedDate)")
+                            debugPrint("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
+                            debugPrint("   Video URL: \(game.videoURL ?? "nil")")
                         }
                     
                     // Player Stats Section (comprehensive)
@@ -86,10 +86,10 @@ struct CompleteGameDetailView: View {
                     if game.photosAssetId != nil || game.youtubeVideoId != nil || game.videoURL != nil {
                         gameVideoSection
                             .onAppear {
-                                print("📹 Video section appeared:")
-                                print("   Photos Asset ID: \(game.photosAssetId ?? "nil")")
-                                print("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
-                                print("   Video URL: \(game.videoURL ?? "nil")")
+                                debugPrint("📹 Video section appeared:")
+                                debugPrint("   Photos Asset ID: \(game.photosAssetId ?? "nil")")
+                                debugPrint("   YouTube ID: \(game.youtubeVideoId ?? "nil")")
+                                debugPrint("   Video URL: \(game.videoURL ?? "nil")")
                             }
                     }
                     
@@ -645,11 +645,11 @@ struct CompleteGameDetailView: View {
         let reconstructedPath = documentsPath.appendingPathComponent(filename).path
 
         if FileManager.default.fileExists(atPath: reconstructedPath) {
-            print("📹 Resolved video path from filename: \(filename)")
+            debugPrint("📹 Resolved video path from filename: \(filename)")
             return reconstructedPath
         }
 
-        print("❌ Could not resolve video path: \(storedPath)")
+        forcePrint("❌ Could not resolve video path: \(storedPath)")
         return nil
     }
 
@@ -765,7 +765,7 @@ struct CompleteGameDetailView: View {
             do {
                 try await firebaseService.updateGame(game)
             } catch {
-                print("Failed to save game changes: \(error.localizedDescription)")
+                debugPrint("Failed to save game changes: \(error.localizedDescription)")
             }
         }
     }
@@ -790,7 +790,7 @@ struct CompleteGameDetailView: View {
             do {
                 try await firebaseService.updateGame(game)
             } catch {
-                print("Failed to save score change: \(error.localizedDescription)")
+                debugPrint("Failed to save score change: \(error.localizedDescription)")
             }
         }
     }
@@ -809,35 +809,35 @@ struct CompleteGameDetailView: View {
             do {
                 try await firebaseService.updateGame(game)
             } catch {
-                print("Failed to save team name changes: \(error.localizedDescription)")
+                debugPrint("Failed to save team name changes: \(error.localizedDescription)")
             }
         }
     }
 
     private func setupGameListener() {
         guard let gameId = game.id else {
-            print("⚠️ Cannot setup listener: game has no ID")
+            debugPrint("⚠️ Cannot setup listener: game has no ID")
             return
         }
 
-        print("👂 Setting up Firestore listener for game: \(gameId)")
+        debugPrint("👂 Setting up Firestore listener for game: \(gameId)")
 
         let db = Firestore.firestore()
         gameListener = db.collection("games").document(gameId).addSnapshotListener { documentSnapshot, error in
             guard let document = documentSnapshot else {
-                print("❌ Error fetching game updates: \(error?.localizedDescription ?? "Unknown error")")
+                forcePrint("❌ Error fetching game updates: \(error?.localizedDescription ?? "Unknown error")")
                 return
             }
 
             guard let data = document.data() else {
-                print("⚠️ Game document has no data")
+                debugPrint("⚠️ Game document has no data")
                 return
             }
 
             // Update photosAssetId if it changed
             if let photosAssetId = data["photosAssetId"] as? String {
                 if self.game.photosAssetId != photosAssetId {
-                    print("📸 Photos Asset ID updated: \(photosAssetId)")
+                    debugPrint("📸 Photos Asset ID updated: \(photosAssetId)")
                     self.game.photosAssetId = photosAssetId
                 }
             }
@@ -845,7 +845,7 @@ struct CompleteGameDetailView: View {
             // Update videoURL if it changed
             if let videoURL = data["videoURL"] as? String {
                 if self.game.videoURL != videoURL {
-                    print("📹 Video URL updated: \(videoURL)")
+                    debugPrint("📹 Video URL updated: \(videoURL)")
                     self.game.videoURL = videoURL
                 }
             }
@@ -853,7 +853,7 @@ struct CompleteGameDetailView: View {
             // Update youtubeVideoId if it changed
             if let youtubeVideoId = data["youtubeVideoId"] as? String {
                 if self.game.youtubeVideoId != youtubeVideoId {
-                    print("📺 YouTube Video ID updated: \(youtubeVideoId)")
+                    debugPrint("📺 YouTube Video ID updated: \(youtubeVideoId)")
                     self.game.youtubeVideoId = youtubeVideoId
                 }
             }

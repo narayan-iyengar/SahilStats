@@ -127,7 +127,7 @@ struct PlayerStatsSection: View {
             do {
                 try await firebaseService.updateGame(game)
             } catch {
-                print("Failed to save game changes: \(error.localizedDescription)")
+                debugPrint("Failed to save game changes: \(error.localizedDescription)")
             }
         }
     }

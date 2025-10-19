@@ -115,12 +115,12 @@ class AuthService: ObservableObject {
         guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
               let plist = NSDictionary(contentsOfFile: path),
               let clientId = plist["CLIENT_ID"] as? String else {
-            print("Error: Could not find GoogleService-Info.plist or CLIENT_ID")
+            forcePrint("Error: Could not find GoogleService-Info.plist or CLIENT_ID")
             return
         }
-        
+
         guard FirebaseApp.app() != nil else {
-            print("Error: Firebase not configured")
+            forcePrint("Error: Firebase not configured")
             return
         }
         
@@ -400,7 +400,7 @@ class AuthService: ObservableObject {
     }
     
     func showAccessDenied(for action: String) {
-        print("Access denied: Only administrators can \(action)")
+        forcePrint("Access denied: Only administrators can \(action)")
     }
 }
 

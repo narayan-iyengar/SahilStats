@@ -152,7 +152,7 @@ struct RecordingDeviceView: View {
     // MARK: - Setup Methods
     private func setupRecordingDevice() {
         // Any specific setup for recording devices
-        print("Setting up recording device for live game")
+        debugPrint("Setting up recording device for live game")
     }
 }
 

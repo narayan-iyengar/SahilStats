@@ -38,7 +38,7 @@ class OrientationManager: ObservableObject {
         if newOrientation.isValidInterfaceOrientation {
             orientation = newOrientation
             updateLandscapeState()
-            print("📱 Orientation updated: \(orientation.debugDescription), isLandscape: \(isLandscape)")
+            debugPrint("📱 Orientation updated: \(orientation.debugDescription), isLandscape: \(isLandscape)")
         }
     }
     

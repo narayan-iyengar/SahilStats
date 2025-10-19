@@ -42,41 +42,41 @@ class DeviceControlManager: ObservableObject {
             throw DeviceControlError.invalidRequest
         }
         
-        print("--- Requesting Control ---")
-        print("Device ID: \(deviceId)")
-        print("User Email: \(email)")
-        print("Current Controlling Device: \(liveGame.controllingDeviceId ?? "None")")
-        print("Current Controlling User: \(liveGame.controllingUserEmail ?? "None")")
+        debugPrint("--- Requesting Control ---")
+        debugPrint("Device ID: \(deviceId)")
+        debugPrint("User Email: \(email)")
+        debugPrint("Current Controlling Device: \(liveGame.controllingDeviceId ?? "None")")
+        debugPrint("Current Controlling User: \(liveGame.controllingUserEmail ?? "None")")
         
         // Check if there's an expired control request and clean it up
         if let requestTimestamp = liveGame.controlRequestTimestamp,
            Date().timeIntervalSince(requestTimestamp) > 120 { // 2 minutes = 120 seconds
-            print("Found expired control request, cleaning up...")
+            debugPrint("Found expired control request, cleaning up...")
             try await clearExpiredControlRequest(for: liveGame)
         }
         
         // If no one has control, grant it immediately
         if liveGame.controllingDeviceId == nil || liveGame.controllingUserEmail == nil {
-            print("No one has control, granting immediately")
+            debugPrint("No one has control, granting immediately")
             try await grantControlDirectly(for: liveGame, to: email)
             return true
         }
         
         // If this device already has control, no need to request
         if liveGame.controllingDeviceId == deviceId && liveGame.controllingUserEmail == email {
-            print("This device already has control")
+            debugPrint("This device already has control")
             return true
         }
         
         // SPECIAL CASE: If this device created the game but somehow lost control, auto-grant it back
         if liveGame.controllingDeviceId == deviceId && liveGame.createdBy == email {
-            print("This device created the game, auto-granting control back")
+            debugPrint("This device created the game, auto-granting control back")
             try await grantControlDirectly(for: liveGame, to: email)
             return true
         }
         
         // Otherwise, request control from current controller with timestamp
-        print("Requesting control from current controller")
+        debugPrint("Requesting control from current controller")
         var updatedGame = liveGame
         updatedGame.controlRequestedBy = email
         updatedGame.controlRequestingDeviceId = deviceId
@@ -94,7 +94,7 @@ class DeviceControlManager: ObservableObject {
             throw DeviceControlError.invalidRequest
         }
 
-        print("--- Taking Control ---")
+        debugPrint("--- Taking Control ---")
         var updatedGame = liveGame
         updatedGame.controllingDeviceId = self.deviceId
         updatedGame.controllingUserEmail = email
@@ -106,7 +106,7 @@ class DeviceControlManager: ObservableObject {
 
         // Update the game document in Firebase with the new controller.
         try await firebaseService.updateLiveGame(updatedGame)
-        print("✅ Control successfully taken by \(email) on device \(self.deviceId)")
+        debugPrint("✅ Control successfully taken by \(email) on device \(self.deviceId)")
     }
     
     // NEW: Clear expired control request
@@ -117,7 +117,7 @@ class DeviceControlManager: ObservableObject {
         updatedGame.controlRequestTimestamp = nil
         
         try await firebaseService.updateLiveGame(updatedGame)
-        print("Expired control request cleared")
+        debugPrint("Expired control request cleared")
     }
     
     // NEW: Grant control directly (when no one has control)
@@ -129,7 +129,7 @@ class DeviceControlManager: ObservableObject {
         updatedGame.controlRequestingDeviceId = nil
         
         try await firebaseService.updateLiveGame(updatedGame)
-        print("Control granted directly to \(userEmail) on device \(deviceId)")
+        debugPrint("Control granted directly to \(userEmail) on device \(deviceId)")
     }
     
     // ENHANCED: Grant control to requesting device (clear timestamp)
@@ -138,9 +138,9 @@ class DeviceControlManager: ObservableObject {
             throw DeviceControlError.invalidRequest
         }
         
-        print("--- Granting Control ---")
-        print("Granting control to: \(userEmail)")
-        print("Requesting Device ID: \(liveGame.controlRequestingDeviceId ?? "Unknown")")
+        debugPrint("--- Granting Control ---")
+        debugPrint("Granting control to: \(userEmail)")
+        debugPrint("Requesting Device ID: \(liveGame.controlRequestingDeviceId ?? "Unknown")")
         
         var updatedGame = liveGame
         // Grant control to the requesting device, not the current device
@@ -151,7 +151,7 @@ class DeviceControlManager: ObservableObject {
         updatedGame.controlRequestTimestamp = nil // CLEAR: Remove timestamp when granting
         
         try await firebaseService.updateLiveGame(updatedGame)
-        print("Control granted to \(userEmail) on device \(updatedGame.controllingDeviceId ?? "Unknown")")
+        debugPrint("Control granted to \(userEmail) on device \(updatedGame.controllingDeviceId ?? "Unknown")")
     }
     
     // ENHANCED: Release control properly (clear timestamp)
@@ -160,9 +160,9 @@ class DeviceControlManager: ObservableObject {
             throw DeviceControlError.invalidRequest
         }
         
-        print("--- Releasing Control ---")
-        print("Current Device: \(deviceId)")
-        print("Controlling Device: \(liveGame.controllingDeviceId ?? "None")")
+        debugPrint("--- Releasing Control ---")
+        debugPrint("Current Device: \(deviceId)")
+        debugPrint("Controlling Device: \(liveGame.controllingDeviceId ?? "None")")
         
         var updatedGame = liveGame
         updatedGame.controllingDeviceId = nil
@@ -172,7 +172,7 @@ class DeviceControlManager: ObservableObject {
         updatedGame.controlRequestTimestamp = nil // CLEAR: Remove timestamp when releasing
         
         try await firebaseService.updateLiveGame(updatedGame)
-        print("Control released successfully")
+        debugPrint("Control released successfully")
     }
     
     // ENHANCED: Deny control request (clear timestamp)
@@ -187,7 +187,7 @@ class DeviceControlManager: ObservableObject {
         updatedGame.controlRequestTimestamp = nil // CLEAR: Remove timestamp when denying
         
         try await firebaseService.updateLiveGame(updatedGame)
-        print("Control request denied")
+        debugPrint("Control request denied")
     }
     
     // ENHANCED: Update control status with timeout handling
@@ -196,17 +196,17 @@ class DeviceControlManager: ObservableObject {
         let userHasControl = (liveGame.controllingUserEmail == userEmail)
         let newHasControl = deviceHasControl && userHasControl
         
-        print("--- Updating Control Status (DETAILED) ---")
-        print("Device ID: \(deviceId)")
-        print("Server Controlling Device ID: \(liveGame.controllingDeviceId ?? "None")")
-        print("Device Has Control: \(deviceHasControl)")
-        print("Server Controlling User Email: \(liveGame.controllingUserEmail ?? "None")")
-        print("Current User Email: \(userEmail ?? "None")")
-        print("User Has Control: \(userHasControl)")
-        print("Combined Control Status: \(newHasControl)")
-        print("Previous Has Control: \(hasControl)")
-        print("Control Requested By: \(liveGame.controlRequestedBy ?? "None")")
-        print("Control Requesting Device: \(liveGame.controlRequestingDeviceId ?? "None")")
+        debugPrint("--- Updating Control Status (DETAILED) ---")
+        debugPrint("Device ID: \(deviceId)")
+        debugPrint("Server Controlling Device ID: \(liveGame.controllingDeviceId ?? "None")")
+        debugPrint("Device Has Control: \(deviceHasControl)")
+        debugPrint("Server Controlling User Email: \(liveGame.controllingUserEmail ?? "None")")
+        debugPrint("Current User Email: \(userEmail ?? "None")")
+        debugPrint("User Has Control: \(userHasControl)")
+        debugPrint("Combined Control Status: \(newHasControl)")
+        debugPrint("Previous Has Control: \(hasControl)")
+        debugPrint("Control Requested By: \(liveGame.controlRequestedBy ?? "None")")
+        debugPrint("Control Requesting Device: \(liveGame.controlRequestingDeviceId ?? "None")")
         
         // CHECK FOR TIMEOUT: If request is older than 2 minutes, treat as expired
         var hasActiveRequest = false
@@ -215,9 +215,9 @@ class DeviceControlManager: ObservableObject {
             hasActiveRequest = timeElapsed <= 120 // 2 minutes = 120 seconds
             
             if !hasActiveRequest {
-                print("⏰ Control request has expired (elapsed: \(Int(timeElapsed))s)")
+                debugPrint("⏰ Control request has expired (elapsed: \(Int(timeElapsed))s)")
             } else {
-                print("⏱️ Control request active (elapsed: \(Int(timeElapsed))s, remaining: \(Int(120 - timeElapsed))s)")
+                debugPrint("⏱️ Control request active (elapsed: \(Int(timeElapsed))s, remaining: \(Int(120 - timeElapsed))s)")
             }
         }
         
@@ -240,14 +240,14 @@ class DeviceControlManager: ObservableObject {
             pendingControlRequest = nil
         }
         
-        print("Different Device Has Control: \(differentDeviceHasControl)")
-        print("This Device Pending Request: \(thisPendingRequest)")
-        print("Can Request Control: \(canRequestControl)")
-        print("Pending Control Request: \(pendingControlRequest ?? "None")")
+        debugPrint("Different Device Has Control: \(differentDeviceHasControl)")
+        debugPrint("This Device Pending Request: \(thisPendingRequest)")
+        debugPrint("Can Request Control: \(canRequestControl)")
+        debugPrint("Pending Control Request: \(pendingControlRequest ?? "None")")
         
         // If control status changed, force a UI update
         if previousHasControl != newHasControl {
-            print("🔄 CONTROL STATUS CHANGED: \(previousHasControl) -> \(newHasControl)")
+            debugPrint("🔄 CONTROL STATUS CHANGED: \(previousHasControl) -> \(newHasControl)")
             DispatchQueue.main.async {
                 // Force UI refresh by triggering objectWillChange
                 self.objectWillChange.send()

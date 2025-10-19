@@ -135,10 +135,10 @@ struct GameDetailTimeCard: View {
     
     private func formatTime(_ minutes: Double) -> String {
         // 🔍 DEBUG: Print the formatting process
-        print("🔍 formatTime called with minutes: \(minutes)")
+        debugPrint("🔍 formatTime called with minutes: \(minutes)")
         
         if minutes == 0 {
-            print("🔍 formatTime returning '0m' (minutes was 0)")
+            debugPrint("🔍 formatTime returning '0m' (minutes was 0)")
             return "0m"
         }
         
@@ -153,7 +153,7 @@ struct GameDetailTimeCard: View {
             result = "\(mins)m"
         }
         
-        print("🔍 formatTime returning: '\(result)'")
+        debugPrint("🔍 formatTime returning: '\(result)'")
         return result
     }
 }
