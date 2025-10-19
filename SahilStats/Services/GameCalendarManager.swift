@@ -472,32 +472,56 @@ class GameCalendarManager: ObservableObject {
     }
 
     private func extractTournamentOpponent(from title: String) -> String? {
-        // Handle tournament/event format: "UNEQLD Boys 9/10U - Tentative: NBBA Tourney"
-        // Pattern: "Team Name - EventType: Tournament Name"
+        // Handle multiple formats:
+        // 1. Confirmed "at" format: "UNEQLD Boys 9/10U at Palo Alto Flight" → "UNEQLD Boys 9/10U vs Palo Alto Flight"
+        // 2. Direct dash format: "Elements AAU - Warriors" → "Elements AAU vs Warriors"
+        // 3. Placeholder: "UNEQLD Boys 9/10U - Tentative: NBBA Tourney" → "UNEQLD Boys 9/10U - Tentative Tourney"
 
         let lowercased = title.lowercased()
 
-        // Check for dash separator (common in tournament events)
+        // First, check for "at" pattern (confirmed tournament games)
+        if let atRange = lowercased.range(of: " at ") {
+            let teamPart = String(title[..<atRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let opponentPart = String(title[atRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+
+            if let opponent = cleanTeamName(opponentPart), !opponent.isEmpty {
+                let display = "\(teamPart) vs \(opponent)"
+                debugPrint("   🎯 Confirmed game detected: '\(display)'")
+                return display
+            }
+        }
+
+        // Check for " - " pattern
         if let dashRange = title.range(of: " - ") {
+            let teamPart = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
             let afterDash = String(title[dashRange.upperBound...]).trimmingCharacters(in: .whitespaces)
 
-            // Remove common prefixes like "Tentative:", "Confirmed:", etc.
-            let prefixesToRemove = ["tentative:", "confirmed:", "scheduled:", "pending:"]
-            var cleanedOpponent = afterDash
+            // Check if it has a colon (indicating "Type: Event" format for placeholders)
+            let prefixesToSimplify = ["tentative:", "confirmed:", "scheduled:", "pending:"]
 
-            for prefix in prefixesToRemove {
-                if lowercased.hasPrefix(String(title[..<dashRange.lowerBound]).lowercased() + " - " + prefix) {
+            for prefix in prefixesToSimplify {
+                if afterDash.lowercased().hasPrefix(prefix) {
+                    // Extract just the type word (without colon)
+                    let typeWord = String(prefix.dropLast()) // Remove colon
+
+                    // Get everything after the colon
                     if let colonRange = afterDash.range(of: ":") {
-                        cleanedOpponent = String(afterDash[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+                        let eventName = String(afterDash[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+
+                        // Return format: "Team - Type Event"
+                        let display = "\(teamPart) - \(typeWord.capitalized) \(eventName)"
+                        debugPrint("   🏆 Placeholder event detected: '\(display)'")
+                        return display
                     }
-                    break
                 }
             }
 
-            // Clean and return
-            if let cleaned = cleanTeamName(cleanedOpponent), !cleaned.isEmpty {
-                debugPrint("   🏆 Tournament event detected: '\(cleaned)'")
-                return cleaned
+            // If no recognized prefix, treat as direct opponent format
+            // "Elements AAU - Warriors" → "Elements AAU vs Warriors"
+            if let opponent = cleanTeamName(afterDash), !opponent.isEmpty {
+                let display = "\(teamPart) vs \(opponent)"
+                debugPrint("   🏀 Direct format detected: '\(display)'")
+                return display
             }
         }
 
