@@ -225,13 +225,18 @@ struct GameQRCodeDisplayView: View {
                             .interpolation(.none)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: isIPad ? 500 : 350, height: isIPad ? 500 : 350)
+                            .frame(width: isIPad ? 600 : 400, height: isIPad ? 600 : 400)
+                            .padding(20)
                             .background(Color.white)
-                            .cornerRadius(20)
-                            .shadow(color: .black.opacity(0.15), radius: 15)
+                            .cornerRadius(24)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(Color.orange, lineWidth: 4)
+                            )
+                            .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 10)
                     } else {
                         ProgressView()
-                            .frame(width: isIPad ? 500 : 350, height: isIPad ? 500 : 350)
+                            .frame(width: isIPad ? 600 : 400, height: isIPad ? 600 : 400)
                     }
 
                     VStack(spacing: 8) {

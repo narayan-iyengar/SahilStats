@@ -175,21 +175,9 @@ struct GameListView: View {
                     }
                 }
             } header: {
-                HStack {
-                    Text("Upcoming Games")
-                        .font(isIPad ? .title2 : .headline)
-                        .fontWeight(.bold)
-                    Spacer()
-                    NavigationLink(destination: CalendarSettingsView()) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "gearshape")
-                                .font(.caption)
-                            Text("Manage")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.orange)
-                    }
-                }
+                Text("Upcoming Games")
+                    .font(isIPad ? .title2 : .headline)
+                    .fontWeight(.bold)
             }
             .listRowBackground(Color(.systemBackground))
         }
