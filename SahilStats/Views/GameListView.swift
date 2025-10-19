@@ -166,6 +166,13 @@ struct GameListView: View {
                             selectCalendarGame(game)
                         }
                     )
+                    .contextMenu {
+                        Button(role: .destructive, action: {
+                            calendarManager.ignoreEvent(game.id)
+                        }) {
+                            Label("Ignore This Game", systemImage: "eye.slash")
+                        }
+                    }
                 }
             } header: {
                 HStack {

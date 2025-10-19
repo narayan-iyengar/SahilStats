@@ -19,10 +19,12 @@ class GameCalendarManager: ObservableObject {
     @Published var upcomingGames: [CalendarGame] = []
     @Published var selectedCalendars: [String] = [] // Calendar identifiers
     @Published var weekendsOnly = true // Filter to show only weekend events
+    @Published var ignoredEventIds: Set<String> = [] // Event IDs to ignore
 
     private let userDefaults = UserDefaults.standard
     private let selectedCalendarsKey = "com.sahilstats.selectedCalendars"
     private let weekendsOnlyKey = "com.sahilstats.weekendsOnly"
+    private let ignoredEventsKey = "com.sahilstats.ignoredCalendarEvents"
 
     // MARK: - Calendar Game Model
 
@@ -70,6 +72,7 @@ class GameCalendarManager: ObservableObject {
     private init() {
         loadSelectedCalendars()
         loadWeekendsOnlySetting()
+        loadIgnoredEvents()
         checkCalendarAccess()
     }
 
@@ -165,6 +168,35 @@ class GameCalendarManager: ObservableObject {
         }
     }
 
+    // MARK: - Ignored Events Management
+
+    func ignoreEvent(_ eventId: String) {
+        ignoredEventIds.insert(eventId)
+        saveIgnoredEvents()
+        loadUpcomingGames() // Refresh to remove ignored event
+        forcePrint("✅ Event ignored: \(eventId)")
+    }
+
+    func unignoreEvent(_ eventId: String) {
+        ignoredEventIds.remove(eventId)
+        saveIgnoredEvents()
+        loadUpcomingGames() // Refresh to show unignored event
+        forcePrint("✅ Event unignored: \(eventId)")
+    }
+
+    private func loadIgnoredEvents() {
+        if let saved = userDefaults.array(forKey: ignoredEventsKey) as? [String] {
+            ignoredEventIds = Set(saved)
+            debugPrint("🚫 Loaded \(ignoredEventIds.count) ignored event(s)")
+        }
+    }
+
+    private func saveIgnoredEvents() {
+        let array = Array(ignoredEventIds)
+        userDefaults.set(array, forKey: ignoredEventsKey)
+        debugPrint("💾 Saved \(array.count) ignored event(s)")
+    }
+
     // MARK: - Game Loading
 
     func loadUpcomingGames() {
@@ -219,9 +251,16 @@ class GameCalendarManager: ObservableObject {
             debugPrint("📅 Showing all \(filteredEvents.count) events (weekends-only filter disabled)")
         }
 
-        // Parse all filtered events and filter out practices/training
+        // Parse all filtered events and filter out practices/training/ignored events
         let games = filteredEvents.compactMap { event -> CalendarGame? in
             let eventTitle = event.title ?? "Untitled Event"
+            let eventId = event.eventIdentifier ?? UUID().uuidString
+
+            // Skip ignored events
+            if ignoredEventIds.contains(eventId) {
+                debugPrint("   🚫 Skipping ignored event: \(eventTitle)")
+                return nil
+            }
 
             // Skip practice and training events
             if isPracticeOrTraining(eventTitle) {
@@ -233,7 +272,7 @@ class GameCalendarManager: ObservableObject {
             let opponent = parseOpponent(from: eventTitle) ?? eventTitle
 
             return CalendarGame(
-                id: event.eventIdentifier ?? UUID().uuidString,
+                id: eventId,
                 title: eventTitle,
                 opponent: opponent,
                 location: event.location ?? "Unknown Location",

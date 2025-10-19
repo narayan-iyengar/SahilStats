@@ -190,6 +190,13 @@ struct CalendarGameSelectionView: View {
                             selectGame(game)
                         }
                     )
+                    .contextMenu {
+                        Button(role: .destructive, action: {
+                            calendarManager.ignoreEvent(game.id)
+                        }) {
+                            Label("Ignore This Game", systemImage: "eye.slash")
+                        }
+                    }
                 }
             }
             .padding()
