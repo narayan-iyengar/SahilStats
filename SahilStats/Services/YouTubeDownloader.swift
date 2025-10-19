@@ -46,6 +46,7 @@ class YouTubeDownloader {
 
     /// Download using yt-dlp command line tool
     private func downloadWithYtDlp(youtubeURL: String, ytDlpPath: String, progress: @escaping (Double) -> Void) async throws -> URL {
+        #if os(macOS)
         print("📦 Using yt-dlp to download video...")
 
         // Create temporary download directory
@@ -108,6 +109,11 @@ class YouTubeDownloader {
         } else {
             throw DownloadError.downloadFailed("yt-dlp failed with status \(process.terminationStatus)")
         }
+        #else
+        // iOS doesn't support Process - fallback to manual download
+        print("⚠️ yt-dlp not supported on iOS - checking for manual download")
+        return try await checkForManualDownload(youtubeURL: youtubeURL)
+        #endif
     }
 
     /// Check if video was manually downloaded
