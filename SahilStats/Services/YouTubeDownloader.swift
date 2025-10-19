@@ -66,9 +66,11 @@ class YouTubeDownloader {
         print("⚠️ Checking for cached/manually downloaded video...")
 
         // Check specific cached locations first (highest priority)
+        // /tmp is accessible from both simulator and Mac app
         let cachedPaths = [
-            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4"),
-            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.mp4")
+            URL(fileURLWithPath: "/tmp/POC_Videos/video.mp4"),
+            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.mp4"),
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4")
         ]
 
         for cachedPath in cachedPaths {
