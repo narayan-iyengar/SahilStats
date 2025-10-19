@@ -46,7 +46,7 @@ class YouTubeDownloader {
 
     /// Download using yt-dlp command line tool
     private func downloadWithYtDlp(youtubeURL: String, ytDlpPath: String, progress: @escaping (Double) -> Void) async throws -> URL {
-        #if os(macOS)
+        #if os(macOS) || targetEnvironment(simulator)
         print("📦 Using yt-dlp to download video...")
 
         // Create temporary download directory
