@@ -269,7 +269,7 @@ class GameCalendarManager: ObservableObject {
             }
 
             // Try to parse opponent, fallback to full title if parsing fails
-            let opponent = parseOpponent(from: eventTitle) ?? eventTitle
+            let opponent = parseOpponent(from: eventTitle) ?? extractTournamentOpponent(from: eventTitle) ?? eventTitle
 
             return CalendarGame(
                 id: eventId,
@@ -465,6 +465,39 @@ class GameCalendarManager: ObservableObject {
             let afterAt = String(title[atRange.upperBound...]).trimmingCharacters(in: .whitespaces)
             if let opponent = cleanTeamName(afterAt) {
                 return opponent
+            }
+        }
+
+        return nil
+    }
+
+    private func extractTournamentOpponent(from title: String) -> String? {
+        // Handle tournament/event format: "UNEQLD Boys 9/10U - Tentative: NBBA Tourney"
+        // Pattern: "Team Name - EventType: Tournament Name"
+
+        let lowercased = title.lowercased()
+
+        // Check for dash separator (common in tournament events)
+        if let dashRange = title.range(of: " - ") {
+            let afterDash = String(title[dashRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+
+            // Remove common prefixes like "Tentative:", "Confirmed:", etc.
+            let prefixesToRemove = ["tentative:", "confirmed:", "scheduled:", "pending:"]
+            var cleanedOpponent = afterDash
+
+            for prefix in prefixesToRemove {
+                if lowercased.hasPrefix(String(title[..<dashRange.lowerBound]).lowercased() + " - " + prefix) {
+                    if let colonRange = afterDash.range(of: ":") {
+                        cleanedOpponent = String(afterDash[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+                    }
+                    break
+                }
+            }
+
+            // Clean and return
+            if let cleaned = cleanTeamName(cleanedOpponent), !cleaned.isEmpty {
+                debugPrint("   🏆 Tournament event detected: '\(cleaned)'")
+                return cleaned
             }
         }
 
