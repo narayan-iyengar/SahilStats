@@ -1,0 +1,280 @@
+//
+//  GameQRCodeManager.swift
+//  SahilStats
+//
+//  QR code generation and scanning for easy game joining
+//
+
+import Foundation
+import SwiftUI
+import CoreImage.CIFilterBuiltins
+
+class GameQRCodeManager {
+    static let shared = GameQRCodeManager()
+
+    private let context = CIContext()
+    private let filter = CIFilter.qrCodeGenerator()
+
+    // MARK: - QR Code Data Model
+
+    struct GameQRData: Codable {
+        let gameId: String
+        let teamName: String
+        let opponent: String
+        let location: String
+        let quarterLength: Int
+        let gameFormat: String // "quarters" or "halves"
+        let timestamp: TimeInterval
+
+        init(liveGame: LiveGame) {
+            self.gameId = liveGame.id ?? UUID().uuidString
+            self.teamName = liveGame.teamName
+            self.opponent = liveGame.opponent
+            self.location = liveGame.location ?? "Unknown Location"
+            self.quarterLength = liveGame.quarterLength
+            self.gameFormat = liveGame.gameFormat.rawValue
+            self.timestamp = Date().timeIntervalSince1970
+        }
+
+        func toLiveGame() -> LiveGame? {
+            guard let format = GameFormat(rawValue: gameFormat) else {
+                return nil
+            }
+
+            return LiveGame(
+                teamName: teamName,
+                opponent: opponent,
+                location: location,
+                gameFormat: format,
+                quarterLength: quarterLength,
+                isMultiDeviceSetup: true
+            )
+        }
+    }
+
+    private init() {}
+
+    // MARK: - QR Code Generation
+
+    func generateQRCode(for liveGame: LiveGame) -> UIImage? {
+        let qrData = GameQRData(liveGame: liveGame)
+
+        guard let jsonData = try? JSONEncoder().encode(qrData) else {
+            print("❌ Failed to encode game data to JSON")
+            return nil
+        }
+
+        let jsonString = String(data: jsonData, encoding: .utf8) ?? ""
+        print("📱 Generating QR code with data:")
+        print("   Game ID: \(qrData.gameId)")
+        print("   Opponent: \(qrData.opponent)")
+        print("   JSON length: \(jsonString.count) characters")
+
+        filter.message = jsonData
+
+        guard let outputImage = filter.outputImage else {
+            print("❌ Failed to generate QR code image")
+            return nil
+        }
+
+        // Scale up the QR code for better quality
+        let transform = CGAffineTransform(scaleX: 10, y: 10)
+        let scaledImage = outputImage.transformed(by: transform)
+
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+            print("❌ Failed to create CGImage from QR code")
+            return nil
+        }
+
+        let uiImage = UIImage(cgImage: cgImage)
+        print("✅ QR code generated successfully")
+        return uiImage
+    }
+
+    // MARK: - QR Code Parsing
+
+    func parseQRCode(from string: String) -> GameQRData? {
+        guard let jsonData = string.data(using: .utf8) else {
+            print("❌ Failed to convert QR string to data")
+            return nil
+        }
+
+        do {
+            let qrData = try JSONDecoder().decode(GameQRData.self, from: jsonData)
+            print("✅ Successfully parsed QR code:")
+            print("   Game ID: \(qrData.gameId)")
+            print("   Opponent: \(qrData.opponent)")
+            return qrData
+        } catch {
+            print("❌ Failed to decode QR data: \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Validation
+
+    func isValidGameQRCode(_ string: String) -> Bool {
+        return parseQRCode(from: string) != nil
+    }
+
+    func getGameDetails(from qrString: String) -> (opponent: String, location: String)? {
+        guard let qrData = parseQRCode(from: qrString) else {
+            return nil
+        }
+        return (qrData.opponent, qrData.location)
+    }
+}
+
+// MARK: - SwiftUI QR Code View
+
+struct QRCodeView: View {
+    let liveGame: LiveGame
+    @State private var qrImage: UIImage?
+
+    var body: some View {
+        VStack(spacing: 20) {
+            if let image = qrImage {
+                Image(uiImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 250, height: 250)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(radius: 5)
+            } else {
+                ProgressView()
+                    .frame(width: 250, height: 250)
+            }
+
+            VStack(spacing: 8) {
+                Text("Scan to Join Game")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .onAppear {
+            generateQRCode()
+        }
+    }
+
+    private func generateQRCode() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let image = GameQRCodeManager.shared.generateQRCode(for: liveGame)
+            DispatchQueue.main.async {
+                self.qrImage = image
+            }
+        }
+    }
+}
+
+// MARK: - Full-Screen QR Code Display
+
+struct GameQRCodeDisplayView: View {
+    let liveGame: LiveGame
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var navigation = NavigationCoordinator.shared
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
+    private var isIPad: Bool { horizontalSizeClass == .regular }
+
+    var body: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 30) {
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        // Cancel the game and return to dashboard
+                        Task {
+                            if let gameId = liveGame.id {
+                                try? await FirebaseService.shared.deleteLiveGame(gameId)
+                            }
+                        }
+                        dismiss()
+                    }
+                    .font(.headline)
+                    .padding()
+                }
+
+                Spacer()
+
+                VStack(spacing: 24) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(size: 60))
+                        .foregroundColor(.blue)
+
+                    Text("Scan to Connect")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+
+                    Text("Open SahilStats on the camera phone\nand scan this QR code")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    if let image = generateQRCodeSync() {
+                        Image(uiImage: image)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: isIPad ? 350 : 280, height: isIPad ? 350 : 280)
+                            .background(Color.white)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.1), radius: 10)
+                    } else {
+                        ProgressView()
+                            .frame(width: isIPad ? 350 : 280, height: isIPad ? 350 : 280)
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                        if let location = liveGame.location {
+                            Text(location)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+
+                Spacer()
+
+                // Begin Game button
+                Button(action: {
+                    dismiss()
+                    navigation.currentFlow = .liveGame(liveGame)
+                }) {
+                    Text("Begin Game")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.orange)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 40)
+                .padding(.bottom, 20)
+
+                Text("Tap after the camera phone connects")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+
+    private func generateQRCodeSync() -> UIImage? {
+        GameQRCodeManager.shared.generateQRCode(for: liveGame)
+    }
+}
