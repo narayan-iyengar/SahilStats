@@ -51,77 +51,15 @@ class YouTubeDownloader {
         return try await checkForManualDownload(youtubeURL: youtubeURL)
     }
 
-    /// Download using yt-dlp command line tool
-    private func downloadWithYtDlp(youtubeURL: String, ytDlpPath: String, progress: @escaping (Double) -> Void) async throws -> URL {
-        #if os(macOS) || targetEnvironment(simulator)
-        print("📦 Using yt-dlp to download video...")
-
-        // Create temporary download directory
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("POC_Videos", isDirectory: true)
-
-        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        // Output file path
-        let outputPath = tempDir.appendingPathComponent("video.mp4")
-
-        // Remove existing file if present
-        try? FileManager.default.removeItem(at: outputPath)
-
-        // yt-dlp command
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        process.arguments = [
-            "-f", "best[ext=mp4][height<=720]", // Download 720p MP4
-            "-o", outputPath.path,
-            youtubeURL
-        ]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        try process.run()
-
-        // Monitor progress
-        Task {
-            let handle = pipe.fileHandleForReading
-            while process.isRunning {
-                if let data = try? handle.availableData, !data.isEmpty {
-                    if let output = String(data: data, encoding: .utf8) {
-                        print(output, terminator: "")
-
-                        // Parse progress if possible
-                        if output.contains("%") {
-                            // Simple progress parsing
-                            await MainActor.run {
-                                progress(0.5) // Rough estimate
-                            }
-                        }
-                    }
-                }
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-            }
-        }
-
-        process.waitUntilExit()
-
-        if process.terminationStatus == 0 {
-            print("✅ Video downloaded successfully")
-            print("   Path: \(outputPath.path)")
-            await MainActor.run {
-                progress(1.0)
-            }
-            return outputPath
-        } else {
-            throw DownloadError.downloadFailed("yt-dlp failed with status \(process.terminationStatus)")
-        }
-        #else
-        // iOS doesn't support Process - fallback to manual download
-        print("⚠️ yt-dlp not supported on iOS - checking for manual download")
-        return try await checkForManualDownload(youtubeURL: youtubeURL)
-        #endif
-    }
+    // NOTE: yt-dlp download removed for PoC
+    // Production will use direct camera recording, not YouTube downloads
+    // This function kept for reference but not used
+    //
+    // /// Download using yt-dlp command line tool (macOS only)
+    // private func downloadWithYtDlp(...) async throws -> URL {
+    //     // Process class only available on macOS
+    //     // Not needed for PoC - using cached videos instead
+    // }
 
     /// Check if video was manually downloaded
     private func checkForManualDownload(youtubeURL: String) async throws -> URL {
