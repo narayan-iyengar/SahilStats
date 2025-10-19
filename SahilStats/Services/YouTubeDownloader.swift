@@ -6,9 +6,7 @@
 //
 
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#endif
+import AVFoundation
 
 class YouTubeDownloader {
     static let shared = YouTubeDownloader()

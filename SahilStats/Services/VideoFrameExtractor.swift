@@ -32,7 +32,7 @@ class VideoFrameExtractor {
         print("   FPS: \(fps)")
 
         // Load video asset
-        let asset = AVURLAsset(url: videoURL)
+        let asset = AVAsset(url: videoURL)
 
         // Get video duration
         let duration = try await asset.load(.duration)
@@ -70,13 +70,7 @@ class VideoFrameExtractor {
         // Extract frames
         for (index, time) in timePoints.enumerated() {
             do {
-                // Use async version for iOS 18+
-                let cgImage: CGImage
-                if #available(iOS 18.0, *) {
-                    cgImage = try await imageGenerator.image(at: time).image
-                } else {
-                    cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
-                }
+                let cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
                 let uiImage = UIImage(cgImage: cgImage)
 
                 let frame = VideoFrame(
@@ -111,17 +105,12 @@ class VideoFrameExtractor {
 
     /// Extract a single frame at specific timestamp
     func extractFrame(from videoURL: URL, at timestamp: Double) async throws -> VideoFrame {
-        let asset = AVURLAsset(url: videoURL)
+        let asset = AVAsset(url: videoURL)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
 
         let time = CMTime(seconds: timestamp, preferredTimescale: 600)
-        let cgImage: CGImage
-        if #available(iOS 18.0, *) {
-            cgImage = try await imageGenerator.image(at: time).image
-        } else {
-            cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
-        }
+        let cgImage = try imageGenerator.copyCGImage(at: time, actualTime: nil)
         let uiImage = UIImage(cgImage: cgImage)
 
         return VideoFrame(
@@ -133,7 +122,7 @@ class VideoFrameExtractor {
 
     /// Get video metadata
     func getVideoMetadata(from videoURL: URL) async throws -> VideoMetadata {
-        let asset = AVURLAsset(url: videoURL)
+        let asset = AVAsset(url: videoURL)
 
         // Load required properties
         let duration = try await asset.load(.duration)
@@ -155,19 +144,11 @@ class VideoFrameExtractor {
            Frame Rate: \(String(format: "%.1f", frameRate)) fps
         """)
 
-        let fileSize: Int64
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: videoURL.path),
-           let size = attrs[.size] as? Int64 {
-            fileSize = size
-        } else {
-            fileSize = 0
-        }
-
         return VideoMetadata(
             duration: durationSeconds,
             resolution: size,
             frameRate: Double(frameRate),
-            fileSize: fileSize
+            fileSize: try? FileManager.default.attributesOfItem(atPath: videoURL.path)[.size] as? Int64 ?? 0
         )
     }
 
