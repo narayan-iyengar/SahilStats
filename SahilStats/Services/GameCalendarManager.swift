@@ -28,6 +28,7 @@ class GameCalendarManager: ObservableObject {
     private let selectedCalendarsKey = "com.sahilstats.selectedCalendars"
     private let weekendsOnlyKey = "com.sahilstats.weekendsOnly"
     private let ignoredEventsKey = "com.sahilstats.ignoredCalendarEvents"
+    private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
 
     private var userId: String? {
         Auth.auth().currentUser?.uid
@@ -89,13 +90,20 @@ class GameCalendarManager: ObservableObject {
         }
 
         // Listen for auth state changes to reload ignored events
-        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+        authStateListenerHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             if user != nil {
                 forcePrint("👤 User signed in - reloading ignored events from Firebase")
                 Task {
                     await self?.loadIgnoredEventsFromFirebase()
                 }
             }
+        }
+    }
+
+    deinit {
+        // Remove auth state listener when manager is deallocated
+        if let handle = authStateListenerHandle {
+            Auth.auth().removeStateDidChangeListener(handle)
         }
     }
 
