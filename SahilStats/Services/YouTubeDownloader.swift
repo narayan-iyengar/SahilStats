@@ -66,14 +66,19 @@ class YouTubeDownloader {
         print("⚠️ Checking for cached/manually downloaded video...")
 
         // Check specific cached locations first (highest priority)
+        // Support both .mp4 and .ts extensions (yt-dlp sometimes downloads as .ts)
         let cachedPaths = [
             // App's Documents directory (always accessible, sandbox-safe)
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video.ts"),
             FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("POC_Videos/video.mp4"),
             // Temporary directory
+            FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.ts"),
             FileManager.default.temporaryDirectory.appendingPathComponent("POC_Videos/video.mp4"),
             // /tmp (works for simulator)
+            URL(fileURLWithPath: "/tmp/POC_Videos/video.ts"),
             URL(fileURLWithPath: "/tmp/POC_Videos/video.mp4"),
             // User's Downloads (works outside sandbox)
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.ts"),
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/POC_Videos/video.mp4")
         ]
 
