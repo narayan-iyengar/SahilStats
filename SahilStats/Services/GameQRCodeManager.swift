@@ -182,7 +182,6 @@ struct GameQRCodeDisplayView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var navigation = NavigationCoordinator.shared
     @ObservedObject private var roleManager = DeviceRoleManager.shared
-    @ObservedObject private var firebaseService = FirebaseService.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var hasAutoNavigated = false
 
@@ -286,24 +285,22 @@ struct GameQRCodeDisplayView: View {
                 }
             }
         }
-        .onChange(of: firebaseService.liveGames) { oldGames, newGames in
+        .onChange(of: roleManager.connectedDevices) {
             // Auto-navigate when recorder joins
             guard !hasAutoNavigated else { return }
-            guard let gameId = liveGame.id else { return }
 
-            // Find the current game in the updated list
-            if let updatedGame = newGames.first(where: { $0.id == gameId }) {
-                // Check if recorder role is now filled (someone joined as recorder)
-                let recorderRoleFilled = updatedGame.deviceRoles?.contains(where: { $0.value == "recorder" }) ?? false
+            // Check if a recorder has joined
+            let recorderJoined = roleManager.connectedDevices.contains { device in
+                device.role == .recorder
+            }
 
-                if recorderRoleFilled {
-                    debugPrint("📱 QR Code: Recorder joined! Auto-navigating to live game...")
-                    hasAutoNavigated = true
+            if recorderJoined {
+                debugPrint("📱 QR Code: Recorder joined! Auto-navigating to live game...")
+                hasAutoNavigated = true
 
-                    // Navigate to live game
-                    navigation.currentFlow = .liveGame(updatedGame)
-                    dismiss()
-                }
+                // Navigate to live game
+                navigation.currentFlow = .liveGame(liveGame)
+                dismiss()
             }
         }
     }
