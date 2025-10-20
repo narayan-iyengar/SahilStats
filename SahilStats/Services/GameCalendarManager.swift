@@ -609,7 +609,7 @@ class GameCalendarManager: ObservableObject {
 
         // Check for " - " pattern
         if let dashRange = title.range(of: " - ") {
-            let teamPart = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            _ = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
             let afterDash = String(title[dashRange.upperBound...]).trimmingCharacters(in: .whitespaces)
 
             // Check if it has a colon (indicating "Type: Event" format for placeholders)
