@@ -157,32 +157,32 @@ struct GameListView: View {
                         }
                     )
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                        Button(role: .destructive, action: {
-                            calendarManager.ignoreEvent(game.id)
-                        }) {
-                            Label("Ignore", systemImage: "eye.slash")
-                        }
-
                         Button(action: {
                             selectCalendarGame(game)
                         }) {
                             Label("Start", systemImage: "play.fill")
                         }
                         .tint(.orange)
+
+                        Button(role: .destructive, action: {
+                            calendarManager.ignoreEvent(game.id)
+                        }) {
+                            Label("Ignore", systemImage: "eye.slash")
+                        }
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive, action: {
-                            calendarManager.ignoreEvent(game.id)
-                        }) {
-                            Label("Ignore", systemImage: "eye.slash")
-                        }
-
                         Button(action: {
                             selectCalendarGame(game)
                         }) {
                             Label("Start", systemImage: "play.fill")
                         }
                         .tint(.orange)
+
+                        Button(role: .destructive, action: {
+                            calendarManager.ignoreEvent(game.id)
+                        }) {
+                            Label("Ignore", systemImage: "eye.slash")
+                        }
                     }
                 }
             } header: {
