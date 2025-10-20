@@ -313,9 +313,11 @@ struct CalendarGameSelectionView: View {
                     showingGameConfirmation = false
                 }
 
-                // Show QR code for camera phone to scan
-                await MainActor.run {
-                    showingQRCode = true
+                // Multi-device setup: Show QR code for camera phone to scan
+                if liveGame.isMultiDeviceSetup == true {
+                    await MainActor.run {
+                        showingQRCode = true
+                    }
                 }
 
                 // Navigate to controller view (stats phone)
@@ -548,9 +550,15 @@ struct GameConfirmationView: View {
     let onStart: (LiveGame) -> Void
     let onCancel: () -> Void
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @State private var setupMode: GameSetupMode = .multiDevice
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
+    }
+
+    enum GameSetupMode {
+        case singleDevice  // Stats only, no recording
+        case multiDevice   // Stats + Recording with QR code
     }
 
     // Create a non-optional binding for location
@@ -597,12 +605,71 @@ struct GameConfirmationView: View {
                 }
 
                 Section {
-                    Button("Start Game") {
-                        onStart(liveGame)
+                    VStack(spacing: 0) {
+                        // Multi-device option (with video)
+                        Button(action: {
+                            setupMode = .multiDevice
+                            var updatedGame = liveGame
+                            updatedGame.isMultiDeviceSetup = true
+                            onStart(updatedGame)
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "video.fill")
+                                            .foregroundColor(.red)
+                                        Text("Stats + Recording")
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                    }
+                                    Text("Use another device as camera")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+
+                        // Single device option (stats only)
+                        Button(action: {
+                            setupMode = .singleDevice
+                            var updatedGame = liveGame
+                            updatedGame.isMultiDeviceSetup = false
+                            onStart(updatedGame)
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "chart.bar.fill")
+                                            .foregroundColor(.blue)
+                                        Text("Stats Only")
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                    }
+                                    Text("No video recording")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .frame(maxWidth: .infinity)
-                    .foregroundColor(.blue)
-                    .font(.headline)
+                } header: {
+                    Text("Recording Setup")
                 }
             }
             .navigationTitle("Confirm Game")
