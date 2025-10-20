@@ -259,26 +259,12 @@ struct GameQRCodeDisplayView: View {
 
                 Spacer()
 
-                // Begin Game button
-                Button(action: {
-                    beginGame()
-                }) {
-                    Text("Begin Game")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 20)
-
-                Text("Tap after the camera phone connects")
-                    .font(.caption)
+                // Status message
+                Text("Waiting for camera phone to scan...")
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 40)
             }
         }
         .onAppear {
@@ -324,37 +310,5 @@ struct GameQRCodeDisplayView: View {
 
     private func generateQRCodeSync() -> UIImage? {
         GameQRCodeManager.shared.generateQRCode(for: liveGame)
-    }
-
-    private func beginGame() {
-        Task {
-            do {
-                guard let gameId = liveGame.id else {
-                    forcePrint("❌ Cannot begin game - missing game ID")
-                    return
-                }
-
-                // Set device role as controller
-                try await roleManager.setDeviceRole(.controller, for: gameId)
-                debugPrint("✅ Controller role set, navigating to live game")
-
-                // Navigate to live game
-                await MainActor.run {
-                    navigation.markUserHasInteracted()
-                    navigation.userExplicitlyJoinedGame = true
-                    navigation.currentFlow = .liveGame(liveGame)
-                    dismiss()
-                }
-            } catch {
-                forcePrint("❌ Error setting device role: \(error)")
-                // Still navigate even if role setting fails
-                await MainActor.run {
-                    navigation.markUserHasInteracted()
-                    navigation.userExplicitlyJoinedGame = true
-                    navigation.currentFlow = .liveGame(liveGame)
-                    dismiss()
-                }
-            }
-        }
     }
 }
