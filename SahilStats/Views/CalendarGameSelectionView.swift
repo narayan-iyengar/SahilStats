@@ -633,6 +633,7 @@ struct GameConfirmationView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel", action: onCancel)
+                        .font(isIPad ? .body : .subheadline)
                 }
             }
         }

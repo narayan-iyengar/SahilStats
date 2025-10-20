@@ -205,13 +205,13 @@ class SettingsManager: ObservableObject {
         }
     }
 
-    @Published var verboseLoggingEnabled: Bool = false {
+    @Published var verboseLoggingEnabled: Bool {
         didSet {
             saveSettings()
         }
     }
 
-    @Published var betaFeaturesEnabled: Bool = false {
+    @Published var betaFeaturesEnabled: Bool {
         didSet {
             saveSettings()
         }
@@ -221,6 +221,7 @@ class SettingsManager: ObservableObject {
 
     private init() {
         // Load from local cache first (instant load)
+        // Initialize @Published properties from UserDefaults BEFORE calling super.init
         if let savedFormat = UserDefaults.standard.string(forKey: "gameFormat"),
            let format = GameFormat(rawValue: savedFormat) {
             self.gameFormat = format
@@ -241,9 +242,7 @@ class SettingsManager: ObservableObject {
         }
 
         self.verboseConnectionLogging = UserDefaults.standard.bool(forKey: "verboseConnectionLogging")
-
         self.verboseLoggingEnabled = UserDefaults.standard.bool(forKey: "verboseLoggingEnabled")
-
         self.betaFeaturesEnabled = UserDefaults.standard.bool(forKey: "betaFeaturesEnabled")
 
         debugPrint("📱 Loaded settings from local cache")
