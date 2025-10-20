@@ -550,15 +550,9 @@ struct GameConfirmationView: View {
     let onStart: (LiveGame) -> Void
     let onCancel: () -> Void
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    @State private var setupMode: GameSetupMode = .multiDevice
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
-    }
-
-    enum GameSetupMode {
-        case singleDevice  // Stats only, no recording
-        case multiDevice   // Stats + Recording with QR code
     }
 
     // Create a non-optional binding for location
@@ -605,129 +599,18 @@ struct GameConfirmationView: View {
                 }
 
                 Section {
-                    VStack(spacing: 16) {
-                        // Multi-device option (with video)
-                        Button(action: {
-                            setupMode = .multiDevice
+                    GameSetupModeSelectionView(
+                        onSelectMultiDevice: {
                             var updatedGame = liveGame
                             updatedGame.isMultiDeviceSetup = true
                             onStart(updatedGame)
-                        }) {
-                            VStack(spacing: 12) {
-                                // Visual representation: Two devices with connection
-                                ZStack {
-                                    // iPad (stats device)
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.blue.opacity(0.2))
-                                        .frame(width: 60, height: 80)
-                                        .overlay(
-                                            VStack(spacing: 4) {
-                                                Image(systemName: "chart.bar.fill")
-                                                    .font(.title3)
-                                                    .foregroundColor(.blue)
-                                                Text("Stats")
-                                                    .font(.system(size: 8))
-                                                    .foregroundColor(.blue)
-                                            }
-                                        )
-                                        .offset(x: -40)
-
-                                    // Connection lines (animated feel)
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "arrow.left.arrow.right")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                    }
-
-                                    // iPhone (camera device)
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.red.opacity(0.2))
-                                        .frame(width: 60, height: 80)
-                                        .overlay(
-                                            VStack(spacing: 4) {
-                                                Image(systemName: "video.fill")
-                                                    .font(.title3)
-                                                    .foregroundColor(.red)
-                                                Text("Video")
-                                                    .font(.system(size: 8))
-                                                    .foregroundColor(.red)
-                                            }
-                                        )
-                                        .offset(x: 40)
-                                }
-                                .frame(height: 100)
-
-                                VStack(spacing: 4) {
-                                    Text("Stats + Recording")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    Text("Use two devices for video capture")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                            .padding(.horizontal, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.systemBackground))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.orange, lineWidth: 2)
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-
-                        // Single device option (stats only)
-                        Button(action: {
-                            setupMode = .singleDevice
+                        },
+                        onSelectSingleDevice: {
                             var updatedGame = liveGame
                             updatedGame.isMultiDeviceSetup = false
                             onStart(updatedGame)
-                        }) {
-                            VStack(spacing: 12) {
-                                // Visual representation: Single device
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.blue.opacity(0.2))
-                                    .frame(width: 80, height: 100)
-                                    .overlay(
-                                        VStack(spacing: 8) {
-                                            Image(systemName: "ipad")
-                                                .font(.largeTitle)
-                                                .foregroundColor(.blue)
-                                            Image(systemName: "chart.bar.fill")
-                                                .font(.title3)
-                                                .foregroundColor(.blue)
-                                        }
-                                    )
-
-                                VStack(spacing: 4) {
-                                    Text("Stats Only")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    Text("One device, no video recording")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                            .padding(.horizontal, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.systemBackground))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.blue, lineWidth: 2)
-                                    )
-                            )
                         }
-                        .buttonStyle(.plain)
-                    }
+                    )
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } header: {
