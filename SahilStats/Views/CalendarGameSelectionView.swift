@@ -17,10 +17,9 @@ struct CalendarGameSelectionView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @State private var showingCalendarPermission = false
-    @State private var showingGameConfirmation = false
     @State private var selectedCalendarGame: GameCalendarManager.CalendarGame?
-    @State private var editableGame: LiveGame?
-    @State private var showingQRCode = false
+    @State private var gameToConfirm: LiveGame?
+    @State private var gameForQRCode: LiveGame?
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -53,19 +52,15 @@ struct CalendarGameSelectionView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingGameConfirmation) {
-                if let game = editableGame {
-                    GameConfirmationView(
-                        liveGame: game,
-                        onStart: startGame,
-                        onCancel: { showingGameConfirmation = false }
-                    )
-                }
+            .sheet(item: $gameToConfirm) { game in
+                GameConfirmationView(
+                    liveGame: game,
+                    onStart: startGame,
+                    onCancel: { gameToConfirm = nil }
+                )
             }
-            .sheet(isPresented: $showingQRCode) {
-                if let game = editableGame {
-                    GameQRCodeDisplayView(liveGame: game)
-                }
+            .sheet(item: $gameForQRCode) { game in
+                GameQRCodeDisplayView(liveGame: game)
             }
         }
     }
@@ -226,12 +221,8 @@ struct CalendarGameSelectionView: View {
         // Create live game from calendar
         let liveGame = calendarManager.createLiveGameFromCalendar(calendarGame, settings: settings)
 
-        // Set editableGame first, then show the sheet on next run loop
-        // This ensures editableGame is set before the sheet tries to render
-        editableGame = liveGame
-        DispatchQueue.main.async {
-            self.showingGameConfirmation = true
-        }
+        // Using item binding ensures sheet only shows when game is fully set
+        gameToConfirm = liveGame
     }
 
     // Extract team name from calendar event title
@@ -303,14 +294,13 @@ struct CalendarGameSelectionView: View {
                 let gameId = try await firebaseService.createLiveGame(liveGame)
                 forcePrint("✅ Live game created with ID: \(gameId)")
 
-                // Update editableGame with the ID
+                // Update game with the ID
                 var gameWithId = liveGame
                 gameWithId.id = gameId
-                editableGame = gameWithId
 
                 // Dismiss confirmation
                 await MainActor.run {
-                    showingGameConfirmation = false
+                    gameToConfirm = nil
                 }
 
                 // Multi-device setup: Show QR code for camera phone to scan, then navigate
@@ -318,7 +308,7 @@ struct CalendarGameSelectionView: View {
                 if liveGame.isMultiDeviceSetup == true {
                     forcePrint("📱 Multi-device mode: Showing QR code")
                     await MainActor.run {
-                        showingQRCode = true
+                        gameForQRCode = gameWithId
                     }
                     // Navigation happens when user taps "Begin Game" in QR view
                 } else {
