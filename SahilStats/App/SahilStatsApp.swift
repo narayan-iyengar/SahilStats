@@ -31,6 +31,11 @@ struct SahilStatsApp: App {
         Task { @MainActor in
             MultipeerConnectivityManager.shared.startAutoConnectionIfNeeded()
         }
+
+        // Automatically clean up abandoned live games on app launch
+        Task {
+            await FirebaseService.shared.cleanupAbandonedLiveGames()
+        }
     }
     
     var body: some Scene {

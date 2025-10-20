@@ -508,7 +508,59 @@ class FirebaseService: ObservableObject {
 
         forcePrint("All live games deleted and device roles cleared")
     }
-    
+
+    /// Automatically clean up abandoned live games (older than 24 hours or already completed)
+    func cleanupAbandonedLiveGames() async {
+        do {
+            debugPrint("🧹 Starting automatic cleanup of abandoned live games...")
+
+            let liveGamesSnapshot = try await db.collection("liveGames").getDocuments()
+            let completedGamesSnapshot = try await db.collection("games").getDocuments()
+
+            let completedGameIds = Set(completedGamesSnapshot.documents.map { $0.documentID })
+            let now = Date()
+            let twentyFourHoursAgo = now.addingTimeInterval(-24 * 60 * 60)
+
+            var deletedCount = 0
+
+            for document in liveGamesSnapshot.documents {
+                let liveGameId = document.documentID
+                var shouldDelete = false
+                var reason = ""
+
+                // Check if this live game has already been completed (exists in games collection)
+                if completedGameIds.contains(liveGameId) {
+                    shouldDelete = true
+                    reason = "already completed"
+                } else {
+                    // Check if game is older than 24 hours
+                    if let createdAtTimestamp = document.data()["createdAt"] as? Timestamp {
+                        let createdAt = createdAtTimestamp.dateValue()
+                        if createdAt < twentyFourHoursAgo {
+                            shouldDelete = true
+                            reason = "older than 24 hours"
+                        }
+                    }
+                }
+
+                if shouldDelete {
+                    try await document.reference.delete()
+                    deletedCount += 1
+                    debugPrint("🗑️ Deleted abandoned live game \(liveGameId) (\(reason))")
+                }
+            }
+
+            if deletedCount > 0 {
+                forcePrint("✅ Cleanup complete: Deleted \(deletedCount) abandoned live game(s)")
+            } else {
+                debugPrint("✅ Cleanup complete: No abandoned games found")
+            }
+
+        } catch {
+            forcePrint("❌ Failed to cleanup abandoned live games: \(error)")
+        }
+    }
+
     // MARK: - Real-time Listeners
     
     private func setupGamesListener() {
