@@ -566,6 +566,11 @@ struct GameConfirmationView: View {
         )
     }
 
+    // Dynamic label based on game format
+    private var periodLabel: String {
+        liveGame.gameFormat == .quarters ? "Quarter Length" : "Half Length"
+    }
+
     var body: some View {
         NavigationView {
             Form {
@@ -598,7 +603,7 @@ struct GameConfirmationView: View {
                         Text("Halves").tag(GameFormat.halves)
                     }
 
-                    Stepper("Quarter Length: \(liveGame.quarterLength) min", value: $liveGame.quarterLength, in: 1...20)
+                    Stepper("\(periodLabel): \(liveGame.quarterLength) min", value: $liveGame.quarterLength, in: 1...60)
                 }
 
                 Section {
