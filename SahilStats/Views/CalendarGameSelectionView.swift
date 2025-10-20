@@ -638,7 +638,7 @@ struct GameConfirmationView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: onCancel) {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(isIPad ? .title2 : .title3)
                             .foregroundColor(.secondary)
                     }
