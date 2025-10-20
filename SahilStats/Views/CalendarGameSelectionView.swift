@@ -313,17 +313,21 @@ struct CalendarGameSelectionView: View {
                     showingGameConfirmation = false
                 }
 
-                // Multi-device setup: Show QR code for camera phone to scan
+                // Multi-device setup: Show QR code for camera phone to scan, then navigate
+                // Single-device setup: Go directly to live game
                 if liveGame.isMultiDeviceSetup == true {
+                    forcePrint("📱 Multi-device mode: Showing QR code")
                     await MainActor.run {
                         showingQRCode = true
                     }
-                }
-
-                // Navigate to controller view (stats phone)
-                await MainActor.run {
-                    navigation.currentFlow = .liveGame(gameWithId)
-                    dismiss()
+                    // Navigation happens when user taps "Begin Game" in QR view
+                } else {
+                    forcePrint("📱 Single-device mode: Going directly to live game")
+                    // Navigate directly to live game view (stats only, no recording)
+                    await MainActor.run {
+                        navigation.currentFlow = .liveGame(gameWithId)
+                        dismiss()
+                    }
                 }
 
             } catch {
