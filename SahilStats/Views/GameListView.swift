@@ -156,6 +156,14 @@ struct GameListView: View {
                             selectCalendarGame(game)
                         }
                     )
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button(action: {
+                            selectCalendarGame(game)
+                        }) {
+                            Label("Start", systemImage: "play.fill")
+                        }
+                        .tint(.orange)
+                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive, action: {
                             calendarManager.ignoreEvent(game.id)

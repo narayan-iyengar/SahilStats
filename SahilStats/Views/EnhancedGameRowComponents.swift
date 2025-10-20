@@ -101,6 +101,9 @@ struct EditableGameRowView: View {
         .contextMenu {
             contextMenuItems
         }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            swipeActionItems
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             swipeActionItems
         }
