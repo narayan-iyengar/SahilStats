@@ -166,8 +166,8 @@ struct GameListView: View {
                 }
             } header: {
                 Text("Upcoming Games")
-                    .font(isIPad ? .title2 : .headline)
-                    .fontWeight(.bold)
+                    .font(isIPad ? .largeTitle : .title2)
+                    .fontWeight(.heavy)
             }
             .listRowBackground(Color(.systemBackground))
         }
@@ -320,8 +320,8 @@ struct GamesSectionHeader: View {
     var body: some View {
         HStack {
             Text(filteredCount == totalCount ? "Recent Games" : "Filtered Games")
-                .font(isIPad ? .title2 : .headline)
-                .fontWeight(.bold)
+                .font(isIPad ? .largeTitle : .title2)
+                .fontWeight(.heavy)
             Spacer()
             if displayedCount < filteredCount {
                 Text("Showing \(displayedCount) of \(filteredCount)")
