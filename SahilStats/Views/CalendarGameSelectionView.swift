@@ -21,6 +21,8 @@ struct CalendarGameSelectionView: View {
     @State private var gameToConfirm: LiveGame?
     @State private var gameForQRCode: LiveGame?
     @State private var showingQRScanner = false
+    @State private var showingRoleSelection = false
+    @State private var pendingGameForRole: LiveGame?
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -65,6 +67,16 @@ struct CalendarGameSelectionView: View {
             }
             .fullScreenCover(isPresented: $showingQRScanner) {
                 QRCodeScannerView()
+            }
+            .sheet(isPresented: $showingRoleSelection) {
+                if let game = pendingGameForRole {
+                    MultiDeviceRoleSelectionView(
+                        liveGame: game,
+                        onRoleSelected: { role in
+                            handleRoleSelection(role, for: game)
+                        }
+                    )
+                }
             }
         }
     }
@@ -291,6 +303,24 @@ struct CalendarGameSelectionView: View {
         return firstWord.prefix(1).uppercased() + firstWord.dropFirst().lowercased()
     }
 
+    private func handleRoleSelection(_ role: DeviceRole, for game: LiveGame) {
+        let roleManager = DeviceRoleManager.shared
+        roleManager.setPreferredRole(role)
+
+        debugPrint("✅ User selected role: \(role.displayName)")
+
+        // Dismiss role selection
+        showingRoleSelection = false
+        pendingGameForRole = nil
+
+        // Now proceed based on selected role
+        if role == .controller {
+            gameForQRCode = game
+        } else if role == .recorder {
+            showingQRScanner = true
+        }
+    }
+
     private func startGame(_ liveGame: LiveGame) {
         debugPrint("🚀 startGame() called with isMultiDeviceSetup = \(liveGame.isMultiDeviceSetup ?? false)")
         debugPrint("🚀 Game: \(liveGame.teamName) vs \(liveGame.opponent)")
@@ -334,10 +364,11 @@ struct CalendarGameSelectionView: View {
                             showingQRScanner = true
                         }
                     } else {
-                        // No role set yet, default to controller behavior
-                        debugPrint("📱 No role set, defaulting to controller (show QR)")
+                        // No role set - ask user to select role
+                        debugPrint("📱 No role set, showing role selection")
                         await MainActor.run {
-                            gameForQRCode = gameWithId
+                            pendingGameForRole = gameWithId
+                            showingRoleSelection = true
                         }
                     }
                 } else {
@@ -688,6 +719,145 @@ struct PermissionBulletPoint: View {
                 .foregroundColor(.primary)
 
             Spacer()
+        }
+    }
+}
+
+// MARK: - Multi-Device Role Selection
+
+struct MultiDeviceRoleSelectionView: View {
+    let liveGame: LiveGame
+    let onRoleSelected: (DeviceRole) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
+    private var isIPad: Bool {
+        horizontalSizeClass == .regular
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 32) {
+                Spacer()
+
+                VStack(spacing: 16) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.orange)
+
+                    Text("Select Your Role")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+
+                    Text("\(liveGame.teamName) vs \(liveGame.opponent)")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+
+                    Text("Choose what this device will do during the game")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
+                VStack(spacing: 16) {
+                    // Controller role
+                    Button(action: {
+                        onRoleSelected(.controller)
+                        dismiss()
+                    }) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "gamecontroller.fill")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                                .frame(width: 40)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Controller")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                Text("Manage stats and display QR code")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(.regularMaterial)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    // Recorder role
+                    Button(action: {
+                        onRoleSelected(.recorder)
+                        dismiss()
+                    }) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "video.fill")
+                                .font(.title2)
+                                .foregroundColor(.red)
+                                .frame(width: 40)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Recorder")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                Text("Scan QR code and record video")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(.regularMaterial)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 40)
+
+                Spacer()
+
+                Text("Your choice will be remembered for future games")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom)
+            }
+            .padding()
+            .navigationTitle("Choose Role")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

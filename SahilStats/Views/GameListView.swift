@@ -592,10 +592,10 @@ extension GameListView {
                             showingQRScanner = true
                         }
                     } else {
-                        // No role set yet, default to controller behavior
-                        debugPrint("📱 No role set, defaulting to controller (show QR)")
+                        // No role set - show role selection sheet
+                        debugPrint("📱 No role set, showing role selection")
                         await MainActor.run {
-                            gameForQRCode = gameWithId
+                            showingRoleSelection = true
                         }
                     }
                 } else {
