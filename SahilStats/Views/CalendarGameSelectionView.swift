@@ -288,15 +288,15 @@ struct CalendarGameSelectionView: View {
     }
 
     private func startGame(_ liveGame: LiveGame) {
-        forcePrint("🚀 startGame() called with isMultiDeviceSetup = \(liveGame.isMultiDeviceSetup ?? false)")
-        forcePrint("🚀 Game: \(liveGame.teamName) vs \(liveGame.opponent)")
+        debugPrint("🚀 startGame() called with isMultiDeviceSetup = \(liveGame.isMultiDeviceSetup ?? false)")
+        debugPrint("🚀 Game: \(liveGame.teamName) vs \(liveGame.opponent)")
 
         Task {
             do {
                 // Create live game in Firebase
-                forcePrint("☁️ Creating live game in Firebase...")
+                debugPrint("☁️ Creating live game in Firebase...")
                 let gameId = try await firebaseService.createLiveGame(liveGame)
-                forcePrint("✅ Live game created with ID: \(gameId)")
+                debugPrint("✅ Live game created with ID: \(gameId)")
 
                 // Update game with the ID
                 var gameWithId = liveGame
@@ -307,26 +307,26 @@ struct CalendarGameSelectionView: View {
                     gameToConfirm = nil
                 }
 
-                forcePrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
+                debugPrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
 
                 // Multi-device setup: Show QR code for camera phone to scan, then navigate
                 // Single-device setup: Go directly to live game
                 if liveGame.isMultiDeviceSetup == true {
-                    forcePrint("📱 Multi-device mode: Showing QR code")
+                    debugPrint("📱 Multi-device mode: Showing QR code")
                     await MainActor.run {
                         gameForQRCode = gameWithId
                     }
-                    forcePrint("📱 QR code sheet should now be visible")
+                    debugPrint("📱 QR code sheet should now be visible")
                     // Navigation happens when user taps "Begin Game" in QR view
                 } else {
-                    forcePrint("📱 Single-device mode: Going directly to live game")
-                    forcePrint("📱 isMultiDeviceSetup value: \(liveGame.isMultiDeviceSetup.debugDescription)")
+                    debugPrint("📱 Single-device mode: Going directly to live game")
+                    debugPrint("📱 isMultiDeviceSetup value: \(liveGame.isMultiDeviceSetup.debugDescription)")
                     // Navigate directly to live game view (stats only, no recording)
                     await MainActor.run {
                         navigation.currentFlow = .liveGame(gameWithId)
                         dismiss()
                     }
-                    forcePrint("📱 Should have navigated to live game view")
+                    debugPrint("📱 Should have navigated to live game view")
                 }
 
             } catch {
@@ -604,19 +604,19 @@ struct GameConfirmationView: View {
                 Section {
                     GameSetupModeSelectionView(
                         onSelectMultiDevice: {
-                            forcePrint("🎮 USER SELECTED: Multi-Device (Stats + Recording)")
+                            debugPrint("🎮 USER SELECTED: Multi-Device (Stats + Recording)")
                             var updatedGame = liveGame
                             updatedGame.isMultiDeviceSetup = true
-                            forcePrint("🎮 Setting isMultiDeviceSetup = true")
-                            forcePrint("🎮 Game config: \(updatedGame.teamName) vs \(updatedGame.opponent), multiDevice=\(updatedGame.isMultiDeviceSetup ?? false)")
+                            debugPrint("🎮 Setting isMultiDeviceSetup = true")
+                            debugPrint("🎮 Game config: \(updatedGame.teamName) vs \(updatedGame.opponent), multiDevice=\(updatedGame.isMultiDeviceSetup ?? false)")
                             onStart(updatedGame)
                         },
                         onSelectSingleDevice: {
-                            forcePrint("🎮 USER SELECTED: Single-Device (Stats Only)")
+                            debugPrint("🎮 USER SELECTED: Single-Device (Stats Only)")
                             var updatedGame = liveGame
                             updatedGame.isMultiDeviceSetup = false
-                            forcePrint("🎮 Setting isMultiDeviceSetup = false")
-                            forcePrint("🎮 Game config: \(updatedGame.teamName) vs \(updatedGame.opponent), multiDevice=\(updatedGame.isMultiDeviceSetup ?? false)")
+                            debugPrint("🎮 Setting isMultiDeviceSetup = false")
+                            debugPrint("🎮 Game config: \(updatedGame.teamName) vs \(updatedGame.opponent), multiDevice=\(updatedGame.isMultiDeviceSetup ?? false)")
                             onStart(updatedGame)
                         }
                     )
