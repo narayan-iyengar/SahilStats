@@ -85,14 +85,14 @@ class GameCalendarManager: ObservableObject {
 
         // Load from Firebase in background
         Task {
-            forcePrint("🔄 Starting Firebase sync for ignored events...")
+            debugPrint("🔄 Starting Firebase sync for ignored events...")
             await loadIgnoredEventsFromFirebase()
         }
 
         // Listen for auth state changes to reload ignored events
         authStateListenerHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             if user != nil {
-                forcePrint("👤 User signed in - reloading ignored events from Firebase")
+                debugPrint("👤 User signed in - reloading ignored events from Firebase")
                 Task {
                     await self?.loadIgnoredEventsFromFirebase()
                 }
@@ -153,7 +153,7 @@ class GameCalendarManager: ObservableObject {
                 return granted
             }
         } catch {
-            forcePrint("❌ Calendar access request failed: \(error)")
+            debugPrint("❌ Calendar access request failed: \(error)")
             await MainActor.run {
                 self.hasCalendarAccess = false
             }
@@ -170,7 +170,7 @@ class GameCalendarManager: ObservableObject {
     func saveSelectedCalendars(_ calendarIdentifiers: [String]) {
         selectedCalendars = calendarIdentifiers
         userDefaults.set(calendarIdentifiers, forKey: selectedCalendarsKey)
-        forcePrint("✅ Saved selected calendars: \(calendarIdentifiers)")
+        debugPrint("✅ Saved selected calendars: \(calendarIdentifiers)")
         loadUpcomingGames()
     }
 
@@ -184,7 +184,7 @@ class GameCalendarManager: ObservableObject {
     func saveWeekendsOnlySetting(_ value: Bool) {
         weekendsOnly = value
         userDefaults.set(value, forKey: weekendsOnlyKey)
-        forcePrint("✅ Saved weekends-only setting: \(value)")
+        debugPrint("✅ Saved weekends-only setting: \(value)")
         loadUpcomingGames()
     }
 
@@ -205,14 +205,14 @@ class GameCalendarManager: ObservableObject {
         ignoredEventIds.insert(eventId)
         saveIgnoredEvents()
         loadUpcomingGames() // Refresh to remove ignored event
-        forcePrint("✅ Event ignored: \(eventId)")
+        debugPrint("✅ Event ignored: \(eventId)")
     }
 
     func unignoreEvent(_ eventId: String) {
         ignoredEventIds.remove(eventId)
         saveIgnoredEvents()
         loadUpcomingGames() // Refresh to show unignored event
-        forcePrint("✅ Event unignored: \(eventId)")
+        debugPrint("✅ Event unignored: \(eventId)")
     }
 
     private func loadIgnoredEventsFromLocal() {
@@ -224,43 +224,43 @@ class GameCalendarManager: ObservableObject {
 
     private func loadIgnoredEventsFromFirebase() async {
         guard let userId = userId else {
-            forcePrint("⚠️ No user ID - skipping Firebase load for ignored events")
+            debugPrint("⚠️ No user ID - skipping Firebase load for ignored events")
             return
         }
 
-        forcePrint("☁️ Loading ignored events from Firebase for user: \(userId)")
+        debugPrint("☁️ Loading ignored events from Firebase for user: \(userId)")
 
         do {
             let docRef = db.collection("users").document(userId).collection("calendar").document("ignoredEvents")
-            forcePrint("📡 Fetching document: users/\(userId)/calendar/ignoredEvents")
+            debugPrint("📡 Fetching document: users/\(userId)/calendar/ignoredEvents")
 
             let document = try await docRef.getDocument()
-            forcePrint("📄 Document exists: \(document.exists)")
+            debugPrint("📄 Document exists: \(document.exists)")
 
             if document.exists, let data = document.data() {
-                forcePrint("📊 Document data: \(data)")
+                debugPrint("📊 Document data: \(data)")
 
                 if let ignoredArray = data["eventIds"] as? [String] {
-                    forcePrint("✅ Found \(ignoredArray.count) ignored event ID(s): \(ignoredArray)")
+                    debugPrint("✅ Found \(ignoredArray.count) ignored event ID(s): \(ignoredArray)")
 
                     await MainActor.run {
                         self.ignoredEventIds = Set(ignoredArray)
                         // Also save to UserDefaults as cache
                         userDefaults.set(ignoredArray, forKey: ignoredEventsKey)
-                        forcePrint("☁️ Loaded \(ignoredArray.count) ignored event(s) from Firebase and saved to UserDefaults")
+                        debugPrint("☁️ Loaded \(ignoredArray.count) ignored event(s) from Firebase and saved to UserDefaults")
                         // Refresh games list to apply ignored events
                         loadUpcomingGames()
                     }
                 } else {
-                    forcePrint("⚠️ Document exists but 'eventIds' field is missing or wrong type")
+                    debugPrint("⚠️ Document exists but 'eventIds' field is missing or wrong type")
                 }
             } else {
-                forcePrint("📱 No ignored events document in Firebase - will save current local data")
+                debugPrint("📱 No ignored events document in Firebase - will save current local data")
                 // If nothing in Firebase, save current local state to Firebase
                 await saveIgnoredEventsToFirebase()
             }
         } catch {
-            forcePrint("❌ Failed to load ignored events from Firebase: \(error)")
+            debugPrint("❌ Failed to load ignored events from Firebase: \(error)")
         }
     }
 
@@ -278,7 +278,7 @@ class GameCalendarManager: ObservableObject {
 
     private func saveIgnoredEventsToFirebase() async {
         guard let userId = userId else {
-            forcePrint("⚠️ No user ID - skipping Firebase save for ignored events")
+            debugPrint("⚠️ No user ID - skipping Firebase save for ignored events")
             return
         }
 
@@ -286,17 +286,17 @@ class GameCalendarManager: ObservableObject {
             let array = Array(ignoredEventIds)
             let docRef = db.collection("users").document(userId).collection("calendar").document("ignoredEvents")
 
-            forcePrint("💾 Saving \(array.count) ignored event(s) to Firebase: \(array)")
-            forcePrint("📡 Saving to: users/\(userId)/calendar/ignoredEvents")
+            debugPrint("💾 Saving \(array.count) ignored event(s) to Firebase: \(array)")
+            debugPrint("📡 Saving to: users/\(userId)/calendar/ignoredEvents")
 
             try await docRef.setData([
                 "eventIds": array,
                 "lastUpdated": FieldValue.serverTimestamp()
             ])
 
-            forcePrint("✅ Successfully saved \(array.count) ignored event(s) to Firebase")
+            debugPrint("✅ Successfully saved \(array.count) ignored event(s) to Firebase")
         } catch {
-            forcePrint("❌ Failed to save ignored events to Firebase: \(error)")
+            debugPrint("❌ Failed to save ignored events to Firebase: \(error)")
         }
     }
 
@@ -359,7 +359,7 @@ class GameCalendarManager: ObservableObject {
             let eventTitle = event.title ?? "Untitled Event"
             let eventId = event.eventIdentifier ?? UUID().uuidString
 
-            forcePrint("🔍 Processing event: '\(eventTitle)'")
+            debugPrint("🔍 Processing event: '\(eventTitle)'")
 
             // Skip ignored events
             if ignoredEventIds.contains(eventId) {
@@ -375,7 +375,7 @@ class GameCalendarManager: ObservableObject {
 
             // Try to parse opponent, fallback to full title if parsing fails
             let opponent = parseOpponent(from: eventTitle) ?? extractTournamentOpponent(from: eventTitle) ?? eventTitle
-            forcePrint("   ➡️ Parsed opponent: '\(opponent)'")
+            debugPrint("   ➡️ Parsed opponent: '\(opponent)'")
 
             return CalendarGame(
                 id: eventId,
