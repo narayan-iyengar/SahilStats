@@ -104,13 +104,13 @@ struct CompleteGameDetailView: View {
                     Button(action: {
                         dismiss()
                     }) {
-                        // Use an HStack to combine the icon and text
-                        HStack {
+                        HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
+                                .font(.body)
+                                .fontWeight(.semibold)
                             Text("Back")
                         }
                     }
-                    .buttonStyle(ToolbarPillButtonStyle(isIPad: isIPad))
                 }
             }
         }
