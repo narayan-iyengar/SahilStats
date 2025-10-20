@@ -41,7 +41,7 @@ class GameQRCodeManager {
                 return nil
             }
 
-            return LiveGame(
+            var game = LiveGame(
                 teamName: teamName,
                 opponent: opponent,
                 location: location,
@@ -49,6 +49,8 @@ class GameQRCodeManager {
                 quarterLength: quarterLength,
                 isMultiDeviceSetup: true
             )
+            game.id = gameId  // Set the game ID from QR data
+            return game
         }
     }
 
