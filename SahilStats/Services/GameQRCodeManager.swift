@@ -181,6 +181,7 @@ struct GameQRCodeDisplayView: View {
     let liveGame: LiveGame
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var navigation = NavigationCoordinator.shared
+    @ObservedObject private var roleManager = DeviceRoleManager.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     private var isIPad: Bool { horizontalSizeClass == .regular }
@@ -258,8 +259,7 @@ struct GameQRCodeDisplayView: View {
 
                 // Begin Game button
                 Button(action: {
-                    dismiss()
-                    navigation.currentFlow = .liveGame(liveGame)
+                    beginGame()
                 }) {
                     Text("Begin Game")
                         .font(.headline)
@@ -283,5 +283,37 @@ struct GameQRCodeDisplayView: View {
 
     private func generateQRCodeSync() -> UIImage? {
         GameQRCodeManager.shared.generateQRCode(for: liveGame)
+    }
+
+    private func beginGame() {
+        Task {
+            do {
+                guard let gameId = liveGame.id else {
+                    forcePrint("❌ Cannot begin game - missing game ID")
+                    return
+                }
+
+                // Set device role as controller
+                try await roleManager.setDeviceRole(.controller, for: gameId)
+                debugPrint("✅ Controller role set, navigating to live game")
+
+                // Navigate to live game
+                await MainActor.run {
+                    navigation.markUserHasInteracted()
+                    navigation.userExplicitlyJoinedGame = true
+                    navigation.currentFlow = .liveGame(liveGame)
+                    dismiss()
+                }
+            } catch {
+                forcePrint("❌ Error setting device role: \(error)")
+                // Still navigate even if role setting fails
+                await MainActor.run {
+                    navigation.markUserHasInteracted()
+                    navigation.userExplicitlyJoinedGame = true
+                    navigation.currentFlow = .liveGame(liveGame)
+                    dismiss()
+                }
+            }
+        }
     }
 }
