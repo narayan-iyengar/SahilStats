@@ -279,6 +279,13 @@ struct GameQRCodeDisplayView: View {
                     .padding(.bottom, 20)
             }
         }
+        .onAppear {
+            // Controller has committed to the game flow by showing QR code
+            // Allow auto-navigation when recorder joins
+            navigation.markUserHasInteracted()
+            navigation.userExplicitlyJoinedGame = true
+            debugPrint("📱 Controller showing QR code - enabled auto-navigation")
+        }
     }
 
     private func generateQRCodeSync() -> UIImage? {
