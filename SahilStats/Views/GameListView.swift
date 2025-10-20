@@ -26,9 +26,8 @@ struct GameListView: View {
     @State private var deleteErrorMessage = ""
     @State private var showingQRScanner = false
     @State private var selectedCalendarGame: GameCalendarManager.CalendarGame?
-    @State private var editableGame: LiveGame?
-    @State private var showingGameConfirmation = false
-    @State private var showingQRCode = false
+    @State private var gameToConfirm: LiveGame?
+    @State private var gameForQRCode: LiveGame?
 
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -90,19 +89,15 @@ struct GameListView: View {
         .fullScreenCover(isPresented: $showingQRScanner) {
             QRCodeScannerView()
         }
-        .sheet(isPresented: $showingGameConfirmation) {
-            if let game = editableGame {
-                GameConfirmationView(
-                    liveGame: game,
-                    onStart: startGameFromCalendar,
-                    onCancel: { showingGameConfirmation = false }
-                )
-            }
+        .sheet(item: $gameToConfirm) { game in
+            GameConfirmationView(
+                liveGame: game,
+                onStart: startGameFromCalendar,
+                onCancel: { gameToConfirm = nil }
+            )
         }
-        .fullScreenCover(isPresented: $showingQRCode) {
-            if let game = editableGame {
-                GameQRCodeDisplayView(liveGame: game)
-            }
+        .fullScreenCover(item: $gameForQRCode) { game in
+            GameQRCodeDisplayView(liveGame: game)
         }
         .refreshable {
             try? await Task.sleep(nanoseconds: 500_000_000)
@@ -488,12 +483,8 @@ extension GameListView {
         // Create live game from calendar
         let liveGame = calendarManager.createLiveGameFromCalendar(calendarGame, settings: settings)
 
-        // Set editableGame first, then show the sheet on next run loop
-        // This ensures editableGame is set before the sheet tries to render
-        editableGame = liveGame
-        DispatchQueue.main.async {
-            self.showingGameConfirmation = true
-        }
+        // Set gameToConfirm to show the confirmation sheet
+        gameToConfirm = liveGame
     }
 
     // Extract team name from calendar event title
@@ -569,14 +560,13 @@ extension GameListView {
                 let gameId = try await firebaseService.createLiveGame(liveGame)
                 forcePrint("✅ Live game created from calendar: \(gameId)")
 
-                // Update editableGame with the ID
+                // Update game with the ID
                 var gameWithId = liveGame
                 gameWithId.id = gameId
-                editableGame = gameWithId
 
                 // Dismiss confirmation screen
                 await MainActor.run {
-                    showingGameConfirmation = false
+                    gameToConfirm = nil
                 }
 
                 debugPrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
@@ -586,7 +576,7 @@ extension GameListView {
                 if liveGame.isMultiDeviceSetup == true {
                     debugPrint("📱 Multi-device mode: Showing QR code")
                     await MainActor.run {
-                        showingQRCode = true
+                        gameForQRCode = gameWithId
                     }
                     debugPrint("📱 QR code sheet should now be visible")
                 } else {
