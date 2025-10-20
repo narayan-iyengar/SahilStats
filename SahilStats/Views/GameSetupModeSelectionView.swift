@@ -17,8 +17,8 @@ struct GameSetupModeSelectionView: View {
     }
 
     var body: some View {
-        // Side-by-side buttons with no header
-        HStack(spacing: isIPad ? 20 : 12) {
+        // Side-by-side buttons
+        HStack(spacing: isIPad ? 16 : 10) {
             // Multi-device option (with video)
             setupModeCard(
                 icon1: "chart.bar.fill",
@@ -47,7 +47,8 @@ struct GameSetupModeSelectionView: View {
                 action: onSelectSingleDevice
             )
         }
-        .padding(.horizontal, isIPad ? 24 : 16)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isIPad ? 16 : 12)
     }
 
     @ViewBuilder
@@ -116,20 +117,20 @@ struct GameSetupModeSelectionView: View {
 
                 VStack(spacing: isIPad ? 4 : 2) {
                     Text(title)
-                        .font(isIPad ? .headline : .subheadline)
+                        .font(isIPad ? .headline : .caption)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.7)
                     Text(subtitle)
-                        .font(isIPad ? .subheadline : .caption)
+                        .font(isIPad ? .subheadline : .caption2)
                         .foregroundColor(.secondary)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, isIPad ? 24 : 16)
-            .padding(.horizontal, isIPad ? 16 : 10)
+            .padding(.vertical, isIPad ? 20 : 12)
+            .padding(.horizontal, isIPad ? 12 : 6)
             .background(
                 RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
                     .fill(backgroundColor)
