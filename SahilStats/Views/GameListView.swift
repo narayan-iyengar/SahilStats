@@ -571,9 +571,13 @@ extension GameListView {
     }
 
     private func startGameFromCalendar(_ liveGame: LiveGame) {
+        debugPrint("🚀 startGameFromCalendar() called with isMultiDeviceSetup = \(liveGame.isMultiDeviceSetup ?? false)")
+        debugPrint("🚀 Game: \(liveGame.teamName) vs \(liveGame.opponent)")
+
         Task {
             do {
                 // Create live game in Firebase
+                debugPrint("☁️ Creating live game in Firebase...")
                 let gameId = try await firebaseService.createLiveGame(liveGame)
                 forcePrint("✅ Live game created from calendar: \(gameId)")
 
@@ -587,9 +591,24 @@ extension GameListView {
                     showingGameConfirmation = false
                 }
 
-                // Show QR code for camera phone to scan
-                await MainActor.run {
-                    showingQRCode = true
+                debugPrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
+
+                // Multi-device setup: Show QR code for camera phone to scan
+                // Single-device setup: Go directly to live game
+                if liveGame.isMultiDeviceSetup == true {
+                    debugPrint("📱 Multi-device mode: Showing QR code")
+                    await MainActor.run {
+                        showingQRCode = true
+                    }
+                    debugPrint("📱 QR code sheet should now be visible")
+                } else {
+                    debugPrint("📱 Single-device mode: Going directly to live game")
+                    debugPrint("📱 isMultiDeviceSetup value: \(liveGame.isMultiDeviceSetup.debugDescription)")
+                    // Navigate directly to live game view (stats only, no recording)
+                    await MainActor.run {
+                        navigation.currentFlow = .liveGame(gameWithId)
+                    }
+                    debugPrint("📱 Should have navigated to live game view")
                 }
             } catch {
                 forcePrint("❌ Failed to create game from calendar: \(error)")
