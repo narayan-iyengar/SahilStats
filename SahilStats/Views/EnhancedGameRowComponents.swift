@@ -325,21 +325,26 @@ struct EditableGameRowView: View {
     private var swipeActionItems: some View {
         if !isEditing {
             if canDelete {
-                Button("Delete", role: .destructive) {
+                Button(role: .destructive, action: {
                     onDelete()
+                }) {
+                    Label("Delete", systemImage: "trash.fill")
                 }
-                .tint(.red)
             }
-            
+
             if canEdit {
-                Button("Edit") {
+                Button(action: {
                     startEditing()
+                }) {
+                    Label("Edit", systemImage: "pencil")
                 }
                 .tint(.blue)
             }
-            
-            Button("Details") {
+
+            Button(action: {
                 onTap()
+            }) {
+                Label("Details", systemImage: "info.circle.fill")
             }
             .tint(.green)
         }
