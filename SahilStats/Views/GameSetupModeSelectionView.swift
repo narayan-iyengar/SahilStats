@@ -17,49 +17,37 @@ struct GameSetupModeSelectionView: View {
     }
 
     var body: some View {
-        VStack(spacing: isIPad ? 32 : 20) {
-            // Header
-            VStack(spacing: isIPad ? 12 : 8) {
-                Text("How do you want to set up?")
-                    .font(isIPad ? .title : .headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+        // Side-by-side buttons with no header
+        HStack(spacing: isIPad ? 20 : 12) {
+            // Multi-device option (with video)
+            setupModeCard(
+                icon1: "chart.bar.fill",
+                icon2: "video.fill",
+                color1: .blue,
+                color2: .red,
+                title: "Stats + Recording",
+                subtitle: "Two devices",
+                borderColor: .orange,
+                backgroundColor: Color.orange.opacity(0.05),
+                showConnectionArrows: true,
+                action: onSelectMultiDevice
+            )
 
-                Text("Choose your setup mode")
-                    .font(isIPad ? .body : .subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            // Side-by-side buttons
-            HStack(spacing: isIPad ? 24 : 16) {
-                // Multi-device option (with video)
-                setupModeCard(
-                    icon1: "chart.bar.fill",
-                    icon2: "video.fill",
-                    color1: .blue,
-                    color2: .red,
-                    title: "Stats + Recording",
-                    description: "Two devices",
-                    borderColor: .orange,
-                    showConnectionArrows: true,
-                    action: onSelectMultiDevice
-                )
-
-                // Single device option (stats only)
-                setupModeCard(
-                    icon1: "ipad",
-                    icon2: "chart.bar.fill",
-                    color1: .blue,
-                    color2: .blue,
-                    title: "Stats Only",
-                    description: "One device",
-                    borderColor: .blue,
-                    showConnectionArrows: false,
-                    action: onSelectSingleDevice
-                )
-            }
+            // Single device option (stats only)
+            setupModeCard(
+                icon1: "ipad",
+                icon2: "chart.bar.fill",
+                color1: .blue,
+                color2: .blue,
+                title: "Stats Only",
+                subtitle: "One device",
+                borderColor: .blue,
+                backgroundColor: Color.blue.opacity(0.05),
+                showConnectionArrows: false,
+                action: onSelectSingleDevice
+            )
         }
-        .padding(isIPad ? 32 : 16)
+        .padding(.horizontal, isIPad ? 24 : 16)
     }
 
     @ViewBuilder
@@ -69,83 +57,91 @@ struct GameSetupModeSelectionView: View {
         color1: Color,
         color2: Color,
         title: String,
-        description: String,
+        subtitle: String,
         borderColor: Color,
+        backgroundColor: Color,
         showConnectionArrows: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: isIPad ? 20 : 12) {
+            VStack(spacing: isIPad ? 16 : 10) {
                 if showConnectionArrows {
-                    // Multi-device: Two devices side by side
-                    HStack(spacing: isIPad ? 16 : 8) {
-                        deviceIcon(icon1, color: color1, label: "Stats")
-
-                        VStack(spacing: 2) {
-                            Image(systemName: "arrow.left.arrow.right")
-                                .font(isIPad ? .title3 : .caption)
-                                .foregroundColor(.orange)
+                    // Multi-device: Two devices side by side with connection
+                    HStack(spacing: isIPad ? 12 : 6) {
+                        // Stats device
+                        ZStack {
+                            RoundedRectangle(cornerRadius: isIPad ? 8 : 6)
+                                .fill(color1.opacity(0.2))
+                                .frame(width: isIPad ? 50 : 35, height: isIPad ? 65 : 45)
+                            Image(systemName: icon1)
+                                .font(isIPad ? .title2 : .body)
+                                .foregroundColor(color1)
                         }
 
-                        deviceIcon(icon2, color: color2, label: "Video")
+                        // Connection arrows
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(isIPad ? .title3 : .caption)
+                            .foregroundColor(.orange)
+                            .fontWeight(.semibold)
+
+                        // Video device
+                        ZStack {
+                            RoundedRectangle(cornerRadius: isIPad ? 8 : 6)
+                                .fill(color2.opacity(0.2))
+                                .frame(width: isIPad ? 50 : 35, height: isIPad ? 65 : 45)
+                            Image(systemName: icon2)
+                                .font(isIPad ? .title2 : .body)
+                                .foregroundColor(color2)
+                        }
                     }
-                    .frame(height: isIPad ? 100 : 70)
+                    .frame(height: isIPad ? 75 : 55)
                 } else {
-                    // Single device: Stacked icons
-                    VStack(spacing: isIPad ? 12 : 8) {
-                        Image(systemName: icon1)
-                            .font(isIPad ? .system(size: 50) : .system(size: 35))
-                            .foregroundColor(color1)
-                        Image(systemName: icon2)
-                            .font(isIPad ? .title : .title3)
-                            .foregroundColor(color2)
+                    // Single device: iPad with chart
+                    ZStack {
+                        RoundedRectangle(cornerRadius: isIPad ? 10 : 8)
+                            .fill(color1.opacity(0.2))
+                            .frame(width: isIPad ? 70 : 50, height: isIPad ? 90 : 65)
+
+                        VStack(spacing: isIPad ? 8 : 6) {
+                            Image(systemName: icon1)
+                                .font(isIPad ? .system(size: 35) : .title2)
+                                .foregroundColor(color1)
+                            Image(systemName: icon2)
+                                .font(isIPad ? .title3 : .caption)
+                                .foregroundColor(color2)
+                        }
                     }
-                    .frame(height: isIPad ? 100 : 70)
+                    .frame(height: isIPad ? 90 : 65)
                 }
 
-                VStack(spacing: isIPad ? 6 : 4) {
+                VStack(spacing: isIPad ? 4 : 2) {
                     Text(title)
-                        .font(isIPad ? .title2 : .body)
+                        .font(isIPad ? .headline : .subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
-                    Text(description)
-                        .font(isIPad ? .body : .caption)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.8)
+                    Text(subtitle)
+                        .font(isIPad ? .subheadline : .caption)
                         .foregroundColor(.secondary)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, isIPad ? 40 : 24)
-            .padding(.horizontal, isIPad ? 24 : 12)
+            .padding(.vertical, isIPad ? 24 : 16)
+            .padding(.horizontal, isIPad ? 16 : 10)
             .background(
-                RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
-                    .fill(Color(.systemBackground))
-                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                    .fill(backgroundColor)
                     .overlay(
-                        RoundedRectangle(cornerRadius: isIPad ? 20 : 16)
-                            .stroke(borderColor, lineWidth: isIPad ? 4 : 3)
+                        RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
+                            .stroke(borderColor, lineWidth: isIPad ? 3 : 2.5)
                     )
             )
         }
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
-    private func deviceIcon(_ systemName: String, color: Color, label: String) -> some View {
-        RoundedRectangle(cornerRadius: isIPad ? 10 : 8)
-            .fill(color.opacity(0.15))
-            .frame(width: isIPad ? 70 : 50, height: isIPad ? 90 : 65)
-            .overlay(
-                VStack(spacing: isIPad ? 6 : 4) {
-                    Image(systemName: systemName)
-                        .font(isIPad ? .title : .title3)
-                        .foregroundColor(color)
-                    Text(label)
-                        .font(.system(size: isIPad ? 12 : 9))
-                        .fontWeight(.semibold)
-                        .foregroundColor(color)
-                }
-            )
-    }
 }
 
 #Preview {
