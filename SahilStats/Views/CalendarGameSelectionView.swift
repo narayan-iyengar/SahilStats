@@ -637,8 +637,11 @@ struct GameConfirmationView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel", action: onCancel)
-                        .font(isIPad ? .body : .subheadline)
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(isIPad ? .title2 : .title3)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         }
