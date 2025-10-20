@@ -227,12 +227,17 @@ enum LiveGameError: Error {
 
 // MARK: - Connected Device Model
 
-struct ConnectedDevice: Codable, Identifiable {
+struct ConnectedDevice: Codable, Identifiable, Equatable {
     let id: String
     let role: DeviceRole
     let name: String
     let lastSeen: Date
     let isActive: Bool
+
+    // Equatable conformance
+    static func == (lhs: ConnectedDevice, rhs: ConnectedDevice) -> Bool {
+        return lhs.id == rhs.id && lhs.role == rhs.role && lhs.isActive == rhs.isActive
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, role, name, lastSeen, isActive
