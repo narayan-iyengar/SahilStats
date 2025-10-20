@@ -858,7 +858,7 @@ struct LiveGameStatusRow: View {
                 Image(systemName: "circle.fill")
                     .foregroundColor(.green)
                     .font(.caption)
-                Text("Live game active")
+                Text("\(firebaseService.liveGames.count) live game\(firebaseService.liveGames.count == 1 ? "" : "s") active")
                     .foregroundColor(.secondary)
             } else {
                 Image(systemName: "circle.fill")
@@ -870,12 +870,14 @@ struct LiveGameStatusRow: View {
 
             Spacer()
 
-            // Delete button
-            Button("Delete") {
-                showingDeleteAlert = true
+            // Delete button (only show if there are live games)
+            if firebaseService.hasLiveGame {
+                Button("Delete All") {
+                    showingDeleteAlert = true
+                }
+                .foregroundColor(.red)
+                .font(.subheadline)
             }
-            .foregroundColor(.red)
-            .font(.subheadline)
         }
         .alert("Delete Live Games", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) { }
@@ -883,7 +885,7 @@ struct LiveGameStatusRow: View {
                 deleteAllLiveGames()
             }
         } message: {
-            Text("Are you sure you want to delete all live games?")
+            Text("Are you sure you want to delete \(firebaseService.liveGames.count) live game\(firebaseService.liveGames.count == 1 ? "" : "s")?")
         }
         .onAppear {
             firebaseService.startListening()
