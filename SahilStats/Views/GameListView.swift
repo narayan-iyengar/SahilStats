@@ -24,7 +24,6 @@ struct GameListView: View {
     @State private var showingRoleSelection = false
     @State private var showingDeleteError = false
     @State private var deleteErrorMessage = ""
-    @State private var showingCalendarGames = false
     @State private var showingQRScanner = false
     @State private var selectedCalendarGame: GameCalendarManager.CalendarGame?
     @State private var editableGame: LiveGame?
@@ -87,10 +86,6 @@ struct GameListView: View {
             if let liveGame = firebaseService.getCurrentLiveGame() {
                 RoleSelectionSheet(liveGame: liveGame)
             }
-        }
-        .sheet(isPresented: $showingCalendarGames) {
-            CalendarGameSelectionView()
-                .environmentObject(authService)
         }
         .fullScreenCover(isPresented: $showingQRScanner) {
             QRCodeScannerView()
@@ -288,14 +283,7 @@ struct GameListView: View {
                 // New Game button with menu
                 if authService.canCreateGames {
                     Menu {
-                        // Calendar Games (NEW - Top priority!)
-                        Button(action: {
-                            showingCalendarGames = true
-                        }) {
-                            Label("Upcoming Games", systemImage: "calendar")
-                        }
-
-                        // QR Scanner (NEW - Easy pairing!)
+                        // QR Scanner (Easy pairing!)
                         Button(action: {
                             showingQRScanner = true
                         }) {
@@ -304,7 +292,7 @@ struct GameListView: View {
 
                         Divider()
 
-                        // Manual Setup (existing)
+                        // Manual Setup
                         Button(action: {
                             NavigationCoordinator.shared.markUserHasInteracted()
                             showingNewGame = true
