@@ -568,24 +568,8 @@ extension GameListView {
 
         Task {
             do {
-                // Create live game in Firebase
-                debugPrint("☁️ Creating live game in Firebase...")
-                let gameId = try await firebaseService.createLiveGame(liveGame)
-                forcePrint("✅ Live game created from calendar: \(gameId)")
-
-                // Update game with the ID
-                var gameWithId = liveGame
-                gameWithId.id = gameId
-
-                // Dismiss confirmation screen
-                await MainActor.run {
-                    gameToConfirm = nil
-                }
-
-                debugPrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
-
-                // Multi-device setup: Controller shows QR code, Recorder scans
-                // Single-device setup: Go directly to live game
+                // Multi-device setup: Controller creates game and shows QR, Recorder just scans
+                // Single-device setup: Create game and go directly to live game
                 if liveGame.isMultiDeviceSetup == true {
                     let roleManager = DeviceRoleManager.shared
                     let myRole = roleManager.preferredRole
@@ -593,36 +577,64 @@ extension GameListView {
                     debugPrint("📱 Multi-device mode: My role is \(myRole.displayName)")
 
                     if myRole == .controller {
-                        // Controller: Show QR code for recorder to scan
-                        debugPrint("📱 Controller: Showing QR code to display")
+                        // Controller: Create game and show QR code for recorder to scan
+                        debugPrint("📱 Controller: Creating game and showing QR code")
+                        debugPrint("☁️ Creating live game in Firebase...")
+                        let gameId = try await firebaseService.createLiveGame(liveGame)
+                        forcePrint("✅ Live game created from calendar: \(gameId)")
+
+                        // Update game with the ID
+                        var gameWithId = liveGame
+                        gameWithId.id = gameId
+
+                        // Dismiss confirmation screen and show QR code
                         await MainActor.run {
+                            gameToConfirm = nil
                             gameForQRCode = gameWithId
                         }
                     } else if myRole == .recorder {
-                        // Recorder: Open QR scanner to scan controller's QR code
-                        debugPrint("📱 Recorder: Opening QR scanner")
+                        // Recorder: DON'T create game - just open QR scanner to scan controller's game
+                        debugPrint("📱 Recorder: Opening QR scanner (will join controller's game)")
                         await MainActor.run {
+                            gameToConfirm = nil
                             showingQRScanner = true
                         }
                     } else {
-                        // No role set - show role selection sheet
-                        debugPrint("📱 No role set, showing role selection")
+                        // No role set - create game and show role selection sheet
+                        debugPrint("📱 No role set - creating game and showing role selection")
+                        debugPrint("☁️ Creating live game in Firebase...")
+                        let gameId = try await firebaseService.createLiveGame(liveGame)
+                        forcePrint("✅ Live game created from calendar: \(gameId)")
+
+                        var gameWithId = liveGame
+                        gameWithId.id = gameId
+
                         await MainActor.run {
+                            gameToConfirm = nil
                             showingRoleSelection = true
                         }
                     }
                 } else {
-                    debugPrint("📱 Single-device mode: Going directly to live game")
-                    debugPrint("📱 isMultiDeviceSetup value: \(liveGame.isMultiDeviceSetup.debugDescription)")
+                    // Single-device mode: Create game and go directly to live game
+                    debugPrint("📱 Single-device mode: Creating game and going to live game view")
+                    debugPrint("☁️ Creating live game in Firebase...")
+                    let gameId = try await firebaseService.createLiveGame(liveGame)
+                    forcePrint("✅ Live game created from calendar: \(gameId)")
+
+                    // Update game with the ID
+                    var gameWithId = liveGame
+                    gameWithId.id = gameId
+
                     // Navigate directly to live game view (stats only, no recording)
                     await MainActor.run {
+                        gameToConfirm = nil
                         navigation.currentFlow = .liveGame(gameWithId)
                     }
-                    debugPrint("📱 Should have navigated to live game view")
                 }
             } catch {
                 forcePrint("❌ Failed to create game from calendar: \(error)")
                 await MainActor.run {
+                    gameToConfirm = nil
                     deleteErrorMessage = "Failed to create game: \(error.localizedDescription)"
                     showingDeleteError = true
                 }

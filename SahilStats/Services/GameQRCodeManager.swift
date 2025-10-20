@@ -182,7 +182,9 @@ struct GameQRCodeDisplayView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var navigation = NavigationCoordinator.shared
     @ObservedObject private var roleManager = DeviceRoleManager.shared
+    @ObservedObject private var firebaseService = FirebaseService.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @State private var hasAutoNavigated = false
 
     private var isIPad: Bool { horizontalSizeClass == .regular }
 
@@ -281,10 +283,42 @@ struct GameQRCodeDisplayView: View {
         }
         .onAppear {
             // Controller has committed to the game flow by showing QR code
-            // Allow auto-navigation when recorder joins
+            // Set controller role immediately and allow auto-navigation when recorder joins
             navigation.markUserHasInteracted()
             navigation.userExplicitlyJoinedGame = true
-            debugPrint("📱 Controller showing QR code - enabled auto-navigation")
+            debugPrint("📱 Controller showing QR code - setting role and enabling auto-navigation")
+
+            // Set controller role immediately
+            if let gameId = liveGame.id {
+                Task {
+                    do {
+                        try await roleManager.setDeviceRole(.controller, for: gameId)
+                        debugPrint("✅ Controller role set for game: \(gameId)")
+                    } catch {
+                        forcePrint("❌ Failed to set controller role: \(error)")
+                    }
+                }
+            }
+        }
+        .onChange(of: firebaseService.liveGames) { oldGames, newGames in
+            // Auto-navigate when recorder joins
+            guard !hasAutoNavigated else { return }
+            guard let gameId = liveGame.id else { return }
+
+            // Find the current game in the updated list
+            if let updatedGame = newGames.first(where: { $0.id == gameId }) {
+                // Check if recorder role is now filled (someone joined as recorder)
+                let recorderRoleFilled = updatedGame.deviceRoles?.contains(where: { $0.value == "recorder" }) ?? false
+
+                if recorderRoleFilled {
+                    debugPrint("📱 QR Code: Recorder joined! Auto-navigating to live game...")
+                    hasAutoNavigated = true
+
+                    // Navigate to live game
+                    navigation.currentFlow = .liveGame(updatedGame)
+                    dismiss()
+                }
+            }
         }
     }
 
