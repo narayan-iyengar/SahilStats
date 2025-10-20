@@ -76,7 +76,7 @@ struct GameSetupView: View {
                     HStack {
                         Image(systemName: "pencil.and.list.clipboard")
                             .font(.title2)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.purple)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Enter Past Game Stats")
@@ -98,94 +98,45 @@ struct GameSetupView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Option 2: Live game tracking (single device)
-                Button(action: {
-                    isMultiDevice = false
-                    setupMode = .gameForm
-                }) {
-                    HStack {
-                        Image(systemName: "clock.badge.checkmark")
-                            .font(.title2)
-                            .foregroundColor(.green)
+                Divider()
+                    .padding(.vertical, 8)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Track Live Game")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("Track stats as the game happens")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                // Live game setup - Use new visual component
+                Text("Track Live Game")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Spacer()
+                GameSetupModeSelectionView(
+                    onSelectMultiDevice: {
+                        isMultiDevice = true
+                        NavigationCoordinator.shared.userExplicitlyJoinedGame = true
+                        NavigationCoordinator.shared.markUserHasInteracted()
 
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-
-                // Option 3: Multi-device session with video
-                Button(action: {
-                    isMultiDevice = true
-
-                    // Mark that user explicitly joined the game flow (enables auto-navigation)
-                    NavigationCoordinator.shared.userExplicitlyJoinedGame = true
-                    NavigationCoordinator.shared.markUserHasInteracted()
-
-                    // Check if already connected
-                    if multipeer.connectionState.isConnected {
-                        debugPrint("✅ Already connected, skipping waiting room")
-                        // Directly proceed based on role
-                        if roleManager.preferredRole == .controller {
-                            setupMode = .gameForm
+                        // Check if already connected
+                        if multipeer.connectionState.isConnected {
+                            debugPrint("✅ Already connected, skipping waiting room")
+                            if roleManager.preferredRole == .controller {
+                                setupMode = .gameForm
+                            } else {
+                                debugPrint("✅ Recorder ready. Navigating to waiting room...")
+                                NavigationCoordinator.shared.currentFlow = .waitingToRecord(nil)
+                            }
                         } else {
-                            // Recorder navigates to waiting room immediately
-                            debugPrint("✅ Recorder ready. Navigating to waiting room...")
-                            NavigationCoordinator.shared.currentFlow = .waitingToRecord(nil)
+                            debugPrint("🔍 Not connected, starting connection process")
+                            let role = roleManager.roleForAutoConnection
+                            multipeer.startSession(role: role)
+                            showingConnectionWaitingRoom = true
                         }
-                    } else {
-                        // Not connected, show waiting room and start scanning
-                        debugPrint("🔍 Not connected, starting connection process")
-                        let role = roleManager.roleForAutoConnection
-                        multipeer.startSession(role: role)
-                        showingConnectionWaitingRoom = true
+                    },
+                    onSelectSingleDevice: {
+                        isMultiDevice = false
+                        setupMode = .gameForm
                     }
-                }) {
-                    HStack {
-                        Image(systemName: "video.badge.plus")
-                            .font(.title2)
-                            .foregroundColor(.red)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Multi-Device with Video")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("Record game with multiple devices")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
+                )
             }
             .padding(.horizontal)
-
-            // Show current role preference for multi-device
-            Text("Multi-device role: \(roleManager.preferredRole.displayName)")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
         .padding()
     }
