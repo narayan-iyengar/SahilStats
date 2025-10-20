@@ -20,6 +20,7 @@ struct CalendarGameSelectionView: View {
     @State private var selectedCalendarGame: GameCalendarManager.CalendarGame?
     @State private var gameToConfirm: LiveGame?
     @State private var gameForQRCode: LiveGame?
+    @State private var showingQRScanner = false
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -59,8 +60,11 @@ struct CalendarGameSelectionView: View {
                     onCancel: { gameToConfirm = nil }
                 )
             }
-            .sheet(item: $gameForQRCode) { game in
+            .fullScreenCover(item: $gameForQRCode) { game in
                 GameQRCodeDisplayView(liveGame: game)
+            }
+            .fullScreenCover(isPresented: $showingQRScanner) {
+                QRCodeScannerView()
             }
         }
     }
@@ -309,15 +313,33 @@ struct CalendarGameSelectionView: View {
 
                 debugPrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
 
-                // Multi-device setup: Show QR code for camera phone to scan, then navigate
+                // Multi-device setup: Controller shows QR code, Recorder scans
                 // Single-device setup: Go directly to live game
                 if liveGame.isMultiDeviceSetup == true {
-                    debugPrint("📱 Multi-device mode: Showing QR code")
-                    await MainActor.run {
-                        gameForQRCode = gameWithId
+                    let roleManager = DeviceRoleManager.shared
+                    let myRole = roleManager.preferredRole
+
+                    debugPrint("📱 Multi-device mode: My role is \(myRole.displayName)")
+
+                    if myRole == .controller {
+                        // Controller: Show QR code for recorder to scan
+                        debugPrint("📱 Controller: Showing QR code to display")
+                        await MainActor.run {
+                            gameForQRCode = gameWithId
+                        }
+                    } else if myRole == .recorder {
+                        // Recorder: Open QR scanner to scan controller's QR code
+                        debugPrint("📱 Recorder: Opening QR scanner")
+                        await MainActor.run {
+                            showingQRScanner = true
+                        }
+                    } else {
+                        // No role set yet, default to controller behavior
+                        debugPrint("📱 No role set, defaulting to controller (show QR)")
+                        await MainActor.run {
+                            gameForQRCode = gameWithId
+                        }
                     }
-                    debugPrint("📱 QR code sheet should now be visible")
-                    // Navigation happens when user taps "Begin Game" in QR view
                 } else {
                     debugPrint("📱 Single-device mode: Going directly to live game")
                     debugPrint("📱 isMultiDeviceSetup value: \(liveGame.isMultiDeviceSetup.debugDescription)")

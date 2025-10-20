@@ -571,14 +571,33 @@ extension GameListView {
 
                 debugPrint("🔍 Checking isMultiDeviceSetup: \(liveGame.isMultiDeviceSetup ?? false)")
 
-                // Multi-device setup: Show QR code for camera phone to scan
+                // Multi-device setup: Controller shows QR code, Recorder scans
                 // Single-device setup: Go directly to live game
                 if liveGame.isMultiDeviceSetup == true {
-                    debugPrint("📱 Multi-device mode: Showing QR code")
-                    await MainActor.run {
-                        gameForQRCode = gameWithId
+                    let roleManager = DeviceRoleManager.shared
+                    let myRole = roleManager.preferredRole
+
+                    debugPrint("📱 Multi-device mode: My role is \(myRole.displayName)")
+
+                    if myRole == .controller {
+                        // Controller: Show QR code for recorder to scan
+                        debugPrint("📱 Controller: Showing QR code to display")
+                        await MainActor.run {
+                            gameForQRCode = gameWithId
+                        }
+                    } else if myRole == .recorder {
+                        // Recorder: Open QR scanner to scan controller's QR code
+                        debugPrint("📱 Recorder: Opening QR scanner")
+                        await MainActor.run {
+                            showingQRScanner = true
+                        }
+                    } else {
+                        // No role set yet, default to controller behavior
+                        debugPrint("📱 No role set, defaulting to controller (show QR)")
+                        await MainActor.run {
+                            gameForQRCode = gameWithId
+                        }
                     }
-                    debugPrint("📱 QR code sheet should now be visible")
                 } else {
                     debugPrint("📱 Single-device mode: Going directly to live game")
                     debugPrint("📱 isMultiDeviceSetup value: \(liveGame.isMultiDeviceSetup.debugDescription)")
