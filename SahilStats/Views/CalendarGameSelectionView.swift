@@ -481,32 +481,60 @@ struct CalendarGameCard: View {
     }
 
     private func extractTeamName(from title: String) -> String {
+        var rawTeamName = ""
+
         // Check for " - " pattern (tournament format)
         if let dashRange = title.range(of: " - ") {
             let teamPart = String(title[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespaces)
             if !teamPart.isEmpty {
-                return teamPart
+                rawTeamName = teamPart
             }
         }
 
         // Check for " at " pattern
-        if let atRange = title.range(of: " at ", options: .caseInsensitive) {
+        if rawTeamName.isEmpty, let atRange = title.range(of: " at ", options: .caseInsensitive) {
             let teamPart = String(title[..<atRange.lowerBound]).trimmingCharacters(in: .whitespaces)
             if !teamPart.isEmpty {
-                return teamPart
+                rawTeamName = teamPart
             }
         }
 
         // Check for " vs " pattern
-        if let vsRange = title.range(of: " vs ", options: .caseInsensitive) {
+        if rawTeamName.isEmpty, let vsRange = title.range(of: " vs ", options: .caseInsensitive) {
             let teamPart = String(title[..<vsRange.lowerBound]).trimmingCharacters(in: .whitespaces)
             if !teamPart.isEmpty {
-                return teamPart
+                rawTeamName = teamPart
             }
+        }
+
+        // Normalize team name for Firebase consistency before returning
+        if !rawTeamName.isEmpty {
+            return normalizeTeamName(rawTeamName)
         }
 
         // Fallback to a generic team name
         return "Team"
+    }
+
+    // Normalize team name for Firebase consistency
+    // "UNEQLD Boys 9/10U" → "Uneqld"
+    // "Elements AAU" → "Elements"
+    private func normalizeTeamName(_ rawName: String) -> String {
+        let upperRaw = rawName.uppercased()
+
+        // Check for UNEQLD variants
+        if upperRaw.hasPrefix("UNEQLD") {
+            return "Uneqld"
+        }
+
+        // Check for Elements variants
+        if upperRaw.hasPrefix("ELEMENTS") {
+            return "Elements"
+        }
+
+        // For other teams, take the first word and capitalize it properly
+        let firstWord = rawName.components(separatedBy: .whitespaces).first ?? rawName
+        return firstWord.prefix(1).uppercased() + firstWord.dropFirst().lowercased()
     }
 }
 
