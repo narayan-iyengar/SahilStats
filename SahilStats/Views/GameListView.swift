@@ -499,10 +499,13 @@ extension GameListView {
 
         // Create live game from calendar
         let liveGame = calendarManager.createLiveGameFromCalendar(calendarGame, settings: settings)
-        editableGame = liveGame
 
-        // Show confirmation screen (user can edit opponent, location, settings)
-        showingGameConfirmation = true
+        // Set editableGame first, then show the sheet on next run loop
+        // This ensures editableGame is set before the sheet tries to render
+        editableGame = liveGame
+        DispatchQueue.main.async {
+            self.showingGameConfirmation = true
+        }
     }
 
     // Extract team name from calendar event title
