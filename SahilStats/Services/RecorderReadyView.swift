@@ -32,28 +32,32 @@ struct RecorderReadyView: View {
             // Simple black background - no camera preview to avoid blocking/connection issues
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                Spacer()
-                
-                // Game Info Card (reusing design patterns)
-                gameInfoCard
-                
-                // Connection Status (reusing AdminStatusIndicator style)
-                connectionStatusCard
-                
-                // Recording Readiness Status
-                readinessStatusCard
-                
-                // System Status
-                systemStatusCard
-                
-                Spacer()
-                
-                // Emergency Exit (reusing DismissButton)
-                DismissButton(action: handleEmergencyExit)
-                    .padding(.bottom, 40)
+            ScrollView {
+                VStack(spacing: 32) {
+                    Spacer()
+                        .frame(height: 20)
+
+                    // Game Info Card (reusing design patterns)
+                    gameInfoCard
+
+                    // Connection Status (reusing AdminStatusIndicator style)
+                    connectionStatusCard
+
+                    // Recording Readiness Status
+                    readinessStatusCard
+
+                    // System Status
+                    systemStatusCard
+
+                    Spacer()
+                        .frame(height: 20)
+
+                    // Emergency Exit (reusing DismissButton)
+                    DismissButton(action: handleEmergencyExit)
+                        .padding(.bottom, 40)
+                }
+                .padding(24)
             }
-            .padding(24)
             
             // Fullscreen recording view when activated
             .fullScreenCover(isPresented: $showingRecordingView) {
