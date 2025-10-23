@@ -673,6 +673,14 @@ struct CleanVideoRecordingView: View {
                 debugPrint("⚠️ No recording to save")
             }
 
+            // CRITICAL: Stop camera session and cleanup timers before navigating away
+            debugPrint("🎥 Stopping camera session and cleaning up...")
+            self.recordingManager.stopCameraSession()
+            self.stopOverlayUpdateTimer()
+            self.stopLocalClockTimer()
+            self.cancelDimTimer()
+            debugPrint("✅ Camera session and timers stopped")
+
             debugPrint("🏠 Returning to dashboard...")
             self.navigation.returnToDashboard()
         }
