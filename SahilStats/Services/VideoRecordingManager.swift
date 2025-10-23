@@ -18,10 +18,6 @@ class VideoRecordingManager: NSObject, ObservableObject {
     static let shared = VideoRecordingManager()
 
     // MARK: - Feature Flags
-    /// Toggle between real-time overlay recording (Option 1) and post-processing (Option 2)
-    /// - Option 1 (true): Burns overlay directly into video during recording - guaranteed preview/video match
-    /// - Option 2 (false): Records clean video, adds overlay in post-processing - more stable multipeer connection
-    static var useRealTimeOverlay: Bool = false  // MUST stay false - real-time causes high CPU and connection issues
     static var useLetterboxPreview: Bool = true  // Use .resizeAspect (letterbox) instead of .resizeAspectFill for camera preview
 
     @Published var isRecording = false
@@ -42,7 +38,6 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
-    private var realtimeRecorder: RealTimeOverlayRecorder? // Real-time overlay recording
     private var recordingTimer: Timer?
     private var recordingStartTime: Date?
     private var _previewLayer: AVCaptureVideoPreviewLayer?
@@ -442,38 +437,15 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 }
             }
 
-            // Choose recording method based on feature flag
-            if Self.useRealTimeOverlay {
-                // OPTION 1: Use real-time overlay recorder (burns overlay during recording)
-                debugPrint("🎨 Setting up real-time overlay recorder (Option 1)...")
-                let recorder = RealTimeOverlayRecorder()
-                if recorder.setupOutputs(for: session) {
-                    self.realtimeRecorder = recorder
-                    debugPrint("✅ Real-time overlay recorder setup complete")
-                    debugPrint("   📹 Overlay will be burned into video during recording")
-                } else {
-                    forcePrint("❌ Failed to setup real-time recorder, falling back to post-processing")
-                    // Fallback to traditional recording
-                    let movieOutput = AVCaptureMovieFileOutput()
-                    if session.canAddOutput(movieOutput) {
-                        session.addOutput(movieOutput)
-                        self.videoOutput = movieOutput
-                        debugPrint("✅ Movie output added - will use post-processing")
-                    } else {
-                        forcePrint("❌ Failed to add movie output")
-                    }
-                }
+            // Setup traditional recording with post-processing overlay
+            debugPrint("🎬 Setting up video recording with post-processing overlay...")
+            let movieOutput = AVCaptureMovieFileOutput()
+            if session.canAddOutput(movieOutput) {
+                session.addOutput(movieOutput)
+                self.videoOutput = movieOutput
+                debugPrint("✅ Movie output added - will use post-processing overlay")
             } else {
-                // OPTION 2: Use traditional recording with post-processing overlay
-                debugPrint("🎬 Setting up traditional recording (Option 2 - post-processing)...")
-                let movieOutput = AVCaptureMovieFileOutput()
-                if session.canAddOutput(movieOutput) {
-                    session.addOutput(movieOutput)
-                    self.videoOutput = movieOutput
-                    debugPrint("✅ Movie output added - will use post-processing overlay")
-                } else {
-                    forcePrint("❌ Failed to add movie output")
-                }
+                forcePrint("❌ Failed to add movie output")
             }
             
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
@@ -546,8 +518,6 @@ class VideoRecordingManager: NSObject, ObservableObject {
     
     func startRecording(liveGame: LiveGame? = nil) async {
         debugPrint("🎥 VideoRecordingManager: startRecording() called")
-        debugPrint("   Feature flag: useRealTimeOverlay = \(Self.useRealTimeOverlay)")
-        debugPrint("   realtimeRecorder exists: \(realtimeRecorder != nil)")
         debugPrint("   videoOutput exists: \(videoOutput != nil)")
         debugPrint("   isRecording: \(isRecording)")
         debugPrint("   captureSession running: \(captureSession?.isRunning ?? false)")
@@ -569,34 +539,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
         self.outputURL = outputURL
         debugPrint("🎥 Recording to: \(outputURL)")
 
-        // Choose recording method based on feature flag
-        if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
-            // OPTION 1: Real-time overlay recording
-            debugPrint("🎨 Starting real-time overlay recording (Option 1)...")
-
-            if let recordingURL = recorder.startRecording(liveGame: game) {
-                // Update outputURL to match what recorder returned
-                self.outputURL = recordingURL
-
-                await MainActor.run {
-                    self.isRecording = true
-                    self.recordingStartTime = Date()
-                    self.startRecordingTimer()
-
-                    // Real-time recorder manages its own game state
-                    // No need for ScoreTimelineTracker
-
-                    // Update Live Activity (disabled via feature flag for recorder device)
-                    LiveActivityManager.shared.updateRecordingState(isRecording: true)
-                    debugPrint("✅ Real-time recording started - isRecording=true")
-                }
-            } else {
-                forcePrint("❌ Failed to start real-time recording")
-            }
-
-        } else if let videoOutput = videoOutput {
-            // OPTION 2: Traditional recording with post-processing
-            debugPrint("🎬 Starting traditional recording (Option 2 - post-processing)...")
+        // Start recording with post-processing overlay
+        if let videoOutput = videoOutput {
+            debugPrint("🎬 Starting video recording with post-processing overlay...")
 
             // Set video orientation and stabilization on recording connection
             if let connection = videoOutput.connection(with: .video) {
@@ -668,57 +613,27 @@ class VideoRecordingManager: NSObject, ObservableObject {
     }
 
     /// Update game data during recording
-    /// - Option 1: Feeds real-time recorder to update overlay immediately
-    /// - Option 2: Tracked in ScoreTimelineTracker for post-processing
+    /// Tracked in ScoreTimelineTracker for post-processing overlay
     func updateGameData(_ liveGame: LiveGame) {
-        if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
-            // OPTION 1: Update real-time recorder
-            recorder.updateGame(liveGame)
-            debugPrint("🎨 Real-time overlay updated with game data")
-        } else {
-            // OPTION 2: Track for post-processing
-            // Score timeline is automatically tracked by ScoreTimelineTracker
-            // No action needed here - GPU will handle overlay during export
-            debugPrint("📊 Game data tracked for post-processing")
-        }
+        // Score timeline is automatically tracked by ScoreTimelineTracker
+        // No action needed here - overlay will be added during post-processing
+        debugPrint("📊 Game data tracked for post-processing")
     }
 
-    /// Show end game banner with final score and winner
-    /// - Only works with real-time overlay recording (Option 1)
+    /// Show end game banner (no-op for post-processing mode)
+    /// End game banner would be added during post-processing if desired
     func showEndGameBanner(liveGame: LiveGame) {
-        if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
-            recorder.showEndGameBanner(game: liveGame)
-            debugPrint("🏆 End game banner shown in real-time recorder")
-        } else {
-            debugPrint("⚠️ End game banner not supported in post-processing mode")
-        }
+        debugPrint("⏭️ End game banner tracking (for post-processing)")
     }
 
     func stopRecording() async {
         guard isRecording else { return }
 
         debugPrint("🎥 Stopping recording...")
-        debugPrint("   Feature flag: useRealTimeOverlay = \(Self.useRealTimeOverlay)")
 
-        // Choose stop method based on feature flag
-        if Self.useRealTimeOverlay, let recorder = realtimeRecorder {
-            // OPTION 1: Stop real-time recording (async with completion)
-            debugPrint("🎨 Stopping real-time overlay recording (Option 1)...")
-
-            await withCheckedContinuation { continuation in
-                recorder.stopRecording { url in
-                    if let url = url {
-                        forcePrint("✅ Real-time recording saved to: \(url)")
-                        self.outputURL = url
-                    } else {
-                        forcePrint("❌ Real-time recording failed")
-                    }
-                    continuation.resume()
-                }
-            }
-        } else if let videoOutput = videoOutput {
-            // OPTION 2: Stop traditional recording
-            debugPrint("🎬 Stopping traditional recording (Option 2)...")
+        // Stop recording
+        if let videoOutput = videoOutput {
+            debugPrint("🎬 Stopping video recording...")
             videoOutput.stopRecording()
         }
 
@@ -1013,32 +928,22 @@ class VideoRecordingManager: NSObject, ObservableObject {
         // Save score timeline for future reference (only used in fallback mode)
         ScoreTimelineTracker.shared.saveTimeline(scoreTimeline, forGameId: gameId)
 
-        let compositedURL: URL
+        // Add overlay via GPU-accelerated post-processing
+        debugPrint("🎨 Adding GPU-accelerated overlay with Core Animation...")
 
-        // Choose post-processing based on feature flag
-        if Self.useRealTimeOverlay {
-            // OPTION 1: Real-time recording - overlay already burned in, skip post-processing
-            debugPrint("🎨 Using real-time recording (Option 1) - overlay already in video, skipping post-processing")
-            compositedURL = originalURL
-
-        } else {
-            // OPTION 2: Traditional recording - add overlay via post-processing
-            debugPrint("🎨 Adding GPU-accelerated overlay with Core Animation (Option 2 - post-processing)...")
-
-            compositedURL = await withCheckedContinuation { continuation in
-                HardwareAcceleratedOverlayCompositor.addAnimatedOverlay(
-                    to: originalURL,
-                    scoreTimeline: scoreTimeline
-                ) { result in
-                    switch result {
-                    case .success(let url):
-                        forcePrint("✅ GPU-accelerated overlay added successfully")
-                        continuation.resume(returning: url)
-                    case .failure(let error):
-                        forcePrint("❌ Overlay composition failed: \(error)")
-                        debugPrint("   Falling back to original video")
-                        continuation.resume(returning: originalURL)
-                    }
+        let compositedURL = await withCheckedContinuation { continuation in
+            HardwareAcceleratedOverlayCompositor.addAnimatedOverlay(
+                to: originalURL,
+                scoreTimeline: scoreTimeline
+            ) { result in
+                switch result {
+                case .success(let url):
+                    forcePrint("✅ GPU-accelerated overlay added successfully")
+                    continuation.resume(returning: url)
+                case .failure(let error):
+                    forcePrint("❌ Overlay composition failed: \(error)")
+                    debugPrint("   Falling back to original video")
+                    continuation.resume(returning: originalURL)
                 }
             }
         }

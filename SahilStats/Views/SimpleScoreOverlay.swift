@@ -15,10 +15,8 @@ struct SimpleScoreOverlay: View {
     let isRecording: Bool
 
     @State private var rotationAnimation = false
-    @State private var recordingProgress: CGFloat = 0
-    @State private var progressTimer: Timer?
     @State private var showZoomIndicator = false
-    @State private var zoomHideTimer: Timer?
+    @State private var cancellables = Set<AnyCancellable>()
 
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     
@@ -105,20 +103,23 @@ struct SimpleScoreOverlay: View {
                 }
 
                 // Cancel existing hide timer
-                zoomHideTimer?.invalidate()
+                cancellables.removeAll()
 
-                // Auto-hide after 1.5 seconds
-                zoomHideTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        showZoomIndicator = false
+                // Auto-hide after 1.5 seconds using Combine
+                Just(())
+                    .delay(for: .seconds(1.5), scheduler: RunLoop.main)
+                    .sink { [self] _ in
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showZoomIndicator = false
+                        }
                     }
-                }
+                    .store(in: &cancellables)
             } else if newValue == 1.0 {
                 // Hide immediately when returning to 1.0x
                 withAnimation(.easeOut(duration: 0.2)) {
                     showZoomIndicator = false
                 }
-                zoomHideTimer?.invalidate()
+                cancellables.removeAll()
             }
         }
     }
@@ -127,6 +128,30 @@ struct SimpleScoreOverlay: View {
     private var landscapeOverlay: some View {
         GeometryReader { geometry in
             ZStack {
+                // REC indicator at top-right when recording
+                if isRecording {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 8, height: 8)
+                                Text("REC")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(8)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(8)
+                            .padding(.top, 20)
+                            .padding(.trailing, 20)
+                        }
+                        Spacer()
+                    }
+                }
+
                 // Zoom indicator at top center (iOS Camera app style)
                 if showZoomIndicator {
                     VStack {
@@ -222,46 +247,6 @@ struct SimpleScoreOverlay: View {
             }
         )
         .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 2)
-        .shadow(color: isRecording ? Color.red.opacity(0.4 + (recordingProgress * 0.3)) : Color.clear, radius: isRecording ? 8 : 0, x: 0, y: 0)
-        .onAppear {
-            if isRecording {
-                startProgressTimer()
-            }
-        }
-        .onChange(of: isRecording) { _, newValue in
-            if newValue {
-                startProgressTimer()
-            } else {
-                stopProgressTimer()
-            }
-        }
-        .onDisappear {
-            stopProgressTimer()
-        }
-    }
-
-    // MARK: - Progress Timer Methods
-
-    private func startProgressTimer() {
-        recordingProgress = 0
-        progressTimer?.invalidate()
-
-        // Update progress every 0.1 seconds for smooth animation
-        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            // Increment progress - complete circle every 60 seconds
-            recordingProgress += 0.1 / 60.0
-
-            // Loop back to 0 when complete
-            if recordingProgress >= 1.0 {
-                recordingProgress = 0
-            }
-        }
-    }
-
-    private func stopProgressTimer() {
-        progressTimer?.invalidate()
-        progressTimer = nil
-        recordingProgress = 0
     }
 
     // MARK: - Portrait Prompt
