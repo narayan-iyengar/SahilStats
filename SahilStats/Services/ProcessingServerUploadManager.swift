@@ -1,15 +1,15 @@
 //
-//  NASUploadManager.swift
+//  ProcessingServerUploadManager.swift
 //  SahilStats
 //
-//  Manages uploads to NAS for video processing
+//  Manages uploads to processing server for video processing
 //
 
 import Foundation
 import Combine
 
-class NASUploadManager: ObservableObject {
-    static let shared = NASUploadManager()
+class ProcessingServerUploadManager: ObservableObject {
+    static let shared = ProcessingServerUploadManager()
 
     @Published var isUploading = false
     @Published var uploadProgress: Double = 0
@@ -24,14 +24,14 @@ class NASUploadManager: ObservableObject {
         let message: String
     }
 
-    /// Upload video and timeline to NAS for processing
-    func uploadToNAS(videoURL: URL, gameId: String) async throws -> UploadResponse {
-        guard !SettingsManager.shared.nasUploadURL.isEmpty else {
-            throw NSError(domain: "NAS URL not configured", code: -1)
+    /// Upload video and timeline to processing server
+    func uploadToServer(videoURL: URL, gameId: String) async throws -> UploadResponse {
+        guard !SettingsManager.shared.processingServerURL.isEmpty else {
+            throw NSError(domain: "Processing server URL not configured", code: -1)
         }
 
-        guard let nasURL = URL(string: "\(SettingsManager.shared.nasUploadURL)/upload") else {
-            throw NSError(domain: "Invalid NAS URL", code: -1)
+        guard let serverURL = URL(string: "\(SettingsManager.shared.processingServerURL)/upload") else {
+            throw NSError(domain: "Invalid server URL", code: -1)
         }
 
         // Load timeline JSON
@@ -45,14 +45,14 @@ class NASUploadManager: ObservableObject {
             lastError = nil
         }
 
-        debugPrint("📤 Uploading to NAS: \(nasURL.absoluteString)")
+        debugPrint("📤 Uploading to processing server: \(serverURL.absoluteString)")
         debugPrint("   Video: \(videoURL.lastPathComponent)")
         debugPrint("   Game: \(gameId)")
         debugPrint("   Timeline snapshots: \(timeline.count)")
 
         do {
             // Create multipart request
-            var request = URLRequest(url: nasURL)
+            var request = URLRequest(url: serverURL)
             request.httpMethod = "POST"
 
             let boundary = "Boundary-\(UUID().uuidString)"
@@ -74,14 +74,17 @@ class NASUploadManager: ObservableObject {
             body.append("Content-Disposition: form-data; name=\"game_id\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(gameId)\r\n".data(using: .utf8)!)
 
-            // Add timeline JSON
-            let timelineData = try JSONEncoder().encode([
-                "game_id": gameId,
-                "snapshots": timeline
-            ])
+            // Add timeline JSON - convert array to JSON string
+            let timelineJSON = try JSONSerialization.data(
+                withJSONObject: [
+                    "game_id": gameId,
+                    "snapshots": timeline
+                ],
+                options: []
+            )
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"timeline_json\"\r\n\r\n".data(using: .utf8)!)
-            body.append(timelineData)
+            body.append(timelineJSON)
             body.append("\r\n".data(using: .utf8)!)
 
             body.append("--\(boundary)--\r\n".data(using: .utf8)!)
@@ -107,7 +110,7 @@ class NASUploadManager: ObservableObject {
                 uploadProgress = 1.0
             }
 
-            forcePrint("✅ NAS upload successful!")
+            forcePrint("✅ Server upload successful!")
             forcePrint("   Video ID: \(uploadResponse.video_id)")
             forcePrint("   Job ID: \(uploadResponse.job_id)")
 
@@ -119,7 +122,7 @@ class NASUploadManager: ObservableObject {
                 uploadProgress = 0
                 lastError = error.localizedDescription
             }
-            forcePrint("❌ NAS upload failed: \(error)")
+            forcePrint("❌ Server upload failed: \(error)")
             throw error
         }
     }

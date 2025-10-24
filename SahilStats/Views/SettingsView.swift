@@ -69,8 +69,8 @@ struct SettingsView: View {
                         YouTubeSettingsView()
                     }
 
-                    NavigationLink("NAS Upload") {
-                        NASSettingsView()
+                    NavigationLink("Processing Server") {
+                        ProcessingServerSettingsView()
                     }
 
                     NavigationLink("Storage") {
@@ -93,7 +93,7 @@ struct SettingsView: View {
                                         .fontWeight(.semibold)
                                         .foregroundColor(.blue)
 
-                                    Text("Videos and timeline data will be saved after YouTube upload for NAS processing.")
+                                    Text("Videos and timeline data will be saved after YouTube upload for server processing.")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -237,7 +237,7 @@ class SettingsManager: ObservableObject {
         }
     }
 
-    @Published var nasUploadURL: String {
+    @Published var processingServerURL: String {
         didSet {
             saveSettings()
         }
@@ -278,7 +278,7 @@ class SettingsManager: ObservableObject {
             self.keepVideosAfterUpload = false
         }
 
-        self.nasUploadURL = UserDefaults.standard.string(forKey: "nasUploadURL") ?? ""
+        self.processingServerURL = UserDefaults.standard.string(forKey: "processingServerURL") ?? ""
 
         debugPrint("📱 Loaded settings from local cache")
 
@@ -356,9 +356,9 @@ class SettingsManager: ObservableObject {
                         UserDefaults.standard.set(keepVideos, forKey: "keepVideosAfterUpload")
                     }
 
-                    if let nasURL = data["nasUploadURL"] as? String {
-                        self.nasUploadURL = nasURL
-                        UserDefaults.standard.set(nasURL, forKey: "nasUploadURL")
+                    if let serverURL = data["processingServerURL"] as? String {
+                        self.processingServerURL = serverURL
+                        UserDefaults.standard.set(serverURL, forKey: "processingServerURL")
                     }
 
                     debugPrint("☁️ Loaded settings from Firebase")
@@ -383,7 +383,7 @@ class SettingsManager: ObservableObject {
         UserDefaults.standard.set(verboseLoggingEnabled, forKey: "verboseLoggingEnabled")
         UserDefaults.standard.set(betaFeaturesEnabled, forKey: "betaFeaturesEnabled")
         UserDefaults.standard.set(keepVideosAfterUpload, forKey: "keepVideosAfterUpload")
-        UserDefaults.standard.set(nasUploadURL, forKey: "nasUploadURL")
+        UserDefaults.standard.set(processingServerURL, forKey: "processingServerURL")
 
         // Save to Firebase in background
         Task {
@@ -409,7 +409,7 @@ class SettingsManager: ObservableObject {
                 "verboseLoggingEnabled": verboseLoggingEnabled,
                 "betaFeaturesEnabled": betaFeaturesEnabled,
                 "keepVideosAfterUpload": keepVideosAfterUpload,
-                "nasUploadURL": nasUploadURL
+                "processingServerURL": processingServerURL
             ], merge: true)
 
             debugPrint("☁️ Settings saved to Firebase")

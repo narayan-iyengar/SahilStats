@@ -40,10 +40,10 @@ struct CompleteGameDetailView: View {
     @State private var videoURLToPlay: URL?
     @State private var photosAssetIdToPlay: String?
 
-    // State for NAS upload
-    @State private var isUploadingToNAS = false
-    @State private var nasUploadSuccess = false
-    @State private var nasUploadError: String?
+    // State for server upload
+    @State private var isUploadingToServer = false
+    @State private var serverUploadSuccess = false
+    @State private var serverUploadError: String?
 
     // State for real-time updates
     @State private var gameListener: ListenerRegistration?
@@ -622,37 +622,37 @@ struct CompleteGameDetailView: View {
                 .cornerRadius(isIPad ? 16 : 12)
             }
 
-            // NAS Upload Button (show if video exists locally and NAS is configured)
-            if canUploadToNAS {
-                nasUploadButton
+            // Server Upload Button (show if video exists locally and server is configured)
+            if canUploadToServer {
+                serverUploadButton
             }
         }
     }
 
-    private var canUploadToNAS: Bool {
+    private var canUploadToServer: Bool {
         // Can upload if:
-        // 1. NAS URL is configured
+        // 1. Server URL is configured
         // 2. Video exists locally
         // 3. Timeline exists
-        guard !SettingsManager.shared.nasUploadURL.isEmpty else { return false }
+        guard !SettingsManager.shared.processingServerURL.isEmpty else { return false }
         guard let videoPath = findLocalVideo() else { return false }
         guard timelineExists() else { return false }
         return true
     }
 
-    private var nasUploadButton: some View {
+    private var serverUploadButton: some View {
         VStack(spacing: isIPad ? 12 : 8) {
-            Button(action: uploadToNAS) {
+            Button(action: uploadToServer) {
                 HStack(spacing: isIPad ? 16 : 12) {
                     ZStack {
                         RoundedRectangle(cornerRadius: isIPad ? 12 : 10)
-                            .fill(nasUploadSuccess ? Color.green : Color.cyan)
+                            .fill(serverUploadSuccess ? Color.green : Color.cyan)
                             .frame(width: isIPad ? 64 : 56, height: isIPad ? 64 : 56)
 
-                        if isUploadingToNAS {
+                        if isUploadingToServer {
                             ProgressView()
                                 .tint(.white)
-                        } else if nasUploadSuccess {
+                        } else if serverUploadSuccess {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(isIPad ? .title : .title2)
                                 .foregroundColor(.white)
@@ -664,21 +664,21 @@ struct CompleteGameDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(nasUploadSuccess ? "Uploaded to NAS" : "Upload to NAS")
+                        Text(serverUploadSuccess ? "Uploaded to Server" : "Upload to Server")
                             .font(isIPad ? .title3 : .body)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
 
-                        if isUploadingToNAS {
+                        if isUploadingToServer {
                             Text("Uploading video and timeline...")
                                 .font(isIPad ? .body : .caption)
                                 .foregroundColor(.secondary)
-                        } else if nasUploadSuccess {
-                            Text("Processing on NAS server")
+                        } else if serverUploadSuccess {
+                            Text("Processing on server")
                                 .font(isIPad ? .body : .caption)
                                 .foregroundColor(.secondary)
                         } else {
-                            Text("Send to NAS for processing")
+                            Text("Send to server for processing")
                                 .font(isIPad ? .body : .caption)
                                 .foregroundColor(.secondary)
                         }
@@ -686,24 +686,24 @@ struct CompleteGameDetailView: View {
 
                     Spacer()
 
-                    if !nasUploadSuccess {
+                    if !serverUploadSuccess {
                         Image(systemName: "chevron.right.circle.fill")
                             .font(isIPad ? .title2 : .title3)
                             .foregroundColor(.cyan)
                     }
                 }
                 .padding(isIPad ? 20 : 16)
-                .background((nasUploadSuccess ? Color.green : Color.cyan).opacity(0.1))
+                .background((serverUploadSuccess ? Color.green : Color.cyan).opacity(0.1))
                 .cornerRadius(isIPad ? 16 : 12)
                 .overlay(
                     RoundedRectangle(cornerRadius: isIPad ? 16 : 12)
-                        .stroke((nasUploadSuccess ? Color.green : Color.cyan).opacity(0.3), lineWidth: 2)
+                        .stroke((serverUploadSuccess ? Color.green : Color.cyan).opacity(0.3), lineWidth: 2)
                 )
             }
             .buttonStyle(.plain)
-            .disabled(isUploadingToNAS || nasUploadSuccess)
+            .disabled(isUploadingToServer || serverUploadSuccess)
 
-            if let error = nasUploadError {
+            if let error = serverUploadError {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.red)
@@ -718,33 +718,33 @@ struct CompleteGameDetailView: View {
         }
     }
 
-    private func uploadToNAS() {
+    private func uploadToServer() {
         guard let videoPath = findLocalVideo() else {
-            nasUploadError = "Video file not found"
+            serverUploadError = "Video file not found"
             return
         }
 
-        isUploadingToNAS = true
-        nasUploadError = nil
+        isUploadingToServer = true
+        serverUploadError = nil
 
         Task {
             do {
                 let videoURL = URL(fileURLWithPath: videoPath)
-                let response = try await NASUploadManager.shared.uploadToNAS(
+                let response = try await ProcessingServerUploadManager.shared.uploadToServer(
                     videoURL: videoURL,
                     gameId: game.id
                 )
 
                 await MainActor.run {
-                    isUploadingToNAS = false
-                    nasUploadSuccess = true
-                    forcePrint("✅ NAS upload successful: \(response.message)")
+                    isUploadingToServer = false
+                    serverUploadSuccess = true
+                    forcePrint("✅ Server upload successful: \(response.message)")
                 }
             } catch {
                 await MainActor.run {
-                    isUploadingToNAS = false
-                    nasUploadError = error.localizedDescription
-                    forcePrint("❌ NAS upload failed: \(error)")
+                    isUploadingToServer = false
+                    serverUploadError = error.localizedDescription
+                    forcePrint("❌ Server upload failed: \(error)")
                 }
             }
         }

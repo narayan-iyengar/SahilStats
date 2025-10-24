@@ -1,13 +1,13 @@
 //
-//  NASSettingsView.swift
+//  ProcessingServerSettingsView.swift
 //  SahilStats
 //
-//  NAS upload configuration
+//  Processing server upload configuration
 //
 
 import SwiftUI
 
-struct NASSettingsView: View {
+struct ProcessingServerSettingsView: View {
     @ObservedObject private var settingsManager = SettingsManager.shared
     @State private var testingConnection = false
     @State private var testResult: String?
@@ -16,25 +16,29 @@ struct NASSettingsView: View {
     var body: some View {
         Form {
             Section {
-                TextField("NAS URL", text: $settingsManager.nasUploadURL)
+                TextField("Server URL", text: $settingsManager.processingServerURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                    .placeholder(when: settingsManager.nasUploadURL.isEmpty) {
-                        Text("http://192.168.1.x:8000")
+                    .placeholder(when: settingsManager.processingServerURL.isEmpty) {
+                        Text("http://192.168.0.101:8000")
                             .foregroundColor(.secondary)
                     }
             } header: {
-                Text("Upload Endpoint")
+                Text("Server Endpoint")
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Enter the URL of your NAS API endpoint.")
+                    Text("Enter the URL of your processing server API.")
                         .font(.caption)
 
                     Text("Examples:")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .padding(.top, 4)
+
+                    Text("• MacBook Pro: http://192.168.0.101:8000")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
                     Text("• Mac Mini: http://192.168.1.100:8000")
                         .font(.caption)
@@ -60,7 +64,7 @@ struct NASSettingsView: View {
                         }
                     }
                 }
-                .disabled(settingsManager.nasUploadURL.isEmpty || testingConnection)
+                .disabled(settingsManager.processingServerURL.isEmpty || testingConnection)
             } header: {
                 Text("Connection")
             } footer: {
@@ -84,9 +88,9 @@ struct NASSettingsView: View {
 
                             Text("1. Record your game on iPhone")
                             Text("2. Video uploads to YouTube automatically")
-                            Text("3. Tap 'Upload to NAS' button")
-                            Text("4. NAS processes video with professional overlays")
-                            Text("5. Get final video back!")
+                            Text("3. Tap 'Upload to Server' button in game details")
+                            Text("4. Server processes video with professional overlays")
+                            Text("5. Get your final video back!")
                         }
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -95,19 +99,19 @@ struct NASSettingsView: View {
                 .listRowBackground(Color.blue.opacity(0.1))
             }
         }
-        .navigationTitle("NAS Upload")
+        .navigationTitle("Processing Server")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func testConnection() {
-        guard !settingsManager.nasUploadURL.isEmpty else { return }
+        guard !settingsManager.processingServerURL.isEmpty else { return }
 
         testingConnection = true
         testResult = nil
 
         Task {
             do {
-                guard let url = URL(string: "\(settingsManager.nasUploadURL)/health") else {
+                guard let url = URL(string: "\(settingsManager.processingServerURL)/health") else {
                     throw NSError(domain: "Invalid URL", code: -1)
                 }
 
@@ -146,6 +150,6 @@ extension View {
 
 #Preview {
     NavigationView {
-        NASSettingsView()
+        ProcessingServerSettingsView()
     }
 }
