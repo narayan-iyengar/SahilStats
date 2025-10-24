@@ -724,6 +724,11 @@ struct CompleteGameDetailView: View {
             return
         }
 
+        guard let gameId = game.id else {
+            serverUploadError = "Game ID not found"
+            return
+        }
+
         isUploadingToServer = true
         serverUploadError = nil
 
@@ -732,7 +737,7 @@ struct CompleteGameDetailView: View {
                 let videoURL = URL(fileURLWithPath: videoPath)
                 let response = try await ProcessingServerUploadManager.shared.uploadToServer(
                     videoURL: videoURL,
-                    gameId: game.id
+                    gameId: gameId
                 )
 
                 await MainActor.run {
@@ -762,8 +767,9 @@ struct CompleteGameDetailView: View {
     }
 
     private func timelineExists() -> Bool {
+        guard let gameId = game.id else { return false }
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let timelineURL = documentsPath.appendingPathComponent("timeline_\(game.id).json")
+        let timelineURL = documentsPath.appendingPathComponent("timeline_\(gameId).json")
         return FileManager.default.fileExists(atPath: timelineURL.path())
     }
 
