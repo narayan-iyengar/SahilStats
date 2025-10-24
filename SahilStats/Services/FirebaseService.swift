@@ -479,7 +479,14 @@ class FirebaseService: ObservableObject {
     func deleteTeam(_ teamId: String) async throws {
         try await db.collection("teams").document(teamId).delete()
     }
-    
+
+    func updateTeam(_ team: Team) async throws {
+        guard let teamId = team.id else {
+            throw NSError(domain: "FirebaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Team ID is missing"])
+        }
+        try db.collection("teams").document(teamId).setData(from: team)
+    }
+
     // MARK: - Live Games
     
     func createLiveGame(_ liveGame: LiveGame) async throws -> String {

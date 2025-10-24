@@ -13,6 +13,8 @@ struct TeamsSettingsView: View {
     @State private var newTeamName = ""
     @State private var showingDeleteAlert = false
     @State private var teamToDelete: Team?
+    @State private var editingTeam: Team?
+    @State private var editingTeamName = ""
     
     var body: some View {
         List {
@@ -40,14 +42,44 @@ struct TeamsSettingsView: View {
                 } else {
                     ForEach(firebaseService.teams) { team in
                         HStack {
-                            Text(team.name)
+                            if editingTeam?.id == team.id {
+                                TextField("Team name", text: $editingTeamName)
+                                    .textFieldStyle(.roundedBorder)
+                            } else {
+                                Text(team.name)
+                            }
+
                             Spacer()
-                            Button(action: {
-                                teamToDelete = team
-                                showingDeleteAlert = true
-                            }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
+
+                            if editingTeam?.id == team.id {
+                                Button("Save") {
+                                    saveTeamEdit(team)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
+                                .controlSize(.small)
+                                .disabled(editingTeamName.isEmpty)
+
+                                Button("Cancel") {
+                                    cancelEdit()
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            } else {
+                                Button(action: {
+                                    startEditing(team)
+                                }) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(.blue)
+                                }
+
+                                Button(action: {
+                                    teamToDelete = team
+                                    showingDeleteAlert = true
+                                }) {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
                             }
                         }
                     }
@@ -96,6 +128,32 @@ struct TeamsSettingsView: View {
                 try await firebaseService.deleteTeam(team.id ?? "")
             } catch {
                 debugPrint("Failed to delete team: \(error)")
+            }
+        }
+    }
+
+    private func startEditing(_ team: Team) {
+        editingTeam = team
+        editingTeamName = team.name
+    }
+
+    private func cancelEdit() {
+        editingTeam = nil
+        editingTeamName = ""
+    }
+
+    private func saveTeamEdit(_ team: Team) {
+        guard !editingTeamName.isEmpty else { return }
+        var updatedTeam = team
+        updatedTeam.name = editingTeamName
+
+        Task {
+            do {
+                try await firebaseService.updateTeam(updatedTeam)
+                editingTeam = nil
+                editingTeamName = ""
+            } catch {
+                debugPrint("Failed to update team: \(error)")
             }
         }
     }
