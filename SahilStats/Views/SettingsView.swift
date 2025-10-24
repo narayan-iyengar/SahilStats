@@ -39,25 +39,7 @@ struct SettingsView: View {
                 }
             }
             
-            // Beta Features
-            Section {
-                Toggle("Enable Beta Features", isOn: $settingsManager.betaFeaturesEnabled)
-                    .toggleStyle(SwitchToggleStyle(tint: .orange))
-            } header: {
-                Text("Beta")
-            } footer: {
-                Text("Access experimental features that are still in development. These features may be unstable.")
-                    .font(.caption)
-            }
-
-            // Beta Features (only shown when beta toggle is ON)
-            if settingsManager.betaFeaturesEnabled {
-                Section("Beta Features") {
-                    NavigationLink("AI Stats PoC") {
-                        VideoPOCView()
-                    }
-                }
-            }
+            // Removed Beta Features - pivoting to NAS-based processing
 
             // Admin Features
             if authService.showAdminFeatures {
@@ -85,6 +67,10 @@ struct SettingsView: View {
 
                     NavigationLink("YouTube") {
                         YouTubeSettingsView()
+                    }
+
+                    NavigationLink("NAS Upload") {
+                        NASSettingsView()
                     }
 
                     NavigationLink("Storage") {
@@ -251,6 +237,12 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var nasUploadURL: String {
+        didSet {
+            saveSettings()
+        }
+    }
+
     private var userId: String?
 
     private init() {
@@ -285,6 +277,8 @@ class SettingsManager: ObservableObject {
         } else {
             self.keepVideosAfterUpload = false
         }
+
+        self.nasUploadURL = UserDefaults.standard.string(forKey: "nasUploadURL") ?? ""
 
         debugPrint("📱 Loaded settings from local cache")
 
@@ -362,6 +356,11 @@ class SettingsManager: ObservableObject {
                         UserDefaults.standard.set(keepVideos, forKey: "keepVideosAfterUpload")
                     }
 
+                    if let nasURL = data["nasUploadURL"] as? String {
+                        self.nasUploadURL = nasURL
+                        UserDefaults.standard.set(nasURL, forKey: "nasUploadURL")
+                    }
+
                     debugPrint("☁️ Loaded settings from Firebase")
                 }
             } else {
@@ -384,6 +383,7 @@ class SettingsManager: ObservableObject {
         UserDefaults.standard.set(verboseLoggingEnabled, forKey: "verboseLoggingEnabled")
         UserDefaults.standard.set(betaFeaturesEnabled, forKey: "betaFeaturesEnabled")
         UserDefaults.standard.set(keepVideosAfterUpload, forKey: "keepVideosAfterUpload")
+        UserDefaults.standard.set(nasUploadURL, forKey: "nasUploadURL")
 
         // Save to Firebase in background
         Task {
@@ -408,7 +408,8 @@ class SettingsManager: ObservableObject {
                 "verboseConnectionLogging": verboseConnectionLogging,
                 "verboseLoggingEnabled": verboseLoggingEnabled,
                 "betaFeaturesEnabled": betaFeaturesEnabled,
-                "keepVideosAfterUpload": keepVideosAfterUpload
+                "keepVideosAfterUpload": keepVideosAfterUpload,
+                "nasUploadURL": nasUploadURL
             ], merge: true)
 
             debugPrint("☁️ Settings saved to Firebase")
