@@ -716,7 +716,7 @@ struct GameConfirmationView: View {
                 }
             }
             .onChange(of: locationManager.locationName) { _, newLocation in
-                if let newLocation = newLocation {
+                if !newLocation.isEmpty {
                     liveGame.location = newLocation
                 }
             }
