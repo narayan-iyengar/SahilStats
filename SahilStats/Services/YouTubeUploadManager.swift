@@ -479,14 +479,19 @@ class YouTubeUploadManager: ObservableObject {
     private func completeUpload(_ upload: PendingUpload, success: Bool) {
         if success {
             debugPrint("✅ Upload completed: \(upload.title)")
-            
+
             // Remove from pending uploads
             if let index = pendingUploads.firstIndex(where: { $0.id == upload.id }) {
                 pendingUploads.remove(at: index)
             }
-            
-            // Optionally delete local file
-            deleteLocalVideo(upload.videoURL)
+
+            // Optionally delete local file (only if user hasn't enabled "Keep Videos After Upload")
+            if !SettingsManager.shared.keepVideosAfterUpload {
+                debugPrint("🗑️ Deleting video after successful upload (Keep Videos is OFF)")
+                deleteLocalVideo(upload.videoURL)
+            } else {
+                debugPrint("💾 Preserving video after upload (Keep Videos is ON) - available for NAS upload")
+            }
         } else {
             forcePrint("❌ Upload failed: \(upload.title)")
         }

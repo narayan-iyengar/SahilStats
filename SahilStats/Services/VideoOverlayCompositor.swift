@@ -176,9 +176,13 @@ class VideoOverlayCompositor {
 
             debugPrint("✅ Video export completed successfully")
 
-            // Delete original video to save space
-            try? FileManager.default.removeItem(at: videoURL)
-            debugPrint("🗑️ Deleted original video (without overlay)")
+            // Delete original video to save space (only if user hasn't enabled "Keep Videos After Upload")
+            if !SettingsManager.shared.keepVideosAfterUpload {
+                try? FileManager.default.removeItem(at: videoURL)
+                debugPrint("🗑️ Deleted original video (without overlay)")
+            } else {
+                debugPrint("💾 Preserving original raw video (Keep Videos is ON)")
+            }
 
             DispatchQueue.main.async {
                 completion(.success(outputURL))
