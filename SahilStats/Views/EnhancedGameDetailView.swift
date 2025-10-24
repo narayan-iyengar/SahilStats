@@ -635,7 +635,7 @@ struct CompleteGameDetailView: View {
         // 2. Video exists locally
         // 3. Timeline exists
         guard !SettingsManager.shared.processingServerURL.isEmpty else { return false }
-        guard let videoPath = findLocalVideo() else { return false }
+        guard findLocalVideo() != nil else { return false }
         guard timelineExists() else { return false }
         return true
     }
@@ -764,7 +764,7 @@ struct CompleteGameDetailView: View {
     private func timelineExists() -> Bool {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let timelineURL = documentsPath.appendingPathComponent("timeline_\(game.id).json")
-        return FileManager.default.fileExists(atPath: timelineURL.path)
+        return FileManager.default.fileExists(atPath: timelineURL.path())
     }
 
     private func playLocalVideo(path: String) {

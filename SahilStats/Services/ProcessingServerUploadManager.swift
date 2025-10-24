@@ -75,11 +75,12 @@ class ProcessingServerUploadManager: ObservableObject {
             body.append("\(gameId)\r\n".data(using: .utf8)!)
 
             // Add timeline JSON - convert array to JSON string
+            let timelineDict: [String: Any] = [
+                "game_id": gameId,
+                "snapshots": timeline
+            ]
             let timelineJSON = try JSONSerialization.data(
-                withJSONObject: [
-                    "game_id": gameId,
-                    "snapshots": timeline
-                ],
+                withJSONObject: timelineDict,
                 options: []
             )
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
