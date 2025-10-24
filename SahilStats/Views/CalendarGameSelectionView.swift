@@ -606,6 +606,8 @@ struct GameConfirmationView: View {
     let onStart: (LiveGame) -> Void
     let onCancel: () -> Void
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @ObservedObject private var locationManager = LocationManager.shared
+    @State private var showLocationPermissionAlert = false
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -645,8 +647,24 @@ struct GameConfirmationView: View {
                     HStack {
                         Text("Location")
                         Spacer()
-                        TextField("Court/Gym", text: locationBinding)
-                            .multilineTextAlignment(.trailing)
+                        HStack {
+                            TextField("Court/Gym", text: locationBinding)
+                                .multilineTextAlignment(.trailing)
+
+                            Button(action: {
+                                locationManager.requestLocation()
+                            }) {
+                                if locationManager.isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                } else {
+                                    Image(systemName: "location.fill")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(locationManager.isLoading)
+                        }
                     }
                 }
 
@@ -696,6 +714,21 @@ struct GameConfirmationView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+            }
+            .onChange(of: locationManager.locationName) { _, newLocation in
+                if let newLocation = newLocation {
+                    liveGame.location = newLocation
+                }
+            }
+            .alert("Location Permission Required", isPresented: $showLocationPermissionAlert) {
+                Button("Settings") {
+                    if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(settingsURL)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Please enable location services in Settings to use this feature.")
             }
         }
     }
