@@ -7,6 +7,7 @@ import MultipeerConnectivity
 
 struct CleanVideoRecordingView: View {
     let liveGame: LiveGame
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var recordingManager = VideoRecordingManager.shared
     @StateObject private var orientationManager = OrientationManager()
     @ObservedObject private var navigation = NavigationCoordinator.shared
@@ -673,7 +674,7 @@ struct CleanVideoRecordingView: View {
                 debugPrint("⚠️ No recording to save")
             }
 
-            // CRITICAL: Stop camera session and cleanup timers before navigating away
+            // CRITICAL: Stop camera session and cleanup timers before dismissing
             debugPrint("🎥 Stopping camera session and cleaning up...")
             self.recordingManager.stopCameraSession()
             self.stopOverlayUpdateTimer()
@@ -681,7 +682,8 @@ struct CleanVideoRecordingView: View {
             self.cancelDimTimer()
             debugPrint("✅ Camera session and timers stopped")
 
-            debugPrint("🏠 Returning to dashboard...")
+            debugPrint("🏠 Dismissing recording view...")
+            self.dismiss()
             self.navigation.returnToDashboard()
         }
     }
