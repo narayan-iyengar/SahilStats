@@ -10,8 +10,9 @@ struct Game: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var teamName: String
     var opponent: String
-    var teamId: String?  // Reference to Team document
+    var teamId: String?  // Reference to Team document (YOUR team)
     var opponentId: String?  // Reference to opponent Team document (if tracked)
+    var opponentLogoURL: String?  // Logo for opponent (if not using opponentId)
     var season: String?  // e.g., "2024-25" or "Fall 2024"
     var location: String?
     //var timestamp: Date
@@ -73,7 +74,7 @@ struct Game: Identifiable, Codable, Equatable {
     
     // Custom coding keys for date handling
     enum CodingKeys: String, CodingKey {
-        case teamName, opponent, teamId, opponentId, season, location, timestamp, gameFormat, quarterLength, numQuarter, status
+        case teamName, opponent, teamId, opponentId, opponentLogoURL, season, location, timestamp, gameFormat, quarterLength, numQuarter, status
         case myTeamScore, opponentScore, outcome
         case points, fg2m, fg2a, fg3m, fg3a, ftm, fta, rebounds, assists, steals, blocks, fouls, turnovers
         case createdAt, adminName, editedAt, editedBy, achievements
@@ -100,6 +101,7 @@ struct Game: Identifiable, Codable, Equatable {
         opponent = try container.decode(String.self, forKey: .opponent)
         teamId = try container.decodeIfPresent(String.self, forKey: .teamId)
         opponentId = try container.decodeIfPresent(String.self, forKey: .opponentId)
+        opponentLogoURL = try container.decodeIfPresent(String.self, forKey: .opponentLogoURL)
         season = try container.decodeIfPresent(String.self, forKey: .season)
         location = try container.decodeIfPresent(String.self, forKey: .location)
         
@@ -488,6 +490,10 @@ extension Game {
             data["opponentId"] = opponentId
         }
 
+        if let opponentLogoURL = opponentLogoURL {
+            data["opponentLogoURL"] = opponentLogoURL
+        }
+
         if let season = season {
             data["season"] = season
         }
@@ -828,8 +834,9 @@ struct LiveGame: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var teamName: String
     var opponent: String
-    var teamId: String?  // Reference to Team document
+    var teamId: String?  // Reference to Team document (YOUR team)
     var opponentId: String?  // Reference to opponent Team document (if tracked)
+    var opponentLogoURL: String?  // Logo for opponent (if not using opponentId)
     var season: String?  // e.g., "2024-25" or "Fall 2024"
     var location: String?
     var gameFormat: GameFormat
@@ -942,11 +949,12 @@ struct LiveGame: Identifiable, Codable, Equatable {
         gameFormat == .halves ? "Half" : "Quarter"
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil, isMultiDeviceSetup: Bool = false, teamId: String? = nil, opponentId: String? = nil, season: String? = nil) {
+    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil, isMultiDeviceSetup: Bool = false, teamId: String? = nil, opponentId: String? = nil, opponentLogoURL: String? = nil, season: String? = nil) {
         self.teamName = teamName
         self.opponent = opponent
         self.teamId = teamId
         self.opponentId = opponentId
+        self.opponentLogoURL = opponentLogoURL
         self.season = season
         self.location = location
         self.gameFormat = gameFormat
@@ -1110,6 +1118,7 @@ extension LiveGame {
         self.opponent = data["opponent"] as? String ?? ""
         self.teamId = data["teamId"] as? String
         self.opponentId = data["opponentId"] as? String
+        self.opponentLogoURL = data["opponentLogoURL"] as? String
         self.season = data["season"] as? String
         self.location = data["location"] as? String
         self.gameFormat = GameFormat(rawValue: data["gameFormat"] as? String ?? "halves") ?? .halves
@@ -1203,6 +1212,10 @@ extension LiveGame {
 
         if let opponentId = opponentId {
             data["opponentId"] = opponentId
+        }
+
+        if let opponentLogoURL = opponentLogoURL {
+            data["opponentLogoURL"] = opponentLogoURL
         }
 
         if let season = season {
