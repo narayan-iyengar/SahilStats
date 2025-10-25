@@ -66,19 +66,27 @@ struct TeamsSettingsView: View {
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                             } else {
-                                Button(action: {
-                                    startEditing(team)
-                                }) {
-                                    Image(systemName: "pencil")
-                                        .foregroundColor(.blue)
-                                }
+                                HStack(spacing: 16) {
+                                    Button(action: {
+                                        startEditing(team)
+                                    }) {
+                                        Label("Edit", systemImage: "pencil")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.blue)
+                                    .controlSize(.small)
 
-                                Button(action: {
-                                    teamToDelete = team
-                                    showingDeleteAlert = true
-                                }) {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.red)
+                                    Button(action: {
+                                        teamToDelete = team
+                                        showingDeleteAlert = true
+                                    }) {
+                                        Label("Delete", systemImage: "trash")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.red)
+                                    .controlSize(.small)
                                 }
                             }
                         }
