@@ -485,13 +485,9 @@ class YouTubeUploadManager: ObservableObject {
                 pendingUploads.remove(at: index)
             }
 
-            // Optionally delete local file (only if user hasn't enabled "Keep Videos After Upload")
-            if !SettingsManager.shared.keepVideosAfterUpload {
-                debugPrint("🗑️ Deleting video after successful upload (Keep Videos is OFF)")
-                deleteLocalVideo(upload.videoURL)
-            } else {
-                debugPrint("💾 Preserving video after upload (Keep Videos is ON) - available for NAS upload")
-            }
+            // Delete local file after successful YouTube upload
+            debugPrint("🗑️ Deleting video after successful upload")
+            deleteLocalVideo(upload.videoURL)
         } else {
             forcePrint("❌ Upload failed: \(upload.title)")
         }

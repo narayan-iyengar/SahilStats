@@ -70,34 +70,6 @@ struct SettingsView: View {
                     NavigationLink("Storage") {
                         StorageSettingsView()
                     }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Keep Videos After Upload", isOn: $settingsManager.keepVideosAfterUpload)
-                            .toggleStyle(SwitchToggleStyle(tint: .orange))
-
-                        if settingsManager.keepVideosAfterUpload {
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: "info.circle.fill")
-                                    .foregroundColor(.blue)
-                                    .font(.caption)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Videos Preserved")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.blue)
-
-                                    Text("Videos and timeline data will be saved after YouTube upload for server processing.")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            .padding(8)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                    }
                 }
                 
                 Section {
@@ -225,12 +197,6 @@ class SettingsManager: ObservableObject {
         }
     }
 
-    @Published var keepVideosAfterUpload: Bool {
-        didSet {
-            saveSettings()
-        }
-    }
-
     @Published var processingServerURL: String {
         didSet {
             saveSettings()
@@ -264,13 +230,6 @@ class SettingsManager: ObservableObject {
         self.verboseConnectionLogging = UserDefaults.standard.bool(forKey: "verboseConnectionLogging")
         self.verboseLoggingEnabled = UserDefaults.standard.bool(forKey: "verboseLoggingEnabled")
         self.betaFeaturesEnabled = UserDefaults.standard.bool(forKey: "betaFeaturesEnabled")
-
-        // Default to false (delete videos as before) until user opts in to keep them
-        if let keepVideos = UserDefaults.standard.object(forKey: "keepVideosAfterUpload") as? Bool {
-            self.keepVideosAfterUpload = keepVideos
-        } else {
-            self.keepVideosAfterUpload = false
-        }
 
         self.processingServerURL = UserDefaults.standard.string(forKey: "processingServerURL") ?? ""
 
@@ -345,11 +304,6 @@ class SettingsManager: ObservableObject {
                         UserDefaults.standard.set(betaEnabled, forKey: "betaFeaturesEnabled")
                     }
 
-                    if let keepVideos = data["keepVideosAfterUpload"] as? Bool {
-                        self.keepVideosAfterUpload = keepVideos
-                        UserDefaults.standard.set(keepVideos, forKey: "keepVideosAfterUpload")
-                    }
-
                     if let serverURL = data["processingServerURL"] as? String {
                         self.processingServerURL = serverURL
                         UserDefaults.standard.set(serverURL, forKey: "processingServerURL")
@@ -376,7 +330,6 @@ class SettingsManager: ObservableObject {
         UserDefaults.standard.set(verboseConnectionLogging, forKey: "verboseConnectionLogging")
         UserDefaults.standard.set(verboseLoggingEnabled, forKey: "verboseLoggingEnabled")
         UserDefaults.standard.set(betaFeaturesEnabled, forKey: "betaFeaturesEnabled")
-        UserDefaults.standard.set(keepVideosAfterUpload, forKey: "keepVideosAfterUpload")
         UserDefaults.standard.set(processingServerURL, forKey: "processingServerURL")
 
         // Save to Firebase in background
@@ -402,7 +355,6 @@ class SettingsManager: ObservableObject {
                 "verboseConnectionLogging": verboseConnectionLogging,
                 "verboseLoggingEnabled": verboseLoggingEnabled,
                 "betaFeaturesEnabled": betaFeaturesEnabled,
-                "keepVideosAfterUpload": keepVideosAfterUpload,
                 "processingServerURL": processingServerURL
             ], merge: true)
 
