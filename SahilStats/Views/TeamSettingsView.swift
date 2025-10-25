@@ -186,15 +186,12 @@ struct TeamsSettingsView: View {
         .background(
             PHPickerWrapper(
                 isPresented: $showPhotoPicker,
-                onImageSelected: { image in
-                    guard let team = teamForLogoUpload else {
-                        debugPrint("⚠️ Image selected but no team set")
-                        return
-                    }
-
-                    debugPrint("🎯 Image selected for team: \(team.name) (id: \(team.id ?? "nil"))")
+                teamId: teamForLogoUpload?.id,
+                teamName: teamForLogoUpload?.name,
+                onImageSelected: { image, teamId, teamName in
+                    debugPrint("🎯 Image loaded for team: \(teamName) (id: \(teamId))")
                     Task {
-                        await handleLogoSelection(for: team, image: image)
+                        await handleLogoSelection(image: image, teamId: teamId, teamName: teamName)
                     }
                 }
             )
@@ -277,15 +274,9 @@ struct TeamsSettingsView: View {
         }
     }
 
-    private func handleLogoSelection(for team: Team, image: UIImage) async {
-        guard let teamId = team.id else {
-            debugPrint("❌ Missing team ID for logo upload")
-            teamForLogoUpload = nil
-            return
-        }
-
+    private func handleLogoSelection(image: UIImage, teamId: String, teamName: String) async {
         do {
-            debugPrint("📸 Starting logo upload for team: \(team.name) (id: \(teamId))")
+            debugPrint("📸 Starting logo upload for team: \(teamName) (id: \(teamId))")
             debugPrint("✅ UIImage: \(image.size.width)×\(image.size.height)")
 
             // Upload to Firebase Storage
@@ -294,7 +285,11 @@ struct TeamsSettingsView: View {
 
             debugPrint("✅ Upload complete! URL: \(downloadURL)")
 
-            // Update team with logo URL
+            // Find and update the team
+            guard let team = firebaseService.teams.first(where: { $0.id == teamId }) else {
+                throw NSError(domain: "TeamSettings", code: 3, userInfo: [NSLocalizedDescriptionKey: "Team not found in local cache"])
+            }
+
             var updatedTeam = team
             updatedTeam.logoURL = downloadURL
 
