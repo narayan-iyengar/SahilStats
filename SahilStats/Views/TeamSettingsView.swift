@@ -19,6 +19,8 @@ struct TeamsSettingsView: View {
     @State private var editingTeamName = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var teamForLogoUpload: Team?
+    @State private var uploadError: String?
+    @State private var showingUploadError = false
     
     var body: some View {
         List {
@@ -181,6 +183,15 @@ struct TeamsSettingsView: View {
                 Text("Are you sure you want to delete \(team.name)? This action cannot be undone.")
             }
         }
+        .alert("Upload Failed", isPresented: $showingUploadError) {
+            Button("OK", role: .cancel) {
+                uploadError = nil
+            }
+        } message: {
+            if let error = uploadError {
+                Text(error)
+            }
+        }
         .onAppear {
             firebaseService.startListening()
         }
@@ -239,36 +250,56 @@ struct TeamsSettingsView: View {
         guard let photoItem = selectedPhotoItem,
               let team = teamForLogoUpload,
               let teamId = team.id else {
+            debugPrint("❌ Missing required data for logo upload")
+            debugPrint("   photoItem: \(selectedPhotoItem != nil)")
+            debugPrint("   team: \(teamForLogoUpload?.name ?? "nil")")
+            debugPrint("   teamId: \(teamForLogoUpload?.id ?? "nil")")
             return
         }
 
         do {
+            debugPrint("📸 Starting logo upload for team: \(team.name) (id: \(teamId))")
+
             // Load image from PhotosPicker
-            guard let imageData = try await photoItem.loadTransferable(type: Data.self),
-                  let image = UIImage(data: imageData) else {
-                debugPrint("❌ Failed to load image from photo picker")
-                return
+            guard let imageData = try await photoItem.loadTransferable(type: Data.self) else {
+                throw NSError(domain: "TeamSettings", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data from photo picker"])
             }
 
-            debugPrint("📸 Image selected, uploading for team: \(team.name)")
+            debugPrint("✅ Image data loaded: \(imageData.count) bytes")
+
+            guard let image = UIImage(data: imageData) else {
+                throw NSError(domain: "TeamSettings", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create UIImage from data"])
+            }
+
+            debugPrint("✅ UIImage created: \(image.size.width)×\(image.size.height)")
 
             // Upload to Firebase Storage
+            debugPrint("📤 Uploading to Firebase Storage...")
             let downloadURL = try await logoUploadManager.uploadTeamLogo(image, teamId: teamId)
+
+            debugPrint("✅ Upload complete! URL: \(downloadURL)")
 
             // Update team with logo URL
             var updatedTeam = team
             updatedTeam.logoURL = downloadURL
 
+            debugPrint("💾 Updating team in Firestore...")
             try await firebaseService.updateTeam(updatedTeam)
 
-            debugPrint("✅ Team logo updated successfully")
+            debugPrint("✅ Team logo updated successfully in Firestore")
 
             // Reset state
             selectedPhotoItem = nil
             teamForLogoUpload = nil
 
         } catch {
-            debugPrint("❌ Logo upload failed: \(error.localizedDescription)")
+            debugPrint("❌ Logo upload failed: \(error)")
+            debugPrint("   Error description: \(error.localizedDescription)")
+
+            // Show error to user
+            uploadError = "Failed to upload logo: \(error.localizedDescription)"
+            showingUploadError = true
+
             // Reset state even on error
             selectedPhotoItem = nil
             teamForLogoUpload = nil
