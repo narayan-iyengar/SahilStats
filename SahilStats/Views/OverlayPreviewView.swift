@@ -40,8 +40,8 @@ struct OverlayPreviewView: View {
                 )
             case .longNames:
                 return SimpleScoreOverlayData(
-                    homeTeam: "Central High School",
-                    awayTeam: "St. Mary's Academy",
+                    homeTeam: "Central High School Warriors",
+                    awayTeam: "St. Mary's Catholic Academy",
                     homeScore: 23,
                     awayScore: 21,
                     quarter: 1,
@@ -193,9 +193,8 @@ struct OverlayPreviewView: View {
                 Spacer()
             }
         }
-        .navigationTitle("Overlay Preview")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
         .preferredColorScheme(.dark)
         .ignoresSafeArea()
     }

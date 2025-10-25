@@ -52,6 +52,15 @@ class ScoreboardRenderer {
             // Clear to transparent background
             cgContext.clear(CGRect(origin: .zero, size: size))
 
+            // Draw REC indicator if recording (top-right corner)
+            if isRecording {
+                drawRecIndicator(
+                    in: cgContext,
+                    size: size,
+                    scaleFactor: scaleFactor
+                )
+            }
+
             // Draw zoom indicator if present
             if let zoomLevel = data.zoomLevel, zoomLevel != 1.0 {
                 drawZoomIndicator(
@@ -71,6 +80,73 @@ class ScoreboardRenderer {
                 isRecording: isRecording
             )
         }
+    }
+
+    // MARK: - REC Indicator
+
+    private static func drawRecIndicator(
+        in context: CGContext,
+        size: CGSize,
+        scaleFactor: CGFloat
+    ) {
+        // Match SimpleScoreOverlay exactly:
+        // - Red circle (8pt diameter)
+        // - "REC" text
+        // - Black background (0.6 opacity)
+        // - 8pt corner radius
+        // - Padding: 8pt inside, 20pt from top-right
+
+        let padding: CGFloat = 8 * scaleFactor
+        let topMargin: CGFloat = 20 * scaleFactor
+        let trailingMargin: CGFloat = 20 * scaleFactor
+        let circleSize: CGFloat = 8 * scaleFactor
+        let cornerRadius: CGFloat = 8 * scaleFactor
+
+        // Text setup
+        let text = "REC"
+        let fontSize: CGFloat = 12 * scaleFactor  // caption font
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white
+        ]
+        let attributedString = NSAttributedString(string: text, attributes: attributes)
+        let textSize = attributedString.size()
+
+        // Calculate container size
+        let spacing: CGFloat = 6 * scaleFactor
+        let containerWidth = padding + circleSize + spacing + textSize.width + padding
+        let containerHeight = padding + max(circleSize, textSize.height) + padding
+
+        // Position at top-right
+        let containerRect = CGRect(
+            x: size.width - containerWidth - trailingMargin,
+            y: topMargin,
+            width: containerWidth,
+            height: containerHeight
+        )
+
+        // Draw background
+        let path = UIBezierPath(roundedRect: containerRect, cornerRadius: cornerRadius)
+        context.setFillColor(UIColor.black.withAlphaComponent(0.6).cgColor)
+        context.addPath(path.cgPath)
+        context.fillPath()
+
+        // Draw red circle
+        let circleX = containerRect.minX + padding + circleSize / 2
+        let circleY = containerRect.minY + containerHeight / 2
+        context.setFillColor(UIColor.red.cgColor)
+        context.fillEllipse(in: CGRect(
+            x: circleX - circleSize / 2,
+            y: circleY - circleSize / 2,
+            width: circleSize,
+            height: circleSize
+        ))
+
+        // Draw text
+        let textX = circleX + circleSize / 2 + spacing
+        let textY = containerRect.minY + (containerHeight - textSize.height) / 2
+        attributedString.draw(at: CGPoint(x: textX, y: textY))
     }
 
     // MARK: - Zoom Indicator
@@ -124,33 +200,36 @@ class ScoreboardRenderer {
             height: scoreboardHeight
         )
 
-        // GLASSMORPHISM BACKGROUND
-        // Since we can't use SwiftUI's .ultraThinMaterial in Core Graphics,
-        // we create a frosted glass effect with semi-transparent background
+        // OPAQUE GLASSMORPHISM BACKGROUND
+        // Match SwiftUI .ultraThinMaterial appearance for video clarity
+        // We use a more opaque background so the overlay is clearly visible in final video
         let cornerRadius = 14 * scaleFactor
         let path = UIBezierPath(roundedRect: scoreboardRect, cornerRadius: cornerRadius)
 
-        // Frosted glass effect: very low opacity black with subtle white overlay
         context.saveGState()
 
-        // Base frosted layer
-        context.setFillColor(UIColor.white.withAlphaComponent(0.15).cgColor)
+        // First: Draw shadow BEFORE filling (so shadow appears behind the background)
+        context.setShadow(offset: CGSize(width: 0, height: 2), blur: 10, color: UIColor.black.withAlphaComponent(0.3).cgColor)
+
+        // Opaque dark background (much more visible than preview's glassmorphism)
+        // This ensures scoreboard is clearly readable in final video
+        context.setFillColor(UIColor.black.withAlphaComponent(0.85).cgColor)
         context.addPath(path.cgPath)
         context.fillPath()
 
-        // Dark tint overlay
-        context.setFillColor(UIColor.black.withAlphaComponent(0.3).cgColor)
+        // Clear shadow for border drawing
+        context.setShadow(offset: .zero, blur: 0, color: nil)
+
+        // Subtle white highlight for depth
+        context.setFillColor(UIColor.white.withAlphaComponent(0.08).cgColor)
         context.addPath(path.cgPath)
         context.fillPath()
 
-        // Border
-        context.setStrokeColor(UIColor.white.withAlphaComponent(0.2).cgColor)
+        // Border for definition
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.3).cgColor)
         context.setLineWidth(1)
         context.addPath(path.cgPath)
         context.strokePath()
-
-        // Shadow
-        context.setShadow(offset: CGSize(width: 0, height: 2), blur: 10, color: UIColor.black.withAlphaComponent(0.3).cgColor)
 
         context.restoreGState()
 
