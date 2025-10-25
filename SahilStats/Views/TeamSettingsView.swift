@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PhotosUI
 
 struct TeamsSettingsView: View {
     @EnvironmentObject var authService: AuthService
@@ -17,7 +16,6 @@ struct TeamsSettingsView: View {
     @State private var teamToDelete: Team?
     @State private var editingTeam: Team?
     @State private var editingTeamName = ""
-    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var teamForLogoUpload: Team?
     @State private var showPhotoPicker = false
     @State private var uploadError: String?
@@ -93,7 +91,6 @@ struct TeamsSettingsView: View {
                                             Button(action: {
                                                 debugPrint("🎯 Logo button tapped for team: \(team.name) (id: \(team.id ?? "nil"))")
                                                 teamForLogoUpload = team
-                                                selectedPhotoItem = nil  // Clear previous selection
                                                 showPhotoPicker = true
                                             }) {
                                                 HStack(spacing: 4) {
@@ -186,24 +183,22 @@ struct TeamsSettingsView: View {
             }
         }
         .navigationTitle("Teams")
-        .photosPicker(
-            isPresented: $showPhotoPicker,
-            selection: $selectedPhotoItem,
-            matching: .images
-        )
-        .id(teamForLogoUpload?.id ?? UUID().uuidString)  // Force recreate picker for each team
-        .onChange(of: selectedPhotoItem) { oldValue, newValue in
-            guard let photoItem = newValue,
-                  let team = teamForLogoUpload else {
-                debugPrint("⚠️ Photo selected but no team set")
-                return
-            }
+        .background(
+            PHPickerWrapper(
+                isPresented: $showPhotoPicker,
+                onImageSelected: { image in
+                    guard let team = teamForLogoUpload else {
+                        debugPrint("⚠️ Image selected but no team set")
+                        return
+                    }
 
-            debugPrint("🎯 Photo selected for team: \(team.name) (id: \(team.id ?? "nil"))")
-            Task {
-                await handleLogoSelection(for: team, photoItem: photoItem)
-            }
-        }
+                    debugPrint("🎯 Image selected for team: \(team.name) (id: \(team.id ?? "nil"))")
+                    Task {
+                        await handleLogoSelection(for: team, image: image)
+                    }
+                }
+            )
+        )
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
                 teamToDelete = nil
@@ -282,29 +277,16 @@ struct TeamsSettingsView: View {
         }
     }
 
-    private func handleLogoSelection(for team: Team, photoItem: PhotosPickerItem) async {
+    private func handleLogoSelection(for team: Team, image: UIImage) async {
         guard let teamId = team.id else {
             debugPrint("❌ Missing team ID for logo upload")
-            selectedPhotoItem = nil
             teamForLogoUpload = nil
             return
         }
 
         do {
             debugPrint("📸 Starting logo upload for team: \(team.name) (id: \(teamId))")
-
-            // Load image from PhotosPicker
-            guard let imageData = try await photoItem.loadTransferable(type: Data.self) else {
-                throw NSError(domain: "TeamSettings", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data from photo picker"])
-            }
-
-            debugPrint("✅ Image data loaded: \(imageData.count) bytes")
-
-            guard let image = UIImage(data: imageData) else {
-                throw NSError(domain: "TeamSettings", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create UIImage from data"])
-            }
-
-            debugPrint("✅ UIImage created: \(image.size.width)×\(image.size.height)")
+            debugPrint("✅ UIImage: \(image.size.width)×\(image.size.height)")
 
             // Upload to Firebase Storage
             debugPrint("📤 Uploading to Firebase Storage...")
@@ -322,7 +304,6 @@ struct TeamsSettingsView: View {
             debugPrint("✅ Team logo updated successfully in Firestore")
 
             // Clear selection
-            selectedPhotoItem = nil
             teamForLogoUpload = nil
 
         } catch {
@@ -334,7 +315,6 @@ struct TeamsSettingsView: View {
             showingUploadError = true
 
             // Clear selection even on error
-            selectedPhotoItem = nil
             teamForLogoUpload = nil
         }
     }
