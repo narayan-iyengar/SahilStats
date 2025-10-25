@@ -63,6 +63,10 @@ struct SettingsView: View {
                         CameraSettingsView()
                     }
 
+                    NavigationLink("Preview Score Overlay") {
+                        OverlayPreviewView()
+                    }
+
                     NavigationLink("YouTube") {
                         YouTubeSettingsView()
                     }
