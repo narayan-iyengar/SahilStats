@@ -6,12 +6,13 @@
 //
 
 import SwiftUI
+import Combine
 
 struct TeamsSettingsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var logoUploadManager = LogoUploadManager.shared
-    @StateObject private var photoPickerCoordinator = PhotoPickerCoordinator()
+    private let photoPickerCoordinator = PhotoPickerCoordinator()
     @State private var newTeamName = ""
     @State private var showingDeleteAlert = false
     @State private var teamToDelete: Team?

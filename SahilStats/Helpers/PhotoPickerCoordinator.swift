@@ -9,9 +9,7 @@ import UIKit
 import PhotosUI
 import SwiftUI
 
-class PhotoPickerCoordinator: NSObject, ObservableObject, PHPickerViewControllerDelegate {
-    @Published var isPresented = false
-
+class PhotoPickerCoordinator: NSObject, PHPickerViewControllerDelegate {
     private var completion: ((UIImage) -> Void)?
     private var presentedPicker: PHPickerViewController?
 
