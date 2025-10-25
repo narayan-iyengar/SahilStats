@@ -166,10 +166,10 @@ struct OverlayPreviewView: View {
                                 orientation = orientation == .landscapeRight ? .landscapeLeft : .landscapeRight
                             }
                         } label: {
-                            HStack {
+                            HStack(spacing: 4) {
                                 Image(systemName: "arrow.triangle.2.circlepath")
                                     .font(.caption)
-                                Text(orientation == .landscapeRight ? "LR" : "LL")
+                                Text("Rotate")
                                     .font(.caption2)
                                     .fontWeight(.semibold)
                             }
