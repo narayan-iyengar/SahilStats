@@ -6,15 +6,19 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct TeamsSettingsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var firebaseService = FirebaseService.shared
+    @StateObject private var logoUploadManager = LogoUploadManager.shared
     @State private var newTeamName = ""
     @State private var showingDeleteAlert = false
     @State private var teamToDelete: Team?
     @State private var editingTeam: Team?
     @State private var editingTeamName = ""
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var teamForLogoUpload: Team?
     
     var body: some View {
         List {
@@ -41,15 +45,67 @@ struct TeamsSettingsView: View {
                         .foregroundColor(.secondary)
                 } else {
                     ForEach(firebaseService.teams) { team in
-                        HStack {
-                            if editingTeam?.id == team.id {
-                                TextField("Team name", text: $editingTeamName)
-                                    .textFieldStyle(.roundedBorder)
-                            } else {
-                                Text(team.name)
-                            }
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                // Team logo (if available)
+                                if let logoURL = team.logoURL {
+                                    AsyncImage(url: URL(string: logoURL)) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 40, height: 40)
+                                                .cornerRadius(8)
+                                        case .failure(_):
+                                            Image(systemName: "photo.circle.fill")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.gray)
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 40, height: 40)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                } else {
+                                    Image(systemName: "photo.circle")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.gray.opacity(0.3))
+                                }
 
-                            Spacer()
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if editingTeam?.id == team.id {
+                                        TextField("Team name", text: $editingTeamName)
+                                            .textFieldStyle(.roundedBorder)
+                                    } else {
+                                        Text(team.name)
+                                            .font(.headline)
+                                    }
+
+                                    // Logo upload button
+                                    if editingTeam?.id != team.id {
+                                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: team.logoURL == nil ? "photo.badge.plus" : "photo.badge.arrow.down")
+                                                    .font(.caption2)
+                                                Text(team.logoURL == nil ? "Add Logo" : "Change Logo")
+                                                    .font(.caption)
+                                            }
+                                            .foregroundColor(.orange)
+                                        }
+                                        .onChange(of: selectedPhotoItem) { _, newValue in
+                                            if newValue != nil {
+                                                teamForLogoUpload = team
+                                                Task {
+                                                    await handleLogoSelection()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer()
 
                             if editingTeam?.id == team.id {
                                 Button("Save") {
@@ -88,6 +144,19 @@ struct TeamsSettingsView: View {
                                     .tint(.red)
                                     .controlSize(.small)
                                 }
+                            }
+                            }
+
+                            // Upload progress indicator
+                            if logoUploadManager.isUploading && teamForLogoUpload?.id == team.id {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ProgressView(value: logoUploadManager.uploadProgress)
+                                        .progressViewStyle(.linear)
+                                    Text("Uploading logo... \(Int(logoUploadManager.uploadProgress * 100))%")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.leading, 48) // Align with team name
                             }
                         }
                     }
@@ -163,6 +232,46 @@ struct TeamsSettingsView: View {
             } catch {
                 debugPrint("Failed to update team: \(error)")
             }
+        }
+    }
+
+    private func handleLogoSelection() async {
+        guard let photoItem = selectedPhotoItem,
+              let team = teamForLogoUpload,
+              let teamId = team.id else {
+            return
+        }
+
+        do {
+            // Load image from PhotosPicker
+            guard let imageData = try await photoItem.loadTransferable(type: Data.self),
+                  let image = UIImage(data: imageData) else {
+                debugPrint("❌ Failed to load image from photo picker")
+                return
+            }
+
+            debugPrint("📸 Image selected, uploading for team: \(team.name)")
+
+            // Upload to Firebase Storage
+            let downloadURL = try await logoUploadManager.uploadTeamLogo(image, teamId: teamId)
+
+            // Update team with logo URL
+            var updatedTeam = team
+            updatedTeam.logoURL = downloadURL
+
+            try await firebaseService.updateTeam(updatedTeam)
+
+            debugPrint("✅ Team logo updated successfully")
+
+            // Reset state
+            selectedPhotoItem = nil
+            teamForLogoUpload = nil
+
+        } catch {
+            debugPrint("❌ Logo upload failed: \(error.localizedDescription)")
+            // Reset state even on error
+            selectedPhotoItem = nil
+            teamForLogoUpload = nil
         }
     }
 }
