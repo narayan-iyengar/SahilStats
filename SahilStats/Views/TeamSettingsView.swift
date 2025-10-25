@@ -183,19 +183,23 @@ struct TeamsSettingsView: View {
             }
         }
         .navigationTitle("Teams")
-        .background(
-            PHPickerWrapper(
-                isPresented: $showPhotoPicker,
-                teamId: teamForLogoUpload?.id,
-                teamName: teamForLogoUpload?.name,
-                onImageSelected: { image, teamId, teamName in
-                    debugPrint("🎯 Image loaded for team: \(teamName) (id: \(teamId))")
-                    Task {
-                        await handleLogoSelection(image: image, teamId: teamId, teamName: teamName)
+        .sheet(isPresented: $showPhotoPicker) {
+            if let team = teamForLogoUpload,
+               let teamId = team.id {
+                PHPickerViewController_SwiftUI(
+                    isPresented: $showPhotoPicker,
+                    teamId: teamId,
+                    teamName: team.name,
+                    onImageSelected: { image, teamId, teamName in
+                        debugPrint("🎯 Image loaded for team: \(teamName) (id: \(teamId))")
+                        Task {
+                            await handleLogoSelection(image: image, teamId: teamId, teamName: teamName)
+                        }
                     }
-                }
-            )
-        )
+                )
+                .ignoresSafeArea()
+            }
+        }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
                 teamToDelete = nil

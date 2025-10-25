@@ -8,40 +8,13 @@
 import SwiftUI
 import PhotosUI
 
-struct PHPickerWrapper: UIViewControllerRepresentable {
+struct PHPickerViewController_SwiftUI: UIViewControllerRepresentable {
     @Binding var isPresented: Bool
-    let teamId: String?
-    let teamName: String?
-    let onImageSelected: (UIImage, String, String) -> Void  // image, teamId, teamName
+    let teamId: String
+    let teamName: String
+    let onImageSelected: (UIImage, String, String) -> Void
 
-    func makeUIViewController(context: Context) -> UIViewController {
-        // Return empty view controller - actual picker is presented modally
-        return UIViewController()
-    }
-
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        if isPresented && uiViewController.presentedViewController == nil {
-            // Capture team info NOW before presenting picker
-            guard let teamId = teamId, let teamName = teamName else {
-                debugPrint("❌ PHPickerWrapper: teamId or teamName is nil, not showing picker")
-                DispatchQueue.main.async {
-                    isPresented = false
-                }
-                return
-            }
-
-            debugPrint("🎯 PHPickerWrapper: Opening picker for team: \(teamName) (id: \(teamId))")
-
-            // Present picker with captured team info
-            let picker = makePicker(context: context, teamId: teamId, teamName: teamName)
-            uiViewController.present(picker, animated: true)
-        } else if !isPresented && uiViewController.presentedViewController != nil {
-            // Dismiss picker
-            uiViewController.dismiss(animated: true)
-        }
-    }
-
-    private func makePicker(context: Context, teamId: String, teamName: String) -> PHPickerViewController {
+    func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
         configuration.filter = .images
         configuration.selectionLimit = 1
@@ -49,11 +22,17 @@ struct PHPickerWrapper: UIViewControllerRepresentable {
         let picker = PHPickerViewController(configuration: configuration)
         picker.delegate = context.coordinator
 
-        // Store team info in coordinator for this picker instance
-        context.coordinator.currentTeamId = teamId
-        context.coordinator.currentTeamName = teamName
+        // Store team info in coordinator
+        context.coordinator.teamId = teamId
+        context.coordinator.teamName = teamName
+
+        debugPrint("🎯 PHPicker: Created for team: \(teamName) (id: \(teamId))")
 
         return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {
+        // No updates needed
     }
 
     func makeCoordinator() -> Coordinator {
@@ -63,8 +42,8 @@ struct PHPickerWrapper: UIViewControllerRepresentable {
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
         @Binding var isPresented: Bool
         let onImageSelected: (UIImage, String, String) -> Void
-        var currentTeamId: String?
-        var currentTeamName: String?
+        var teamId: String?
+        var teamName: String?
 
         init(isPresented: Binding<Bool>, onImageSelected: @escaping (UIImage, String, String) -> Void) {
             self._isPresented = isPresented
@@ -73,8 +52,8 @@ struct PHPickerWrapper: UIViewControllerRepresentable {
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             // Capture team info before dismissing
-            let teamId = currentTeamId
-            let teamName = currentTeamName
+            let capturedTeamId = teamId
+            let capturedTeamName = teamName
 
             isPresented = false
 
@@ -83,12 +62,12 @@ struct PHPickerWrapper: UIViewControllerRepresentable {
                 return
             }
 
-            guard let capturedTeamId = teamId, let capturedTeamName = teamName else {
+            guard let teamId = capturedTeamId, let teamName = capturedTeamName else {
                 debugPrint("❌ PHPicker: Team info lost")
                 return
             }
 
-            debugPrint("📸 PHPicker: Image selected for team: \(capturedTeamName), loading...")
+            debugPrint("📸 PHPicker: Image selected for team: \(teamName), loading...")
 
             result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] object, error in
                 if let error = error {
@@ -104,7 +83,7 @@ struct PHPickerWrapper: UIViewControllerRepresentable {
                 debugPrint("✅ PHPicker: Image loaded successfully - \(image.size.width)×\(image.size.height)")
 
                 DispatchQueue.main.async {
-                    self?.onImageSelected(image, capturedTeamId, capturedTeamName)
+                    self?.onImageSelected(image, teamId, teamName)
                 }
             }
         }
