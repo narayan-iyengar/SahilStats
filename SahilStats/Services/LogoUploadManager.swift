@@ -58,6 +58,10 @@ class LogoUploadManager: ObservableObject {
     ///   - teamId: The team ID (used for storage path)
     /// - Returns: Download URL string
     func uploadTeamLogo(_ image: UIImage, teamId: String) async throws -> String {
+        debugPrint("🚀 LogoUploadManager.uploadTeamLogo() started")
+        debugPrint("   teamId: \(teamId)")
+        debugPrint("   image size: \(image.size.width)×\(image.size.height)")
+
         isUploading = true
         uploadProgress = 0.0
         uploadError = nil
@@ -65,27 +69,37 @@ class LogoUploadManager: ObservableObject {
         defer {
             Task { @MainActor in
                 isUploading = false
+                debugPrint("🏁 LogoUploadManager.uploadTeamLogo() finished - isUploading set to false")
             }
         }
 
         // Resize to 512x512px
+        debugPrint("🔄 Resizing image to 512×512px...")
         guard let resizedImage = resizeImage(image) else {
+            debugPrint("❌ Image resize failed!")
             throw LogoUploadError.resizeFailed
         }
+        debugPrint("✅ Image resized successfully")
 
         // Compress to ~200KB
+        debugPrint("🗜️ Compressing image...")
         guard let imageData = compressImage(resizedImage) else {
+            debugPrint("❌ Image compression failed!")
             throw LogoUploadError.compressionFailed
         }
-
-        debugPrint("📤 Uploading logo - Original size: \(image.size), Resized: 512x512, Compressed: \(imageData.count / 1024)KB")
+        debugPrint("✅ Image compressed: \(imageData.count / 1024)KB")
+        debugPrint("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
 
         // Create storage reference
+        debugPrint("🔗 Creating Firebase Storage reference...")
         let storageRef = storage.reference()
         let logoPath = "logos/\(teamId).png"
         let logoRef = storageRef.child(logoPath)
+        debugPrint("   Storage path: \(logoPath)")
+        debugPrint("   Bucket: \(storageRef.bucket)")
 
         // Upload with metadata
+        debugPrint("📋 Setting up metadata...")
         let metadata = StorageMetadata()
         metadata.contentType = "image/png"
         metadata.customMetadata = [
@@ -94,20 +108,41 @@ class LogoUploadManager: ObservableObject {
         ]
 
         // Upload the data
-        let _ = try await logoRef.putDataAsync(imageData, metadata: metadata) { progress in
-            if let progress = progress {
-                Task { @MainActor in
-                    self.uploadProgress = Double(progress.completedUnitCount) / Double(progress.totalUnitCount)
-                    debugPrint("📊 Upload progress: \(Int(self.uploadProgress * 100))%")
+        debugPrint("☁️ Starting Firebase Storage upload...")
+        do {
+            let _ = try await logoRef.putDataAsync(imageData, metadata: metadata) { progress in
+                if let progress = progress {
+                    Task { @MainActor in
+                        self.uploadProgress = Double(progress.completedUnitCount) / Double(progress.totalUnitCount)
+                        debugPrint("📊 Upload progress: \(Int(self.uploadProgress * 100))% (\(progress.completedUnitCount)/\(progress.totalUnitCount) bytes)")
+                    }
                 }
             }
+            debugPrint("✅ Firebase Storage upload completed!")
+        } catch {
+            debugPrint("❌ Firebase Storage upload failed!")
+            debugPrint("   Error: \(error)")
+            debugPrint("   Error type: \(type(of: error))")
+            if let nsError = error as NSError? {
+                debugPrint("   Domain: \(nsError.domain)")
+                debugPrint("   Code: \(nsError.code)")
+                debugPrint("   User info: \(nsError.userInfo)")
+            }
+            throw error
         }
 
         // Get download URL
-        let downloadURL = try await logoRef.downloadURL()
-        debugPrint("✅ Logo uploaded successfully: \(downloadURL.absoluteString)")
-
-        return downloadURL.absoluteString
+        debugPrint("🌐 Fetching download URL...")
+        do {
+            let downloadURL = try await logoRef.downloadURL()
+            debugPrint("✅ Logo uploaded successfully!")
+            debugPrint("   Download URL: \(downloadURL.absoluteString)")
+            return downloadURL.absoluteString
+        } catch {
+            debugPrint("❌ Failed to get download URL!")
+            debugPrint("   Error: \(error)")
+            throw error
+        }
     }
 
     /// Delete logo from Firebase Storage

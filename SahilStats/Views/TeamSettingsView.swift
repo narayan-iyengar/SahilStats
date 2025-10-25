@@ -96,12 +96,20 @@ struct TeamsSettingsView: View {
                                             }
                                             .foregroundColor(.orange)
                                         }
-                                        .onChange(of: selectedPhotoItem) { _, newValue in
+                                        .onChange(of: selectedPhotoItem) { oldValue, newValue in
+                                            debugPrint("📸 PhotosPicker onChange triggered")
+                                            debugPrint("   oldValue: \(oldValue != nil ? "exists" : "nil")")
+                                            debugPrint("   newValue: \(newValue != nil ? "exists" : "nil")")
+                                            debugPrint("   team: \(team.name)")
                                             if newValue != nil {
                                                 teamForLogoUpload = team
+                                                debugPrint("   ✅ teamForLogoUpload set to: \(team.name)")
                                                 Task {
+                                                    debugPrint("   🔄 Starting handleLogoSelection task...")
                                                     await handleLogoSelection()
                                                 }
+                                            } else {
+                                                debugPrint("   ⚠️ newValue is nil, not uploading")
                                             }
                                         }
                                     }
