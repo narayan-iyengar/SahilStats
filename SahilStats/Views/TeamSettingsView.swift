@@ -132,12 +132,12 @@ struct TeamsSettingsView: View {
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                             } else {
-                                HStack(spacing: 16) {
+                                HStack(spacing: 8) {
                                     Button(action: {
                                         startEditing(team)
                                     }) {
-                                        Label("Edit", systemImage: "pencil")
-                                            .font(.caption)
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 16))
                                     }
                                     .buttonStyle(.bordered)
                                     .tint(.blue)
@@ -147,8 +147,8 @@ struct TeamsSettingsView: View {
                                         teamToDelete = team
                                         showingDeleteAlert = true
                                     }) {
-                                        Label("Delete", systemImage: "trash")
-                                            .font(.caption)
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 16))
                                     }
                                     .buttonStyle(.bordered)
                                     .tint(.red)
