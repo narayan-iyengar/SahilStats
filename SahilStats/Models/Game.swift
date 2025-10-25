@@ -611,24 +611,28 @@ struct PlayerStats: Codable, Equatable {
 struct Team: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var name: String
+    var logoURL: String? // Firebase Storage URL for team logo
     var createdAt: Date
 
     // Equatable conformance
     static func == (lhs: Team, rhs: Team) -> Bool {
-        return lhs.id == rhs.id && lhs.name == rhs.name
+        return lhs.id == rhs.id && lhs.name == rhs.name && lhs.logoURL == rhs.logoURL
     }
     
     // Custom coding keys
     enum CodingKeys: String, CodingKey {
-        case name, createdAt
+        case name, logoURL, createdAt
     }
     
     // Custom decoder to handle missing createdAt field
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         name = try container.decode(String.self, forKey: .name)
-        
+
+        // Handle optional logoURL for backward compatibility
+        logoURL = try container.decodeIfPresent(String.self, forKey: .logoURL)
+
         // Handle missing createdAt field for older documents
         if let createdAtData = try? container.decode(Timestamp.self, forKey: .createdAt) {
             createdAt = createdAtData.dateValue()
@@ -642,9 +646,10 @@ struct Team: Identifiable, Codable, Equatable {
             createdAt = Date()
         }
     }
-    
-    init(name: String) {
+
+    init(name: String, logoURL: String? = nil) {
         self.name = name
+        self.logoURL = logoURL
         self.createdAt = Date()
     }
 }

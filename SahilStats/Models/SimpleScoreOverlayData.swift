@@ -15,9 +15,11 @@ struct SimpleScoreOverlayData {
     let gameFormat: GameFormat
     let isRecording: Bool
     let recordingDuration: String
+    let homeLogoURL: String? // Optional team logo
+    let awayLogoURL: String? // Optional opponent logo
     
     // Create from LiveGame - Fixed initializer
-    init(from liveGame: LiveGame, isRecording: Bool = false, recordingDuration: String = "00:00") {
+    init(from liveGame: LiveGame, isRecording: Bool = false, recordingDuration: String = "00:00", homeLogoURL: String? = nil, awayLogoURL: String? = nil) {
         self.homeTeam = liveGame.teamName
         self.awayTeam = liveGame.opponent
         self.homeScore = liveGame.homeScore
@@ -27,10 +29,12 @@ struct SimpleScoreOverlayData {
         self.gameFormat = liveGame.gameFormat
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
+        self.homeLogoURL = homeLogoURL
+        self.awayLogoURL = awayLogoURL
     }
-    
+
     // Manual initializer for custom data
-    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, quarter: Int, clockTime: String, gameFormat: GameFormat = .halves, isRecording: Bool = false, recordingDuration: String = "00:00") {
+    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, quarter: Int, clockTime: String, gameFormat: GameFormat = .halves, isRecording: Bool = false, recordingDuration: String = "00:00", homeLogoURL: String? = nil, awayLogoURL: String? = nil) {
         self.homeTeam = homeTeam
         self.awayTeam = awayTeam
         self.homeScore = homeScore
@@ -40,6 +44,8 @@ struct SimpleScoreOverlayData {
         self.gameFormat = gameFormat
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
+        self.homeLogoURL = homeLogoURL
+        self.awayLogoURL = awayLogoURL
     }
     
     // Default/empty state
