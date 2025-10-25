@@ -19,6 +19,8 @@ struct ScoreboardData {
     let quarter: Int
     let gameFormat: GameFormat
     let zoomLevel: CGFloat?  // Optional zoom indicator
+    let homeLogoURL: String?  // Optional home team logo
+    let awayLogoURL: String?  // Optional away team logo
 }
 
 /// Renders scoreboard as bitmap image with glassmorphism effect
@@ -239,6 +241,10 @@ class ScoreboardRenderer {
         let spacing: CGFloat = 12 * scaleFactor
         let padding: CGFloat = 14 * scaleFactor
 
+        // Load logos synchronously (if URLs provided)
+        let homeLogo = loadImageFromURL(data.homeLogoURL)
+        let awayLogo = loadImageFromURL(data.awayLogoURL)
+
         var xOffset = scoreboardRect.minX + padding
 
         // HOME TEAM SECTION (left)
@@ -248,6 +254,7 @@ class ScoreboardRenderer {
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: columnWidth,
             scaleFactor: scaleFactor,
+            logoImage: homeLogo,
             in: context
         )
 
@@ -288,8 +295,20 @@ class ScoreboardRenderer {
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: columnWidth,
             scaleFactor: scaleFactor,
+            logoImage: awayLogo,
             in: context
         )
+    }
+
+    /// Load image from URL synchronously (for rendering)
+    private static func loadImageFromURL(_ urlString: String?) -> UIImage? {
+        guard let urlString = urlString,
+              let url = URL(string: urlString),
+              let data = try? Data(contentsOf: url),
+              let image = UIImage(data: data) else {
+            return nil
+        }
+        return image
     }
 
     // MARK: - Helper Drawing Methods
@@ -300,9 +319,14 @@ class ScoreboardRenderer {
         at origin: CGPoint,
         width: CGFloat,
         scaleFactor: CGFloat,
+        logoImage: UIImage? = nil,
         in context: CGContext
     ) {
-        // Team name
+        // Calculate layout with optional logo
+        let logoSize: CGFloat = 16 * scaleFactor
+        let spacing: CGFloat = 4 * scaleFactor
+
+        // Team name (with logo if available)
         let nameAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 10 * scaleFactor, weight: .semibold),
             .foregroundColor: UIColor.white.withAlphaComponent(0.9)
@@ -310,10 +334,28 @@ class ScoreboardRenderer {
 
         let nameString = NSAttributedString(string: teamName, attributes: nameAttributes)
         let nameSize = nameString.size()
-        let nameX = origin.x + (width - nameSize.width) / 2
+
+        // Calculate total width (logo + spacing + text)
+        let totalWidth = (logoImage != nil ? logoSize + spacing : 0) + nameSize.width
+        let startX = origin.x + (width - totalWidth) / 2
         let nameY = origin.y + 8 * scaleFactor
 
-        nameString.draw(at: CGPoint(x: nameX, y: nameY))
+        var currentX = startX
+
+        // Draw logo if available
+        if let logo = logoImage {
+            let logoRect = CGRect(
+                x: currentX,
+                y: nameY,
+                width: logoSize,
+                height: logoSize
+            )
+            logo.draw(in: logoRect)
+            currentX += logoSize + spacing
+        }
+
+        // Draw team name
+        nameString.draw(at: CGPoint(x: currentX, y: nameY))
 
         // Score
         let scoreAttributes: [NSAttributedString.Key: Any] = [

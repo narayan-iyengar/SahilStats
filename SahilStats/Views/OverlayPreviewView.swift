@@ -36,7 +36,9 @@ struct OverlayPreviewView: View {
                     clockTime: "8:24",
                     gameFormat: .halves,
                     isRecording: true,
-                    recordingDuration: "15:36"
+                    recordingDuration: "15:36",
+                    homeLogoURL: "https://cdn.nba.com/logos/nba/1610612744/primary/L/logo.svg",
+                    awayLogoURL: "https://cdn.nba.com/logos/nba/1610612747/primary/L/logo.svg"
                 )
             case .longNames:
                 return SimpleScoreOverlayData(

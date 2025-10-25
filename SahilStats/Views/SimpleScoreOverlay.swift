@@ -182,13 +182,32 @@ struct SimpleScoreOverlay: View {
 
     private var scoreboardContent: some View {
         HStack(spacing: 12) {
-            // Away team
+            // Home team
             VStack(spacing: 2) {
-                Text(formatTeamName(overlayData.homeTeam, maxLength: 4))
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    // Home team logo (if available)
+                    if let logoURL = overlayData.homeLogoURL {
+                        AsyncImage(url: URL(string: logoURL)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 16, height: 16)
+                            case .failure(_), .empty:
+                                // Show initials if logo fails to load
+                                EmptyView()
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                    }
+                    Text(formatTeamName(overlayData.homeTeam, maxLength: 4))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                }
                 Text("\(overlayData.homeScore)")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
@@ -216,13 +235,32 @@ struct SimpleScoreOverlay: View {
                 .fill(Color.white.opacity(0.2))
                 .frame(width: 1, height: 30)
 
-            // Home team
+            // Away team
             VStack(spacing: 2) {
-                Text(formatTeamName(overlayData.awayTeam, maxLength: 4))
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    // Away team logo (if available)
+                    if let logoURL = overlayData.awayLogoURL {
+                        AsyncImage(url: URL(string: logoURL)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 16, height: 16)
+                            case .failure(_), .empty:
+                                // Show initials if logo fails to load
+                                EmptyView()
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                    }
+                    Text(formatTeamName(overlayData.awayTeam, maxLength: 4))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                }
                 Text("\(overlayData.awayScore)")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
