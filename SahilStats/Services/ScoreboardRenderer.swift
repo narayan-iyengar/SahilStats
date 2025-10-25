@@ -55,6 +55,7 @@ class ScoreboardRenderer {
             cgContext.clear(CGRect(origin: .zero, size: size))
 
             // Draw REC indicator if recording (top-right corner)
+            // NOTE: This is never shown in final videos since isRecording=false in compositor
             if isRecording {
                 drawRecIndicator(
                     in: cgContext,
@@ -63,15 +64,8 @@ class ScoreboardRenderer {
                 )
             }
 
-            // Draw zoom indicator if present
-            if let zoomLevel = data.zoomLevel, zoomLevel != 1.0 {
-                drawZoomIndicator(
-                    zoomLevel: zoomLevel,
-                    in: cgContext,
-                    size: size,
-                    scaleFactor: scaleFactor
-                )
-            }
+            // NOTE: Zoom indicator removed from final videos
+            // It only shows during live recording preview, not in rendered videos
 
             // Draw scoreboard
             drawScoreboard(

@@ -20,6 +20,8 @@ class ScoreTimelineTracker {
         let awayTeam: String
         let gameFormat: GameFormat
         let zoomLevel: CGFloat?  // Camera zoom level (nil = 1.0x)
+        let homeLogoURL: String?  // Home team logo
+        let awayLogoURL: String?  // Away team logo
     }
 
     private var recordingStartTime: Date?
@@ -30,7 +32,7 @@ class ScoreTimelineTracker {
 
     // MARK: - Recording Control
 
-    func startRecording(initialGame: LiveGame) {
+    func startRecording(initialGame: LiveGame, homeLogoURL: String? = nil, awayLogoURL: String? = nil) {
         recordingStartTime = Date()
         snapshots = []
 
@@ -44,7 +46,9 @@ class ScoreTimelineTracker {
             homeTeam: initialGame.teamName,
             awayTeam: initialGame.opponent,
             gameFormat: initialGame.gameFormat,
-            zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil
+            zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil,
+            homeLogoURL: homeLogoURL,
+            awayLogoURL: awayLogoURL
         )
 
         snapshots.append(initialSnapshot)
@@ -83,7 +87,9 @@ class ScoreTimelineTracker {
             homeTeam: game.teamName,
             awayTeam: game.opponent,
             gameFormat: game.gameFormat,
-            zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil
+            zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil,
+            homeLogoURL: lastSnapshot?.homeLogoURL, // Preserve logo URLs from initial snapshot
+            awayLogoURL: lastSnapshot?.awayLogoURL
         )
 
         snapshots.append(snapshot)

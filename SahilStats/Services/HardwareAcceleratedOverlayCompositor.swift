@@ -374,7 +374,9 @@ class HardwareAcceleratedOverlayCompositor {
                 clockTime: state.clockTime,
                 quarter: state.quarter,
                 gameFormat: state.gameFormat,
-                zoomLevel: state.zoomLevel
+                zoomLevel: state.zoomLevel,
+                homeLogoURL: matchingSnapshot.homeLogoURL,
+                awayLogoURL: matchingSnapshot.awayLogoURL
             )
 
             if let image = ScoreboardRenderer.renderScoreboard(
