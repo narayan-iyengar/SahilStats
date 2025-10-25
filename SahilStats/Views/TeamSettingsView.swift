@@ -11,13 +11,13 @@ struct TeamsSettingsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var firebaseService = FirebaseService.shared
     @StateObject private var logoUploadManager = LogoUploadManager.shared
+    @StateObject private var photoPickerCoordinator = PhotoPickerCoordinator()
     @State private var newTeamName = ""
     @State private var showingDeleteAlert = false
     @State private var teamToDelete: Team?
     @State private var editingTeam: Team?
     @State private var editingTeamName = ""
     @State private var teamForLogoUpload: Team?
-    @State private var showPhotoPicker = false
     @State private var uploadError: String?
     @State private var showingUploadError = false
     
@@ -91,7 +91,21 @@ struct TeamsSettingsView: View {
                                             Button(action: {
                                                 debugPrint("🎯 Logo button tapped for team: \(team.name) (id: \(team.id ?? "nil"))")
                                                 teamForLogoUpload = team
-                                                showPhotoPicker = true
+
+                                                photoPickerCoordinator.presentPicker { image in
+                                                    guard let capturedTeam = teamForLogoUpload else {
+                                                        debugPrint("⚠️ Team lost during photo selection")
+                                                        return
+                                                    }
+
+                                                    Task {
+                                                        await handleLogoSelection(
+                                                            image: image,
+                                                            teamId: capturedTeam.id ?? "",
+                                                            teamName: capturedTeam.name
+                                                        )
+                                                    }
+                                                }
                                             }) {
                                                 HStack(spacing: 4) {
                                                     Image(systemName: team.logoURL == nil ? "photo.badge.plus" : "photo.badge.arrow.down")
@@ -183,26 +197,6 @@ struct TeamsSettingsView: View {
             }
         }
         .navigationTitle("Teams")
-        .fullScreenCover(isPresented: $showPhotoPicker) {
-            if let team = teamForLogoUpload,
-               let teamId = team.id {
-                ZStack {
-                    Color.black.ignoresSafeArea()
-                    PHPickerViewController_SwiftUI(
-                        isPresented: $showPhotoPicker,
-                        teamId: teamId,
-                        teamName: team.name,
-                        onImageSelected: { image, teamId, teamName in
-                            debugPrint("🎯 Image loaded for team: \(teamName) (id: \(teamId))")
-                            Task {
-                                await handleLogoSelection(image: image, teamId: teamId, teamName: teamName)
-                            }
-                        }
-                    )
-                    .edgesIgnoringSafeArea(.all)
-                }
-            }
-        }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
                 teamToDelete = nil
