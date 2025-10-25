@@ -153,12 +153,12 @@ class LogoUploadManager: ObservableObject {
 
     /// Delete logo from Firebase Storage
     nonisolated func deleteTeamLogo(teamId: String) async throws {
-        let storageRef = storage.reference()
+        let storageRef = await storage.reference()
         let logoPath = "logos/\(teamId).png"
         let logoRef = storageRef.child(logoPath)
 
         try await logoRef.delete()
-        debugPrint("🗑️ Logo deleted: \(logoPath)")
+        print("🗑️ Logo deleted: \(logoPath)")
     }
 }
 

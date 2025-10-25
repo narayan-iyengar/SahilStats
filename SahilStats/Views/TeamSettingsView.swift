@@ -183,21 +183,24 @@ struct TeamsSettingsView: View {
             }
         }
         .navigationTitle("Teams")
-        .sheet(isPresented: $showPhotoPicker) {
+        .fullScreenCover(isPresented: $showPhotoPicker) {
             if let team = teamForLogoUpload,
                let teamId = team.id {
-                PHPickerViewController_SwiftUI(
-                    isPresented: $showPhotoPicker,
-                    teamId: teamId,
-                    teamName: team.name,
-                    onImageSelected: { image, teamId, teamName in
-                        debugPrint("🎯 Image loaded for team: \(teamName) (id: \(teamId))")
-                        Task {
-                            await handleLogoSelection(image: image, teamId: teamId, teamName: teamName)
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    PHPickerViewController_SwiftUI(
+                        isPresented: $showPhotoPicker,
+                        teamId: teamId,
+                        teamName: team.name,
+                        onImageSelected: { image, teamId, teamName in
+                            debugPrint("🎯 Image loaded for team: \(teamName) (id: \(teamId))")
+                            Task {
+                                await handleLogoSelection(image: image, teamId: teamId, teamName: teamName)
+                            }
                         }
-                    }
-                )
-                .ignoresSafeArea()
+                    )
+                    .edgesIgnoringSafeArea(.all)
+                }
             }
         }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
