@@ -78,21 +78,21 @@ class LogoUploadManager: ObservableObject {
         // Process image on background thread to avoid priority inversion
         let imageData = try await Task.detached(priority: .userInitiated) {
             // Resize to 512x512px
-            debugPrint("🔄 Resizing image to 512×512px...")
+            print("🔄 Resizing image to 512×512px...")
             guard let resizedImage = self.resizeImage(image) else {
-                debugPrint("❌ Image resize failed!")
+                print("❌ Image resize failed!")
                 throw LogoUploadError.resizeFailed
             }
-            debugPrint("✅ Image resized successfully")
+            print("✅ Image resized successfully")
 
             // Compress to ~200KB
-            debugPrint("🗜️ Compressing image...")
+            print("🗜️ Compressing image...")
             guard let imageData = self.compressImage(resizedImage) else {
-                debugPrint("❌ Image compression failed!")
+                print("❌ Image compression failed!")
                 throw LogoUploadError.compressionFailed
             }
-            debugPrint("✅ Image compressed: \(imageData.count / 1024)KB")
-            debugPrint("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
+            print("✅ Image compressed: \(imageData.count / 1024)KB")
+            print("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
 
             return imageData
         }.value
