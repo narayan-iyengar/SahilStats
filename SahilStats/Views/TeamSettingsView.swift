@@ -191,6 +191,7 @@ struct TeamsSettingsView: View {
             selection: $selectedPhotoItem,
             matching: .images
         )
+        .id(teamForLogoUpload?.id ?? UUID().uuidString)  // Force recreate picker for each team
         .onChange(of: selectedPhotoItem) { oldValue, newValue in
             guard let photoItem = newValue,
                   let team = teamForLogoUpload else {

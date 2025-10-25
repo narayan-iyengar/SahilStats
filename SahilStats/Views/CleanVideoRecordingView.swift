@@ -46,6 +46,11 @@ struct CleanVideoRecordingView: View {
 
     @State private var cancellables = Set<AnyCancellable>() // To hold our subscription
 
+    // Team logos for overlay
+    @State private var homeLogoURL: String?
+    @State private var awayLogoURL: String?
+    @StateObject private var firebaseService = FirebaseService.shared
+
 
     init(liveGame: LiveGame) {
         self.liveGame = liveGame
@@ -53,6 +58,9 @@ struct CleanVideoRecordingView: View {
         self._localGameState = State(initialValue: liveGame)
         self._localClockValue = State(initialValue: liveGame.getCurrentClock())
         self._isClockRunning = State(initialValue: liveGame.isRunning)
+
+        // Set opponent logo from LiveGame
+        self._awayLogoURL = State(initialValue: liveGame.opponentLogoURL)
     }
     
     var body: some View {
@@ -217,6 +225,9 @@ struct CleanVideoRecordingView: View {
         startOverlayUpdateTimer()
         startLocalClockTimer()  // NEW: Start independent clock countdown
         setupBluetoothCallbacks()
+
+        // Fetch home team logo for overlay
+        fetchHomeTeamLogo()
 
         // Keep screen awake based on user preference
         UIApplication.shared.isIdleTimerDisabled = cameraSettings.settings.keepRecorderScreenAwake
@@ -406,7 +417,7 @@ struct CleanVideoRecordingView: View {
     // ** THIS IS THE CORRECTED VERSION **
     private func setupBluetoothCallbacks() {
         debugPrint("📱 [CleanVideoRecordingView] Subscribing to multipeer message publisher.")
-        
+
         self.multipeer.messagePublisher
             .receive(on: DispatchQueue.main)
             .sink { message in // Removed [weak self]
@@ -414,7 +425,30 @@ struct CleanVideoRecordingView: View {
             }
             .store(in: &cancellables)
     }
-    
+
+    private func fetchHomeTeamLogo() {
+        guard let teamId = liveGame.teamId else {
+            debugPrint("⚠️ No teamId in LiveGame - home team logo will not be displayed")
+            return
+        }
+
+        debugPrint("🖼️ Fetching home team logo for teamId: \(teamId)")
+
+        Task {
+            // Find team in the teams list
+            if let team = firebaseService.teams.first(where: { $0.id == teamId }) {
+                await MainActor.run {
+                    homeLogoURL = team.logoURL
+                    debugPrint("✅ Home team logo loaded: \(team.logoURL ?? "none")")
+                }
+            } else {
+                debugPrint("⚠️ Team not found in firebaseService.teams - fetching from Firestore")
+                // If not in memory, we'd need to fetch from Firestore
+                // For now, just log the warning - teams should be loaded in FirebaseService
+            }
+        }
+    }
+
     private func handleMessage(_ message: MultipeerConnectivityManager.Message) {
         // Filter out noisy pong messages from logs
         if message.type != .pong {
@@ -807,7 +841,9 @@ struct CleanVideoRecordingView: View {
         overlayData = SimpleScoreOverlayData(
             from: currentGame,
             isRecording: recordingManager.isRecording,
-            recordingDuration: recordingManager.recordingTimeString
+            recordingDuration: recordingManager.recordingTimeString,
+            homeLogoURL: homeLogoURL,
+            awayLogoURL: awayLogoURL
         )
 
         // Update recording with current game data
