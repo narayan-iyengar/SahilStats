@@ -89,26 +89,10 @@ struct TeamsSettingsView: View {
                                     if editingTeam?.id != team.id {
                                         HStack(spacing: 8) {
                                             // Upload/Change logo button
-                                            PhotosPicker(
-                                                selection: Binding(
-                                                    get: {
-                                                        // Only return selection if this is the team we're uploading for
-                                                        teamForLogoUpload?.id == team.id ? selectedPhotoItem : nil
-                                                    },
-                                                    set: { newValue in
-                                                        if newValue != nil {
-                                                            // Photo was selected - set both the item and the team
-                                                            debugPrint("📸 Photo selected for team: \(team.name) (id: \(team.id ?? "nil"))")
-                                                            teamForLogoUpload = team
-                                                            selectedPhotoItem = newValue
-                                                        } else {
-                                                            // Selection cleared
-                                                            selectedPhotoItem = nil
-                                                        }
-                                                    }
-                                                ),
-                                                matching: .images
-                                            ) {
+                                            Button(action: {
+                                                debugPrint("🎯 Logo button tapped for team: \(team.name) (id: \(team.id ?? "nil"))")
+                                                teamForLogoUpload = team
+                                            }) {
                                                 HStack(spacing: 4) {
                                                     Image(systemName: team.logoURL == nil ? "photo.badge.plus" : "photo.badge.arrow.down")
                                                         .font(.caption2)
@@ -118,6 +102,20 @@ struct TeamsSettingsView: View {
                                                 .foregroundColor(.orange)
                                             }
                                             .buttonStyle(.plain)
+                                            .id(team.id ?? "")  // Give each button a unique ID
+                                            .photosPicker(
+                                                isPresented: Binding(
+                                                    get: { teamForLogoUpload?.id == team.id },
+                                                    set: { isPresented in
+                                                        if !isPresented {
+                                                            debugPrint("🔚 Photo picker dismissed for team: \(team.name)")
+                                                            teamForLogoUpload = nil
+                                                        }
+                                                    }
+                                                ),
+                                                selection: $selectedPhotoItem,
+                                                matching: .images
+                                            )
 
                                             // Remove logo button (only show if logo exists)
                                             if team.logoURL != nil {
