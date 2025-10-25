@@ -10,21 +10,20 @@ import FirebaseStorage
 import SwiftUI
 import Combine
 
-@MainActor
 class LogoUploadManager: ObservableObject {
     static let shared = LogoUploadManager()
 
     private let storage = Storage.storage()
-    @Published var isUploading = false
-    @Published var uploadProgress: Double = 0.0
-    @Published var uploadError: String?
+    @MainActor @Published var isUploading = false
+    @MainActor @Published var uploadProgress: Double = 0.0
+    @MainActor @Published var uploadError: String?
 
     private init() {}
 
     // MARK: - Image Processing
 
     /// Resize image to 512x512px square (recommended size for logos)
-    func resizeImage(_ image: UIImage, to size: CGSize = CGSize(width: 512, height: 512)) -> UIImage? {
+    nonisolated func resizeImage(_ image: UIImage, to size: CGSize = CGSize(width: 512, height: 512)) -> UIImage? {
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { context in
             image.draw(in: CGRect(origin: .zero, size: size))
@@ -32,7 +31,7 @@ class LogoUploadManager: ObservableObject {
     }
 
     /// Compress image to target file size (default 200KB)
-    func compressImage(_ image: UIImage, maxSizeKB: Int = 200) -> Data? {
+    nonisolated func compressImage(_ image: UIImage, maxSizeKB: Int = 200) -> Data? {
         var compression: CGFloat = 1.0
         var imageData = image.jpegData(compressionQuality: compression)
 
@@ -80,19 +79,19 @@ class LogoUploadManager: ObservableObject {
             // Resize to 512x512px
             print("🔄 Resizing image to 512×512px...")
             guard let resizedImage = self.resizeImage(image) else {
-                print("❌ Image resize failed!")
+                debugPrint("❌ Image resize failed!")
                 throw LogoUploadError.resizeFailed
             }
-            print("✅ Image resized successfully")
+            debugPrint("✅ Image resized successfully")
 
             // Compress to ~200KB
-            print("🗜️ Compressing image...")
+            debugPrint("🗜️ Compressing image...")
             guard let imageData = self.compressImage(resizedImage) else {
                 print("❌ Image compression failed!")
                 throw LogoUploadError.compressionFailed
             }
-            print("✅ Image compressed: \(imageData.count / 1024)KB")
-            print("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
+            debugPrint("✅ Image compressed: \(imageData.count / 1024)KB")
+            debugPrint("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
 
             return imageData
         }.value
@@ -153,7 +152,7 @@ class LogoUploadManager: ObservableObject {
     }
 
     /// Delete logo from Firebase Storage
-    func deleteTeamLogo(teamId: String) async throws {
+    nonisolated func deleteTeamLogo(teamId: String) async throws {
         let storageRef = storage.reference()
         let logoPath = "logos/\(teamId).png"
         let logoRef = storageRef.child(logoPath)
