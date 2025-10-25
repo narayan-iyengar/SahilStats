@@ -38,8 +38,6 @@ struct SettingsView: View {
                     .foregroundColor(.orange)
                 }
             }
-            
-            // Removed Beta Features - pivoting to NAS-based processing
 
             // Admin Features
             if authService.showAdminFeatures {
@@ -67,10 +65,6 @@ struct SettingsView: View {
 
                     NavigationLink("YouTube") {
                         YouTubeSettingsView()
-                    }
-
-                    NavigationLink("Processing Server") {
-                        ProcessingServerSettingsView()
                     }
 
                     NavigationLink("Storage") {
