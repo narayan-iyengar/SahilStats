@@ -87,7 +87,12 @@ struct TeamsSettingsView: View {
 
                                     // Logo upload button
                                     if editingTeam?.id != team.id {
-                                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                                        Button(action: {
+                                            debugPrint("🎯 Logo button tapped for team: \(team.name)")
+                                            teamForLogoUpload = team
+                                            // Reset photo picker to ensure clean state
+                                            selectedPhotoItem = nil
+                                        }) {
                                             HStack(spacing: 4) {
                                                 Image(systemName: team.logoURL == nil ? "photo.badge.plus" : "photo.badge.arrow.down")
                                                     .font(.caption2)
@@ -96,22 +101,15 @@ struct TeamsSettingsView: View {
                                             }
                                             .foregroundColor(.orange)
                                         }
-                                        .onChange(of: selectedPhotoItem) { oldValue, newValue in
-                                            debugPrint("📸 PhotosPicker onChange triggered")
-                                            debugPrint("   oldValue: \(oldValue != nil ? "exists" : "nil")")
-                                            debugPrint("   newValue: \(newValue != nil ? "exists" : "nil")")
-                                            debugPrint("   team: \(team.name)")
-                                            if newValue != nil {
-                                                teamForLogoUpload = team
-                                                debugPrint("   ✅ teamForLogoUpload set to: \(team.name)")
-                                                Task {
-                                                    debugPrint("   🔄 Starting handleLogoSelection task...")
-                                                    await handleLogoSelection()
-                                                }
-                                            } else {
-                                                debugPrint("   ⚠️ newValue is nil, not uploading")
-                                            }
-                                        }
+                                        .buttonStyle(.plain)
+                                        .photosPicker(
+                                            isPresented: Binding(
+                                                get: { teamForLogoUpload?.id == team.id },
+                                                set: { if !$0 { teamForLogoUpload = nil } }
+                                            ),
+                                            selection: $selectedPhotoItem,
+                                            matching: .images
+                                        )
                                     }
                                 }
 
@@ -176,6 +174,18 @@ struct TeamsSettingsView: View {
             }
         }
         .navigationTitle("Teams")
+        .onChange(of: selectedPhotoItem) { oldValue, newValue in
+            guard let newValue = newValue,
+                  let team = teamForLogoUpload else {
+                debugPrint("⚠️ Photo selected but no team set")
+                return
+            }
+
+            debugPrint("📸 Photo selected for team: \(team.name)")
+            Task {
+                await handleLogoSelection()
+            }
+        }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {
                 teamToDelete = nil
