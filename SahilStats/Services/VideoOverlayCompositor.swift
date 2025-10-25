@@ -618,7 +618,9 @@ class VideoOverlayCompositor {
                         homeTeam: currentSnapshot.homeTeam,
                         awayTeam: currentSnapshot.awayTeam,
                         gameFormat: currentSnapshot.gameFormat,
-                        zoomLevel: currentSnapshot.zoomLevel
+                        zoomLevel: currentSnapshot.zoomLevel,
+                        homeLogoURL: currentSnapshot.homeLogoURL,
+                        awayLogoURL: currentSnapshot.awayLogoURL
                     )
 
                     result.append(interpolatedSnapshot)
@@ -645,7 +647,9 @@ class VideoOverlayCompositor {
                         homeTeam: currentSnapshot.homeTeam,
                         awayTeam: currentSnapshot.awayTeam,
                         gameFormat: currentSnapshot.gameFormat,
-                        zoomLevel: currentSnapshot.zoomLevel
+                        zoomLevel: currentSnapshot.zoomLevel,
+                        homeLogoURL: currentSnapshot.homeLogoURL,
+                        awayLogoURL: currentSnapshot.awayLogoURL
                     )
 
                     result.append(interpolatedSnapshot)
