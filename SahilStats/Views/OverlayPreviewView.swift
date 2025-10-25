@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct OverlayPreviewView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedScenario: TestScenario = .normal
     @State private var orientation: UIDeviceOrientation = .landscapeRight
     @State private var showZoomIndicator = false
@@ -119,6 +120,24 @@ struct OverlayPreviewView: View {
             VStack {
                 HStack {
                     VStack(alignment: .leading, spacing: 12) {
+                        // Back button
+                        Button {
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.left")
+                                    .font(.caption)
+                                Text("Back")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.white.opacity(0.3))
+                            .cornerRadius(8)
+                            .foregroundColor(.white)
+                        }
+
                         // Scenario picker
                         Menu {
                             ForEach(TestScenario.allCases) { scenario in
@@ -176,7 +195,9 @@ struct OverlayPreviewView: View {
         }
         .navigationTitle("Overlay Preview")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarHidden(true)
         .preferredColorScheme(.dark)
+        .ignoresSafeArea()
     }
 }
 
