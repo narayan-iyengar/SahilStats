@@ -17,7 +17,7 @@ struct TeamsSettingsView: View {
     @State private var teamToDelete: Team?
     @State private var editingTeam: Team?
     @State private var editingTeamName = ""
-    @State private var selectedPhotoItems: [String: PhotosPickerItem] = [:]  // One per team
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var teamForLogoUpload: Team?
     @State private var uploadError: String?
     @State private var showingUploadError = false
@@ -89,10 +89,26 @@ struct TeamsSettingsView: View {
                                     if editingTeam?.id != team.id {
                                         HStack(spacing: 8) {
                                             // Upload/Change logo button
-                                            Button(action: {
-                                                debugPrint("🎯 Logo button tapped for team: \(team.name)")
-                                                teamForLogoUpload = team
-                                            }) {
+                                            PhotosPicker(
+                                                selection: Binding(
+                                                    get: {
+                                                        // Only return selection if this is the team we're uploading for
+                                                        teamForLogoUpload?.id == team.id ? selectedPhotoItem : nil
+                                                    },
+                                                    set: { newValue in
+                                                        if newValue != nil {
+                                                            // Photo was selected - set both the item and the team
+                                                            debugPrint("📸 Photo selected for team: \(team.name) (id: \(team.id ?? "nil"))")
+                                                            teamForLogoUpload = team
+                                                            selectedPhotoItem = newValue
+                                                        } else {
+                                                            // Selection cleared
+                                                            selectedPhotoItem = nil
+                                                        }
+                                                    }
+                                                ),
+                                                matching: .images
+                                            ) {
                                                 HStack(spacing: 4) {
                                                     Image(systemName: team.logoURL == nil ? "photo.badge.plus" : "photo.badge.arrow.down")
                                                         .font(.caption2)
@@ -102,17 +118,6 @@ struct TeamsSettingsView: View {
                                                 .foregroundColor(.orange)
                                             }
                                             .buttonStyle(.plain)
-                                            .photosPicker(
-                                                isPresented: Binding(
-                                                    get: { teamForLogoUpload?.id == team.id },
-                                                    set: { if !$0 { teamForLogoUpload = nil } }
-                                                ),
-                                                selection: Binding(
-                                                    get: { selectedPhotoItems[team.id ?? ""] },
-                                                    set: { selectedPhotoItems[team.id ?? ""] = $0 }
-                                                ),
-                                                matching: .images
-                                            )
 
                                             // Remove logo button (only show if logo exists)
                                             if team.logoURL != nil {
@@ -194,19 +199,16 @@ struct TeamsSettingsView: View {
             }
         }
         .navigationTitle("Teams")
-        .onChange(of: selectedPhotoItems) { oldValue, newValue in
-            // Find which team had a photo selected
-            for (teamId, photoItem) in newValue {
-                if oldValue[teamId] == nil && photoItem != nil {
-                    // New photo selected for this team
-                    if let team = firebaseService.teams.first(where: { $0.id == teamId }) {
-                        debugPrint("📸 Photo selected for team: \(team.name)")
-                        Task {
-                            await handleLogoSelection(for: team, photoItem: photoItem)
-                        }
-                    }
-                    break
-                }
+        .onChange(of: selectedPhotoItem) { oldValue, newValue in
+            guard let photoItem = newValue,
+                  let team = teamForLogoUpload else {
+                debugPrint("⚠️ Photo selected but teamForLogoUpload not set")
+                return
+            }
+
+            debugPrint("🎯 Uploading photo for team: \(team.name) (id: \(team.id ?? "nil"))")
+            Task {
+                await handleLogoSelection(for: team, photoItem: photoItem)
             }
         }
         .alert("Delete Team", isPresented: $showingDeleteAlert) {
@@ -290,6 +292,8 @@ struct TeamsSettingsView: View {
     private func handleLogoSelection(for team: Team, photoItem: PhotosPickerItem) async {
         guard let teamId = team.id else {
             debugPrint("❌ Missing team ID for logo upload")
+            selectedPhotoItem = nil
+            teamForLogoUpload = nil
             return
         }
 
@@ -324,8 +328,8 @@ struct TeamsSettingsView: View {
 
             debugPrint("✅ Team logo updated successfully in Firestore")
 
-            // Clear this team's photo selection
-            selectedPhotoItems[teamId] = nil
+            // Clear selection
+            selectedPhotoItem = nil
             teamForLogoUpload = nil
 
         } catch {
@@ -337,7 +341,7 @@ struct TeamsSettingsView: View {
             showingUploadError = true
 
             // Clear selection even on error
-            selectedPhotoItems[teamId] = nil
+            selectedPhotoItem = nil
             teamForLogoUpload = nil
         }
     }
