@@ -62,9 +62,11 @@ class LogoUploadManager: ObservableObject {
         debugPrint("   teamId: \(teamId)")
         debugPrint("   image size: \(image.size.width)×\(image.size.height)")
 
-        isUploading = true
-        uploadProgress = 0.0
-        uploadError = nil
+        await MainActor.run {
+            isUploading = true
+            uploadProgress = 0.0
+            uploadError = nil
+        }
 
         defer {
             Task { @MainActor in
@@ -73,22 +75,27 @@ class LogoUploadManager: ObservableObject {
             }
         }
 
-        // Resize to 512x512px
-        debugPrint("🔄 Resizing image to 512×512px...")
-        guard let resizedImage = resizeImage(image) else {
-            debugPrint("❌ Image resize failed!")
-            throw LogoUploadError.resizeFailed
-        }
-        debugPrint("✅ Image resized successfully")
+        // Process image on background thread to avoid priority inversion
+        let imageData = try await Task.detached(priority: .userInitiated) {
+            // Resize to 512x512px
+            debugPrint("🔄 Resizing image to 512×512px...")
+            guard let resizedImage = self.resizeImage(image) else {
+                debugPrint("❌ Image resize failed!")
+                throw LogoUploadError.resizeFailed
+            }
+            debugPrint("✅ Image resized successfully")
 
-        // Compress to ~200KB
-        debugPrint("🗜️ Compressing image...")
-        guard let imageData = compressImage(resizedImage) else {
-            debugPrint("❌ Image compression failed!")
-            throw LogoUploadError.compressionFailed
-        }
-        debugPrint("✅ Image compressed: \(imageData.count / 1024)KB")
-        debugPrint("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
+            // Compress to ~200KB
+            debugPrint("🗜️ Compressing image...")
+            guard let imageData = self.compressImage(resizedImage) else {
+                debugPrint("❌ Image compression failed!")
+                throw LogoUploadError.compressionFailed
+            }
+            debugPrint("✅ Image compressed: \(imageData.count / 1024)KB")
+            debugPrint("📤 Uploading logo - Original: \(image.size), Resized: 512×512, Compressed: \(imageData.count / 1024)KB")
+
+            return imageData
+        }.value
 
         // Create storage reference
         debugPrint("🔗 Creating Firebase Storage reference...")
