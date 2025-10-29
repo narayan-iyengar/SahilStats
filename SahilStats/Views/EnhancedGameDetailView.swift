@@ -110,6 +110,7 @@ struct CompleteGameDetailView: View {
                                 .fontWeight(.semibold)
                             Text("Back")
                         }
+                        .padding(.leading, 8)
                     }
                 }
             }

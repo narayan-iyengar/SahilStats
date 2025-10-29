@@ -415,14 +415,17 @@ struct CompactGameControlsCard: View {
     
     private var advanceQuarterText: String {
         if currentQuarter < maxQuarter {
-            return "End \(gameFormat.quarterName)" // "End quarter" or "End Half"
+            return "End \(gameFormat.quarterName)" // "End Quarter" or "End Half"
+        } else if currentQuarter == maxQuarter {
+            return "Add OT" // Can add overtime after regulation ends (works for both quarters and halves)
         } else {
-            return "End Game"
+            let otNumber = currentQuarter - maxQuarter + 1
+            return "Add \(otNumber)OT" // "Add 2OT", "Add 3OT", etc.
         }
     }
-    
+
     private var advanceQuarterColor: Color {
-        currentQuarter < maxQuarter ? .blue : .red
+        currentQuarter < maxQuarter ? .blue : .orange // Orange for overtime
     }
     
     var body: some View {
@@ -444,21 +447,21 @@ struct CompactGameControlsCard: View {
                 .buttonStyle(BiggerCompactControlButtonStyle(color: .purple, isIPad: isIPad))
 
                 Button(advanceQuarterText) {
-                    // DEBUG: Print values to diagnose the issue
-                    debugPrint("🔍 [DEBUG] End Period Button Pressed:")
+                    // ALWAYS advance quarter/add overtime - never auto-end game
+                    // Users must click separate "Finish Game" button to end
+                    debugPrint("🔍 [DEBUG] Advance Period Button Pressed:")
                     debugPrint("   currentQuarter: \(currentQuarter)")
                     debugPrint("   maxQuarter: \(maxQuarter)")
                     debugPrint("   gameFormat: \(gameFormat)")
                     debugPrint("   Button text: \(advanceQuarterText)")
-                    debugPrint("   Condition (currentQuarter < maxQuarter): \(currentQuarter < maxQuarter)")
 
-                    if currentQuarter < maxQuarter {
-                        debugPrint("   ✅ Calling onAdvanceQuarter() - should advance to next period")
-                        onAdvanceQuarter()
+                    if currentQuarter >= maxQuarter {
+                        debugPrint("   🏀 Adding overtime period")
                     } else {
-                        debugPrint("   ❌ Calling onFinishGame() - should end the game")
-                        onFinishGame()
+                        debugPrint("   ⏭️ Advancing to next quarter")
                     }
+
+                    onAdvanceQuarter() // Always advance, including into overtime
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: advanceQuarterColor, isIPad: isIPad))
             }

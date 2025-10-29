@@ -213,6 +213,8 @@ struct ModernCareerTrendsView: View {
     let isIPad: Bool
     @State private var selectedStat: TrendStatType = .avgPoints
     @State private var selectedTimeframe: TrendTimeframe = .auto
+    @State private var selectedSeason: String = "All Seasons"
+    @State private var selectedTeam: String = "All Teams"
     
     enum TrendStatType: String, CaseIterable {
         case avgPoints = "Avg Points"
@@ -288,12 +290,41 @@ struct ModernCareerTrendsView: View {
         var displayName: String { rawValue }
     }
     
+    // Get unique seasons from games
+    private var availableSeasons: [String] {
+        let seasons = games.compactMap { $0.season }.filter { !$0.isEmpty }
+        let uniqueSeasons = Array(Set(seasons)).sorted(by: >)
+        return ["All Seasons"] + uniqueSeasons
+    }
+
+    // Get unique teams from games
+    private var availableTeams: [String] {
+        let teams = games.map { $0.teamName }.filter { !$0.isEmpty }
+        let uniqueTeams = Array(Set(teams)).sorted()
+        return ["All Teams"] + uniqueTeams
+    }
+
+    // Filter games based on selected season and team
+    private var filteredGames: [Game] {
+        var filtered = games
+
+        if selectedSeason != "All Seasons" {
+            filtered = filtered.filter { $0.season == selectedSeason }
+        }
+
+        if selectedTeam != "All Teams" {
+            filtered = filtered.filter { $0.teamName == selectedTeam }
+        }
+
+        return filtered
+    }
+
     private var smartTimeframe: TrendTimeframe {
         if selectedTimeframe != .auto {
             return selectedTimeframe
         }
-        
-        let gameCount = games.count
+
+        let gameCount = filteredGames.count
         if gameCount < 5 {
             return .weekly
         } else if gameCount < 15 {
@@ -302,7 +333,7 @@ struct ModernCareerTrendsView: View {
             return .quarterly
         }
     }
-    
+
     private var trendData: [TrendDataPoint] {
         getTrendData()
     }
@@ -315,30 +346,90 @@ struct ModernCareerTrendsView: View {
                     .font(isIPad ? .system(size: 28, weight: .bold) : .title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
-                
+
+                // Game count and filters
                 HStack {
-                    Text("Tracking \(games.count) games \(smartTimeframe.displayName.lowercased()) by \(smartTimeframe.displayName.lowercased())")
+                    Text("Tracking \(filteredGames.count) games")
                         .font(isIPad ? .body : .caption)
                         .foregroundColor(.secondary)
-                    
+
                     Spacer()
-                    
-                    Menu {
-                        ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
-                            Button(timeframe.displayName) {
-                                selectedTimeframe = timeframe
+                }
+
+                // Filter row
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: isIPad ? 12 : 8) {
+                        // Season filter
+                        Menu {
+                            ForEach(availableSeasons, id: \.self) { season in
+                                Button(season) {
+                                    selectedSeason = season
+                                }
                             }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "calendar")
+                                    .font(.caption)
+                                Text(selectedSeason)
+                                    .foregroundColor(selectedSeason == "All Seasons" ? .secondary : .orange)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .font(isIPad ? .body : .caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text("Timeframe")
-                            Text(selectedTimeframe.displayName)
-                                .foregroundColor(.orange)
-                            Image(systemName: "chevron.down")
-                                .font(.caption)
+
+                        // Team filter
+                        Menu {
+                            ForEach(availableTeams, id: \.self) { team in
+                                Button(team) {
+                                    selectedTeam = team
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "person.3.fill")
+                                    .font(.caption)
+                                Text(selectedTeam)
+                                    .foregroundColor(selectedTeam == "All Teams" ? .secondary : .orange)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .font(isIPad ? .body : .caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
                         }
-                        .font(isIPad ? .body : .caption)
-                        .foregroundColor(.secondary)
+
+                        // Timeframe filter
+                        Menu {
+                            ForEach(TrendTimeframe.allCases, id: \.self) { timeframe in
+                                Button(timeframe.displayName) {
+                                    selectedTimeframe = timeframe
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                    .font(.caption)
+                                Text(selectedTimeframe.displayName)
+                                    .foregroundColor(selectedTimeframe == .auto ? .secondary : .orange)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .font(isIPad ? .body : .caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                        }
                     }
                 }
             }
@@ -450,12 +541,12 @@ struct ModernCareerTrendsView: View {
     }
     
     private func getTrendData() -> [TrendDataPoint] {
-        guard games.count >= 2 else { return [] }
-        
+        guard filteredGames.count >= 2 else { return [] }
+
         // For simplicity, group recent games by week/month
-        let recentGames = Array(games.suffix(min(games.count, 20)))
+        let recentGames = Array(filteredGames.suffix(min(filteredGames.count, 20)))
         let calendar = Calendar.current
-        
+
         switch smartTimeframe {
         case .auto, .weekly:
             return getWeeklyData(from: recentGames, calendar: calendar)

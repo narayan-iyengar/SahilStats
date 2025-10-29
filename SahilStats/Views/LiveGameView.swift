@@ -1601,11 +1601,11 @@ struct LiveGameControllerView: View {
                 var updatedGame = serverGameState
                 let now = Date()
 
-                // CRITICAL FIX: Validate we're not already at the last period
+                // Allow advancing beyond numQuarter for overtime periods
+                // No limit check - overtime is unlimited!
+                debugPrint("⏭️ Advancing to next period from Q\(updatedGame.quarter)")
                 if updatedGame.quarter >= updatedGame.numQuarter {
-                    forcePrint("❌ Cannot advance quarter - already at final period (\(updatedGame.quarter)/\(updatedGame.numQuarter))")
-                    debugPrint("   This should call finishGame() instead!")
-                    return
+                    debugPrint("   🏀 Entering OVERTIME period")
                 }
 
                 // CRITICAL FIX: Preserve local changes
@@ -1615,7 +1615,12 @@ struct LiveGameControllerView: View {
                 updatedGame.sahilOnBench = sahilOnBench
 
                 updatedGame.quarter += 1
-                let newClockTime = TimeInterval(updatedGame.quarterLength * 60)
+
+                // Overtime periods default to 5 minutes, regular periods use quarterLength
+                // User can adjust with +1m/-1m buttons if needed
+                let overtimePeriod = updatedGame.quarter > updatedGame.numQuarter
+                let newClockTime = TimeInterval(overtimePeriod ? 5 * 60 : updatedGame.quarterLength * 60)
+
                 updatedGame.clock = newClockTime
                 updatedGame.isRunning = false
                 updatedGame.clockStartTime = nil

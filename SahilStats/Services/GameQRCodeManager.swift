@@ -193,6 +193,7 @@ struct GameQRCodeDisplayView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 30) {
+                // Cancel button with extra padding to avoid bezel
                 HStack {
                     Spacer()
                     Button("Cancel") {
@@ -205,7 +206,8 @@ struct GameQRCodeDisplayView: View {
                         dismiss()
                     }
                     .font(.headline)
-                    .padding()
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
                 }
 
                 Spacer()

@@ -66,6 +66,7 @@ struct PhotosVideoPlayerView: View {
                         dismiss()
                     }
                     .foregroundColor(.white)
+                    .padding(.leading, 8)
                 }
             }
             .toolbarBackground(.visible, for: .navigationBar)

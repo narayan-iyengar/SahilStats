@@ -209,6 +209,19 @@ struct CalendarGameSelectionView: View {
                         Label("Ignore", systemImage: "eye.slash")
                     }
                 }
+                .contextMenu {
+                    Button(action: {
+                        calendarManager.markEventAsCompleted(game.id)
+                    }) {
+                        Label("Mark as Completed", systemImage: "checkmark.circle.fill")
+                    }
+
+                    Button(action: {
+                        calendarManager.ignoreEvent(game.id)
+                    }) {
+                        Label("Ignore Event", systemImage: "eye.slash")
+                    }
+                }
             }
         }
         .listStyle(.plain)

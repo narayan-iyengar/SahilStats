@@ -9,12 +9,14 @@ import SwiftUI
 
 struct OverlayPreviewView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedScenario: TestScenario = .normal
+    @StateObject private var firebaseService = FirebaseService.shared
+    @State private var selectedScenario: TestScenario = .yourTeams
     @State private var orientation: UIDeviceOrientation = .landscapeRight
     @State private var showZoomIndicator = false
     @State private var currentZoomLevel: CGFloat = 1.0
 
     enum TestScenario: String, CaseIterable, Identifiable {
+        case yourTeams = "Your Teams"
         case normal = "Normal Game"
         case longNames = "Long Team Names"
         case highScore = "High Score"
@@ -24,8 +26,26 @@ struct OverlayPreviewView: View {
 
         var id: String { rawValue }
 
-        var overlayData: SimpleScoreOverlayData {
+        func overlayData(teams: [Team]) -> SimpleScoreOverlayData {
             switch self {
+            case .yourTeams:
+                // Use actual user teams if available
+                let homeTeam = teams.first
+                let awayTeam = teams.count > 1 ? teams[1] : nil
+
+                return SimpleScoreOverlayData(
+                    homeTeam: homeTeam?.name ?? "Your Team",
+                    awayTeam: awayTeam?.name ?? "Opponent",
+                    homeScore: 42,
+                    awayScore: 38,
+                    quarter: 2,
+                    clockTime: "6:30",
+                    gameFormat: .halves,
+                    isRecording: true,
+                    recordingDuration: "12:45",
+                    homeLogoURL: homeTeam?.logoURL,
+                    awayLogoURL: awayTeam?.logoURL
+                )
             case .normal:
                 return SimpleScoreOverlayData(
                     homeTeam: "Warriors",
@@ -50,7 +70,9 @@ struct OverlayPreviewView: View {
                     clockTime: "12:45",
                     gameFormat: .halves,
                     isRecording: true,
-                    recordingDuration: "07:15"
+                    recordingDuration: "07:15",
+                    homeLogoURL: "https://cdn.nba.com/logos/nba/1610612744/primary/L/logo.svg",
+                    awayLogoURL: "https://cdn.nba.com/logos/nba/1610612738/primary/L/logo.svg"
                 )
             case .highScore:
                 return SimpleScoreOverlayData(
@@ -62,7 +84,9 @@ struct OverlayPreviewView: View {
                     clockTime: "0:42",
                     gameFormat: .halves,
                     isRecording: true,
-                    recordingDuration: "45:18"
+                    recordingDuration: "45:18",
+                    homeLogoURL: "https://cdn.nba.com/logos/nba/1610612756/primary/L/logo.svg",
+                    awayLogoURL: "https://cdn.nba.com/logos/nba/1610612761/primary/L/logo.svg"
                 )
             case .closeGame:
                 return SimpleScoreOverlayData(
@@ -74,7 +98,9 @@ struct OverlayPreviewView: View {
                     clockTime: "0:03",
                     gameFormat: .halves,
                     isRecording: true,
-                    recordingDuration: "39:57"
+                    recordingDuration: "39:57",
+                    homeLogoURL: "https://cdn.nba.com/logos/nba/1610612760/primary/L/logo.svg",
+                    awayLogoURL: "https://cdn.nba.com/logos/nba/1610612745/primary/L/logo.svg"
                 )
             case .overtime:
                 return SimpleScoreOverlayData(
@@ -86,7 +112,9 @@ struct OverlayPreviewView: View {
                     clockTime: "2:30",
                     gameFormat: .quarters,
                     isRecording: true,
-                    recordingDuration: "52:30"
+                    recordingDuration: "52:30",
+                    homeLogoURL: "https://cdn.nba.com/logos/nba/1610612737/primary/L/logo.svg",
+                    awayLogoURL: "https://cdn.nba.com/logos/nba/1610612737/primary/L/logo.svg"
                 )
             case .quarters:
                 return SimpleScoreOverlayData(
@@ -98,10 +126,16 @@ struct OverlayPreviewView: View {
                     clockTime: "5:00",
                     gameFormat: .quarters,
                     isRecording: true,
-                    recordingDuration: "03:00"
+                    recordingDuration: "03:00",
+                    homeLogoURL: "https://cdn.nba.com/logos/nba/1610612762/primary/L/logo.svg",
+                    awayLogoURL: "https://cdn.nba.com/logos/nba/1610612758/primary/L/logo.svg"
                 )
             }
         }
+    }
+
+    private var currentOverlayData: SimpleScoreOverlayData {
+        selectedScenario.overlayData(teams: firebaseService.teams)
     }
 
     var body: some View {
@@ -112,10 +146,10 @@ struct OverlayPreviewView: View {
 
             // Overlay preview
             SimpleScoreOverlay(
-                overlayData: selectedScenario.overlayData,
+                overlayData: currentOverlayData,
                 orientation: orientation,
-                recordingDuration: selectedScenario.overlayData.recordingDuration,
-                isRecording: selectedScenario.overlayData.isRecording
+                recordingDuration: currentOverlayData.recordingDuration,
+                isRecording: currentOverlayData.isRecording
             )
 
             // Controls overlay (top-left corner)
@@ -134,11 +168,12 @@ struct OverlayPreviewView: View {
                                     .fontWeight(.semibold)
                             }
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 8)
                             .background(Color.white.opacity(0.3))
                             .cornerRadius(8)
                             .foregroundColor(.white)
                         }
+                        .padding(.top, 8)
 
                         // Scenario picker
                         Menu {
@@ -186,19 +221,49 @@ struct OverlayPreviewView: View {
                         Text("Preview Mode")
                             .font(.caption2)
                             .foregroundColor(.white.opacity(0.6))
+
+                        // Show helpful message if "Your Teams" selected
+                        if selectedScenario == .yourTeams {
+                            if firebaseService.teams.isEmpty {
+                                Text("Upload team logos in Settings → Teams")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.orange.opacity(0.2))
+                                    .cornerRadius(8)
+                            } else {
+                                Text("\(firebaseService.teams.count) team\(firebaseService.teams.count == 1 ? "" : "s") loaded")
+                                    .font(.caption2)
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(8)
+                            }
+                        }
                     }
-                    .padding(16)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 20)
+                    .padding(.bottom, 16)
 
                     Spacer()
                 }
 
                 Spacer()
             }
+            .edgesIgnoringSafeArea(.bottom)
+            .safeAreaInset(edge: .top) {
+                Color.clear.frame(height: 0)
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .preferredColorScheme(.dark)
         .ignoresSafeArea()
+        .onAppear {
+            firebaseService.startListening()
+        }
     }
 }
 
