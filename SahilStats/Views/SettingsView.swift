@@ -63,6 +63,10 @@ struct SettingsView: View {
                         CameraSettingsView()
                     }
 
+                    NavigationLink("Gimbal Tracking (DockKit)") {
+                        GimbalTrackingSettingsView()
+                    }
+
                     NavigationLink("Preview Score Overlay") {
                         OverlayPreviewView()
                     }
@@ -80,6 +84,10 @@ struct SettingsView: View {
                     // Consolidated: Device Pairing shows trusted devices inline
                     NavigationLink("Device Pairing & Trusted Devices") {
                         DevicePairingMainView()
+                    }
+
+                    NavigationLink("Connection Diagnostics") {
+                        ConnectionDiagnosticsView()
                     }
 
                     Toggle("Auto-connect to Trusted Devices", isOn: $settingsManager.autoConnectEnabled)
