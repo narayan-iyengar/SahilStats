@@ -590,7 +590,14 @@ class VideoRecordingManager: NSObject, ObservableObject {
                 self.startRecordingTimer()
 
                 // Start tracking score timeline for post-processing
-                ScoreTimelineTracker.shared.startRecording(initialGame: game)
+                ScoreTimelineTracker.shared.startRecording(
+                    initialGame: game,
+                    homeLogoURL: game.teamLogoURL,
+                    awayLogoURL: game.opponentLogoURL
+                )
+
+                // Start DockKit gimbal tracking (Insta360 Flow 2 Pro)
+                GimbalTrackingManager.shared.startTracking()
 
                 // Update Live Activity (disabled via feature flag for recorder device)
                 LiveActivityManager.shared.updateRecordingState(isRecording: true)
@@ -641,6 +648,9 @@ class VideoRecordingManager: NSObject, ObservableObject {
             self.isRecording = false
             self.recordingStartTime = nil
             self.stopRecordingTimer()
+
+            // Stop DockKit gimbal tracking
+            GimbalTrackingManager.shared.stopTracking()
 
             // DON'T call ScoreTimelineTracker.stopRecording() here
             // It will be called later when saving the video to get the timeline

@@ -17,17 +17,20 @@ class GameCalendarManager: ObservableObject {
 
     private let eventStore = EKEventStore()
     private let db = Firestore.firestore()
+    private let firebaseService = FirebaseService.shared
 
     @Published var hasCalendarAccess = false
     @Published var upcomingGames: [CalendarGame] = []
     @Published var selectedCalendars: [String] = [] // Calendar identifiers
     @Published var weekendsOnly = true // Filter to show only weekend events
     @Published var ignoredEventIds: Set<String> = [] // Event IDs to ignore
+    @Published var completedEventIds: Set<String> = [] // Event IDs marked as completed
 
     private let userDefaults = UserDefaults.standard
     private let selectedCalendarsKey = "com.sahilstats.selectedCalendars"
     private let weekendsOnlyKey = "com.sahilstats.weekendsOnly"
     private let ignoredEventsKey = "com.sahilstats.ignoredCalendarEvents"
+    private let completedEventsKey = "com.sahilstats.completedCalendarEvents"
     private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
 
     private var userId: String? {
@@ -81,20 +84,23 @@ class GameCalendarManager: ObservableObject {
         loadSelectedCalendars()
         loadWeekendsOnlySetting()
         loadIgnoredEventsFromLocal() // Load from UserDefaults immediately
+        loadCompletedEventsFromLocal() // Load completed events from UserDefaults
         checkCalendarAccess()
 
         // Load from Firebase in background
         Task {
-            debugPrint("🔄 Starting Firebase sync for ignored events...")
+            debugPrint("🔄 Starting Firebase sync for ignored and completed events...")
             await loadIgnoredEventsFromFirebase()
+            await loadCompletedEventsFromFirebase()
         }
 
-        // Listen for auth state changes to reload ignored events
+        // Listen for auth state changes to reload events
         authStateListenerHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             if user != nil {
-                debugPrint("👤 User signed in - reloading ignored events from Firebase")
+                debugPrint("👤 User signed in - reloading ignored and completed events from Firebase")
                 Task {
                     await self?.loadIgnoredEventsFromFirebase()
+                    await self?.loadCompletedEventsFromFirebase()
                 }
             }
         }
@@ -215,6 +221,22 @@ class GameCalendarManager: ObservableObject {
         debugPrint("✅ Event unignored: \(eventId)")
     }
 
+    // MARK: - Completed Events Management
+
+    func markEventAsCompleted(_ eventId: String) {
+        completedEventIds.insert(eventId)
+        saveCompletedEvents()
+        loadUpcomingGames() // Refresh to remove completed event
+        debugPrint("✅ Event marked as completed: \(eventId)")
+    }
+
+    func unmarkEventAsCompleted(_ eventId: String) {
+        completedEventIds.remove(eventId)
+        saveCompletedEvents()
+        loadUpcomingGames() // Refresh to show event again
+        debugPrint("✅ Event unmarked as completed: \(eventId)")
+    }
+
     private func loadIgnoredEventsFromLocal() {
         if let saved = userDefaults.array(forKey: ignoredEventsKey) as? [String] {
             ignoredEventIds = Set(saved)
@@ -300,6 +322,74 @@ class GameCalendarManager: ObservableObject {
         }
     }
 
+    private func loadCompletedEventsFromLocal() {
+        if let saved = userDefaults.array(forKey: completedEventsKey) as? [String] {
+            completedEventIds = Set(saved)
+            debugPrint("📱 Loaded \(completedEventIds.count) completed event(s) from local storage")
+        }
+    }
+
+    private func loadCompletedEventsFromFirebase() async {
+        guard let userId = userId else {
+            debugPrint("⚠️ No user ID - skipping Firebase load for completed events")
+            return
+        }
+
+        debugPrint("☁️ Loading completed events from Firebase for user: \(userId)")
+
+        do {
+            let docRef = db.collection("users").document(userId).collection("calendar").document("completedEvents")
+            let document = try await docRef.getDocument()
+
+            if document.exists, let data = document.data(),
+               let completedArray = data["eventIds"] as? [String] {
+                await MainActor.run {
+                    self.completedEventIds = Set(completedArray)
+                    userDefaults.set(completedArray, forKey: completedEventsKey)
+                    debugPrint("☁️ Loaded \(completedArray.count) completed event(s) from Firebase")
+                    loadUpcomingGames()
+                }
+            } else {
+                debugPrint("📱 No completed events document in Firebase")
+                await saveCompletedEventsToFirebase()
+            }
+        } catch {
+            debugPrint("❌ Failed to load completed events from Firebase: \(error)")
+        }
+    }
+
+    private func saveCompletedEvents() {
+        let array = Array(completedEventIds)
+        userDefaults.set(array, forKey: completedEventsKey)
+        debugPrint("💾 Saved \(array.count) completed event(s) to local storage")
+
+        Task {
+            await saveCompletedEventsToFirebase()
+        }
+    }
+
+    private func saveCompletedEventsToFirebase() async {
+        guard let userId = userId else {
+            debugPrint("⚠️ No user ID - skipping Firebase save for completed events")
+            return
+        }
+
+        do {
+            let array = Array(completedEventIds)
+            let docRef = db.collection("users").document(userId).collection("calendar").document("completedEvents")
+
+            debugPrint("💾 Saving \(array.count) completed event(s) to Firebase")
+            try await docRef.setData([
+                "eventIds": array,
+                "lastUpdated": FieldValue.serverTimestamp()
+            ])
+
+            debugPrint("✅ Successfully saved \(array.count) completed event(s) to Firebase")
+        } catch {
+            debugPrint("❌ Failed to save completed events to Firebase: \(error)")
+        }
+    }
+
     // MARK: - Game Loading
 
     func loadUpcomingGames() {
@@ -367,6 +457,12 @@ class GameCalendarManager: ObservableObject {
                 return nil
             }
 
+            // Skip completed events
+            if completedEventIds.contains(eventId) {
+                debugPrint("   ✅ Skipping completed event: \(eventTitle)")
+                return nil
+            }
+
             // Skip practice and training events
             if isPracticeOrTraining(eventTitle) {
                 debugPrint("   ⏭️ Skipping practice/training event: \(eventTitle)")
@@ -376,6 +472,12 @@ class GameCalendarManager: ObservableObject {
             // Try to parse opponent, fallback to full title if parsing fails
             let opponent = parseOpponent(from: eventTitle) ?? extractTournamentOpponent(from: eventTitle) ?? eventTitle
             debugPrint("   ➡️ Parsed opponent: '\(opponent)'")
+
+            // Check if this game matches a completed game in Firebase
+            if self.matchesCompletedFirebaseGame(opponent: opponent, startTime: event.startDate) {
+                debugPrint("   ✅ Skipping - matches completed game in Firebase: \(eventTitle)")
+                return nil
+            }
 
             return CalendarGame(
                 id: eventId,
@@ -397,6 +499,42 @@ class GameCalendarManager: ObservableObject {
                 debugPrint("   - \(game.opponent) at \(game.timeString) on \(game.dateString)")
             }
         }
+    }
+
+    // MARK: - Completed Game Matching
+
+    private func matchesCompletedFirebaseGame(opponent: String, startTime: Date) -> Bool {
+        // Get all completed games from Firebase
+        let completedGames = firebaseService.games.filter { $0.status == .final }
+
+        // Match by opponent name and date (within same day)
+        let calendar = Calendar.current
+        let gameDate = calendar.startOfDay(for: startTime)
+
+        for completedGame in completedGames {
+            // Skip games without a timestamp
+            guard let completedTimestamp = completedGame.timestamp else {
+                continue
+            }
+
+            let completedDate = calendar.startOfDay(for: completedTimestamp)
+
+            // Check if dates match (same day)
+            if gameDate == completedDate {
+                // Check if opponent matches (case-insensitive, fuzzy match)
+                let calendarOpponent = opponent.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                let firebaseOpponent = completedGame.opponent.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if calendarOpponent == firebaseOpponent ||
+                   calendarOpponent.contains(firebaseOpponent) ||
+                   firebaseOpponent.contains(calendarOpponent) {
+                    debugPrint("   🎯 Match found: '\(opponent)' on \(gameDate) matches Firebase game '\(completedGame.opponent)'")
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
     // MARK: - Game Parsing
@@ -674,13 +812,21 @@ class GameCalendarManager: ObservableObject {
         debugPrint("   Location: \(calendarGame.location)")
         debugPrint("   Time: \(calendarGame.timeString)")
 
+        // Get team logo URL from selected team
+        let teamLogoURL = firebaseService.teams.first(where: { $0.name == settings.teamName })?.logoURL
+
+        // Get opponent logo URL if opponent exists
+        let opponentLogoURL = firebaseService.opponents.first(where: { $0.name == calendarGame.opponent })?.logoURL
+
         return LiveGame(
             teamName: settings.teamName,
             opponent: calendarGame.opponent,
             location: calendarGame.location,
             gameFormat: settings.gameFormat,
             quarterLength: settings.quarterLength,
-            isMultiDeviceSetup: false
+            isMultiDeviceSetup: false,
+            teamLogoURL: teamLogoURL,
+            opponentLogoURL: opponentLogoURL
         )
     }
 

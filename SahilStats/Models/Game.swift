@@ -19,6 +19,7 @@ struct Game: Identifiable, Codable, Equatable {
     var gameFormat: GameFormat
     var quarterLength: Int
     var numQuarter: Int
+    var overtimeLength: Int? // Overtime period length in minutes (nil = use default 5)
     var status: GameStatus
     
     // Scores
@@ -660,6 +661,54 @@ struct Team: Identifiable, Codable, Equatable {
     }
 }
 
+// MARK: - Opponent Model
+
+struct Opponent: Identifiable, Codable, Equatable {
+    @DocumentID var id: String?
+    var name: String
+    var logoURL: String? // Firebase Storage URL for opponent logo
+    var createdAt: Date
+
+    // Equatable conformance
+    static func == (lhs: Opponent, rhs: Opponent) -> Bool {
+        return lhs.id == rhs.id && lhs.name == rhs.name && lhs.logoURL == rhs.logoURL
+    }
+
+    // Custom coding keys
+    enum CodingKeys: String, CodingKey {
+        case name, logoURL, createdAt
+    }
+
+    // Custom decoder to handle missing createdAt field
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        name = try container.decode(String.self, forKey: .name)
+
+        // Handle optional logoURL for backward compatibility
+        logoURL = try container.decodeIfPresent(String.self, forKey: .logoURL)
+
+        // Handle missing createdAt field for older documents
+        if let createdAtData = try? container.decode(Timestamp.self, forKey: .createdAt) {
+            createdAt = createdAtData.dateValue()
+        } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
+            let formatter = ISO8601DateFormatter()
+            createdAt = formatter.date(from: createdAtString) ?? Date()
+        } else if let createdAtDouble = try? container.decode(Double.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: createdAtDouble)
+        } else {
+            // Fallback for older documents without createdAt
+            createdAt = Date()
+        }
+    }
+
+    init(name: String, logoURL: String? = nil) {
+        self.name = name
+        self.logoURL = logoURL
+        self.createdAt = Date()
+    }
+}
+
 // MARK: - Supporting Enums
 
 enum GameFormat: String, Codable, CaseIterable {
@@ -684,6 +733,27 @@ enum GameFormat: String, Codable, CaseIterable {
         switch self {
         case .halves: return "Half"
         case .quarters: return "Quarter"
+        }
+    }
+
+    /// Format the period display text (e.g., "Q1", "2H", "OT", "2OT")
+    /// - Parameters:
+    ///   - currentPeriod: The current period number (1-based)
+    ///   - totalRegularPeriods: Total number of regular periods (numQuarter)
+    /// - Returns: Formatted period text
+    func formatPeriodDisplay(currentPeriod: Int, totalRegularPeriods: Int) -> String {
+        if currentPeriod <= totalRegularPeriods {
+            // Regular periods
+            switch self {
+            case .quarters:
+                return "Q\(currentPeriod)"
+            case .halves:
+                return "\(currentPeriod)H"
+            }
+        } else {
+            // Overtime periods
+            let otNumber = currentPeriod - totalRegularPeriods
+            return otNumber == 1 ? "OT" : "\(otNumber)OT"
         }
     }
 }
@@ -820,11 +890,13 @@ struct Achievement: Codable, Identifiable, Hashable {
 struct GameConfiguration {
     var teamName: String = ""
     var opponent: String = ""
+    var opponentLogoURL: String? = nil
     var location: String = ""
     var date: Date = Date()
     var gameFormat: GameFormat = .quarters
     var quarterLength: Int = 10
     var numQuarter: Int = 4
+    // Note: Overtime defaults to 5 minutes, adjustable with +1m/-1m during game
 }
 
 // Backward compatibility alias
@@ -835,6 +907,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
     var teamName: String
     var opponent: String
     var teamId: String?  // Reference to Team document (YOUR team)
+    var teamLogoURL: String?  // Logo for home team
     var opponentId: String?  // Reference to opponent Team document (if tracked)
     var opponentLogoURL: String?  // Logo for opponent (if not using opponentId)
     var season: String?  // e.g., "2024-25" or "Fall 2024"
@@ -842,7 +915,8 @@ struct LiveGame: Identifiable, Codable, Equatable {
     var gameFormat: GameFormat
     var quarterLength: Int
     var numQuarter: Int
-    
+    var overtimeLength: Int? // Overtime period length in minutes (nil = use default 5)
+
     // Live game state
     var isRunning: Bool
     var quarter: Int
@@ -949,10 +1023,11 @@ struct LiveGame: Identifiable, Codable, Equatable {
         gameFormat == .halves ? "Half" : "Quarter"
     }
     
-    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil, isMultiDeviceSetup: Bool = false, teamId: String? = nil, opponentId: String? = nil, opponentLogoURL: String? = nil, season: String? = nil) {
+    init(teamName: String, opponent: String, location: String? = nil, gameFormat: GameFormat = .halves, quarterLength: Int = 20, createdBy: String? = nil, deviceId: String? = nil, isMultiDeviceSetup: Bool = false, teamId: String? = nil, teamLogoURL: String? = nil, opponentId: String? = nil, opponentLogoURL: String? = nil, season: String? = nil) {
         self.teamName = teamName
         self.opponent = opponent
         self.teamId = teamId
+        self.teamLogoURL = teamLogoURL
         self.opponentId = opponentId
         self.opponentLogoURL = opponentLogoURL
         self.season = season
@@ -960,6 +1035,7 @@ struct LiveGame: Identifiable, Codable, Equatable {
         self.gameFormat = gameFormat
         self.quarterLength = quarterLength
         self.numQuarter = gameFormat == .halves ? 2 : 4
+        self.overtimeLength = nil // Always nil for new games, overtime defaults to 5 minutes
         self.isRunning = false
         self.quarter = 1
         self.clock = TimeInterval(quarterLength * 60)

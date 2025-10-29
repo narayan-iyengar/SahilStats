@@ -312,6 +312,7 @@ class HardwareAcceleratedOverlayCompositor {
             let clockTime: String
             let quarter: Int
             let gameFormat: GameFormat
+            let numQuarter: Int
             let zoomLevel: CGFloat?
 
             init(snapshot: ScoreTimelineTracker.ScoreSnapshot) {
@@ -320,7 +321,8 @@ class HardwareAcceleratedOverlayCompositor {
                 self.clockTime = snapshot.clockTime
                 self.quarter = snapshot.quarter
                 self.gameFormat = snapshot.gameFormat
-                self.zoomLevel = snapshot.zoomLevel  // Will add this to ScoreSnapshot
+                self.numQuarter = snapshot.numQuarter
+                self.zoomLevel = snapshot.zoomLevel
             }
         }
 
@@ -374,6 +376,7 @@ class HardwareAcceleratedOverlayCompositor {
                 clockTime: state.clockTime,
                 quarter: state.quarter,
                 gameFormat: state.gameFormat,
+                numQuarter: state.numQuarter,
                 zoomLevel: state.zoomLevel,
                 homeLogoURL: matchingSnapshot.homeLogoURL,
                 awayLogoURL: matchingSnapshot.awayLogoURL
@@ -903,7 +906,7 @@ class HardwareAcceleratedOverlayCompositor {
             guard snapshot.timestamp <= videoDurationSeconds else {
                 continue
             }
-            let text = formatPeriod(quarter: snapshot.quarter, gameFormat: snapshot.gameFormat)
+            let text = snapshot.gameFormat.formatPeriodDisplay(currentPeriod: snapshot.quarter, totalRegularPeriods: snapshot.numQuarter)
             events.append(PeriodEvent(timestamp: snapshot.timestamp, periodText: text))
         }
 
@@ -912,7 +915,7 @@ class HardwareAcceleratedOverlayCompositor {
             let layer = CATextLayer()
             layer.frame = CGRect(origin: .zero, size: frame.size)
             let firstSnapshot = timeline.first!
-            let periodText = formatPeriod(quarter: firstSnapshot.quarter, gameFormat: firstSnapshot.gameFormat)
+            let periodText = firstSnapshot.gameFormat.formatPeriodDisplay(currentPeriod: firstSnapshot.quarter, totalRegularPeriods: firstSnapshot.numQuarter)
             layer.string = periodText
             layer.fontSize = 9 * scaleFactor
             layer.font = UIFont.systemFont(ofSize: 9 * scaleFactor, weight: .semibold)
@@ -1176,27 +1179,8 @@ class HardwareAcceleratedOverlayCompositor {
 
     // MARK: - Helper Methods
 
-    private static func formatPeriod(quarter: Int, gameFormat: GameFormat) -> String {
-        let periodName = gameFormat == .halves ? "HALF" : "QTR"
-        let ordinal = getOrdinalSuffix(quarter)
-        return "\(quarter)\(ordinal) \(periodName)"
-    }
-
-    private static func getOrdinalSuffix(_ number: Int) -> String {
-        let lastDigit = number % 10
-        let lastTwoDigits = number % 100
-
-        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
-            return "th"
-        }
-
-        switch lastDigit {
-        case 1: return "st"
-        case 2: return "nd"
-        case 3: return "rd"
-        default: return "th"
-        }
-    }
+    // Note: Period formatting now uses GameFormat.formatPeriodDisplay()
+    // which handles overtime display (OT, 2OT, etc.)
 
     private static func calculateRenderSize(naturalSize: CGSize, transform: CGAffineTransform) -> CGSize {
         // Check if video is rotated 90° or 270°

@@ -29,32 +29,37 @@ struct SimpleScoreOverlay: View {
         orientation == .landscapeLeft
     }
     
-    private func getOrdinalSuffix(_ number: Int) -> String {
-        let lastDigit = number % 10
-        let lastTwoDigits = number % 100
-        
-        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
-            return "th"
-        }
-        
-        switch lastDigit {
-        case 1: return "st"
-        case 2: return "nd"
-        case 3: return "rd"
-        default: return "th"
-        }
-    }
-    
+    // Note: Period formatting uses GameFormat.formatPeriodDisplay()
+    // which handles overtime display (OT, 2OT, etc.)
+
     private func formatPeriod() -> String {
+        // For portrait view (long form): "1st QUARTER" or "OT"
+        let shortForm = overlayData.gameFormat.formatPeriodDisplay(
+            currentPeriod: overlayData.quarter,
+            totalRegularPeriods: overlayData.numQuarter
+        )
+
+        // Expand short form for portrait display
+        if shortForm == "OT" {
+            return "OVERTIME"
+        } else if shortForm.hasSuffix("OT") {
+            // "2OT" -> "2nd OVERTIME"
+            return "\(shortForm.dropLast(2)) OVERTIME"
+        }
+
+        // Regular period: expand "Q1" to "1st QUARTER" or "1H" to "1st HALF"
         let periodName = overlayData.gameFormat == .halves ? "HALF" : "QUARTER"
-        let ordinal = "\(overlayData.quarter)\(getOrdinalSuffix(overlayData.quarter))"
-        return "\(ordinal) \(periodName)"
+        let ordinalSuffixes = ["", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"]
+        let suffix = overlayData.quarter <= 9 ? ordinalSuffixes[overlayData.quarter] : "th"
+        return "\(overlayData.quarter)\(suffix) \(periodName)"
     }
-    
+
     private func formatShortPeriod() -> String {
-        let periodName = overlayData.gameFormat == .halves ? "HALF" : "QTR"
-        let ordinal = getOrdinalSuffix(overlayData.quarter)
-        return "\(overlayData.quarter)\(ordinal) \(periodName)"
+        // For landscape scoreboard: "Q1", "2H", "OT", "2OT"
+        return overlayData.gameFormat.formatPeriodDisplay(
+            currentPeriod: overlayData.quarter,
+            totalRegularPeriods: overlayData.numQuarter
+        )
     }
     
     private func getTextRotation() -> Double {
@@ -145,7 +150,7 @@ struct SimpleScoreOverlay: View {
                             .padding(8)
                             .background(Color.black.opacity(0.6))
                             .cornerRadius(8)
-                            .padding(.top, 20)
+                            .padding(.top, geometry.safeAreaInsets.top + 12)
                             .padding(.trailing, 20)
                         }
                         Spacer()
@@ -159,7 +164,7 @@ struct SimpleScoreOverlay: View {
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundColor(Color(red: 1.0, green: 0.8, blue: 0.0))  // iOS Camera yellow
                             .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                            .padding(.top, 20)
+                            .padding(.top, geometry.safeAreaInsets.top + 12)
                         Spacer()
                     }
                     .transition(.opacity)
@@ -192,8 +197,12 @@ struct SimpleScoreOverlay: View {
                             case .success(let image):
                                 image
                                     .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 16, height: 16)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 18, height: 18)
+                                    .cornerRadius(3)
+                                    .padding(1)
+                                    .frame(width: 20, height: 20)
+                                    .clipped()
                             case .failure(_), .empty:
                                 // Show initials if logo fails to load
                                 EmptyView()
@@ -203,17 +212,17 @@ struct SimpleScoreOverlay: View {
                         }
                     }
                     Text(formatTeamName(overlayData.homeTeam, maxLength: 4))
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.9))
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                 }
                 Text("\(overlayData.homeScore)")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .monospacedDigit()
             }
-            .frame(width: 50)
+            .frame(width: 65)
 
             Rectangle()
                 .fill(Color.white.opacity(0.2))
@@ -245,8 +254,12 @@ struct SimpleScoreOverlay: View {
                             case .success(let image):
                                 image
                                     .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 16, height: 16)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 18, height: 18)
+                                    .cornerRadius(3)
+                                    .padding(1)
+                                    .frame(width: 20, height: 20)
+                                    .clipped()
                             case .failure(_), .empty:
                                 // Show initials if logo fails to load
                                 EmptyView()
@@ -256,20 +269,20 @@ struct SimpleScoreOverlay: View {
                         }
                     }
                     Text(formatTeamName(overlayData.awayTeam, maxLength: 4))
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.9))
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                 }
                 Text("\(overlayData.awayScore)")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .monospacedDigit()
             }
-            .frame(width: 50)
+            .frame(width: 65)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(
             ZStack {
                 // ORIGINAL: Nice glassmorphism effect

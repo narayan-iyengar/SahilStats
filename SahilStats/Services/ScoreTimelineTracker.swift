@@ -19,6 +19,7 @@ class ScoreTimelineTracker {
         let homeTeam: String
         let awayTeam: String
         let gameFormat: GameFormat
+        let numQuarter: Int  // Total regular periods (for OT detection)
         let zoomLevel: CGFloat?  // Camera zoom level (nil = 1.0x)
         let homeLogoURL: String?  // Home team logo
         let awayLogoURL: String?  // Away team logo
@@ -46,6 +47,7 @@ class ScoreTimelineTracker {
             homeTeam: initialGame.teamName,
             awayTeam: initialGame.opponent,
             gameFormat: initialGame.gameFormat,
+            numQuarter: initialGame.numQuarter,
             zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil,
             homeLogoURL: homeLogoURL,
             awayLogoURL: awayLogoURL
@@ -87,6 +89,7 @@ class ScoreTimelineTracker {
             homeTeam: game.teamName,
             awayTeam: game.opponent,
             gameFormat: game.gameFormat,
+            numQuarter: game.numQuarter,
             zoomLevel: VideoRecordingManager.shared.currentZoomLevel != 1.0 ? VideoRecordingManager.shared.currentZoomLevel : nil,
             homeLogoURL: lastSnapshot?.homeLogoURL, // Preserve logo URLs from initial snapshot
             awayLogoURL: lastSnapshot?.awayLogoURL

@@ -11,6 +11,7 @@ struct GameSetupView: View {
     @State private var showingPostGameEntry = false
     @State private var isMultiDevice = false
     @State private var useCustomTeamName = false
+    @State private var useCustomOpponentName = false
     @State private var showLocationPermissionAlert = false
 
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
@@ -184,7 +185,67 @@ struct GameSetupView: View {
                     }
                 }
 
-                TextField("Opponent", text: $gameConfig.opponent)
+                // Opponent Picker or TextField
+                if firebaseService.opponents.isEmpty {
+                    TextField("Opponent", text: $gameConfig.opponent)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if useCustomOpponentName {
+                            HStack {
+                                TextField("Opponent", text: $gameConfig.opponent)
+                                    .onChange(of: gameConfig.opponent) { oldValue, newValue in
+                                        // Clear logo when typing custom name
+                                        gameConfig.opponentLogoURL = nil
+                                    }
+                                Button("Use Saved") {
+                                    useCustomOpponentName = false
+                                    if let firstOpponent = firebaseService.opponents.first {
+                                        gameConfig.opponent = firstOpponent.name
+                                        gameConfig.opponentLogoURL = firstOpponent.logoURL
+                                    }
+                                }
+                                .font(.caption)
+                                .buttonStyle(.borderless)
+                            }
+                        } else {
+                            Picker("Opponent", selection: $gameConfig.opponent) {
+                                ForEach(firebaseService.opponents, id: \.name) { opponent in
+                                    Text(opponent.name).tag(opponent.name)
+                                }
+                            }
+                            .onAppear {
+                                // Initialize with first opponent if empty
+                                if gameConfig.opponent.isEmpty, let firstOpponent = firebaseService.opponents.first {
+                                    gameConfig.opponent = firstOpponent.name
+                                    gameConfig.opponentLogoURL = firstOpponent.logoURL
+                                }
+                            }
+                            .onChange(of: firebaseService.opponents) { oldValue, newValue in
+                                // Set default opponent if not already set or if current selection is invalid
+                                if let firstOpponent = newValue.first {
+                                    if gameConfig.opponent.isEmpty || !newValue.contains(where: { $0.name == gameConfig.opponent }) {
+                                        gameConfig.opponent = firstOpponent.name
+                                        gameConfig.opponentLogoURL = firstOpponent.logoURL
+                                    }
+                                }
+                            }
+                            .onChange(of: gameConfig.opponent) { oldValue, newValue in
+                                // Update logo when opponent changes
+                                if let opponent = firebaseService.opponents.first(where: { $0.name == newValue }) {
+                                    gameConfig.opponentLogoURL = opponent.logoURL
+                                }
+                            }
+
+                            Button("Use Custom Name") {
+                                useCustomOpponentName = true
+                                gameConfig.opponent = ""
+                                gameConfig.opponentLogoURL = nil
+                            }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
 
                 HStack {
                     TextField("Location", text: $gameConfig.location)
@@ -216,6 +277,8 @@ struct GameSetupView: View {
 
                 Stepper("\(gameConfig.gameFormat.quarterName) Length: \(gameConfig.quarterLength) min",
                         value: $gameConfig.quarterLength, in: 1...30)
+            } footer: {
+                Text("If the game goes to overtime, the clock will default to 5 minutes. Use +1m/-1m buttons to adjust if needed.")
             }
 
             Section {
@@ -303,7 +366,67 @@ struct GameSetupView: View {
                     }
                 }
 
-                TextField("Opponent", text: $gameConfig.opponent)
+                // Opponent Picker or TextField
+                if firebaseService.opponents.isEmpty {
+                    TextField("Opponent", text: $gameConfig.opponent)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if useCustomOpponentName {
+                            HStack {
+                                TextField("Opponent", text: $gameConfig.opponent)
+                                    .onChange(of: gameConfig.opponent) { oldValue, newValue in
+                                        // Clear logo when typing custom name
+                                        gameConfig.opponentLogoURL = nil
+                                    }
+                                Button("Use Saved") {
+                                    useCustomOpponentName = false
+                                    if let firstOpponent = firebaseService.opponents.first {
+                                        gameConfig.opponent = firstOpponent.name
+                                        gameConfig.opponentLogoURL = firstOpponent.logoURL
+                                    }
+                                }
+                                .font(.caption)
+                                .buttonStyle(.borderless)
+                            }
+                        } else {
+                            Picker("Opponent", selection: $gameConfig.opponent) {
+                                ForEach(firebaseService.opponents, id: \.name) { opponent in
+                                    Text(opponent.name).tag(opponent.name)
+                                }
+                            }
+                            .onAppear {
+                                // Initialize with first opponent if empty
+                                if gameConfig.opponent.isEmpty, let firstOpponent = firebaseService.opponents.first {
+                                    gameConfig.opponent = firstOpponent.name
+                                    gameConfig.opponentLogoURL = firstOpponent.logoURL
+                                }
+                            }
+                            .onChange(of: firebaseService.opponents) { oldValue, newValue in
+                                // Set default opponent if not already set or if current selection is invalid
+                                if let firstOpponent = newValue.first {
+                                    if gameConfig.opponent.isEmpty || !newValue.contains(where: { $0.name == gameConfig.opponent }) {
+                                        gameConfig.opponent = firstOpponent.name
+                                        gameConfig.opponentLogoURL = firstOpponent.logoURL
+                                    }
+                                }
+                            }
+                            .onChange(of: gameConfig.opponent) { oldValue, newValue in
+                                // Update logo when opponent changes
+                                if let opponent = firebaseService.opponents.first(where: { $0.name == newValue }) {
+                                    gameConfig.opponentLogoURL = opponent.logoURL
+                                }
+                            }
+
+                            Button("Use Custom Name") {
+                                useCustomOpponentName = true
+                                gameConfig.opponent = ""
+                                gameConfig.opponentLogoURL = nil
+                            }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
 
                 HStack {
                     TextField("Location", text: $gameConfig.location)
@@ -421,6 +544,31 @@ struct GameSetupView: View {
     }
     
     private func createLiveGame() async throws -> LiveGame {
+        // Get team logo URL from selected team
+        var teamLogoURL: String? = nil
+        if let selectedTeam = firebaseService.teams.first(where: { $0.name == gameConfig.teamName }) {
+            teamLogoURL = selectedTeam.logoURL
+        }
+
+        // Auto-create opponent if it doesn't exist (e.g., user typed a custom name)
+        var opponentLogoURL = gameConfig.opponentLogoURL
+        if !gameConfig.opponent.isEmpty {
+            let existingOpponent = firebaseService.opponents.first(where: { $0.name == gameConfig.opponent })
+            if existingOpponent == nil {
+                // Opponent doesn't exist - create it
+                debugPrint("📝 Auto-creating opponent: \(gameConfig.opponent)")
+                let createdOpponent = try await firebaseService.findOrCreateOpponent(
+                    name: gameConfig.opponent,
+                    logoURL: opponentLogoURL
+                )
+                opponentLogoURL = createdOpponent.logoURL
+                debugPrint("✅ Opponent created with ID: \(createdOpponent.id ?? "unknown")")
+            } else if opponentLogoURL == nil && existingOpponent?.logoURL != nil {
+                // Use existing opponent's logo if we don't have one set
+                opponentLogoURL = existingOpponent?.logoURL
+            }
+        }
+
         // Create live game with full configuration
         let newGame = LiveGame(
             teamName: gameConfig.teamName,
@@ -428,7 +576,9 @@ struct GameSetupView: View {
             location: gameConfig.location.isEmpty ? nil : gameConfig.location,
             gameFormat: gameConfig.gameFormat,
             quarterLength: gameConfig.quarterLength,
-            isMultiDeviceSetup: isMultiDevice
+            isMultiDeviceSetup: isMultiDevice,
+            teamLogoURL: teamLogoURL,
+            opponentLogoURL: opponentLogoURL
         )
         let id = try await FirebaseService.shared.createLiveGame(newGame)
         var gameWithId = newGame; gameWithId.id = id

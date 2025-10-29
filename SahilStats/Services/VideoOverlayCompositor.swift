@@ -459,7 +459,7 @@ class VideoOverlayCompositor {
         for snapshot in timeline {
             let homeTeamName = formatTeamName(snapshot.homeTeam, maxLength: 4)
             let awayTeamName = formatTeamName(snapshot.awayTeam, maxLength: 4)
-            let periodText = formatPeriod(quarter: snapshot.quarter, gameFormat: snapshot.gameFormat)
+            let periodText = snapshot.gameFormat.formatPeriodDisplay(currentPeriod: snapshot.quarter, totalRegularPeriods: snapshot.numQuarter)
 
             homeTeamNames.append(homeTeamName)
             homeScores.append("\(snapshot.homeScore)")
@@ -545,27 +545,8 @@ class VideoOverlayCompositor {
         return String(teamName.prefix(maxLength)).uppercased()
     }
 
-    private static func formatPeriod(quarter: Int, gameFormat: GameFormat) -> String {
-        let periodName = gameFormat == .halves ? "HALF" : "QTR"
-        let ordinal = getOrdinalSuffix(quarter)
-        return "\(quarter)\(ordinal) \(periodName)"
-    }
-
-    private static func getOrdinalSuffix(_ number: Int) -> String {
-        let lastDigit = number % 10
-        let lastTwoDigits = number % 100
-
-        if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
-            return "th"
-        }
-
-        switch lastDigit {
-        case 1: return "st"
-        case 2: return "nd"
-        case 3: return "rd"
-        default: return "th"
-        }
-    }
+    // Note: Period formatting now uses GameFormat.formatPeriodDisplay()
+    // which handles overtime display (OT, 2OT, etc.)
 
     // MARK: - Clock Interpolation
 
@@ -618,6 +599,7 @@ class VideoOverlayCompositor {
                         homeTeam: currentSnapshot.homeTeam,
                         awayTeam: currentSnapshot.awayTeam,
                         gameFormat: currentSnapshot.gameFormat,
+                        numQuarter: currentSnapshot.numQuarter,
                         zoomLevel: currentSnapshot.zoomLevel,
                         homeLogoURL: currentSnapshot.homeLogoURL,
                         awayLogoURL: currentSnapshot.awayLogoURL
@@ -647,6 +629,7 @@ class VideoOverlayCompositor {
                         homeTeam: currentSnapshot.homeTeam,
                         awayTeam: currentSnapshot.awayTeam,
                         gameFormat: currentSnapshot.gameFormat,
+                        numQuarter: currentSnapshot.numQuarter,
                         zoomLevel: currentSnapshot.zoomLevel,
                         homeLogoURL: currentSnapshot.homeLogoURL,
                         awayLogoURL: currentSnapshot.awayLogoURL

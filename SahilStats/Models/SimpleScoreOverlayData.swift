@@ -13,6 +13,7 @@ struct SimpleScoreOverlayData {
     let quarter: Int
     let clockTime: String
     let gameFormat: GameFormat
+    let numQuarter: Int  // Total regular periods (for OT detection)
     let isRecording: Bool
     let recordingDuration: String
     let homeLogoURL: String? // Optional team logo
@@ -27,14 +28,16 @@ struct SimpleScoreOverlayData {
         self.quarter = liveGame.quarter
         self.clockTime = liveGame.currentClockDisplay
         self.gameFormat = liveGame.gameFormat
+        self.numQuarter = liveGame.numQuarter
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
-        self.homeLogoURL = homeLogoURL
-        self.awayLogoURL = awayLogoURL
+        // Use logos from LiveGame if not explicitly provided
+        self.homeLogoURL = homeLogoURL ?? liveGame.teamLogoURL
+        self.awayLogoURL = awayLogoURL ?? liveGame.opponentLogoURL
     }
 
     // Manual initializer for custom data
-    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, quarter: Int, clockTime: String, gameFormat: GameFormat = .halves, isRecording: Bool = false, recordingDuration: String = "00:00", homeLogoURL: String? = nil, awayLogoURL: String? = nil) {
+    init(homeTeam: String, awayTeam: String, homeScore: Int, awayScore: Int, quarter: Int, clockTime: String, gameFormat: GameFormat = .halves, numQuarter: Int? = nil, isRecording: Bool = false, recordingDuration: String = "00:00", homeLogoURL: String? = nil, awayLogoURL: String? = nil) {
         self.homeTeam = homeTeam
         self.awayTeam = awayTeam
         self.homeScore = homeScore
@@ -42,12 +45,13 @@ struct SimpleScoreOverlayData {
         self.quarter = quarter
         self.clockTime = clockTime
         self.gameFormat = gameFormat
+        self.numQuarter = numQuarter ?? gameFormat.quarterCount
         self.isRecording = isRecording
         self.recordingDuration = recordingDuration
         self.homeLogoURL = homeLogoURL
         self.awayLogoURL = awayLogoURL
     }
-    
+
     // Default/empty state
     static var empty: SimpleScoreOverlayData {
         SimpleScoreOverlayData(
@@ -58,6 +62,7 @@ struct SimpleScoreOverlayData {
             quarter: 1,
             clockTime: "20:00",
             gameFormat: .halves,
+            numQuarter: 2,
             isRecording: false,
             recordingDuration: "00:00"
         )
