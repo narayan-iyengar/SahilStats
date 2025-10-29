@@ -24,9 +24,18 @@ class LogoUploadManager: ObservableObject {
 
     /// Resize image to 512x512px square (recommended size for logos)
     nonisolated func resizeImage(_ image: UIImage, to size: CGSize = CGSize(width: 512, height: 512)) -> UIImage? {
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { context in
-            image.draw(in: CGRect(origin: .zero, size: size))
+        // Validate size to prevent invalid image creation
+        guard size.width > 0 && size.height > 0 else {
+            print("❌ Invalid size for image resize: \(size.width)×\(size.height)")
+            return nil
+        }
+
+        // Run at default QoS to match UIGraphicsImageRenderer's internal priority
+        return DispatchQueue.global(qos: .default).sync {
+            let renderer = UIGraphicsImageRenderer(size: size)
+            return renderer.image { context in
+                image.draw(in: CGRect(origin: .zero, size: size))
+            }
         }
     }
 
@@ -74,8 +83,8 @@ class LogoUploadManager: ObservableObject {
             }
         }
 
-        // Process image on background thread to avoid priority inversion
-        let imageData = try await Task.detached(priority: .userInitiated) {
+        // Process image on background thread (using default priority to avoid inversion with UIGraphicsImageRenderer)
+        let imageData = try await Task.detached {
             // Resize to 512x512px
             print("🔄 Resizing image to 512×512px...")
             guard let resizedImage = self.resizeImage(image) else {

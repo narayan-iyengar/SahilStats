@@ -13,14 +13,16 @@ class FirebaseService: ObservableObject {
     
     @Published var games: [Game] = []
     @Published var teams: [Team] = []
+    @Published var opponents: [Opponent] = []
     @Published var liveGames: [LiveGame] = []
     @Published var isLoading = false
     @Published var error: String?
     @Published var connectionState: ConnectionState = .unknown
-    
+
     private let db = Firestore.firestore()
     private var gamesListener: ListenerRegistration?
     private var teamsListener: ListenerRegistration?
+    private var opponentsListener: ListenerRegistration?
     private var liveGamesListener: ListenerRegistration?
     
     // Network monitoring
@@ -86,7 +88,7 @@ class FirebaseService: ObservableObject {
     
     private func handleNetworkReconnection() {
         // Restart listeners after network reconnection
-        if gamesListener == nil && teamsListener == nil && liveGamesListener == nil {
+        if gamesListener == nil && teamsListener == nil && opponentsListener == nil && liveGamesListener == nil {
             // Only restart if we were previously listening
             startListening()
         }
@@ -97,9 +99,10 @@ class FirebaseService: ObservableObject {
     func startListening() {
         connectionState = .connecting
         retryCount = 0
-        
+
         setupGamesListenerWithRetry()
         setupTeamsListenerWithRetry()
+        setupOpponentsListenerWithRetry()
         setupLiveGamesListenerWithRetry()
     }
     
@@ -111,6 +114,9 @@ class FirebaseService: ObservableObject {
 
         teamsListener?.remove()
         teamsListener = nil
+
+        opponentsListener?.remove()
+        opponentsListener = nil
 
         liveGamesListener?.remove()
         liveGamesListener = nil
@@ -204,7 +210,47 @@ class FirebaseService: ObservableObject {
             debugPrint("✅ Teams loaded successfully: \(newTeams.count) teams")
         }
     }
-    
+
+    // MARK: - Opponents Listener with Enhanced Error Handling
+
+    private func setupOpponentsListenerWithRetry() {
+        opponentsListener = db.collection("opponents")
+            .order(by: "name")
+            .addSnapshotListener(includeMetadataChanges: false) { [weak self] snapshot, error in
+                self?.handleOpponentsSnapshot(snapshot: snapshot, error: error)
+            }
+    }
+
+    private func handleOpponentsSnapshot(snapshot: QuerySnapshot?, error: Error?) {
+        if let error = error {
+            handleListenerError(error: error, listenerType: "Opponents") {
+                self.setupOpponentsListenerWithRetry()
+            }
+            return
+        }
+
+        guard let documents = snapshot?.documents else {
+            debugPrint("⚠️ Opponents snapshot is nil")
+            return
+        }
+
+        let newOpponents = documents.compactMap { document -> Opponent? in
+            do {
+                var opponent = try document.data(as: Opponent.self)
+                opponent.id = document.documentID
+                return opponent
+            } catch {
+                forcePrint("❌ Error decoding opponent \(document.documentID): \(error)")
+                return nil
+            }
+        }
+
+        DispatchQueue.main.async {
+            self.opponents = newOpponents
+            debugPrint("✅ Opponents loaded successfully: \(newOpponents.count) opponents")
+        }
+    }
+
     // MARK: - Live Games Listener with Enhanced Error Handling
     
     private func setupLiveGamesListenerWithRetry() {
@@ -485,6 +531,63 @@ class FirebaseService: ObservableObject {
             throw NSError(domain: "FirebaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Team ID is missing"])
         }
         try db.collection("teams").document(teamId).setData(from: team)
+    }
+
+    // MARK: - Opponents
+
+    func addOpponent(_ opponent: Opponent) async throws {
+        _ = try db.collection("opponents").addDocument(from: opponent)
+    }
+
+    func deleteOpponent(_ opponentId: String) async throws {
+        try await db.collection("opponents").document(opponentId).delete()
+    }
+
+    func updateOpponent(_ opponent: Opponent) async throws {
+        guard let opponentId = opponent.id else {
+            throw NSError(domain: "FirebaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Opponent ID is missing"])
+        }
+        try db.collection("opponents").document(opponentId).setData(from: opponent)
+    }
+
+    /// Find or create an opponent by name
+    func findOrCreateOpponent(name: String, logoURL: String? = nil) async throws -> Opponent {
+        // Check if opponent already exists
+        if let existingOpponent = opponents.first(where: { $0.name.lowercased() == name.lowercased() }) {
+            return existingOpponent
+        }
+
+        // Create new opponent
+        let opponent = Opponent(name: name, logoURL: logoURL)
+        try await addOpponent(opponent)
+
+        // Return the newly created opponent (it will be added to opponents array by the listener)
+        return opponent
+    }
+
+    /// Migrate opponent data from existing games to opponents collection
+    func migrateOpponentsFromGames() async throws {
+        debugPrint("🔄 Starting opponent migration from games...")
+
+        // Get unique opponent names from all games
+        let uniqueOpponents = Set(games.compactMap { game -> String? in
+            guard !game.opponent.isEmpty else { return nil }
+            return game.opponent
+        })
+
+        debugPrint("📊 Found \(uniqueOpponents.count) unique opponents in games")
+
+        // Create opponent records for each unique name (if they don't exist)
+        for opponentName in uniqueOpponents {
+            do {
+                _ = try await findOrCreateOpponent(name: opponentName)
+                debugPrint("✅ Migrated opponent: \(opponentName)")
+            } catch {
+                debugPrint("❌ Failed to migrate opponent \(opponentName): \(error)")
+            }
+        }
+
+        debugPrint("✅ Opponent migration complete!")
     }
 
     // MARK: - Live Games
