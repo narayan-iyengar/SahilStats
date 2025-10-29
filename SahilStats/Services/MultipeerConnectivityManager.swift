@@ -1,4 +1,35 @@
 // SahilStats/Services/MultipeerConnectivityManager.swift
+//
+// CONNECTION MODEL: AirPods-Style Pairing
+// =======================================
+//
+// This manager uses a STRICT ROLE-BASED connection model to prevent race conditions
+// and ensure reliable connections in crowded gym environments (Faraday cages).
+//
+// NORMAL OPERATION (After Pairing):
+// ┌─────────────────────────────────────────────────────────────────┐
+// │ RECORDER (iPhone on gimbal)     CONTROLLER (iPad)               │
+// │ ├─ ONLY advertises              ├─ ONLY browses                 │
+// │ ├─ Waits for connection         ├─ Initiates connection         │
+// │ └─ Auto-accepts invitations     └─ Sends invitations            │
+// │                                                                  │
+// │ Like: AirPods peripheral        Like: iPhone central            │
+// └─────────────────────────────────────────────────────────────────┘
+//
+// PAIRING MODE (First-time setup):
+// - Both devices browse AND advertise to discover each other
+// - After pairing, roles are saved and strict separation is used
+//
+// ROLE SWITCHING:
+// - Either device can be controller or recorder
+// - Role is determined by startSession(role:) parameter
+// - Saved role preferences are stored per trusted peer
+//
+// GYM OPTIMIZATIONS:
+// - 1.5s startup delay for noisy Bluetooth environments
+// - Periodic re-browsing every 20s to recover from lost BLE packets
+// - Hotspot-optimized keep-alive with adaptive intervals
+// - Force reconnect capability for troubleshooting
 
 import Foundation
 @preconcurrency import MultipeerConnectivity
@@ -63,6 +94,66 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
     @Published private(set) var connectedPeer: MCPeerID?
     @Published private(set) var discoveredPeers: [MCPeerID] = []
     @Published var isRemoteRecording: Bool? = nil
+    @Published var lastError: String? = nil
+    @Published private(set) var isBrowsingActive: Bool = false
+    @Published private(set) var isAdvertisingActive: Bool = false
+
+    // Track pending invitations to prevent duplicate invites
+    private var pendingInvitationPeers: Set<String> = []
+
+    // Debounce notifications to prevent spam during reconnection loops
+    private var connectionNotificationTimer: Timer?
+    private var lastNotifiedConnectionState: Bool? = nil
+
+    // MARK: - Connection Diagnostics
+    @Published var connectionQuality: ConnectionQuality = .unknown
+    @Published var averageLatency: Double = 0 // milliseconds
+    @Published var nearbyDeviceCount: Int = 0
+    @Published var messageSuccessRate: Double = 100.0 // percentage
+    @Published var reconnectionCount: Int = 0
+
+    private var latencyMeasurements: [Double] = []
+    private var lastPingTime: Date?
+    private var messagesSent: Int = 0
+    private var messagesDelivered: Int = 0
+
+    enum ConnectionQuality {
+        case unknown
+        case excellent  // < 50ms latency
+        case good       // 50-150ms latency
+        case fair       // 150-300ms latency
+        case poor       // > 300ms latency
+
+        var displayName: String {
+            switch self {
+            case .unknown: return "Unknown"
+            case .excellent: return "Excellent"
+            case .good: return "Good"
+            case .fair: return "Fair"
+            case .poor: return "Poor"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .unknown: return .gray
+            case .excellent: return .green
+            case .good: return .blue
+            case .fair: return .orange
+            case .poor: return .red
+            }
+        }
+
+        var signalBars: Int {
+            switch self {
+            case .unknown: return 0
+            case .excellent: return 4
+            case .good: return 3
+            case .fair: return 2
+            case .poor: return 1
+            }
+        }
+    }
 
     // Pending invitations (for pairing UI)
     struct PendingInvitation: Identifiable {
@@ -75,7 +166,8 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     // Computed property for connected peers array
     var connectedPeers: [MCPeerID] {
-        return session.connectedPeers
+        // Safety: Return empty array if session is nil
+        return session?.connectedPeers ?? []
     }
 
     // MARK: - Messaging
@@ -134,11 +226,12 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         return MCPeerID(displayName: displayName)
     }()
 
-    private var session: MCSession!
+    private var session: MCSession? // Made optional for safety
     private var advertiser: MCNearbyServiceAdvertiser?
     private var browser: MCNearbyServiceBrowser?
     private var keepAliveTimer: Timer?
     private var reconnectTimer: Timer?
+    private var rediscoveryTimer: Timer? // Periodic re-browsing for crowded environments
     private var lastUsedRole: DeviceRole?
     private var shouldAutoReconnect = false
 
@@ -270,8 +363,9 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
     private override init() {
         super.init()
-        session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
-        session.delegate = self
+        let newSession = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
+        newSession.delegate = self
+        session = newSession
     }
 
     // MARK: - Conditional Logging Helper
@@ -377,12 +471,14 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
 
         guard shouldAutoReconnect else { return }
 
-        debugPrint("🔄 IMMEDIATE RECONNECT: Attempting reconnection in 1 second...")
+        debugPrint("🔄 IMMEDIATE RECONNECT: Attempting reconnection in 3 seconds...")
 
         // Capture main-actor-isolated values before entering Sendable closure
         let fallbackRole = self.lastUsedRole ?? .controller
 
-        reconnectTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+        // Give iOS 3 seconds to fully clean up the old MCSession before reconnecting
+        // This prevents "Not in connected state" channel errors
+        reconnectTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             guard let self = self else { return }
 
             Task { @MainActor [weak self] in
@@ -409,26 +505,156 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         reconnectTimer = nil
     }
 
+    // MARK: - Periodic Rediscovery (for crowded environments)
+
+    /// Start periodic re-browsing to recover from lost BLE packets in crowded areas
+    private func startRediscoveryTimer() {
+        stopRediscoveryTimer()
+
+        debugPrint("🔄 Starting periodic rediscovery (every 20s) for crowded environments")
+
+        rediscoveryTimer = Timer.scheduledTimer(withTimeInterval: 20.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                // Only re-browse if we're still searching (not connected)
+                guard !self.connectionState.isConnected else {
+                    debugPrint("🔄 Rediscovery: Already connected, stopping timer")
+                    self.stopRediscoveryTimer()
+                    return
+                }
+
+                // Safety: Only restart browser if it exists (controller mode)
+                guard let browser = self.browser else {
+                    debugPrint("🔄 Rediscovery: No browser (recorder mode?), stopping timer")
+                    self.stopRediscoveryTimer()
+                    return
+                }
+
+                debugPrint("🔄 Rediscovery: Restarting browser to find lost peers...")
+
+                // Restart browsing to pick up missed BLE advertisements
+                browser.stopBrowsingForPeers()
+
+                // Brief delay before restarting
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak browser] in
+                    guard let browser else { return }
+                    browser.startBrowsingForPeers()
+                    debugPrint("🔄 Rediscovery: Browser restarted")
+                }
+            }
+        }
+    }
+
+    private func stopRediscoveryTimer() {
+        rediscoveryTimer?.invalidate()
+        rediscoveryTimer = nil
+    }
+
+    private func scheduleConnectionNotification(peerID: MCPeerID, isConnected: Bool) {
+        // Cancel any pending notification
+        connectionNotificationTimer?.invalidate()
+        connectionNotificationTimer = nil
+
+        // Don't send duplicate notifications
+        if lastNotifiedConnectionState == isConnected {
+            debugPrint("🔕 Skipping duplicate notification (already notified: \(isConnected ? "connected" : "disconnected"))")
+            return
+        }
+
+        if isConnected {
+            // For connections, wait 3 seconds to ensure connection is stable
+            debugPrint("⏰ Scheduling connection notification (3 second delay)")
+            connectionNotificationTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    // Only send if still connected
+                    if self.connectionState.isConnected {
+                        self.sendConnectionNotification(peerID: peerID, isConnected: true)
+                    }
+                }
+            }
+        } else {
+            // For disconnections, send immediately (since we already filtered auto-reconnect cases)
+            sendConnectionNotification(peerID: peerID, isConnected: false)
+        }
+    }
+
+    private func sendConnectionNotification(peerID: MCPeerID, isConnected: Bool) {
+        guard !LiveActivityManager.shared.isActivityActive else {
+            debugPrint("🏝️ Skipping notification (Live Activity is active)")
+            return
+        }
+
+        let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
+        NotificationManager.shared.sendConnectionNotification(
+            deviceName: friendlyName,
+            isConnected: isConnected
+        )
+        lastNotifiedConnectionState = isConnected
+        debugPrint("📱 Sent \(isConnected ? "connection" : "disconnection") notification")
+    }
+
     // MARK: - Public API
 
     func startSession(role: DeviceRole) {
+        // Don't interrupt an active, successful connection
+        if connectionState.isConnected {
+            debugPrint("⚠️ Already connected - skipping startSession to avoid interruption")
+            return
+        }
+        // Note: We DO allow restarting when .connecting or .disconnected
+        // This enables retry after failed connection attempts
+
         stopSession() // Ensure a clean slate
         debugPrint("🚀 Starting Multipeer Session as \(role.displayName)")
         connectionState = .searching
         lastUsedRole = role // Remember role for reconnection
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            // BOTH devices browse AND advertise for symmetric discovery
-            // This ensures they can find each other regardless of who starts first
-            self.browser = MCNearbyServiceBrowser(peer: self.myPeerID, serviceType: self.serviceType)
-            self.browser?.delegate = self
-            self.browser?.startBrowsingForPeers()
+        // Increased delay for noisy Bluetooth environments (gyms, crowded areas)
+        // 1.5s gives the radio time to scan spectrum and find clear channels
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            // AIRPODS MODEL: Strict role separation for deterministic connection
+            // Recorder ONLY advertises (like AirPods)
+            // Controller ONLY browses (like iPhone connecting to AirPods)
 
-            self.advertiser = MCNearbyServiceAdvertiser(peer: self.myPeerID, discoveryInfo: ["role": role.rawValue], serviceType: self.serviceType)
-            self.advertiser?.delegate = self
-            self.advertiser?.startAdvertisingPeer()
+            if role == .recorder {
+                // RECORDER: Only advertise, never browse (like AirPods peripheral)
+                debugPrint("📡 [RECORDER MODE] Setting up advertiser...")
+                self.advertiser = MCNearbyServiceAdvertiser(peer: self.myPeerID, discoveryInfo: ["role": role.rawValue], serviceType: self.serviceType)
+                self.advertiser?.delegate = self
+                debugPrint("📡 [RECORDER MODE] Starting advertising (waiting for controller to find us)...")
+                self.advertiser?.startAdvertisingPeer()
+                self.isAdvertisingActive = true
+                self.isBrowsingActive = false
 
-            debugPrint("📡 Both browsing and advertising as \(role.displayName)")
+                debugPrint("📡 ✅ RECORDER MODE: Advertising only (like AirPods)")
+                debugPrint("   My Peer ID: \(self.myPeerID.displayName)")
+                debugPrint("   Waiting for controller to connect...")
+
+            } else {
+                // CONTROLLER: Only browse, never advertise (like iPhone central)
+                debugPrint("📡 [CONTROLLER MODE] Setting up browser...")
+                self.browser = MCNearbyServiceBrowser(peer: self.myPeerID, serviceType: self.serviceType)
+                self.browser?.delegate = self
+                debugPrint("📡 [CONTROLLER MODE] Starting browsing for recorder...")
+                self.browser?.startBrowsingForPeers()
+                self.isBrowsingActive = true
+                self.isAdvertisingActive = false
+
+                debugPrint("📡 ✅ CONTROLLER MODE: Browsing only (like iPhone searching for AirPods)")
+                debugPrint("   My Peer ID: \(self.myPeerID.displayName)")
+                debugPrint("   Searching for recorder...")
+
+                // Start periodic rediscovery for crowded environments (controller only)
+                self.startRediscoveryTimer()
+            }
+
+            debugPrint("   Service Type: \(self.serviceType)")
+            debugPrint("   Bluetooth: Check settings")
+            debugPrint("   WiFi: Check settings")
         }
     }
 
@@ -436,48 +662,78 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         debugPrint("🛑 Stopping Multipeer Session")
         browser?.stopBrowsingForPeers(); browser = nil
         advertiser?.stopAdvertisingPeer(); advertiser = nil
-        session.disconnect()
+        isBrowsingActive = false
+        isAdvertisingActive = false
+
+        // Disconnect and release the old session (safely)
+        session?.disconnect()
+
         stopKeepAlive()
         stopReconnectTimer()
+        stopRediscoveryTimer() // Stop periodic rediscovery
+        connectionNotificationTimer?.invalidate()
+        connectionNotificationTimer = nil
         connectionState = .idle
         connectedPeer = nil
         discoveredPeers.removeAll()
+        pendingInvitationPeers.removeAll() // Clear pending invitations
+
+        // Create a fresh MCSession immediately (not after delay) to avoid nil access
+        // Session delegate will handle any cleanup
+        session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
+        session?.delegate = self
+        debugPrint("🔄 Created fresh MCSession")
     }
 
     /// Start generic discovery for pairing (no role required)
-    /// Both devices advertise and browse to find each other
+    /// PAIRING MODE ONLY: Both devices advertise and browse to find each other
+    /// This is DIFFERENT from normal operation where roles are strictly separated
     func startGenericDiscovery() {
         stopSession() // Ensure a clean slate
         debugPrint("🔍 Starting Generic Discovery for Pairing")
         connectionState = .searching
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            // Start BOTH browsing and advertising for discovery
+            // PAIRING MODE: Both browse AND advertise since roles aren't assigned yet
+            // This is OK because it's only used during initial device pairing
+            // After pairing, devices use strict role separation (AirPods model)
+            debugPrint("📡 [PAIRING MODE] Setting up bidirectional discovery...")
+
             self.browser = MCNearbyServiceBrowser(peer: self.myPeerID, serviceType: self.serviceType)
             self.browser?.delegate = self
             self.browser?.startBrowsingForPeers()
+            self.isBrowsingActive = true
 
             self.advertiser = MCNearbyServiceAdvertiser(peer: self.myPeerID, discoveryInfo: ["pairing": "true"], serviceType: self.serviceType)
             self.advertiser?.delegate = self
             self.advertiser?.startAdvertisingPeer()
+            self.isAdvertisingActive = true
 
-            debugPrint("📡 Both browsing and advertising active for pairing")
+            debugPrint("📡 [PAIRING MODE] Both browsing and advertising active")
+            debugPrint("   After pairing, devices will use strict role separation")
         }
     }
 
     func sendMessage(_ message: Message) {
-        guard let peer = connectedPeer, !session.connectedPeers.isEmpty else {
+        guard let peer = connectedPeer else {
             debugPrint("⚠️ Cannot send message, no connected peer.")
             return
         }
+
+        // Safety: Ensure session exists and has connected peers
+        guard let currentSession = session, !currentSession.connectedPeers.isEmpty else {
+            debugPrint("⚠️ Cannot send message, session not ready.")
+            return
+        }
+
         do {
             let data = try JSONEncoder().encode(message)
-            try session.send(data, toPeers: [peer], with: .reliable)
+            try currentSession.send(data, toPeers: [peer], with: .reliable)
 
             // DIAGNOSTICS: Track messages sent
-            connectionDiagnostics.recordMessageSent()
-            if message.type == .pong {
-                connectionDiagnostics.recordKeepAliveSent()
+            messagesSent += 1
+            if message.type == .ping {
+                lastPingTime = Date()
             }
 
             if message.type != .ping && message.type != .pong {
@@ -485,6 +741,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
             }
         } catch {
             forcePrint("❌ Failed to send message: \(error.localizedDescription)")
+            updateMessageSuccessRate()
         }
     }
     
@@ -669,11 +926,17 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                 // DIAGNOSTICS: Record successful connection
                 self.connectionDiagnostics.recordConnection()
 
+                // Clear pending invitations
+                self.pendingInvitationPeers.removeAll()
+
                 self.browser?.stopBrowsingForPeers() // Stop searching once connected
                 self.advertiser?.stopAdvertisingPeer()
+                self.isBrowsingActive = false
+                self.isAdvertisingActive = false
                 self.connectedPeer = peerID
                 self.connectionState = .connected(to: peerID.displayName)
                 self.stopReconnectTimer() // Stop reconnect attempts once connected
+                self.stopRediscoveryTimer() // Stop periodic rediscovery once connected
 
                 // Wait for MCSession to fully establish before starting keep-alive
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -701,37 +964,21 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                     connectedPeers: [peerID.displayName]
                 )
 
-                // Only send notification if Live Activity is not active
-                if !LiveActivityManager.shared.isActivityActive {
-                    let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
-                    NotificationManager.shared.sendConnectionNotification(
-                        deviceName: friendlyName,
-                        isConnected: true
-                    )
-                    debugPrint("📱 Sent connection notification (Live Activity not active)")
-                } else {
-                    debugPrint("🏝️ Skipping notification (Live Activity is active)")
-                }
+                // Debounce notification - only send if connection stays stable for 3 seconds
+                // This prevents notification spam during reconnection loops
+                self.scheduleConnectionNotification(peerID: peerID, isConnected: true)
             case .notConnected:
                 // ALWAYS log disconnections (critical info)
                 forcePrint("❌ MPC Disconnected from \(peerID.displayName)")
                 if self.connectedPeer == peerID {
-                    // DIAGNOSTICS: Record disconnection with reason
-                    let duration = self.connectionDiagnostics.currentSessionDuration()
-                    let reason = duration != nil ? String(format: "Session lasted %.0fs", duration!) : "Never connected"
-                    self.connectionDiagnostics.recordDisconnection(reason: reason)
-
-                    // Verbose diagnostics only when debugging
-                    self.log("📊 Disconnection recorded:")
-                    self.log("   Total disconnections: \(self.connectionDiagnostics.disconnections)")
-                    self.log("   Session duration: \(reason)")
-                    if let avgDuration = self.connectionDiagnostics.averageSessionDuration > 0 ? self.connectionDiagnostics.averageSessionDuration : nil {
-                        self.log("   Average session: \(String(format: "%.0fs", avgDuration))")
-                    }
+                    // DIAGNOSTICS: Track reconnection
+                    self.reconnectionCount += 1
+                    debugPrint("📊 Disconnection recorded. Total reconnections: \(self.reconnectionCount)")
 
                     self.connectedPeer = nil
                     self.connectionState = .disconnected(to: peerID.displayName)
                     self.stopKeepAlive()
+                    self.resetDiagnostics() // Reset metrics when disconnected
 
                     // Update Live Activity
                     LiveActivityManager.shared.updateConnectionState(
@@ -739,16 +986,12 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
                         connectedPeers: []
                     )
 
-                    // Only send notification if Live Activity is not active
-                    if !LiveActivityManager.shared.isActivityActive {
-                        let friendlyName = ConnectionState.getFriendlyName(for: peerID.displayName)
-                        NotificationManager.shared.sendConnectionNotification(
-                            deviceName: friendlyName,
-                            isConnected: false
-                        )
-                        debugPrint("📱 Sent disconnection notification (Live Activity not active)")
+                    // Only send disconnection notification if we're NOT about to reconnect
+                    // This prevents notification spam during rapid reconnection attempts
+                    if !self.shouldAutoReconnect {
+                        self.scheduleConnectionNotification(peerID: peerID, isConnected: false)
                     } else {
-                        debugPrint("🏝️ Skipping notification (Live Activity is active)")
+                        debugPrint("🔕 Skipping disconnection notification - auto-reconnect pending")
                     }
 
                     // HOTSPOT FIX: Attempt IMMEDIATE reconnection (don't wait 5 seconds)
@@ -768,9 +1011,13 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
         if let message = try? JSONDecoder().decode(Message.self, from: data) {
             DispatchQueue.main.async {
                 // DIAGNOSTICS: Track messages received
-                self.connectionDiagnostics.recordMessageReceived()
-                if message.type == .pong {
-                    self.connectionDiagnostics.recordKeepAliveReceived()
+                self.messagesDelivered += 1
+                self.updateMessageSuccessRate()
+
+                // Track latency from ping/pong
+                if message.type == .pong, let pingTime = self.lastPingTime {
+                    let latency = Date().timeIntervalSince(pingTime) * 1000 // Convert to milliseconds
+                    self.recordLatency(latency)
                 }
 
                 if message.type == .ping { self.sendMessage(Message(type: .pong, payload: nil)) }
@@ -795,6 +1042,63 @@ extension MultipeerConnectivityManager: MCSessionDelegate {
         }
     }
     
+    // MARK: - Diagnostics Helpers
+
+    private func recordLatency(_ latency: Double) {
+        latencyMeasurements.append(latency)
+        // Keep only last 10 measurements
+        if latencyMeasurements.count > 10 {
+            latencyMeasurements.removeFirst()
+        }
+
+        // Calculate average
+        averageLatency = latencyMeasurements.reduce(0, +) / Double(latencyMeasurements.count)
+
+        // Update connection quality based on latency
+        updateConnectionQuality()
+
+        debugPrint("📊 Latency: \(Int(latency))ms, Average: \(Int(averageLatency))ms, Quality: \(connectionQuality.displayName)")
+    }
+
+    private func updateConnectionQuality() {
+        // Derive quality from message success rate and reconnection count
+        // since MCSession handles latency internally
+        guard connectionState.isConnected else {
+            connectionQuality = .unknown
+            return
+        }
+
+        if messageSuccessRate >= 98 && reconnectionCount == 0 {
+            connectionQuality = .excellent
+        } else if messageSuccessRate >= 90 && reconnectionCount <= 1 {
+            connectionQuality = .good
+        } else if messageSuccessRate >= 80 && reconnectionCount <= 3 {
+            connectionQuality = .fair
+        } else {
+            connectionQuality = .poor
+        }
+    }
+
+    private func updateMessageSuccessRate() {
+        guard messagesSent > 0 else {
+            messageSuccessRate = 100.0
+            updateConnectionQuality()
+            return
+        }
+        messageSuccessRate = (Double(messagesDelivered) / Double(messagesSent)) * 100.0
+        updateConnectionQuality()
+    }
+
+    private func resetDiagnostics() {
+        latencyMeasurements.removeAll()
+        averageLatency = 0
+        connectionQuality = .unknown
+        messagesSent = 0
+        messagesDelivered = 0
+        messageSuccessRate = 100.0
+        nearbyDeviceCount = 0
+    }
+
     // Unused delegate methods
     func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
     func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
@@ -812,12 +1116,40 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
                 self.discoveredPeers.append(peerID)
                 debugPrint("📡 Discovered peer: \(peerID.displayName)")
             }
+            // Update nearby device count for interference tracking
+            self.nearbyDeviceCount = self.discoveredPeers.count
         }
 
-        // Auto-invite trusted peers
+        // AIRPODS MODEL: Controller auto-invites when it discovers recorder
+        // Only the controller browses, so this code only runs on controller
+        // The recorder never runs this code (it doesn't browse)
         if TrustedDevicesManager.shared.isTrusted(peerID) {
-            debugPrint("✅ Found trusted peer, auto-inviting: \(peerID.displayName)")
-            browser.invitePeer(peerID, to: session, withContext: nil, timeout: 30)
+            DispatchQueue.main.async {
+                // Prevent duplicate invitations to the same peer
+                if self.pendingInvitationPeers.contains(peerID.displayName) {
+                    debugPrint("⏭️ Skipping invitation to \(peerID.displayName) - already have pending invitation")
+                    return
+                }
+
+                // Controller always invites when it finds a trusted recorder
+                debugPrint("✅ [CONTROLLER] Found trusted recorder, auto-inviting: \(peerID.displayName)")
+                self.pendingInvitationPeers.insert(peerID.displayName)
+
+                // Safety: Ensure session exists before inviting
+                guard let currentSession = self.session else {
+                    debugPrint("❌ Cannot invite peer, session is nil")
+                    return
+                }
+
+                browser.invitePeer(peerID, to: currentSession, withContext: nil, timeout: 60)
+
+                // Clear pending invitation after timeout (60s) or on connection
+                DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+                    self.pendingInvitationPeers.remove(peerID.displayName)
+                }
+            }
+        } else {
+            debugPrint("⚠️ [CONTROLLER] Found untrusted peer: \(peerID.displayName) - ignoring")
         }
     }
 
@@ -825,6 +1157,20 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
         DispatchQueue.main.async {
             self.discoveredPeers.removeAll { $0.displayName == peerID.displayName }
             debugPrint("📡 Lost peer: \(peerID.displayName)")
+            // Update nearby device count for interference tracking
+            self.nearbyDeviceCount = self.discoveredPeers.count
+        }
+    }
+
+    func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
+        debugPrint("❌ CRITICAL: Browser failed to start!")
+        debugPrint("   Error: \(error.localizedDescription)")
+        debugPrint("   Full error: \(error)")
+        debugPrint("   Check: Bluetooth ON? WiFi ON? Location permissions?")
+
+        DispatchQueue.main.async {
+            self.connectionState = .idle
+            self.lastError = "Failed to start browsing: \(error.localizedDescription)"
         }
     }
 }
@@ -832,10 +1178,20 @@ extension MultipeerConnectivityManager: MCNearbyServiceBrowserDelegate {
 // MARK: - MCNearbyServiceAdvertiserDelegate
 extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        // Automatically accept invitations from trusted devices
+        // AIRPODS MODEL: Recorder auto-accepts invitations from trusted controller
+        // Only the recorder advertises, so this code only runs on recorder
+        // The controller never runs this code (it doesn't advertise)
         if TrustedDevicesManager.shared.isTrusted(peerID) {
-            debugPrint("✅ Auto-accepting invitation from trusted peer: \(peerID.displayName)")
-            invitationHandler(true, self.session)
+            debugPrint("✅ [RECORDER] Auto-accepting invitation from trusted controller: \(peerID.displayName)")
+
+            // Safety: Ensure session exists before accepting
+            guard let currentSession = self.session else {
+                debugPrint("❌ Cannot accept invitation, session is nil")
+                invitationHandler(false, nil)
+                return
+            }
+
+            invitationHandler(true, currentSession)
         } else {
             // For pairing mode: add to pending invitations for user to approve
             DispatchQueue.main.async {
@@ -845,8 +1201,20 @@ extension MultipeerConnectivityManager: MCNearbyServiceAdvertiserDelegate {
                     invitationHandler: invitationHandler
                 )
                 self.pendingInvitations.append(invitation)
-                debugPrint("📩 Received invitation from untrusted peer: \(peerID.displayName) - awaiting approval")
+                debugPrint("📩 [RECORDER] Received invitation from untrusted peer: \(peerID.displayName) - awaiting approval")
             }
+        }
+    }
+
+    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
+        debugPrint("❌ CRITICAL: Advertiser failed to start!")
+        debugPrint("   Error: \(error.localizedDescription)")
+        debugPrint("   Full error: \(error)")
+        debugPrint("   Check: Bluetooth ON? WiFi ON? Already advertising?")
+
+        DispatchQueue.main.async {
+            self.connectionState = .idle
+            self.lastError = "Failed to start advertising: \(error.localizedDescription)"
         }
     }
 }
@@ -1032,19 +1400,46 @@ extension MultipeerConnectivityManager {
     }
 
     func invitePeer(_ peer: MCPeerID) {
-        browser?.invitePeer(peer, to: session, withContext: nil, timeout: 30)
+        // Safety: Ensure session exists before inviting
+        guard let currentSession = session else {
+            debugPrint("❌ Cannot invite peer, session is nil")
+            return
+        }
+        browser?.invitePeer(peer, to: currentSession, withContext: nil, timeout: 30)
     }
 
     func approveConnection(for peer: MCPeerID, remember: Bool) {
-        // Find and accept pending invitation if exists
-        // For now, we auto-accept trusted peers in the advertiser delegate
-        // This method can be used for manual pairing flows
-        if remember {
-            // Add to trusted devices based on opposite role
-            let roleManager = DeviceRoleManager.shared
-            let oppositeRole: DeviceRole = roleManager.preferredRole == .controller ? .recorder : .controller
-            TrustedDevicesManager.shared.addTrustedPeer(peer, role: oppositeRole)
+        // Find the pending invitation for this peer
+        guard let invitation = pendingInvitations.first(where: { $0.peerID == peer }) else {
+            debugPrint("⚠️ No pending invitation found for \(peer.displayName)")
+            return
         }
+
+        // Safety: Ensure session exists before accepting
+        guard let currentSession = session else {
+            debugPrint("❌ Cannot accept invitation, session is nil")
+            invitation.invitationHandler(false, nil)
+            pendingInvitations.removeAll { $0.peerID == peer }
+            return
+        }
+
+        debugPrint("✅ Accepting invitation from \(peer.displayName)")
+
+        // Accept the invitation
+        invitation.invitationHandler(true, currentSession)
+
+        // Add to trusted devices if requested
+        if remember {
+            let roleManager = DeviceRoleManager.shared
+            let myRole = roleManager.deviceRole
+            let theirRole: DeviceRole = myRole == .controller ? .recorder : .controller
+
+            TrustedDevicesManager.shared.addTrustedPeer(peer, theirRole: theirRole, myRole: myRole)
+            debugPrint("✅ Saved \(peer.displayName) as trusted device")
+        }
+
+        // Remove from pending list
+        pendingInvitations.removeAll { $0.peerID == peer }
     }
 
     func declineConnection(for peer: MCPeerID) {

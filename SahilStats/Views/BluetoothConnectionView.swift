@@ -16,9 +16,7 @@ struct BluetoothConnectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var rememberDevice = true
-    
-    
-    
+
     private var isIPad: Bool {
         horizontalSizeClass == .regular
     }
@@ -145,31 +143,80 @@ struct BluetoothConnectionView: View {
                 Image(systemName: statusIcon)
                     .font(.title)
                     .foregroundColor(statusColor)
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(multipeer.connectionState.displayName)
                         .font(.headline)
                         .foregroundColor(statusColor)
-                    
+
                     Text(statusDescription)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
             }
-            
+
+            // Show error message if present
+            if let error = multipeer.lastError {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                        Text("Connection Error")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                    }
+
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Try: Check Bluetooth & WiFi are ON, move closer together, or restart both devices")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .padding(.top, 4)
+                }
+                .padding()
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+            }
+
+            // Retry button when searching or disconnected, or when there's an error
+            if shouldShowRetryButton {
+                Button(action: {
+                    // Clear error and restart session with current role
+                    multipeer.lastError = nil
+                    if roleManager.deviceRole != .none {
+                        multipeer.stopSession()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            multipeer.startSession(role: roleManager.deviceRole)
+                        }
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Retry Connection")
+                            .fontWeight(.semibold)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .controlSize(.small)
+            }
+
             if multipeer.connectionState.isConnected {
                 ForEach(multipeer.connectedPeers, id: \.displayName) { peer in
                     HStack {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .foregroundColor(.green)
-                        
+
                         Text(peer.displayName)
                             .font(.subheadline)
-                        
+
                         Spacer()
-                        
+
                         Button("Disconnect") {
                             multipeer.disconnect()
                         }
@@ -186,8 +233,13 @@ struct BluetoothConnectionView: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
     }
-    
+
     private var statusIcon: String {
+        // Show error icon if there's an error, regardless of connection state
+        if multipeer.lastError != nil {
+            return "exclamationmark.triangle.fill"
+        }
+
         switch multipeer.connectionState {
         case .idle: return "antenna.radiowaves.left.and.right.slash"
         case .searching: return "antenna.radiowaves.left.and.right"
@@ -198,6 +250,11 @@ struct BluetoothConnectionView: View {
     }
 
     private var statusColor: Color {
+        // Show red if there's an error, regardless of connection state
+        if multipeer.lastError != nil {
+            return .red
+        }
+
         switch multipeer.connectionState {
         case .idle: return .gray
         case .searching: return .orange
@@ -208,6 +265,11 @@ struct BluetoothConnectionView: View {
     }
 
     private var statusDescription: String {
+        // Show error description if there's an error
+        if multipeer.lastError != nil {
+            return "Connection failed"
+        }
+
         switch multipeer.connectionState {
         case .idle:
             return "Not active"
@@ -221,7 +283,20 @@ struct BluetoothConnectionView: View {
             return "Connected via Bluetooth"
         }
     }
-    
+
+    private var shouldShowRetryButton: Bool {
+        if multipeer.lastError != nil {
+            return true
+        }
+
+        switch multipeer.connectionState {
+        case .searching, .disconnected:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Controller View
     
     @ViewBuilder
@@ -229,61 +304,120 @@ struct BluetoothConnectionView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Controller Mode")
                 .font(.headline)
-            
+
             if !multipeer.connectionState.isConnected {
-                // Browse for recorders
-                if multipeer.isBrowsing {
-                    if multipeer.discoveredPeers.isEmpty {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                            Text("Searching for recorder devices...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Available Recorders")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            ForEach(multipeer.discoveredPeers, id: \.displayName) { peer in
-                                Button(action: {
-                                    multipeer.invitePeer(peer)
-                                }) {
-                                    HStack {
-                                        Image(systemName: "video.fill")
-                                            .foregroundColor(.red)
-                                        
-                                        VStack(alignment: .leading) {
+                // Check if we have trusted devices - if so, show auto-connecting status
+                let trustedDevices = TrustedDevicesManager.shared
+
+                if trustedDevices.hasTrustedDevices && multipeer.isBrowsingActive {
+                    // AUTO-CONNECTING MODE (like AirPods)
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+
+                        Text("Auto-connecting to trusted recorder...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+
+                        Text("Trusted devices connect automatically")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+
+                        // Only show discovered trusted devices (not for pairing)
+                        if !multipeer.discoveredPeers.isEmpty {
+                            let trustedPeers = multipeer.discoveredPeers.filter { trustedDevices.isTrusted($0) }
+                            if !trustedPeers.isEmpty {
+                                VStack(spacing: 8) {
+                                    ForEach(trustedPeers, id: \.displayName) { peer in
+                                        HStack {
+                                            Image(systemName: "checkmark.shield.fill")
+                                                .foregroundColor(.green)
                                             Text(peer.displayName)
-                                                .font(.subheadline)
-                                                .foregroundColor(.primary)
+                                                .font(.caption)
+                                            Spacer()
+                                            ProgressView()
+                                                .scaleEffect(0.7)
                                         }
-                                        
-                                        Spacer()
-                                        
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                        .padding(.horizontal)
                                     }
-                                    .padding()
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(8)
                                 }
-                                .buttonStyle(.plain)
+                                .padding(.vertical, 8)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(8)
                             }
                         }
+
+                        Button("Cancel") {
+                            multipeer.stopSession()
+                        }
+                        .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
                     }
-                    
-                    Button("Stop Searching") {
-                        multipeer.stopBrowsing()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                } else if !trustedDevices.hasTrustedDevices {
+                    // FIRST-TIME PAIRING MODE (no trusted devices yet)
+                    if multipeer.isBrowsingActive {
+                        if multipeer.discoveredPeers.isEmpty {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                Text("Searching for recorder devices...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        } else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Available Recorders")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                ForEach(multipeer.discoveredPeers, id: \.displayName) { peer in
+                                    Button(action: {
+                                        multipeer.invitePeer(peer)
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "video.fill")
+                                                .foregroundColor(.red)
+
+                                            VStack(alignment: .leading) {
+                                                Text(peer.displayName)
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.primary)
+                                            }
+
+                                            Spacer()
+
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding()
+                                        .background(Color(.systemGray6))
+                                        .cornerRadius(8)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+
+                        Button("Stop Searching") {
+                            multipeer.stopSession()
+                        }
+                        .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
+                    } else {
+                        Button("Search for Recorder") {
+                            // Use proper startSession instead of legacy startBrowsing
+                            multipeer.startSession(role: .controller)
+                        }
+                        .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                     }
-                    .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
                 } else {
-                    Button("Search for Recorder") {
-                        multipeer.startBrowsing()
+                    // Has trusted devices but not browsing yet - start auto-connect
+                    Button("Connect to Recorder") {
+                        multipeer.startAutoConnectionIfNeeded()
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
@@ -315,28 +449,69 @@ struct BluetoothConnectionView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Recorder Mode")
                 .font(.headline)
-            
+
             if !multipeer.connectionState.isConnected {
-                if multipeer.isAdvertising {
-                    VStack(spacing: 12) {
+                // Check if we have trusted devices
+                let trustedDevices = TrustedDevicesManager.shared
+
+                if trustedDevices.hasTrustedDevices && multipeer.isAdvertisingActive {
+                    // AUTO-CONNECTING MODE (like AirPods)
+                    VStack(spacing: 16) {
                         ProgressView()
-                        Text("Waiting for controller to connect...")
+                            .scaleEffect(1.2)
+
+                        Text("Ready for auto-connect...")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        Text("Make sure the controller is searching")
+                            .multilineTextAlignment(.center)
+
+                        Text("Trusted controller will connect automatically")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 40))
+                            .foregroundColor(.green)
+                            .padding()
+
+                        Button("Cancel") {
+                            multipeer.stopSession()
+                        }
+                        .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    
-                    Button("Stop Advertising") {
-                        multipeer.stopAdvertising()
+                } else if !trustedDevices.hasTrustedDevices {
+                    // FIRST-TIME PAIRING MODE
+                    if multipeer.isAdvertisingActive {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("Waiting for controller to connect...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Text("Make sure the controller is searching")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+
+                        Button("Stop Advertising") {
+                            multipeer.stopSession()
+                        }
+                        .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
+                    } else {
+                        Button("Make Visible to Controller") {
+                            // Use proper startSession instead of legacy startAdvertising
+                            multipeer.startSession(role: .recorder)
+                        }
+                        .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                     }
-                    .buttonStyle(UnifiedSecondaryButtonStyle(isIPad: isIPad))
                 } else {
-                    Button("Make Visible to Controller") {
-                        multipeer.startAdvertising(as: "recorder")
+                    // Has trusted devices but not advertising yet - start auto-connect
+                    Button("Ready for Connection") {
+                        multipeer.startAutoConnectionIfNeeded()
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))
                 }
