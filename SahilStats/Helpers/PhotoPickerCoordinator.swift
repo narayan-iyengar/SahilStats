@@ -12,6 +12,7 @@ import SwiftUI
 class PhotoPickerCoordinator: NSObject, PHPickerViewControllerDelegate {
     private var completion: ((UIImage) -> Void)?
     private var presentedPicker: PHPickerViewController?
+    private var presentationWindow: UIWindow?
 
     func presentPicker(completion: @escaping (UIImage) -> Void) {
         self.completion = completion
@@ -23,27 +24,35 @@ class PhotoPickerCoordinator: NSObject, PHPickerViewControllerDelegate {
         let picker = PHPickerViewController(configuration: configuration)
         picker.delegate = self
 
-        // Find the root view controller
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
-            debugPrint("❌ PhotoPickerCoordinator: Could not find root view controller")
+        // Find the window scene
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            debugPrint("❌ PhotoPickerCoordinator: Could not find window scene")
             return
         }
 
-        // Find the topmost presented view controller
-        var topController = rootViewController
-        while let presented = topController.presentedViewController {
-            topController = presented
-        }
+        // Create a dedicated presentation window to avoid UIHostingController hierarchy warnings
+        let window = UIWindow(windowScene: windowScene)
+        window.rootViewController = UIViewController()
+        window.windowLevel = .alert + 1
+        window.makeKeyAndVisible()
 
+        self.presentationWindow = window
         self.presentedPicker = picker
-        topController.present(picker, animated: true) {
-            debugPrint("✅ PhotoPickerCoordinator: Picker presented successfully")
+
+        // Present from the dedicated window
+        DispatchQueue.main.async {
+            window.rootViewController?.present(picker, animated: true) {
+                debugPrint("✅ PhotoPickerCoordinator: Picker presented successfully")
+            }
         }
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
+        picker.dismiss(animated: true) { [weak self] in
+            // Clean up presentation window after dismissal
+            self?.presentationWindow?.isHidden = true
+            self?.presentationWindow = nil
+        }
         presentedPicker = nil
 
         guard let result = results.first else {
