@@ -222,53 +222,41 @@ final class GimbalTrackingManager: ObservableObject {
                     trackingTask = Task {
                         do {
                             let trackingStates = try accessory.trackingStates
-                            var lastFraming: String = "center"
 
                             for try await trackingState in trackingStates {
                                 await MainActor.run {
-                                    self.trackedSubjectCount = trackingState.trackedSubjects.count
+                                    // Count tracked subjects/people
+                                    let subjectCount = trackingState.trackedSubjects.count
+                                    self.trackedSubjectCount = subjectCount
 
-                                    if trackingState.trackedSubjects.count > 0 {
-                                        debugPrint("   📊 Tracking \(trackingState.trackedSubjects.count) subjects")
+                                    if subjectCount > 0 {
+                                        debugPrint("   📊 Tracking \(subjectCount) subjects")
 
                                         // Apply dynamic zoom if enabled
                                         if self.isAutoZoomEnabled {
-                                            // Extract subject positions (normalized coordinates)
-                                            let subjectPositions = trackingState.trackedSubjects.map { subject in
-                                                // Convert subject rectangle to center point
-                                                CGPoint(
-                                                    x: subject.rect.midX,
-                                                    y: subject.rect.midY
-                                                )
+                                            // Use subject count to estimate optimal zoom
+                                            // More subjects visible = zoom out for wider view
+                                            // Fewer subjects = zoom in on action
+                                            let optimalZoom: CGFloat
+
+                                            if subjectCount >= 5 {
+                                                // Many players visible - zoom out
+                                                optimalZoom = 1.0  // 1x wide
+                                            } else if subjectCount <= 2 {
+                                                // Few players - zoom in on action
+                                                optimalZoom = 2.5  // 2.5x tight
+                                            } else {
+                                                // 3-4 players - medium zoom
+                                                optimalZoom = 1.5  // 1.5x center
                                             }
 
-                                            // Calculate optimal framing
-                                            let optimalFraming = self.calculateOptimalFraming(subjects: subjectPositions)
-
-                                            // Only update framing if it changed (avoid constant adjustments)
-                                            if optimalFraming != lastFraming {
-                                                lastFraming = optimalFraming
-
-                                                // Apply framing to gimbal
-                                                Task {
-                                                    do {
-                                                        switch optimalFraming {
-                                                        case "wide":
-                                                            // Subjects spread out - zoom out for full court view
-                                                            try await accessory.setFraming(.wide)
-                                                            debugPrint("   📹 Auto-zoom: WIDE (transition/fast break)")
-                                                        case "tight":
-                                                            // Subjects clustered - zoom in on action
-                                                            try await accessory.setFraming(.tight)
-                                                            debugPrint("   📹 Auto-zoom: TIGHT (clustered play)")
-                                                        default:
-                                                            // Medium framing
-                                                            try await accessory.setFraming(.center)
-                                                            debugPrint("   📹 Auto-zoom: CENTER (normal play)")
-                                                        }
-                                                    } catch {
-                                                        debugPrint("   ⚠️ Framing error: \(error.localizedDescription)")
-                                                    }
+                                            // Only update zoom if it changed significantly (avoid constant adjustments)
+                                            let currentZoom = VideoRecordingManager.shared.getCurrentZoom()
+                                            if abs(currentZoom - optimalZoom) > 0.3 {
+                                                // Apply zoom to camera
+                                                Task { @MainActor in
+                                                    let actualZoom = VideoRecordingManager.shared.setZoom(factor: optimalZoom)
+                                                    debugPrint("   📹 Auto-zoom: \(String(format: "%.1f", actualZoom))x (\(subjectCount) subjects)")
                                                 }
                                             }
                                         }
