@@ -257,7 +257,7 @@ struct GimbalTrackingSettingsView: View {
             }
 
             // Basketball Tips Section
-            if selectedMode == .multiObject || !isEnabled {
+            if isEnabled {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         TipRow(
