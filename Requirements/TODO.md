@@ -1,9 +1,28 @@
 # SahilStats Feature To-Do List
 
-**Last Updated**: 2025-10-22
+**Last Updated**: 2025-10-30
 
 > **How to use**: Check off items as you complete them using `- [x]`
 > See `FEATURE_IDEAS.md` for detailed descriptions of each item.
+
+---
+
+## ✅ Recently Completed (2025-10-30)
+
+### DockKit Gimbal Tracking Integration
+- [x] iOS 18+ ML-powered intelligent basketball tracking
+- [x] Automatic player detection and following (up to 9 players)
+- [x] Dynamic auto-zoom based on player count (1.0x-2.5x)
+- [x] Region of interest tracking for court area
+- [x] Zero-setup workflow (xbotgo-style)
+- [x] Court region alignment tool (optional, advanced users)
+- [x] Integration with Insta360 Flow Pro 2 via DockKit
+- [x] Support for baseline/courtside/corner camera positions
+
+### UI Improvements
+- [x] Added "End Game" button after regulation/overtime
+- [x] Fixed Swift compiler performance issues in GameSetupView
+- [x] Refactored complex Form views into smaller components
 
 ---
 
@@ -119,7 +138,7 @@ Pick these for immediate improvements:
 ## 📊 Progress Summary
 
 **Total Features**: 50+ items
-**Completed**: 0
+**Completed**: 11 (gimbal tracking + UI improvements)
 **In Progress**: 0
 
 ---
@@ -146,17 +165,19 @@ Use this space to track decisions as you work through features:
 
 ## 🎯 Current Sprint
 
-**Focus Area**: (Update this as you work)
+**Focus Area**: DockKit Gimbal Integration (COMPLETED 2025-10-30)
 
-**This Week**:
-- [ ]
-- [ ]
-- [ ]
+**This Week** (COMPLETED):
+- [x] Implement iOS 18+ DockKit gimbal tracking
+- [x] Add automatic player detection and following
+- [x] Add dynamic auto-zoom feature
+- [x] Fix "End Game" button missing after regulation
+- [x] Simplify to zero-setup workflow
 
 **Next Week**:
-- [ ]
-- [ ]
-- [ ]
+- [ ] Test gimbal tracking on actual games
+- [ ] Consider overlay robustness improvements
+- [ ] Evaluate priority items (overlay preview, adaptive sizing)
 
 ---
 
