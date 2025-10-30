@@ -142,155 +142,181 @@ struct GameSetupView: View {
         .padding()
     }
 
-    private var postGameConfigurationForm: some View {
-        Form {
-            Section("Game Details") {
-                // Team Name Picker or TextField
-                if firebaseService.teams.isEmpty {
-                    TextField("Team Name", text: $gameConfig.teamName)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if useCustomTeamName {
-                            HStack {
-                                TextField("Team Name", text: $gameConfig.teamName)
-                                Button("Use Saved") {
-                                    useCustomTeamName = false
-                                    if let firstTeam = firebaseService.teams.first {
-                                        gameConfig.teamName = firstTeam.name
-                                    }
-                                }
-                                .font(.caption)
-                                .buttonStyle(.borderless)
-                            }
-                        } else {
-                            Picker("Sahil's Team", selection: $gameConfig.teamName) {
-                                ForEach(firebaseService.teams, id: \.name) { team in
-                                    Text(team.name).tag(team.name)
-                                }
-                            }
-                            .onChange(of: firebaseService.teams) { oldValue, newValue in
-                                // Set default team if not already set
-                                if gameConfig.teamName.isEmpty, let firstTeam = newValue.first {
+    // MARK: - Post Game Form Sections
+
+    private var gameDetailsSection: some View {
+        Section("Game Details") {
+            teamNameField
+            opponentNameField
+            locationField
+            DatePicker("Game Date", selection: $gameConfig.date, displayedComponents: [.date, .hourAndMinute])
+        }
+    }
+
+    private var teamNameField: some View {
+        Group {
+            if firebaseService.teams.isEmpty {
+                TextField("Team Name", text: $gameConfig.teamName)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    if useCustomTeamName {
+                        HStack {
+                            TextField("Team Name", text: $gameConfig.teamName)
+                            Button("Use Saved") {
+                                useCustomTeamName = false
+                                if let firstTeam = firebaseService.teams.first {
                                     gameConfig.teamName = firstTeam.name
                                 }
-                            }
-
-                            Button("Use Custom Name") {
-                                useCustomTeamName = true
-                                gameConfig.teamName = ""
                             }
                             .font(.caption)
                             .buttonStyle(.borderless)
                         }
+                    } else {
+                        Picker("Sahil's Team", selection: $gameConfig.teamName) {
+                            ForEach(firebaseService.teams, id: \.name) { team in
+                                Text(team.name).tag(team.name)
+                            }
+                        }
+                        .onChange(of: firebaseService.teams) { oldValue, newValue in
+                            if gameConfig.teamName.isEmpty, let firstTeam = newValue.first {
+                                gameConfig.teamName = firstTeam.name
+                            }
+                        }
+
+                        Button("Use Custom Name") {
+                            useCustomTeamName = true
+                            gameConfig.teamName = ""
+                        }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
                     }
                 }
+            }
+        }
+    }
 
-                // Opponent Picker or TextField
-                if firebaseService.opponents.isEmpty {
-                    TextField("Opponent", text: $gameConfig.opponent)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if useCustomOpponentName {
-                            HStack {
-                                TextField("Opponent", text: $gameConfig.opponent)
-                                    .onChange(of: gameConfig.opponent) { oldValue, newValue in
-                                        // Clear logo when typing custom name
-                                        gameConfig.opponentLogoURL = nil
-                                    }
-                                Button("Use Saved") {
-                                    useCustomOpponentName = false
-                                    if let firstOpponent = firebaseService.opponents.first {
-                                        gameConfig.opponent = firstOpponent.name
-                                        gameConfig.opponentLogoURL = firstOpponent.logoURL
-                                    }
+    private var opponentNameField: some View {
+        Group {
+            if firebaseService.opponents.isEmpty {
+                TextField("Opponent", text: $gameConfig.opponent)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    if useCustomOpponentName {
+                        HStack {
+                            TextField("Opponent", text: $gameConfig.opponent)
+                                .onChange(of: gameConfig.opponent) { oldValue, newValue in
+                                    gameConfig.opponentLogoURL = nil
                                 }
-                                .font(.caption)
-                                .buttonStyle(.borderless)
-                            }
-                        } else {
-                            Picker("Opponent", selection: $gameConfig.opponent) {
-                                ForEach(firebaseService.opponents, id: \.name) { opponent in
-                                    Text(opponent.name).tag(opponent.name)
-                                }
-                            }
-                            .onAppear {
-                                // Initialize with first opponent if empty
-                                if gameConfig.opponent.isEmpty, let firstOpponent = firebaseService.opponents.first {
+                            Button("Use Saved") {
+                                useCustomOpponentName = false
+                                if let firstOpponent = firebaseService.opponents.first {
                                     gameConfig.opponent = firstOpponent.name
                                     gameConfig.opponentLogoURL = firstOpponent.logoURL
                                 }
                             }
-                            .onChange(of: firebaseService.opponents) { oldValue, newValue in
-                                // Set default opponent if not already set or if current selection is invalid
-                                if let firstOpponent = newValue.first {
-                                    if gameConfig.opponent.isEmpty || !newValue.contains(where: { $0.name == gameConfig.opponent }) {
-                                        gameConfig.opponent = firstOpponent.name
-                                        gameConfig.opponentLogoURL = firstOpponent.logoURL
-                                    }
-                                }
-                            }
-                            .onChange(of: gameConfig.opponent) { oldValue, newValue in
-                                // Update logo when opponent changes
-                                if let opponent = firebaseService.opponents.first(where: { $0.name == newValue }) {
-                                    gameConfig.opponentLogoURL = opponent.logoURL
-                                }
-                            }
-
-                            Button("Use Custom Name") {
-                                useCustomOpponentName = true
-                                gameConfig.opponent = ""
-                                gameConfig.opponentLogoURL = nil
-                            }
                             .font(.caption)
                             .buttonStyle(.borderless)
                         }
+                    } else {
+                        opponentPicker
                     }
                 }
-
-                HStack {
-                    TextField("Location", text: $gameConfig.location)
-
-                    Button(action: {
-                        locationManager.requestLocation()
-                    }) {
-                        if locationManager.isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                        } else {
-                            Image(systemName: "location.fill")
-                                .foregroundColor(.blue)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(locationManager.isLoading)
-                }
-
-                DatePicker("Game Date", selection: $gameConfig.date, displayedComponents: [.date, .hourAndMinute])
             }
+        }
+    }
 
-            Section("Game Format") {
-                Picker("Format", selection: $gameConfig.gameFormat) {
-                    ForEach(GameFormat.allCases, id: \.self) { format in
-                        Text(format.displayName).tag(format)
+    private var opponentPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Opponent", selection: $gameConfig.opponent) {
+                ForEach(firebaseService.opponents, id: \.name) { opponent in
+                    Text(opponent.name).tag(opponent.name)
+                }
+            }
+            .onAppear {
+                if gameConfig.opponent.isEmpty, let firstOpponent = firebaseService.opponents.first {
+                    gameConfig.opponent = firstOpponent.name
+                    gameConfig.opponentLogoURL = firstOpponent.logoURL
+                }
+            }
+            .onChange(of: firebaseService.opponents) { oldValue, newValue in
+                if let firstOpponent = newValue.first {
+                    if gameConfig.opponent.isEmpty || !newValue.contains(where: { $0.name == gameConfig.opponent }) {
+                        gameConfig.opponent = firstOpponent.name
+                        gameConfig.opponentLogoURL = firstOpponent.logoURL
                     }
                 }
-
-                Stepper("\(gameConfig.gameFormat.quarterName) Length: \(gameConfig.quarterLength) min",
-                        value: $gameConfig.quarterLength, in: 1...30)
-            } footer: {
-                Text("If the game goes to overtime, the clock will default to 5 minutes. Use +1m/-1m buttons to adjust if needed.")
             }
-
-            Section {
-                Button("Continue to Stats Entry") {
-                    showingPostGameEntry = true
-                }
-                .disabled(gameConfig.teamName.isEmpty || gameConfig.opponent.isEmpty)
-
-                Button("Back") {
-                    setupMode = .selection
+            .onChange(of: gameConfig.opponent) { oldValue, newValue in
+                if let opponent = firebaseService.opponents.first(where: { $0.name == newValue }) {
+                    gameConfig.opponentLogoURL = opponent.logoURL
                 }
             }
+
+            Button("Use Custom Name") {
+                useCustomOpponentName = true
+                gameConfig.opponent = ""
+                gameConfig.opponentLogoURL = nil
+            }
+            .font(.caption)
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private var locationField: some View {
+        HStack {
+            TextField("Location", text: $gameConfig.location)
+
+            Button(action: {
+                locationManager.requestLocation()
+            }) {
+                if locationManager.isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                } else {
+                    Image(systemName: "location.fill")
+                        .foregroundColor(.blue)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(locationManager.isLoading)
+        }
+    }
+
+    private var gameFormatSection: some View {
+        Section {
+            Picker("Format", selection: $gameConfig.gameFormat) {
+                ForEach(GameFormat.allCases, id: \.self) { format in
+                    Text(format.displayName).tag(format)
+                }
+            }
+
+            Stepper("\(gameConfig.gameFormat.quarterName) Length: \(gameConfig.quarterLength) min",
+                    value: $gameConfig.quarterLength, in: 1...30)
+        } header: {
+            Text("Game Format")
+        } footer: {
+            Text("If the game goes to overtime, the clock will default to 5 minutes. Use +1m/-1m buttons to adjust if needed.")
+        }
+    }
+
+    private var navigationButtonsSection: some View {
+        Section {
+            Button("Continue to Stats Entry") {
+                showingPostGameEntry = true
+            }
+            .disabled(gameConfig.teamName.isEmpty || gameConfig.opponent.isEmpty)
+
+            Button("Back") {
+                setupMode = .selection
+            }
+        }
+    }
+
+    private var postGameConfigurationForm: some View {
+        Form {
+            gameDetailsSection
+            gameFormatSection
+            navigationButtonsSection
         }
         .navigationTitle("Past Game Setup")
         .alert("Location Access Required", isPresented: $showLocationPermissionAlert) {
