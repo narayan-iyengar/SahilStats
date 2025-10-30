@@ -215,17 +215,6 @@ struct HistoryView: View {
     }
 }
 
-private struct LoadingView: View {
-    var body: some View {
-        VStack {
-            ProgressView()
-            Text("Loading...")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
 #Preview {
     HistoryView()
         .environmentObject(AuthService())

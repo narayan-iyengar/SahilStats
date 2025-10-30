@@ -216,17 +216,6 @@ struct ScheduleView: View {
     }
 }
 
-private struct LoadingView: View {
-    var body: some View {
-        VStack {
-            ProgressView()
-            Text("Loading calendar...")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
 #Preview {
     ScheduleView()
 }
