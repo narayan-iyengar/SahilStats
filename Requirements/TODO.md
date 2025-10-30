@@ -30,10 +30,12 @@
 
 **Do these first to make overlay more stable**
 
-- [ ] #21 - Overlay Preview Mode (test without recording)
-- [ ] #17 - GeometryReader Adaptive Sizing (responsive layout)
-- [ ] #23 - Graceful Degradation (handle failures elegantly)
+- [x] #21 - Overlay Preview Mode (test without recording) ✅ EXISTS - User doesn't use it
+- [ ] #17 - GeometryReader Adaptive Sizing (use % of screen width instead of hardcoded pixels for iPad/iPhone compatibility)
+- [ ] #23 - Graceful Degradation (handle logo load failures elegantly)
 - [ ] #19 - Single Source of Truth for Overlay Data (simplify state management)
+
+**User Priority**: Test logos in real recordings (not just preview)
 
 ---
 
