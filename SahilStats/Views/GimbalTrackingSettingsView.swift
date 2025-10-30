@@ -210,6 +210,31 @@ struct GimbalTrackingSettingsView: View {
                 } footer: {
                     Text("Intelligent Court uses iOS 18+ machine learning to automatically follow basketball action. The gimbal will pan, tilt, and frame to keep the most active player in view.")
                 }
+
+                // Court Region Setup
+                if selectedMode == .intelligentCourt || selectedMode == .courtZone {
+                    Section {
+                        NavigationLink(destination: CourtRegionSetupView()) {
+                            HStack {
+                                Image(systemName: "viewfinder")
+                                    .foregroundColor(.green)
+                                    .font(.title3)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Align Court Region")
+                                        .font(.body)
+                                    Text("Define the basketball court area for tracking")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Court Setup")
+                    } footer: {
+                        Text("Use the visual alignment tool to frame your basketball court. The gimbal will only track players within this region.")
+                    }
+                }
             }
 
             // How It Works Section
