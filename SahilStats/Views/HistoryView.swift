@@ -67,7 +67,7 @@ struct HistoryView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .fullScreenCover(item: $selectedGame) { game in
-            GameDetailView(game: game)
+            CompleteGameDetailView(game: game)
         }
         .alert("Delete Game", isPresented: $showingDeleteAlert) {
             GameDeleteAlert(

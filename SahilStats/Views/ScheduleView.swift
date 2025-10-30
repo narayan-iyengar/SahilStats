@@ -25,7 +25,7 @@ struct ScheduleView: View {
         horizontalSizeClass == .regular
     }
 
-    private var upcomingGames: [CalendarGame] {
+    private var upcomingGames: [GameCalendarManager.CalendarGame] {
         calendarManager.games.filter { !calendarManager.isEventIgnored($0.id) }
     }
 
@@ -84,9 +84,9 @@ struct ScheduleView: View {
             }
         }
         .sheet(item: $gameToConfirm) { game in
-            GameConfirmationSheet(
+            GameConfirmationView(
                 liveGame: game,
-                onConfirm: {
+                onStart: { liveGame in
                     Task {
                         await confirmAndStartGame(game)
                     }
@@ -147,7 +147,7 @@ struct ScheduleView: View {
 
     // MARK: - Game Selection Logic (from GameListView)
 
-    private func selectCalendarGame(_ calendarGame: CalendarGame) {
+    private func selectCalendarGame(_ calendarGame: GameCalendarManager.CalendarGame) {
         // Same logic as GameListView...
         let teamName = calendarManager.extractTeamName(from: calendarGame)
         let quarterLength = calendarManager.extractQuarterLength(from: calendarGame)
