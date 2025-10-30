@@ -126,21 +126,21 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .top) {
             TabView {
-                // Games Tab (includes upcoming games from calendar)
+                // Schedule Tab (upcoming games from calendar)
                 NavigationView {
-                    GameListView()
+                    ScheduleView()
                 }
                 .navigationViewStyle(.stack)
                 .tabItem {
-                    Image(systemName: "basketball.fill")
-                    Text("Games")
+                    Image(systemName: "calendar")
+                    Text("Schedule")
                 }
 
-                // Stats Tab (career stats and trends)
-                StatsView()
+                // History Tab (career stats and recent games)
+                HistoryView()
                     .tabItem {
-                        Image(systemName: "chart.bar.fill")
-                        Text("Stats")
+                        Image(systemName: "clock.fill")
+                        Text("History")
                     }
 
                 // Settings Tab
