@@ -17,12 +17,13 @@ struct CourtRegionSetupView: View {
     @State private var isDragging = false
     @State private var dragStart: CGPoint = .zero
 
-    // Default court region (can be adjusted)
+    // Default court region - extra-wide for automatic detection
+    // Works for baseline, courtside, or corner positions
     private let defaultRegion = CGRect(
-        x: 0.05,
-        y: 0.15,
-        width: 0.9,
-        height: 0.75
+        x: 0.02,
+        y: 0.05,
+        width: 0.96,
+        height: 0.9
     )
 
     init() {

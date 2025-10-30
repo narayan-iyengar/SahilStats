@@ -210,31 +210,6 @@ struct GimbalTrackingSettingsView: View {
                 } footer: {
                     Text("Intelligent Court uses iOS 18+ machine learning to automatically follow basketball action. The gimbal will pan, tilt, and frame to keep the most active player in view.")
                 }
-
-                // Court Region Setup
-                if selectedMode == .intelligentCourt || selectedMode == .courtZone {
-                    Section {
-                        NavigationLink(destination: CourtRegionSetupView()) {
-                            HStack {
-                                Image(systemName: "viewfinder")
-                                    .foregroundColor(.green)
-                                    .font(.title3)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Align Court Region")
-                                        .font(.body)
-                                    Text("Define the basketball court area for tracking")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                    } header: {
-                        Text("Court Setup")
-                    } footer: {
-                        Text("Use the visual alignment tool to frame your basketball court. The gimbal will only track players within this region.")
-                    }
-                }
             }
 
             // How It Works Section
@@ -313,6 +288,37 @@ struct GimbalTrackingSettingsView: View {
                     Text("Basketball Tips")
                 } footer: {
                     Text("The Flow Pro 2's AI is trained to recognize basketball scenarios and will automatically track players as they enter/exit the frame.")
+                }
+            }
+
+            // Advanced Settings
+            if isEnabled && (selectedMode == .intelligentCourt || selectedMode == .courtZone) {
+                Section {
+                    NavigationLink(destination: CourtRegionSetupView()) {
+                        HStack {
+                            Image(systemName: "viewfinder")
+                                .foregroundColor(.orange)
+                                .font(.title3)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Align Court Region")
+                                    .font(.body)
+                                Text("Optional: Customize tracking area")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Advanced (Optional)")
+                } footer: {
+                    Text("The default region works for baseline, courtside, or corner positions. Only adjust if you need to exclude specific areas (benches, spectators, etc.).")
                 }
             }
 

@@ -36,8 +36,9 @@ final class GimbalTrackingManager: ObservableObject {
     private var videoOutput: AVCaptureVideoDataOutput?
 
     // Court region for tracking (normalized coordinates 0.0-1.0)
+    // Default: Extra-wide region for automatic detection - works for baseline/courtside/corner positions
     private var courtRegion: CGRect {
-        getSavedCourtRegion() ?? CGRect(x: 0.05, y: 0.15, width: 0.9, height: 0.75)
+        getSavedCourtRegion() ?? CGRect(x: 0.02, y: 0.05, width: 0.96, height: 0.9)
     }
 
     // Dynamic zoom based on player spread
