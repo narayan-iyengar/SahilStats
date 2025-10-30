@@ -465,6 +465,14 @@ struct CompactGameControlsCard: View {
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: advanceQuarterColor, isIPad: isIPad))
             }
+
+            // Show "End Game" button after regulation ends
+            if currentQuarter >= maxQuarter {
+                Button("End Game") {
+                    onFinishGame()
+                }
+                .buttonStyle(BiggerCompactControlButtonStyle(color: .red, isIPad: isIPad))
+            }
         }
         .padding(.horizontal, isIPad ? 16 : 12)
         .padding(.vertical, isIPad ? 16 : 12)
