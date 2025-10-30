@@ -59,7 +59,8 @@ struct CleanVideoRecordingView: View {
         self._localClockValue = State(initialValue: liveGame.getCurrentClock())
         self._isClockRunning = State(initialValue: liveGame.isRunning)
 
-        // Set opponent logo from LiveGame
+        // Set team logos from LiveGame
+        self._homeLogoURL = State(initialValue: liveGame.teamLogoURL)
         self._awayLogoURL = State(initialValue: liveGame.opponentLogoURL)
     }
     

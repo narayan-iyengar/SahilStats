@@ -55,11 +55,22 @@ struct SimpleScoreOverlay: View {
     }
 
     private func formatShortPeriod() -> String {
-        // For landscape scoreboard: "Q1", "2H", "OT", "2OT"
-        return overlayData.gameFormat.formatPeriodDisplay(
+        // For landscape scoreboard: "1st Half", "3rd Qtr", "OT", "2OT"
+        let shortForm = overlayData.gameFormat.formatPeriodDisplay(
             currentPeriod: overlayData.quarter,
             totalRegularPeriods: overlayData.numQuarter
         )
+
+        // Keep overtime as-is
+        if shortForm == "OT" || shortForm.hasSuffix("OT") {
+            return shortForm
+        }
+
+        // Regular period: "1st Half", "3rd Qtr", etc.
+        let periodName = overlayData.gameFormat == .halves ? "Half" : "Qtr"
+        let ordinalSuffixes = ["", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"]
+        let suffix = overlayData.quarter <= 9 ? ordinalSuffixes[overlayData.quarter] : "th"
+        return "\(overlayData.quarter)\(suffix) \(periodName)"
     }
     
     private func getTextRotation() -> Double {
