@@ -10,7 +10,7 @@ import SwiftUI
 struct GimbalTrackingSettingsView: View {
     @ObservedObject private var gimbalManager = GimbalTrackingManager.shared
     @State private var isEnabled: Bool = false
-    @State private var selectedMode: GimbalTrackingManager.TrackingMode = .multiObject
+    @State private var selectedMode: GimbalTrackingManager.TrackingMode = .intelligentCourt
 
     var body: some View {
         List {
@@ -50,65 +50,57 @@ struct GimbalTrackingSettingsView: View {
                 Text("Status")
             }
 
-            // Camera Configuration Warning
+            // Intelligent Tracking Explanation
             if gimbalManager.isDockKitAvailable {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 8) {
-                            Image(systemName: "camera.fill")
-                                .foregroundColor(.orange)
+                            Image(systemName: "brain.fill")
+                                .foregroundColor(.purple)
                                 .font(.title3)
-                            Text("Back Camera Setup")
+                            Text("Intelligent Tracking")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                         }
 
-                        Text("To use the back camera for basketball recording:")
+                        Text("iOS 18+ ML-Powered Basketball Tracking")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .fontWeight(.semibold)
 
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .top, spacing: 8) {
-                                Text("1.")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                Text("Open iPhone Settings app")
+                                Text("🏀")
+                                Text("Automatically follows game action on court")
                                     .font(.caption)
                             }
 
                             HStack(alignment: .top, spacing: 8) {
-                                Text("2.")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                Text("Search for 'DockKit'")
+                                Text("🧠")
+                                Text("AI selects most relevant player using ML")
                                     .font(.caption)
                             }
 
                             HStack(alignment: .top, spacing: 8) {
-                                Text("3.")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                Text("Turn OFF 'DockKit in background mode'")
+                                Text("📊")
+                                Text("Analyzes body pose, attention, and activity")
                                     .font(.caption)
                             }
 
                             HStack(alignment: .top, spacing: 8) {
-                                Text("4.")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                Text("Return to this app and test tracking")
+                                Text("📍")
+                                Text("Stays focused on court area (won't follow benched players)")
                                     .font(.caption)
                             }
                         }
                         .foregroundColor(.secondary)
                     }
                     .padding()
-                    .background(Color.orange.opacity(0.1))
+                    .background(Color.purple.opacity(0.1))
                     .cornerRadius(8)
                 } header: {
-                    Text("Camera Configuration")
+                    Text("How It Works")
                 } footer: {
-                    Text("The 'DockKit in background mode' setting makes iOS use the front camera automatically. Turn it off so the app can control gimbal tracking with the back camera during game recording.")
+                    Text("The gimbal uses Apple's DockKit ML model to intelligently track basketball action. No manual control needed during games.")
                 }
             }
 
@@ -184,39 +176,39 @@ struct GimbalTrackingSettingsView: View {
                     }
                     .padding(.vertical, 8)
 
-                    // Multi-object specific info
-                    if selectedMode == .multiObject {
+                    // Intelligent Court specific info
+                    if selectedMode == .intelligentCourt {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                Image(systemName: "basketball.fill")
-                                    .foregroundColor(.orange)
-                                Text("BASKETBALL MODE")
+                                Image(systemName: "brain.fill")
+                                    .foregroundColor(.purple)
+                                Text("AI-POWERED TRACKING")
                                     .font(.caption)
                                     .fontWeight(.bold)
-                                    .foregroundColor(.orange)
+                                    .foregroundColor(.purple)
                             }
 
-                            Text("• Tracks up to 9 players independently")
+                            Text("• ML model selects most relevant player")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                            Text("• Automatically keeps all players in frame")
+                            Text("• Analyzes body pose and player activity")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                            Text("• Perfect for 5-on-5 games (10 players total)")
+                            Text("• Automatically switches between players during action")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                            Text("• Intelligent framing adjusts as players move")
+                            Text("• Keeps focus on court area (ignores benched players)")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                         .padding()
-                        .background(Color.orange.opacity(0.1))
+                        .background(Color.purple.opacity(0.1))
                         .cornerRadius(8)
                     }
                 } header: {
                     Text("Tracking Mode")
                 } footer: {
-                    Text("Multi-Object tracking uses the Flow Pro 2's advanced AI to track each player individually. This provides the best coverage for basketball games.")
+                    Text("Intelligent Court uses iOS 18+ machine learning to automatically follow basketball action. The gimbal will pan, tilt, and frame to keep the most active player in view.")
                 }
             }
 
@@ -224,39 +216,39 @@ struct GimbalTrackingSettingsView: View {
             Section {
                 VStack(alignment: .leading, spacing: 16) {
                     FeatureRow(
-                        icon: "person.3.sequence.fill",
-                        title: "Multi-Object Tracking",
-                        description: "Tracks up to 9 players individually, perfect for 5v5 basketball"
+                        icon: "brain.fill",
+                        title: "ML-Based Selection",
+                        description: "Advanced machine learning analyzes players to select who to follow"
                     )
 
                     FeatureRow(
-                        icon: "viewfinder",
-                        title: "Intelligent Framing",
-                        description: "Automatically adjusts zoom and pan to keep all tracked players visible"
+                        icon: "figure.basketball",
+                        title: "Court Region Tracking",
+                        description: "Focuses on basketball court area, ignores benched players"
                     )
 
                     FeatureRow(
                         icon: "arrow.left.and.right",
-                        title: "Smart Panning",
-                        description: "Follows the action smoothly as players move around the court"
+                        title: "Automatic Following",
+                        description: "Smoothly follows game action as it moves between players"
                     )
 
                     FeatureRow(
-                        icon: "hand.tap.fill",
-                        title: "Tap to Add/Remove",
-                        description: "Tap on screen to manually add/remove players from tracking"
+                        icon: "wand.and.stars",
+                        title: "Zero Manual Control",
+                        description: "Completely hands-free - just start recording and let AI handle the rest"
                     )
 
                     FeatureRow(
                         icon: "eye.fill",
-                        title: "Auto-Detection",
-                        description: "Automatically detects and tracks visible players without manual selection"
+                        title: "Action Recognition",
+                        description: "Detects player activity, body pose, and attention to follow the action"
                     )
 
                     FeatureRow(
                         icon: "iphone",
                         title: "Works Offline",
-                        description: "No internet required - all processing happens on-device"
+                        description: "All ML processing happens on-device, no internet needed"
                     )
                 }
                 .padding(.vertical, 8)
