@@ -291,37 +291,6 @@ struct GimbalTrackingSettingsView: View {
                 }
             }
 
-            // Advanced Settings
-            if isEnabled && (selectedMode == .intelligentCourt || selectedMode == .courtZone) {
-                Section {
-                    NavigationLink(destination: CourtRegionSetupView()) {
-                        HStack {
-                            Image(systemName: "viewfinder")
-                                .foregroundColor(.orange)
-                                .font(.title3)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Align Court Region")
-                                    .font(.body)
-                                Text("Optional: Customize tracking area")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("Advanced (Optional)")
-                } footer: {
-                    Text("The default region works for baseline, courtside, or corner positions. Only adjust if you need to exclude specific areas (benches, spectators, etc.).")
-                }
-            }
-
             // Compatibility Section
             Section {
                 VStack(alignment: .leading, spacing: 12) {
