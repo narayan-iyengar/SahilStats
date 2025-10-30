@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct ScheduleView: View {
     @ObservedObject private var calendarManager = GameCalendarManager.shared
@@ -27,7 +28,7 @@ struct ScheduleView: View {
     }
 
     private var upcomingGames: [GameCalendarManager.CalendarGame] {
-        calendarManager.upcomingGames.filter { !calendarManager.isEventIgnored($0.id) }
+        calendarManager.upcomingGames.filter { !calendarManager.ignoredEventIds.contains($0.id) }
     }
 
     var body: some View {
@@ -86,9 +87,7 @@ struct ScheduleView: View {
             GameConfirmationView(
                 liveGame: game,
                 onStart: { liveGame in
-                    Task {
-                        await confirmAndStartGame(game)
-                    }
+                    confirmAndStartGameSync(game)
                 },
                 onCancel: {
                     gameToConfirm = nil
@@ -228,13 +227,20 @@ struct ScheduleView: View {
         return firstWord.prefix(1).uppercased() + firstWord.dropFirst().lowercased()
     }
 
+    private func confirmAndStartGameSync(_ liveGame: LiveGame) {
+        Task {
+            await confirmAndStartGame(liveGame)
+        }
+    }
+
     private func confirmAndStartGame(_ liveGame: LiveGame) async {
         do {
             let isMultiDevice = roleManager.preferredRole != .none && multipeer.connectedPeers.count > 0
             let myRole = roleManager.preferredRole
 
             if isMultiDevice {
-                if !multipeer.isConnected {
+                let hasConnection = multipeer.connectedPeers.count > 0
+                if !hasConnection {
                     forcePrint("❌ Cannot start game, not connected.")
                     return
                 }
