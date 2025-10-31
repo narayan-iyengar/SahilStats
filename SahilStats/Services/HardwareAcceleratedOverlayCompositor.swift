@@ -385,7 +385,8 @@ class HardwareAcceleratedOverlayCompositor {
             if let image = ScoreboardRenderer.renderScoreboard(
                 data: scoreboardData,
                 size: size,
-                isRecording: false
+                isRecording: false,
+                forVideo: true  // Use enhanced layout with full team names and larger logos
             )?.cgImage {
                 stateImages[state] = image
             }

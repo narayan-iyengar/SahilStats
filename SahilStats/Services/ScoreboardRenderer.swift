@@ -33,11 +33,13 @@ class ScoreboardRenderer {
     ///   - data: Scoreboard data to render
     ///   - size: Render size (e.g., 1920×1080 or 3840×2160)
     ///   - isRecording: Whether to show recording indicator
+    ///   - forVideo: Use enhanced layout for final video (larger, full team names)
     /// - Returns: Rendered scoreboard image with transparent background
     static func renderScoreboard(
         data: ScoreboardData,
         size: CGSize,
-        isRecording: Bool = false
+        isRecording: Bool = false,
+        forVideo: Bool = false
     ) -> UIImage? {
 
         let scaleFactor = size.height / 375.0
@@ -74,7 +76,8 @@ class ScoreboardRenderer {
                 in: cgContext,
                 size: size,
                 scaleFactor: scaleFactor,
-                isRecording: isRecording
+                isRecording: isRecording,
+                forVideo: forVideo
             )
         }
     }
@@ -183,11 +186,14 @@ class ScoreboardRenderer {
         in context: CGContext,
         size: CGSize,
         scaleFactor: CGFloat,
-        isRecording: Bool
+        isRecording: Bool,
+        forVideo: Bool
     ) {
-        // Scoreboard dimensions (match SimpleScoreOverlay exactly)
-        let scoreboardWidth: CGFloat = 246 * scaleFactor
-        let scoreboardHeight: CGFloat = 56 * scaleFactor
+        // Scoreboard dimensions
+        // For video: Larger, more prominent overlay with full team names
+        // For live: Compact overlay (match SimpleScoreOverlay exactly)
+        let scoreboardWidth: CGFloat = forVideo ? 450 * scaleFactor : 246 * scaleFactor
+        let scoreboardHeight: CGFloat = forVideo ? 80 * scaleFactor : 56 * scaleFactor
 
         // Position at bottom center
         let scoreboardRect = CGRect(
@@ -230,11 +236,12 @@ class ScoreboardRenderer {
 
         context.restoreGState()
 
-        // Layout constants
-        let columnWidth: CGFloat = 50 * scaleFactor
-        let centerWidth: CGFloat = 70 * scaleFactor
-        let spacing: CGFloat = 12 * scaleFactor
-        let padding: CGFloat = 14 * scaleFactor
+        // Layout constants - adjusted for video vs live
+        let columnWidth: CGFloat = forVideo ? 120 * scaleFactor : 50 * scaleFactor
+        let centerWidth: CGFloat = forVideo ? 100 * scaleFactor : 70 * scaleFactor
+        let spacing: CGFloat = forVideo ? 20 * scaleFactor : 12 * scaleFactor
+        let padding: CGFloat = forVideo ? 20 * scaleFactor : 14 * scaleFactor
+        let logoSize: CGFloat = forVideo ? 40 * scaleFactor : 18 * scaleFactor
 
         // Load logos synchronously (if URLs provided)
         let homeLogo = loadImageFromURL(data.homeLogoURL)
@@ -244,12 +251,14 @@ class ScoreboardRenderer {
 
         // HOME TEAM SECTION (left)
         drawTeamSection(
-            teamName: formatTeamName(data.homeTeam, maxLength: 4),
+            teamName: forVideo ? data.homeTeam : formatTeamName(data.homeTeam, maxLength: 4),
             score: data.homeScore,
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: columnWidth,
             scaleFactor: scaleFactor,
             logoImage: homeLogo,
+            logoSize: logoSize,
+            forVideo: forVideo,
             in: context
         )
 
@@ -270,6 +279,7 @@ class ScoreboardRenderer {
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: centerWidth,
             scaleFactor: scaleFactor,
+            forVideo: forVideo,
             in: context
         )
 
@@ -277,20 +287,22 @@ class ScoreboardRenderer {
 
         // Second separator
         drawSeparator(
-            at: CGPoint(x: xOffset - spacing / 2, y: scoreboardRect.minY + 13 * scaleFactor),
-            height: 30 * scaleFactor,
+            at: CGPoint(x: xOffset - spacing / 2, y: scoreboardRect.minY + (forVideo ? 18 : 13) * scaleFactor),
+            height: forVideo ? 44 * scaleFactor : 30 * scaleFactor,
             scaleFactor: scaleFactor,
             in: context
         )
 
         // AWAY TEAM SECTION (right)
         drawTeamSection(
-            teamName: formatTeamName(data.awayTeam, maxLength: 4),
+            teamName: forVideo ? data.awayTeam : formatTeamName(data.awayTeam, maxLength: 4),
             score: data.awayScore,
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: columnWidth,
             scaleFactor: scaleFactor,
             logoImage: awayLogo,
+            logoSize: logoSize,
+            forVideo: forVideo,
             in: context
         )
     }
@@ -315,15 +327,19 @@ class ScoreboardRenderer {
         width: CGFloat,
         scaleFactor: CGFloat,
         logoImage: UIImage? = nil,
+        logoSize: CGFloat,
+        forVideo: Bool,
         in context: CGContext
     ) {
         // Calculate layout with optional logo
-        let logoSize: CGFloat = 16 * scaleFactor
-        let spacing: CGFloat = 4 * scaleFactor
+        let spacing: CGFloat = forVideo ? 8 * scaleFactor : 4 * scaleFactor
 
         // Team name (with logo if available)
+        // For video: Larger font, full team name
+        // For live: Smaller font, abbreviated name
+        let nameFontSize: CGFloat = forVideo ? 14 * scaleFactor : 10 * scaleFactor
         let nameAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 10 * scaleFactor, weight: .semibold),
+            .font: UIFont.systemFont(ofSize: nameFontSize, weight: .semibold),
             .foregroundColor: UIColor.white.withAlphaComponent(0.9)
         ]
 
@@ -333,7 +349,7 @@ class ScoreboardRenderer {
         // Calculate total width (logo + spacing + text)
         let totalWidth = (logoImage != nil ? logoSize + spacing : 0) + nameSize.width
         let startX = origin.x + (width - totalWidth) / 2
-        let nameY = origin.y + 8 * scaleFactor
+        let nameY = origin.y + (forVideo ? 12 : 8) * scaleFactor
 
         var currentX = startX
 
@@ -341,7 +357,7 @@ class ScoreboardRenderer {
         if let logo = logoImage {
             let logoRect = CGRect(
                 x: currentX,
-                y: nameY,
+                y: nameY - (forVideo ? 2 : 0) * scaleFactor,  // Slightly adjust logo position for larger size
                 width: logoSize,
                 height: logoSize
             )
@@ -352,9 +368,10 @@ class ScoreboardRenderer {
         // Draw team name
         nameString.draw(at: CGPoint(x: currentX, y: nameY))
 
-        // Score
+        // Score - larger for video
+        let scoreFontSize: CGFloat = forVideo ? 32 * scaleFactor : 20 * scaleFactor
         let scoreAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 20 * scaleFactor, weight: .bold),
+            .font: UIFont.systemFont(ofSize: scoreFontSize, weight: .bold),
             .foregroundColor: UIColor.white
         ]
 
@@ -372,31 +389,34 @@ class ScoreboardRenderer {
         at origin: CGPoint,
         width: CGFloat,
         scaleFactor: CGFloat,
+        forVideo: Bool,
         in context: CGContext
     ) {
-        // Period text
+        // Period text - larger for video
+        let periodFontSize: CGFloat = forVideo ? 12 * scaleFactor : 9 * scaleFactor
         let periodAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 9 * scaleFactor, weight: .semibold),
+            .font: UIFont.systemFont(ofSize: periodFontSize, weight: .semibold),
             .foregroundColor: UIColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 0.95)  // Orange
         ]
 
         let periodString = NSAttributedString(string: periodText, attributes: periodAttributes)
         let periodSize = periodString.size()
         let periodX = origin.x + (width - periodSize.width) / 2
-        let periodY = origin.y + 8 * scaleFactor
+        let periodY = origin.y + (forVideo ? 12 : 8) * scaleFactor
 
         periodString.draw(at: CGPoint(x: periodX, y: periodY))
 
-        // Clock time
+        // Clock time - larger for video
+        let clockFontSize: CGFloat = forVideo ? 24 * scaleFactor : 16 * scaleFactor
         let clockAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 16 * scaleFactor, weight: .bold),
+            .font: UIFont.systemFont(ofSize: clockFontSize, weight: .bold),
             .foregroundColor: UIColor.white
         ]
 
         let clockString = NSAttributedString(string: clockTime, attributes: clockAttributes)
         let clockSize = clockString.size()
         let clockX = origin.x + (width - clockSize.width) / 2
-        let clockY = origin.y + 22 * scaleFactor
+        let clockY = origin.y + (forVideo ? 35 : 22) * scaleFactor
 
         clockString.draw(at: CGPoint(x: clockX, y: clockY))
     }
