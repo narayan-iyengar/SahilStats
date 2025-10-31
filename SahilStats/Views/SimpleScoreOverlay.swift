@@ -202,7 +202,7 @@ struct SimpleScoreOverlay: View {
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
                     // Home team logo (if available)
-                    if let logoURL = overlayData.homeLogoURL {
+                    if let logoURL = overlayData.homeLogoURL, !logoURL.isEmpty {
                         AsyncImage(url: URL(string: logoURL)) { phase in
                             switch phase {
                             case .success(let image):
@@ -214,9 +214,17 @@ struct SimpleScoreOverlay: View {
                                     .padding(1)
                                     .frame(width: 20, height: 20)
                                     .clipped()
-                            case .failure(_), .empty:
-                                // Show initials if logo fails to load
-                                EmptyView()
+                            case .failure(_):
+                                // Fallback: Show team initial
+                                Text(String(overlayData.homeTeam.prefix(1)))
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 20, height: 20)
+                                    .background(Color.orange.opacity(0.7))
+                                    .cornerRadius(3)
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: 20, height: 20)
                             @unknown default:
                                 EmptyView()
                             }
@@ -259,7 +267,7 @@ struct SimpleScoreOverlay: View {
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
                     // Away team logo (if available)
-                    if let logoURL = overlayData.awayLogoURL {
+                    if let logoURL = overlayData.awayLogoURL, !logoURL.isEmpty {
                         AsyncImage(url: URL(string: logoURL)) { phase in
                             switch phase {
                             case .success(let image):
@@ -271,9 +279,17 @@ struct SimpleScoreOverlay: View {
                                     .padding(1)
                                     .frame(width: 20, height: 20)
                                     .clipped()
-                            case .failure(_), .empty:
-                                // Show initials if logo fails to load
-                                EmptyView()
+                            case .failure(_):
+                                // Fallback: Show team initial
+                                Text(String(overlayData.awayTeam.prefix(1)))
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 20, height: 20)
+                                    .background(Color.blue.opacity(0.7))
+                                    .cornerRadius(3)
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: 20, height: 20)
                             @unknown default:
                                 EmptyView()
                             }

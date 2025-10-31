@@ -62,6 +62,11 @@ struct CleanVideoRecordingView: View {
         // Set team logos from LiveGame
         self._homeLogoURL = State(initialValue: liveGame.teamLogoURL)
         self._awayLogoURL = State(initialValue: liveGame.opponentLogoURL)
+
+        // Debug: Log logo URLs at initialization
+        debugPrint("🎨 CleanVideoRecordingView init:")
+        debugPrint("   Home team: \(liveGame.teamName), Logo URL: \(liveGame.teamLogoURL ?? "nil")")
+        debugPrint("   Away team: \(liveGame.opponent), Logo URL: \(liveGame.opponentLogoURL ?? "nil")")
     }
     
     var body: some View {
@@ -841,6 +846,13 @@ struct CleanVideoRecordingView: View {
             debugPrint("   Clock: \(currentGame.currentClockDisplay)")
             debugPrint("   Period: Q\(currentGame.quarter)")
             debugPrint("   isRecording: \(recordingManager.isRecording)")
+        }
+
+        // Log logo URLs every 30 seconds for monitoring
+        if shouldLog && callCount % 30 == 0 {
+            debugPrint("🎨 Logo URLs in updateOverlayData:")
+            debugPrint("   Home: \(homeLogoURL ?? "nil")")
+            debugPrint("   Away: \(awayLogoURL ?? "nil")")
         }
 
         overlayData = SimpleScoreOverlayData(
