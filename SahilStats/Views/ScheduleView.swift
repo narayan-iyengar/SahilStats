@@ -76,7 +76,9 @@ struct ScheduleView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        calendarManager.requestCalendarAccess()
+                        Task {
+                            await calendarManager.requestCalendarAccess()
+                        }
                     } label: {
                         Image(systemName: "calendar.badge.plus")
                     }
@@ -132,7 +134,9 @@ struct ScheduleView: View {
                 .padding(.horizontal, 40)
 
             Button("Grant Calendar Access") {
-                calendarManager.requestCalendarAccess()
+                Task {
+                    await calendarManager.requestCalendarAccess()
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(.orange)
