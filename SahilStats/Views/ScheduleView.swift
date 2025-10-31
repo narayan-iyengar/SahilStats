@@ -104,17 +104,6 @@ struct ScheduleView: View {
                                 }) {
                                     Label("Manual Setup", systemImage: "plus.circle")
                                 }
-
-                                Divider()
-
-                                // Calendar Access
-                                Button(action: {
-                                    Task {
-                                        await calendarManager.requestCalendarAccess()
-                                    }
-                                }) {
-                                    Label("Grant Calendar Access", systemImage: "calendar.badge.plus")
-                                }
                             } label: {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.title3)
