@@ -21,6 +21,7 @@ struct HistoryView: View {
     @State private var hoveredGameId: String?
     @State private var showingFilters = false
     @State private var searchText = ""
+    @State private var showAllGames = false
 
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
@@ -74,9 +75,9 @@ struct HistoryView: View {
         !effectiveSearchText.isEmpty || filterManager.activeFiltersCount > 0
     }
 
-    // Show top 20 recent games from filtered results
+    // Show top 20 recent games from filtered results (or all if expanded)
     private var recentGames: [Game] {
-        Array(filteredGames.prefix(20))
+        showAllGames ? filteredGames : Array(filteredGames.prefix(20))
     }
 
     var body: some View {
@@ -168,9 +169,11 @@ struct HistoryView: View {
         }
         .onChange(of: searchText) { _, _ in
             filterManager.searchText = searchText
+            showAllGames = false  // Reset expansion when search changes
         }
         .onChange(of: filterManager.needsUpdate) { _, _ in
             // Trigger re-render when filters change
+            showAllGames = false  // Reset expansion when filters change
         }
     }
 
@@ -262,17 +265,19 @@ struct HistoryView: View {
             }
             .listStyle(.plain)
 
-            // "View All Games" link if there are more
-            if recentGames.count < sortedGames.count {
+            // "View All Games" / "Show Less" button if there are more than 20
+            if filteredGames.count > 20 {
                 Button(action: {
-                    // Could navigate to full games list or expand inline
+                    withAnimation {
+                        showAllGames.toggle()
+                    }
                 }) {
                     HStack {
                         Spacer()
-                        Text("View All \(sortedGames.count) Games")
+                        Text(showAllGames ? "Show Less" : "View All \(filteredGames.count) Games")
                             .font(.subheadline)
                             .foregroundColor(.orange)
-                        Image(systemName: "chevron.right")
+                        Image(systemName: showAllGames ? "chevron.up" : "chevron.down")
                             .font(.caption)
                             .foregroundColor(.orange)
                         Spacer()
