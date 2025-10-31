@@ -235,7 +235,7 @@ struct HistoryView: View {
             }
 
             // Games list
-            VStack(spacing: 0) {
+            List {
                 ForEach(recentGames) { game in
                     EditableGameRowView(
                         game: .constant(game),
@@ -257,14 +257,10 @@ struct HistoryView: View {
                             hoveredGameId = isHovering ? game.id : nil
                         }
                     }
-                    .padding(.horizontal, isIPad ? 32 : 20)
-
-                    if game.id != recentGames.last?.id {
-                        Divider()
-                            .padding(.horizontal, isIPad ? 32 : 20)
-                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: isIPad ? 32 : 20, bottom: 8, trailing: isIPad ? 32 : 20))
                 }
             }
+            .listStyle(.plain)
 
             // "View All Games" link if there are more
             if recentGames.count < sortedGames.count {

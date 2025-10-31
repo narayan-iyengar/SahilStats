@@ -709,7 +709,7 @@ struct CleanVideoRecordingView: View {
                 debugPrint("⚠️ No recording to save")
             }
 
-            // CRITICAL: Stop camera session and cleanup timers before dismissing
+            // CRITICAL: Stop camera session and cleanup timers before navigating
             debugPrint("🎥 Stopping camera session and cleaning up...")
             self.recordingManager.stopCameraSession()
             self.stopOverlayUpdateTimer()
@@ -717,9 +717,13 @@ struct CleanVideoRecordingView: View {
             self.cancelDimTimer()
             debugPrint("✅ Camera session and timers stopped")
 
-            debugPrint("🏠 Dismissing recording view...")
-            self.dismiss()
+            debugPrint("🏠 Returning to dashboard...")
+            // Return to dashboard (this will automatically change the navigation flow)
             self.navigation.returnToDashboard()
+
+            // Small delay to ensure navigation state updates, then dismiss
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            self.dismiss()
         }
     }
     
