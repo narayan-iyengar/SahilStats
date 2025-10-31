@@ -22,6 +22,7 @@ struct ScheduleView: View {
     @State private var showingRoleSelection = false
     @State private var showingDeleteError = false
     @State private var deleteErrorMessage = ""
+    @State private var showingNewGame = false
 
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -75,12 +76,57 @@ struct ScheduleView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task {
-                            await calendarManager.requestCalendarAccess()
+                    HStack(spacing: isIPad ? 12 : 8) {
+                        // Live Game button
+                        if firebaseService.hasLiveGame {
+                            LiveGameButton(
+                                action: { showingRoleSelection = true },
+                                liveGame: firebaseService.getCurrentLiveGame()
+                            )
                         }
-                    } label: {
-                        Image(systemName: "calendar.badge.plus")
+
+                        // New Game menu
+                        if authService.canCreateGames {
+                            Menu {
+                                // QR Scanner (Easy pairing!)
+                                Button(action: {
+                                    showingQRScanner = true
+                                }) {
+                                    Label("Scan to Join Game", systemImage: "qrcode.viewfinder")
+                                }
+
+                                Divider()
+
+                                // Manual Setup
+                                Button(action: {
+                                    NavigationCoordinator.shared.markUserHasInteracted()
+                                    showingNewGame = true
+                                }) {
+                                    Label("Manual Setup", systemImage: "plus.circle")
+                                }
+
+                                Divider()
+
+                                // Calendar Access
+                                Button(action: {
+                                    Task {
+                                        await calendarManager.requestCalendarAccess()
+                                    }
+                                }) {
+                                    Label("Grant Calendar Access", systemImage: "calendar.badge.plus")
+                                }
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.orange)
+                            }
+                        } else {
+                            Button(action: { showingNewGame = true }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.orange)
+                            }
+                        }
                     }
                 }
             }
@@ -101,6 +147,16 @@ struct ScheduleView: View {
         }
         .sheet(item: $gameForQRCode) { game in
             GameQRCodeDisplayView(liveGame: game)
+        }
+        .fullScreenCover(isPresented: $showingNewGame) {
+            NavigationView {
+                GameSetupView()
+            }
+        }
+        .sheet(isPresented: $showingRoleSelection) {
+            if let liveGame = firebaseService.getCurrentLiveGame() {
+                RoleSelectionSheet(liveGame: liveGame)
+            }
         }
         .alert("Error", isPresented: $showingDeleteError) {
             Button("OK", role: .cancel) {}

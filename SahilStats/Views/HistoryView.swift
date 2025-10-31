@@ -10,6 +10,8 @@ import SwiftUI
 struct HistoryView: View {
     @ObservedObject private var firebaseService = FirebaseService.shared
     @EnvironmentObject var authService: AuthService
+    @StateObject private var filterManager = GameFilterManager()
+
     @State private var isViewingTrends = false
     @State private var selectedGame: Game?
     @State private var showingDeleteAlert = false
@@ -17,6 +19,8 @@ struct HistoryView: View {
     @State private var deleteErrorMessage = ""
     @State private var showingDeleteError = false
     @State private var hoveredGameId: String?
+    @State private var showingFilters = false
+    @State private var searchText = ""
 
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
@@ -32,9 +36,47 @@ struct HistoryView: View {
         }
     }
 
-    // Show top 20 recent games
+    private var availableTeams: [String] {
+        let teamSet = Set(sortedGames.map(\.teamName))
+        let sortedTeams = Array(teamSet).sorted()
+        return ["All Teams"] + sortedTeams
+    }
+
+    private var availableOpponents: [String] {
+        let opponentSet = Set(sortedGames.map(\.opponent))
+        let sortedOpponents = Array(opponentSet).sorted()
+        return ["All Opponents"] + sortedOpponents
+    }
+
+    private var filteredGames: [Game] {
+        var games = sortedGames
+
+        // Apply search filter
+        if !effectiveSearchText.isEmpty {
+            games = games.filter { game in
+                game.teamName.localizedCaseInsensitiveContains(effectiveSearchText) ||
+                game.opponent.localizedCaseInsensitiveContains(effectiveSearchText) ||
+                (game.location?.localizedCaseInsensitiveContains(effectiveSearchText) ?? false)
+            }
+        }
+
+        // Apply other filters
+        games = filterManager.applyFilters(to: games)
+
+        return games
+    }
+
+    private var effectiveSearchText: String {
+        !searchText.isEmpty ? searchText : filterManager.searchText
+    }
+
+    private var hasActiveFilters: Bool {
+        !effectiveSearchText.isEmpty || filterManager.activeFiltersCount > 0
+    }
+
+    // Show top 20 recent games from filtered results
     private var recentGames: [Game] {
-        Array(sortedGames.prefix(20))
+        Array(filteredGames.prefix(20))
     }
 
     var body: some View {
@@ -65,6 +107,30 @@ struct HistoryView: View {
             }
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    // Filter button with badge
+                    Button(action: { showingFilters = true }) {
+                        ZStack {
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(filterManager.activeFiltersCount > 0 ? .orange : .gray)
+
+                            // Badge for active filters
+                            if filterManager.activeFiltersCount > 0 {
+                                Text("\(filterManager.activeFiltersCount)")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .frame(width: 16, height: 16)
+                                    .background(Color.red)
+                                    .clipShape(Circle())
+                                    .offset(x: 8, y: -8)
+                            }
+                        }
+                    }
+                }
+            }
         }
         .fullScreenCover(item: $selectedGame) { game in
             CompleteGameDetailView(game: game)
@@ -80,11 +146,31 @@ struct HistoryView: View {
         } message: {
             Text(deleteErrorMessage)
         }
+        .sheet(isPresented: $showingFilters) {
+            FilterView(
+                selectedTeamFilter: $filterManager.selectedTeamFilter,
+                selectedOpponentFilter: $filterManager.selectedOpponentFilter,
+                selectedOutcomeFilter: $filterManager.selectedOutcomeFilter,
+                selectedDateRange: $filterManager.selectedDateRange,
+                customStartDate: $filterManager.customStartDate,
+                customEndDate: $filterManager.customEndDate,
+                availableTeams: availableTeams,
+                availableOpponents: availableOpponents,
+                onClearAll: clearAllFilters,
+                isIPad: isIPad
+            )
+        }
         .onAppear {
             firebaseService.startListening()
         }
         .onDisappear {
             firebaseService.stopListening()
+        }
+        .onChange(of: searchText) { _, _ in
+            filterManager.searchText = searchText
+        }
+        .onChange(of: filterManager.needsUpdate) { _, _ in
+            // Trigger re-render when filters change
         }
     }
 
@@ -115,18 +201,36 @@ struct HistoryView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Section header
             HStack {
-                Text("Recent Games")
+                Text(hasActiveFilters ? "Filtered Games" : "Recent Games")
                     .font(isIPad ? .largeTitle : .title2)
                     .fontWeight(.heavy)
                     .padding(.horizontal, isIPad ? 32 : 20)
 
                 Spacer()
 
-                if recentGames.count < sortedGames.count {
+                if hasActiveFilters {
+                    Text("\(recentGames.count) of \(filteredGames.count) filtered")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, isIPad ? 32 : 20)
+                } else if recentGames.count < sortedGames.count {
                     Text("Showing \(recentGames.count) of \(sortedGames.count)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, isIPad ? 32 : 20)
+                }
+            }
+
+            // Active filters indicator
+            if hasActiveFilters {
+                Button(action: clearAllFilters) {
+                    HStack {
+                        Image(systemName: "xmark.circle.fill")
+                        Text("Clear All Filters")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, isIPad ? 32 : 20)
                 }
             }
 
@@ -212,6 +316,11 @@ struct HistoryView: View {
                 }
             }
         }
+    }
+
+    private func clearAllFilters() {
+        searchText = ""
+        filterManager.clearAllFilters()
     }
 }
 
