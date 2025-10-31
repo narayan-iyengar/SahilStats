@@ -243,9 +243,10 @@ class ScoreboardRenderer {
         let padding: CGFloat = forVideo ? 20 * scaleFactor : 14 * scaleFactor
         let logoSize: CGFloat = forVideo ? 40 * scaleFactor : 18 * scaleFactor
 
-        // Load logos synchronously (if URLs provided)
-        let homeLogo = loadImageFromURL(data.homeLogoURL)
-        let awayLogo = loadImageFromURL(data.awayLogoURL)
+        // Load logos from cache (if URLs provided and cached)
+        // Note: Logos should be pre-cached during game setup/live preview
+        let homeLogo = loadImageFromURLSync(data.homeLogoURL)
+        let awayLogo = loadImageFromURLSync(data.awayLogoURL)
 
         var xOffset = scoreboardRect.minX + padding
 
@@ -307,15 +308,41 @@ class ScoreboardRenderer {
         )
     }
 
-    /// Load image from URL synchronously (for rendering)
-    private static func loadImageFromURL(_ urlString: String?) -> UIImage? {
+    /// Load image from URL asynchronously using URLSession
+    /// This version uses async/await to avoid blocking the main thread
+    private static func loadImageFromURL(_ urlString: String?) async -> UIImage? {
         guard let urlString = urlString,
-              let url = URL(string: urlString),
-              let data = try? Data(contentsOf: url),
-              let image = UIImage(data: data) else {
+              let url = URL(string: urlString) else {
             return nil
         }
-        return image
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return UIImage(data: data)
+        } catch {
+            debugPrint("⚠️ Failed to load logo from \(urlString): \(error)")
+            return nil
+        }
+    }
+
+    /// Synchronous wrapper for backwards compatibility (uses cache if available)
+    private static func loadImageFromURLSync(_ urlString: String?) -> UIImage? {
+        guard let urlString = urlString,
+              let url = URL(string: urlString) else {
+            return nil
+        }
+
+        // Try to load from URL cache first
+        let request = URLRequest(url: url)
+        if let cachedResponse = URLCache.shared.cachedResponse(for: request),
+           let image = UIImage(data: cachedResponse.data) {
+            return image
+        }
+
+        // If not in cache, we can't load synchronously without blocking
+        // Return nil and let the video render without logo
+        debugPrint("⚠️ Logo not in cache, skipping: \(urlString)")
+        return nil
     }
 
     // MARK: - Helper Drawing Methods
