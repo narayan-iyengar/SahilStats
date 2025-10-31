@@ -114,13 +114,24 @@ struct QRCodeScannerView: View {
                                   userInfo: [NSLocalizedDescriptionKey: "Game ID missing"])
                 }
 
+                // Fetch complete game data from Firebase (includes logos!)
+                debugPrint("📥 Fetching complete game data from Firebase for ID: \(gameId)")
+                guard let completeGameData = try await firebaseService.fetchLiveGameById(gameId) else {
+                    throw NSError(domain: "QRCodeScanner", code: 2,
+                                  userInfo: [NSLocalizedDescriptionKey: "Could not fetch game data from Firebase"])
+                }
+
+                debugPrint("✅ Fetched complete game data with logos:")
+                debugPrint("   Team: \(completeGameData.teamName), Logo: \(completeGameData.teamLogoURL ?? "none")")
+                debugPrint("   Opponent: \(completeGameData.opponent), Logo: \(completeGameData.opponentLogoURL ?? "none")")
+
                 // Set device role as recorder (camera phone)
                 try await roleManager.setDeviceRole(.recorder, for: gameId)
                 debugPrint("✅ Device role set to recorder")
 
-                // Navigate to recording view
+                // Navigate to recording view with complete game data
                 await MainActor.run {
-                    navigation.currentFlow = .recording(liveGame)
+                    navigation.currentFlow = .recording(completeGameData)
                     dismiss()
                 }
 
@@ -211,7 +222,7 @@ struct GameJoinConfirmationView: View {
                 Spacer()
 
                 VStack(spacing: 12) {
-                    Button("Join Game") {
+                    Button("Start Recording") {
                         onJoin(liveGame)
                     }
                     .buttonStyle(UnifiedPrimaryButtonStyle(isIPad: isIPad))

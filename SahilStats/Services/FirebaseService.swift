@@ -601,7 +601,21 @@ class FirebaseService: ObservableObject {
     func deleteLiveGame(_ liveGameId: String) async throws {
         try await db.collection("liveGames").document(liveGameId).delete()
     }
-    
+
+    func fetchLiveGameById(_ gameId: String) async throws -> LiveGame? {
+        let docRef = db.collection("liveGames").document(gameId)
+        let snapshot = try await docRef.getDocument()
+
+        guard snapshot.exists else {
+            debugPrint("❌ Live game \(gameId) not found in Firebase")
+            return nil
+        }
+
+        let liveGame = try snapshot.data(as: LiveGame.self)
+        debugPrint("✅ Fetched live game: \(liveGame.teamName) vs \(liveGame.opponent)")
+        return liveGame
+    }
+
     func deleteAllLiveGames() async throws {
         debugPrint("Attempting to delete all live games...")
         let snapshot = try await db.collection("liveGames").getDocuments()
