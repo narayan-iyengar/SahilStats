@@ -181,14 +181,7 @@ struct VideoPostProcessingView: View {
                 Spacer()
             }
 
-            if let videoInfo = getVideoInfo(url: url) {
-                VStack(alignment: .leading, spacing: 6) {
-                    infoRow(label: "Duration", value: formatDuration(videoInfo.duration))
-                    infoRow(label: "Resolution", value: "\(Int(videoInfo.resolution.width))×\(Int(videoInfo.resolution.height))")
-                    infoRow(label: "Size", value: formatFileSize(videoInfo.fileSize))
-                }
-                .font(.subheadline)
-            }
+            VideoInfoView(url: url)
 
             Button(action: {
                 processingStep = .selectTimeline
@@ -528,23 +521,6 @@ struct VideoPostProcessingView: View {
         }
     }
 
-    private func getVideoInfo(url: URL) -> (duration: TimeInterval, resolution: CGSize, fileSize: Int64)? {
-        let asset = AVAsset(url: url)
-
-        guard let track = asset.tracks(withMediaType: .video).first else {
-            return nil
-        }
-
-        let duration = asset.duration.seconds
-        let naturalSize = track.naturalSize
-
-        if let fileSize = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64 {
-            return (duration, naturalSize, fileSize)
-        }
-
-        return (duration, naturalSize, 0)
-    }
-
     private func formatDuration(_ duration: TimeInterval) -> String {
         let minutes = Int(duration) / 60
         let seconds = Int(duration) % 60
@@ -558,8 +534,8 @@ struct VideoPostProcessingView: View {
     }
 
     private func startProcessing() {
-        guard let videoURL = selectedVideoURL,
-              let gameId = selectedGameId else {
+        guard let _ = selectedVideoURL,
+              let _ = selectedGameId else {
             errorMessage = "Missing video or timeline"
             return
         }
@@ -603,6 +579,81 @@ struct VideoFile: Transferable {
             try FileManager.default.copyItem(at: originalFile, to: copiedFile)
             return Self.init(url: copiedFile)
         }
+    }
+}
+
+// MARK: - Video Info View
+
+struct VideoInfoView: View {
+    let url: URL
+    @State private var duration: TimeInterval = 0
+    @State private var resolution: CGSize = .zero
+    @State private var fileSize: Int64 = 0
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    infoRow(label: "Duration", value: formatDuration(duration))
+                    infoRow(label: "Resolution", value: "\(Int(resolution.width))×\(Int(resolution.height))")
+                    infoRow(label: "Size", value: formatFileSize(fileSize))
+                }
+                .font(.subheadline)
+            }
+        }
+        .task {
+            await loadVideoInfo()
+        }
+    }
+
+    private func infoRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label + ":")
+                .foregroundColor(.secondary)
+            Text(value)
+                .fontWeight(.medium)
+            Spacer()
+        }
+    }
+
+    private func loadVideoInfo() async {
+        let asset = AVURLAsset(url: url)
+
+        // Load duration
+        if let loadedDuration = try? await asset.load(.duration) {
+            duration = loadedDuration.seconds
+        }
+
+        // Load tracks
+        if let tracks = try? await asset.loadTracks(withMediaType: .video),
+           let track = tracks.first {
+            if let naturalSize = try? await track.load(.naturalSize) {
+                resolution = naturalSize
+            }
+        }
+
+        // Load file size
+        if let size = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64 {
+            fileSize = size
+        }
+
+        isLoading = false
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func formatFileSize(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 }
 
