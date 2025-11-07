@@ -1,6 +1,7 @@
 // File: SahilStats/Views/LiveGameView.swift (WITH STICKY HEADER)
 
 import SwiftUI
+import UIKit
 import FirebaseAuth
 import Combine
 import FirebaseFirestore
@@ -402,11 +403,16 @@ struct LiveGameControllerView: View {
     
     @State private var gameStateAnnounceTimer: Timer?
     @State private var pingTimer: Timer?
-    
-    
-    
+
+    // Timeline recording state
+    @ObservedObject private var timelineTracker = ScoreTimelineTracker.shared
+    @State private var timelineRecordingDuration: TimeInterval = 0
+    @State private var timelineTimer: Timer?
+    @State private var showingShareSheet = false
+    @State private var shareURL: URL?
+
     //@State private var isRemoteRecording = false
-    
+
     // iPad detection
     private var isIPad: Bool {
         horizontalSizeClass == .regular
@@ -491,6 +497,11 @@ struct LiveGameControllerView: View {
         // Keep all your existing alerts and onChange handlers...
         .sheet(isPresented: $showingQRCode) {
             GameQRCodeDisplayView(liveGame: serverGameState)
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let url = shareURL {
+                ShareSheet(activityItems: [url])
+            }
         }
         .alert("Finish Game", isPresented: $showingFinishAlert) {
             Button("Cancel", role: .cancel) { }
@@ -722,6 +733,18 @@ struct LiveGameControllerView: View {
                     teamName: serverGameState.teamName,
                     opponent: serverGameState.opponent,
                     isIPad: isIPad
+                )
+                .frame(maxWidth: .infinity)
+            }
+
+            // Timeline Recording Control (Standalone)
+            if deviceControl.hasControl {
+                TimelineRecordingCard(
+                    isRecording: timelineTracker.isRecording,
+                    duration: timelineRecordingDuration,
+                    isIPad: isIPad,
+                    onToggleRecording: toggleTimelineRecording,
+                    onExportTimeline: exportTimeline
                 )
                 .frame(maxWidth: .infinity)
             }
@@ -1543,6 +1566,12 @@ struct LiveGameControllerView: View {
                     updatedGame.clock = localClockTime
                     debugPrint("Started with clock: \(localClockTime)")
                     debugPrint("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
+
+                    // Send sync marker for native Camera app workflow (first time only)
+                    if serverGameState.isMultiDeviceSetup ?? false, currentQuarter == 1, localClockTime >= (Double(serverGameState.quarterLength) * 60.0 - 5.0) {
+                        debugPrint("🎬 First clock start - sending sync marker for video sync")
+                        multipeer.sendGameClockStarted(timestamp: now)
+                    }
                 }
 
                 updatedGame.lastClockUpdate = now
@@ -1684,9 +1713,14 @@ struct LiveGameControllerView: View {
                 updatedGame.homeScore = currentHomeScore
                 updatedGame.awayScore = currentAwayScore
                 updatedGame.sahilOnBench = sahilOnBench
-                
+
                 try await firebaseService.updateLiveGame(updatedGame)
-                
+
+                // Update timeline if recording
+                if timelineTracker.isRecording {
+                    timelineTracker.updateScore(game: updatedGame)
+                }
+
                 await MainActor.run {
                     isUpdating = false
                 }
@@ -1704,10 +1738,78 @@ struct LiveGameControllerView: View {
 
     private func handleDone() {
         debugPrint("🏠 Done button pressed - returning to dashboard")
+        // Stop timeline recording if active
+        if timelineTracker.isRecording {
+            stopTimelineRecording()
+        }
         // Clean up navigation state
         navigation.returnToDashboard()
         // Actually dismiss the view
         dismiss()
+    }
+
+    // MARK: - Timeline Recording Controls
+
+    private func toggleTimelineRecording() {
+        if timelineTracker.isRecording {
+            stopTimelineRecording()
+        } else {
+            startTimelineRecording()
+        }
+    }
+
+    private func startTimelineRecording() {
+        // Get team logo URLs
+        let homeLogoURL = serverGameState.teamLogoURL
+        let awayLogoURL = serverGameState.opponentLogoURL
+
+        // Start timeline recording
+        timelineTracker.startRecording(
+            initialGame: serverGameState,
+            homeLogoURL: homeLogoURL,
+            awayLogoURL: awayLogoURL,
+            captureInterval: 1.0 // Second-by-second
+        )
+
+        // Start UI timer for duration display
+        timelineRecordingDuration = 0
+        timelineTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in
+                self.timelineRecordingDuration += 1
+            }
+        }
+
+        debugPrint("📊 Standalone timeline recording started")
+    }
+
+    private func stopTimelineRecording() {
+        // Stop the tracker
+        let timeline = timelineTracker.stopRecording()
+
+        // Stop UI timer
+        timelineTimer?.invalidate()
+        timelineTimer = nil
+        timelineRecordingDuration = 0
+
+        // Save timeline to disk
+        if let gameId = serverGameState.id {
+            timelineTracker.saveTimeline(timeline, forGameId: gameId)
+            forcePrint("📊 Timeline saved: \(timeline.count) snapshots for game \(gameId)")
+        }
+
+        debugPrint("📊 Standalone timeline recording stopped")
+    }
+
+    private func exportTimeline() {
+        guard let gameId = serverGameState.id,
+              let timelineURL = timelineTracker.getTimelineURL(forGameId: gameId) else {
+            forcePrint("❌ No timeline found to export")
+            return
+        }
+
+        // Set up share sheet
+        shareURL = timelineURL
+        showingShareSheet = true
     }
 
     private func finishGame() {
@@ -1811,8 +1913,10 @@ struct LiveGameControllerView: View {
 
                 forcePrint("✅ Game saved with ID: \(liveGameId)")
 
-                // CRITICAL: Send gameEnded message to recorder with the game ID - only for multi-device
+                // CRITICAL: Delay before sending gameEnded to allow alert dismissal to be captured in recording
                 if serverGameState.isMultiDeviceSetup ?? false {
+                    debugPrint("⏳ Waiting 2 seconds for alert dismissal animation...")
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds delay
                     multipeer.sendGameEnded(gameId: liveGameId)
                     debugPrint("📤 Sent gameEnded message with gameId: \(liveGameId)")
                 }
@@ -1838,6 +1942,96 @@ struct LiveGameControllerView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Timeline Recording Card
+
+struct TimelineRecordingCard: View {
+    let isRecording: Bool
+    let duration: TimeInterval
+    let isIPad: Bool
+    let onToggleRecording: () -> Void
+    let onExportTimeline: () -> Void
+
+    private var durationString: String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    var body: some View {
+        HStack(spacing: isIPad ? 16 : 12) {
+            // Timeline icon
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.system(size: isIPad ? 22 : 18))
+                .foregroundColor(isRecording ? .orange : .secondary)
+                .frame(width: isIPad ? 32 : 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Timeline Recording")
+                    .font(isIPad ? .body : .caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+
+                if isRecording {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 6, height: 6)
+                        Text("REC \(durationString)")
+                            .font(isIPad ? .caption : .caption2)
+                            .foregroundColor(.red)
+                    }
+                } else {
+                    Text("For post-processing overlays")
+                        .font(isIPad ? .caption : .caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // Record/Stop button
+            Button(action: onToggleRecording) {
+                Image(systemName: isRecording ? "stop.circle.fill" : "record.circle")
+                    .font(.system(size: isIPad ? 32 : 28))
+                    .foregroundColor(isRecording ? .red : .orange)
+            }
+
+            // Export button (only shown when not recording)
+            if !isRecording {
+                Button(action: onExportTimeline) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: isIPad ? 20 : 18))
+                        .foregroundColor(.blue)
+                }
+            }
+        }
+        .padding(isIPad ? 16 : 12)
+        .background(
+            RoundedRectangle(cornerRadius: isIPad ? 14 : 12)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        )
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // No updates needed
     }
 }
 

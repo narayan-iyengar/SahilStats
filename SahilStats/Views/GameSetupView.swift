@@ -3,6 +3,9 @@
 import SwiftUI
 
 struct GameSetupView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var presentationMode
+
     @State private var setupMode: SetupMode = .selection
     @State private var showingConnectionWaitingRoom = false
     @State private var gameConfig = GameConfiguration() // Your existing game config model
@@ -35,6 +38,29 @@ struct GameSetupView: View {
             }
         }
         .navigationTitle("Game Setup")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if setupMode == .gameForm || setupMode == .postGameForm {
+                    // Back button for form views
+                    Button(action: {
+                        setupMode = .selection
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Back")
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                    }
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+        }
         .sheet(isPresented: $showingConnectionWaitingRoom) {
             ConnectionWaitingRoomView()
         }
@@ -545,26 +571,33 @@ struct GameSetupView: View {
             let liveGame = try await createLiveGame()
             createdLiveGame = liveGame
 
-            // Set device role for multi-device games
-            if isMultiDevice, let gameId = liveGame.id {
-                // Set the device role based on preferred role
-                debugPrint("🎯 Controller setting deviceRole to \(roleManager.preferredRole.displayName) for game \(gameId)")
-                try await DeviceRoleManager.shared.setDeviceRole(roleManager.preferredRole, for: gameId)
-                debugPrint("✅ Controller deviceRole set successfully")
+            // Set device role
+            if let gameId = liveGame.id {
+                if isMultiDevice {
+                    // Multi-device: Use preferred role (controller or recorder)
+                    debugPrint("🎯 Multi-device: setting deviceRole to \(roleManager.preferredRole.displayName) for game \(gameId)")
+                    try await DeviceRoleManager.shared.setDeviceRole(roleManager.preferredRole, for: gameId)
+                    debugPrint("✅ Multi-device deviceRole set successfully")
 
-                // Send game starting message to connected device
-                debugPrint("📤 Sending gameStarting message to recorder")
-                multipeer.sendGameStarting(gameId: gameId)
+                    // Send game starting message to connected device
+                    debugPrint("📤 Sending gameStarting message to recorder")
+                    multipeer.sendGameStarting(gameId: gameId)
 
-                // Give the recorder a moment to receive the message and set their role
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    // Give the recorder a moment to receive the message and set their role
+                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
-                // Send start recording command to transition recorder to recording view
-                debugPrint("📤 Sending startRecording command to recorder")
-                multipeer.sendStartRecording()
+                    // Send start recording command to transition recorder to recording view
+                    debugPrint("📤 Sending startRecording command to recorder")
+                    multipeer.sendStartRecording()
+                } else {
+                    // Single-device (Stats Only): Always controller
+                    debugPrint("🎯 Single-device (Stats Only): setting deviceRole to controller for game \(gameId)")
+                    try await DeviceRoleManager.shared.setDeviceRole(.controller, for: gameId)
+                    debugPrint("✅ Single-device deviceRole set to controller")
+                }
             }
 
-            debugPrint("🎬 Controller transitioning to live game view")
+            debugPrint("🎬 Transitioning to live game view")
             showingLiveGameView = true
         }
     }

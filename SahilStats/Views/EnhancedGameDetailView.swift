@@ -9,6 +9,7 @@
 // Complete Game Detail View with all stats using existing components
 
 import SwiftUI
+import UIKit
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -39,6 +40,10 @@ struct CompleteGameDetailView: View {
     @State private var showingVideoPlayer = false
     @State private var videoURLToPlay: URL?
     @State private var photosAssetIdToPlay: String?
+
+    // State for timeline export
+    @State private var showingTimelineExport = false
+    @State private var timelineURLToExport: URL?
 
     // State for real-time updates
     @State private var gameListener: ListenerRegistration?
@@ -113,6 +118,14 @@ struct CompleteGameDetailView: View {
                         .padding(.leading, 8)
                     }
                 }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if timelineExists() {
+                        Button(action: exportTimeline) {
+                            Label("Export Timeline", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
             }
         }
         .alert("Edit \(editingStatTitle)", isPresented: $isEditingStat) {
@@ -146,6 +159,11 @@ struct CompleteGameDetailView: View {
                 PhotosVideoPlayerView(photosAssetId: photosAssetId)
             } else if let videoURL = videoURLToPlay {
                 PhotosVideoPlayerView(videoURL: videoURL)
+            }
+        }
+        .sheet(isPresented: $showingTimelineExport) {
+            if let url = timelineURLToExport {
+                ShareSheet(activityItems: [url])
             }
         }
         .onAppear {
@@ -639,6 +657,22 @@ struct CompleteGameDetailView: View {
         return FileManager.default.fileExists(atPath: timelineURL.path())
     }
 
+    private func exportTimeline() {
+        guard let gameId = game.id else {
+            forcePrint("❌ No game ID found")
+            return
+        }
+
+        guard let timelineURL = ScoreTimelineTracker.shared.getTimelineURL(forGameId: gameId) else {
+            forcePrint("❌ No timeline found for game \(gameId)")
+            return
+        }
+
+        timelineURLToExport = timelineURL
+        showingTimelineExport = true
+        forcePrint("📊 Exporting timeline for game: \(game.teamName) vs \(game.opponent)")
+    }
+
     private func playLocalVideo(path: String) {
         videoURLToPlay = URL(fileURLWithPath: path)
         photosAssetIdToPlay = nil
@@ -880,5 +914,3 @@ struct CompleteGameDetailView: View {
         }
     }
 }
-
-

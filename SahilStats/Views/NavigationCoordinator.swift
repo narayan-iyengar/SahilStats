@@ -116,12 +116,19 @@ class NavigationCoordinator: ObservableObject {
     
     private func navigateToGameFlow(_ liveGame: LiveGame) {
         let currentRole = DeviceRoleManager.shared.deviceRole
-        debugPrint("🎯 navigateToGameFlow called with role: \(currentRole)")
+        let isMultiDevice = liveGame.isMultiDeviceSetup ?? false
+        debugPrint("🎯 navigateToGameFlow called with role: \(currentRole), isMultiDevice: \(isMultiDevice)")
 
         switch currentRole {
         case .recorder:
-            debugPrint("🎬 Role is Recorder. Showing READY state.")
-            currentFlow = .waitingToRecord(Optional(liveGame))
+            // Only show recorder waiting room for multi-device games
+            if isMultiDevice {
+                debugPrint("🎬 Multi-device Recorder. Showing READY state.")
+                currentFlow = .waitingToRecord(Optional(liveGame))
+            } else {
+                debugPrint("⚠️ Single-device game but role is Recorder - navigating to live game view instead")
+                currentFlow = .liveGame(liveGame)
+            }
         case .controller, .viewer:
             debugPrint("🎮 Role is Controller/Viewer. Navigating to live game view.")
             currentFlow = .liveGame(liveGame)

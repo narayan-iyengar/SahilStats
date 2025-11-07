@@ -12,7 +12,9 @@ import Foundation
 import AVFoundation
 import Combine
 import SwiftUI
+#if canImport(DockKit)
 import DockKit
+#endif
 import Vision
 
 @MainActor
@@ -30,7 +32,10 @@ final class GimbalTrackingManager: ObservableObject {
 
     // MARK: - DockKit Properties
 
+    #if canImport(DockKit)
+    @available(iOS 18.0, *)
     private var dockAccessory: DockAccessory?
+    #endif
     private var trackingTask: Task<Void, Never>?
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureVideoDataOutput?
@@ -87,7 +92,8 @@ final class GimbalTrackingManager: ObservableObject {
     // MARK: - DockKit Availability
 
     private func checkDockKitAvailability() {
-        if #available(iOS 17.0, *) {
+        #if canImport(DockKit)
+        if #available(iOS 18.0, *) {
             debugPrint("🔍 Checking DockKit availability...")
 
             // Monitor DockAccessory state changes
@@ -140,9 +146,13 @@ final class GimbalTrackingManager: ObservableObject {
             }
         } else {
             isDockKitAvailable = false
-            debugPrint("ℹ️ DockKit requires iOS 17.0+")
+            debugPrint("ℹ️ DockKit requires iOS 18.0+")
             debugPrint("   Update iOS to enable gimbal tracking")
         }
+        #else
+        isDockKitAvailable = false
+        debugPrint("ℹ️ DockKit not available on this platform")
+        #endif
     }
 
     // MARK: - Tracking Control
@@ -161,6 +171,7 @@ final class GimbalTrackingManager: ObservableObject {
             return
         }
 
+        #if canImport(DockKit)
         guard let accessory = dockAccessory else {
             debugPrint("❌ No DockKit accessory available")
             lastError = "No gimbal connected"
@@ -283,12 +294,17 @@ final class GimbalTrackingManager: ObservableObject {
             debugPrint("   Your device: iOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
             lastError = "Requires iOS 18+ for intelligent tracking"
         }
+        #else
+        debugPrint("ℹ️ DockKit not available on this platform")
+        lastError = "DockKit not available"
+        #endif
     }
 
     /// Stop DockKit tracking (called when recording stops)
     func stopTracking() {
         guard isTrackingActive else { return }
 
+        #if canImport(DockKit)
         if #available(iOS 18.0, *) {
             // Cancel tracking monitoring task
             trackingTask?.cancel()
@@ -315,6 +331,11 @@ final class GimbalTrackingManager: ObservableObject {
             isUsingIntelligentTracking = false
             debugPrint("🛑 Tracking stopped")
         }
+        #else
+        isTrackingActive = false
+        isUsingIntelligentTracking = false
+        debugPrint("🛑 Tracking stopped (DockKit not available)")
+        #endif
     }
 
     // MARK: - Tracking Configuration

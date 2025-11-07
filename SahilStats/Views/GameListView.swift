@@ -28,6 +28,7 @@ struct GameListView: View {
     @State private var selectedCalendarGame: GameCalendarManager.CalendarGame?
     @State private var gameToConfirm: LiveGame?
     @State private var gameForQRCode: LiveGame?
+    @State private var showingPostProcessing = false
 
     // iPad detection
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -98,6 +99,9 @@ struct GameListView: View {
         }
         .fullScreenCover(item: $gameForQRCode) { game in
             GameQRCodeDisplayView(liveGame: game)
+        }
+        .fullScreenCover(isPresented: $showingPostProcessing) {
+            VideoPostProcessingView()
         }
         .refreshable {
             try? await Task.sleep(nanoseconds: 500_000_000)
@@ -265,7 +269,14 @@ struct GameListView: View {
                         liveGame: firebaseService.getCurrentLiveGame()
                     )
                 }
-                
+
+                // Video Post-Processing button
+                Button(action: { showingPostProcessing = true }) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.title3)
+                        .foregroundColor(.purple)
+                }
+
                 // Filter button with badge
                 Button(action: { showingFilters = true }) {
                     ZStack {
