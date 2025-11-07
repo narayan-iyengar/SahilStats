@@ -85,11 +85,6 @@ struct EditableGameRowView: View {
                 onTap()
             }
         }
-        .onLongPressGesture(minimumDuration: 0.6) {
-            if canEdit && !isEditing {
-                startEditing()
-            }
-        }
         .alert("Save Changes", isPresented: $showingSaveAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Save") {
@@ -311,12 +306,19 @@ struct EditableGameRowView: View {
     @ViewBuilder
     private var contextMenuItems: some View {
         if !isEditing {
-            Button("View Details") {
-                onTap()
+            Button(action: { onTap() }) {
+                Label("View Details", systemImage: "info.circle")
             }
+
+            if canEdit {
+                Button(action: { startEditing() }) {
+                    Label("Edit Game", systemImage: "pencil")
+                }
+            }
+
             if canDelete {
-                Button("Delete Game", role: .destructive) {
-                    onDelete()
+                Button(role: .destructive, action: { onDelete() }) {
+                    Label("Delete Game", systemImage: "trash")
                 }
             }
         }

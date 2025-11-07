@@ -938,6 +938,10 @@ class VideoRecordingManager: NSObject, ObservableObject {
         // Save score timeline for future reference (only used in fallback mode)
         ScoreTimelineTracker.shared.saveTimeline(scoreTimeline, forGameId: gameId)
 
+        // Pre-load logos asynchronously to avoid sync loading during video processing
+        debugPrint("🖼️ Pre-loading team logos for video overlay...")
+        await preloadLogosToCache(homeLogoURL: liveGame.teamLogoURL, awayLogoURL: liveGame.opponentLogoURL)
+
         // Add overlay via GPU-accelerated post-processing
         debugPrint("🎨 Adding GPU-accelerated overlay with Core Animation...")
 
@@ -1057,6 +1061,43 @@ extension VideoRecordingManager: AVCaptureFileOutputRecordingDelegate {
             } else {
                 forcePrint("❌ Recording file does not exist at expected path")
             }
+        }
+    }
+
+    // MARK: - Logo Pre-loading
+
+    /// Pre-loads logos into URLCache to avoid synchronous loading during video processing
+    private func preloadLogosToCache(homeLogoURL: String?, awayLogoURL: String?) async {
+        async let homeTask: Void = preloadSingleLogo(homeLogoURL, teamName: "Home")
+        async let awayTask: Void = preloadSingleLogo(awayLogoURL, teamName: "Away")
+
+        // Wait for both to complete
+        _ = await (homeTask, awayTask)
+        debugPrint("✅ Logo pre-loading complete")
+    }
+
+    private func preloadSingleLogo(_ urlString: String?, teamName: String) async {
+        guard let urlString = urlString,
+              let url = URL(string: urlString) else {
+            debugPrint("   ⚠️ \(teamName) team: No logo URL")
+            return
+        }
+
+        // Check if already cached
+        let request = URLRequest(url: url)
+        if URLCache.shared.cachedResponse(for: request) != nil {
+            debugPrint("   ✅ \(teamName) team logo already cached")
+            return
+        }
+
+        // Download and cache
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let cachedResponse = CachedURLResponse(response: response, data: data)
+            URLCache.shared.storeCachedResponse(cachedResponse, for: request)
+            debugPrint("   ✅ \(teamName) team logo downloaded and cached (\(data.count) bytes)")
+        } catch {
+            debugPrint("   ⚠️ \(teamName) team logo download failed: \(error.localizedDescription)")
         }
     }
 }

@@ -28,6 +28,9 @@ struct CleanVideoRecordingView: View {
     @State private var isClockRunning = false
     @State private var clockUpdateTimer: Timer?
 
+    // Sync marker for native Camera app workflow
+    @State private var gameClockStartTimestamp: Date?
+
     @ObservedObject private var multipeer = MultipeerConnectivityManager.shared
     
     // State for camera setup
@@ -511,6 +514,21 @@ struct CleanVideoRecordingView: View {
             if let payload = message.payload {
                 debugPrint("⚡ [CleanVideoRecordingView] Received INSTANT clock control")
                 updateClockControlFromPayload(payload)
+            }
+        case .gameClockStarted:
+            // Sync marker: Game clock started (for native Camera app video sync)
+            if let payload = message.payload,
+               let timestampString = payload["timestamp"],
+               let timestamp = Double(timestampString) {
+                let syncMarker = Date(timeIntervalSince1970: timestamp)
+                if gameClockStartTimestamp == nil {
+                    gameClockStartTimestamp = syncMarker
+                    debugPrint("🎬 [Sync Marker] Game clock started at \(syncMarker)")
+                    debugPrint("   📱 Start recording in Camera app now!")
+                    // TODO: Show notification to user
+                } else {
+                    debugPrint("⏭️ Ignoring duplicate gameClockStarted (already have sync marker)")
+                }
             }
         case .periodChange:
             // INSTANT: Period/quarter changed on controller (0ms delay!)

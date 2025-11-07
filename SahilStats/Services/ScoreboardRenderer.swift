@@ -190,10 +190,10 @@ class ScoreboardRenderer {
         forVideo: Bool
     ) {
         // Scoreboard dimensions
-        // For video: Larger, more prominent overlay with full team names
+        // For video: Same size as live overlay, slightly wider for team names (280x56)
         // For live: Compact overlay (match SimpleScoreOverlay exactly)
-        let scoreboardWidth: CGFloat = forVideo ? 450 * scaleFactor : 246 * scaleFactor
-        let scoreboardHeight: CGFloat = forVideo ? 80 * scaleFactor : 56 * scaleFactor
+        let scoreboardWidth: CGFloat = forVideo ? 280 * scaleFactor : 246 * scaleFactor
+        let scoreboardHeight: CGFloat = 56 * scaleFactor
 
         // Position at bottom center
         let scoreboardRect = CGRect(
@@ -237,11 +237,11 @@ class ScoreboardRenderer {
         context.restoreGState()
 
         // Layout constants - adjusted for video vs live
-        let columnWidth: CGFloat = forVideo ? 120 * scaleFactor : 50 * scaleFactor
-        let centerWidth: CGFloat = forVideo ? 100 * scaleFactor : 70 * scaleFactor
-        let spacing: CGFloat = forVideo ? 20 * scaleFactor : 12 * scaleFactor
-        let padding: CGFloat = forVideo ? 20 * scaleFactor : 14 * scaleFactor
-        let logoSize: CGFloat = forVideo ? 40 * scaleFactor : 18 * scaleFactor
+        let columnWidth: CGFloat = forVideo ? 75 * scaleFactor : 50 * scaleFactor
+        let centerWidth: CGFloat = forVideo ? 70 * scaleFactor : 70 * scaleFactor
+        let spacing: CGFloat = forVideo ? 10 * scaleFactor : 12 * scaleFactor
+        let padding: CGFloat = forVideo ? 10 * scaleFactor : 14 * scaleFactor
+        let logoSize: CGFloat = forVideo ? 20 * scaleFactor : 18 * scaleFactor
 
         // Load logos from cache (if URLs provided and cached)
         // Note: Logos should be pre-cached during game setup/live preview
@@ -250,14 +250,14 @@ class ScoreboardRenderer {
 
         var xOffset = scoreboardRect.minX + padding
 
-        // HOME TEAM SECTION (left)
+        // HOME TEAM SECTION (left) - with logo inside
         drawTeamSection(
-            teamName: forVideo ? data.homeTeam : formatTeamName(data.homeTeam, maxLength: 4),
+            teamName: forVideo ? formatTeamName(data.homeTeam, maxLength: 6) : formatTeamName(data.homeTeam, maxLength: 4),
             score: data.homeScore,
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: columnWidth,
             scaleFactor: scaleFactor,
-            logoImage: homeLogo,
+            logoImage: homeLogo,  // Show logo inline for both video and live
             logoSize: logoSize,
             forVideo: forVideo,
             in: context
@@ -274,8 +274,13 @@ class ScoreboardRenderer {
         )
 
         // CENTER SECTION (clock & period)
+        // Use long form period text for video (e.g., "1st HALF" instead of "1H")
+        let periodText = forVideo ?
+            formatLongPeriodText(gameFormat: data.gameFormat, currentPeriod: data.quarter, totalRegularPeriods: data.numQuarter) :
+            data.gameFormat.formatPeriodDisplay(currentPeriod: data.quarter, totalRegularPeriods: data.numQuarter)
+
         drawCenterSection(
-            periodText: data.gameFormat.formatPeriodDisplay(currentPeriod: data.quarter, totalRegularPeriods: data.numQuarter),
+            periodText: periodText,
             clockTime: data.clockTime,
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: centerWidth,
@@ -294,14 +299,14 @@ class ScoreboardRenderer {
             in: context
         )
 
-        // AWAY TEAM SECTION (right)
+        // AWAY TEAM SECTION (right) - with logo inside
         drawTeamSection(
-            teamName: forVideo ? data.awayTeam : formatTeamName(data.awayTeam, maxLength: 4),
+            teamName: forVideo ? formatTeamName(data.awayTeam, maxLength: 6) : formatTeamName(data.awayTeam, maxLength: 4),
             score: data.awayScore,
             at: CGPoint(x: xOffset, y: scoreboardRect.minY),
             width: columnWidth,
             scaleFactor: scaleFactor,
-            logoImage: awayLogo,
+            logoImage: awayLogo,  // Show logo inline for both video and live
             logoSize: logoSize,
             forVideo: forVideo,
             in: context
@@ -362,9 +367,9 @@ class ScoreboardRenderer {
         let spacing: CGFloat = forVideo ? 8 * scaleFactor : 4 * scaleFactor
 
         // Team name (with logo if available)
-        // For video: Larger font, full team name
-        // For live: Smaller font, abbreviated name
-        let nameFontSize: CGFloat = forVideo ? 14 * scaleFactor : 10 * scaleFactor
+        // For video: Compact layout similar to live
+        // For live: Smaller font, abbreviated name with inline logo
+        let nameFontSize: CGFloat = forVideo ? 10 * scaleFactor : 10 * scaleFactor
         let nameAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: nameFontSize, weight: .semibold),
             .foregroundColor: UIColor.white.withAlphaComponent(0.9)
@@ -376,27 +381,27 @@ class ScoreboardRenderer {
         // Calculate total width (logo + spacing + text)
         let totalWidth = (logoImage != nil ? logoSize + spacing : 0) + nameSize.width
         let startX = origin.x + (width - totalWidth) / 2
-        let nameY = origin.y + (forVideo ? 12 : 8) * scaleFactor
+        let nameY = origin.y + 8 * scaleFactor
 
         var currentX = startX
 
-        // Draw logo if available
+        // Draw logo if available (only for live overlay)
         if let logo = logoImage {
-            let logoRect = CGRect(
+            let logoContainer = CGRect(
                 x: currentX,
-                y: nameY - (forVideo ? 2 : 0) * scaleFactor,  // Slightly adjust logo position for larger size
+                y: nameY,
                 width: logoSize,
                 height: logoSize
             )
-            logo.draw(in: logoRect)
+            drawLogoAspectFit(logo, in: logoContainer, context: context)
             currentX += logoSize + spacing
         }
 
         // Draw team name
         nameString.draw(at: CGPoint(x: currentX, y: nameY))
 
-        // Score - larger for video
-        let scoreFontSize: CGFloat = forVideo ? 32 * scaleFactor : 20 * scaleFactor
+        // Score - compact for video (same as live)
+        let scoreFontSize: CGFloat = forVideo ? 22 * scaleFactor : 20 * scaleFactor
         let scoreAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: scoreFontSize, weight: .bold),
             .foregroundColor: UIColor.white
@@ -419,8 +424,8 @@ class ScoreboardRenderer {
         forVideo: Bool,
         in context: CGContext
     ) {
-        // Period text - larger for video
-        let periodFontSize: CGFloat = forVideo ? 12 * scaleFactor : 9 * scaleFactor
+        // Period text - compact for video (same as live)
+        let periodFontSize: CGFloat = 9 * scaleFactor
         let periodAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: periodFontSize, weight: .semibold),
             .foregroundColor: UIColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 0.95)  // Orange
@@ -429,12 +434,12 @@ class ScoreboardRenderer {
         let periodString = NSAttributedString(string: periodText, attributes: periodAttributes)
         let periodSize = periodString.size()
         let periodX = origin.x + (width - periodSize.width) / 2
-        let periodY = origin.y + (forVideo ? 12 : 8) * scaleFactor
+        let periodY = origin.y + 8 * scaleFactor
 
         periodString.draw(at: CGPoint(x: periodX, y: periodY))
 
-        // Clock time - larger for video
-        let clockFontSize: CGFloat = forVideo ? 24 * scaleFactor : 16 * scaleFactor
+        // Clock time - compact for video (same as live)
+        let clockFontSize: CGFloat = 16 * scaleFactor
         let clockAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: clockFontSize, weight: .bold),
             .foregroundColor: UIColor.white
@@ -443,7 +448,7 @@ class ScoreboardRenderer {
         let clockString = NSAttributedString(string: clockTime, attributes: clockAttributes)
         let clockSize = clockString.size()
         let clockX = origin.x + (width - clockSize.width) / 2
-        let clockY = origin.y + (forVideo ? 35 : 22) * scaleFactor
+        let clockY = origin.y + 22 * scaleFactor
 
         clockString.draw(at: CGPoint(x: clockX, y: clockY))
     }
@@ -459,6 +464,40 @@ class ScoreboardRenderer {
         context.move(to: origin)
         context.addLine(to: CGPoint(x: origin.x, y: origin.y + height))
         context.strokePath()
+    }
+
+    /// Draws a logo image with aspect fit (no stretching) centered in the container
+    private static func drawLogoAspectFit(_ image: UIImage, in container: CGRect, context: CGContext) {
+        let imageSize = image.size
+
+        // Calculate aspect ratios
+        let containerAspect = container.width / container.height
+        let imageAspect = imageSize.width / imageSize.height
+
+        var drawRect: CGRect
+
+        if imageAspect > containerAspect {
+            // Image is wider - fit to width
+            let scaledHeight = container.width / imageAspect
+            drawRect = CGRect(
+                x: container.minX,
+                y: container.minY + (container.height - scaledHeight) / 2,
+                width: container.width,
+                height: scaledHeight
+            )
+        } else {
+            // Image is taller or square - fit to height
+            let scaledWidth = container.height * imageAspect
+            drawRect = CGRect(
+                x: container.minX + (container.width - scaledWidth) / 2,
+                y: container.minY,
+                width: scaledWidth,
+                height: container.height
+            )
+        }
+
+        // Draw the image in the calculated rect
+        image.draw(in: drawRect)
     }
 
     // MARK: - Formatting Helpers
@@ -479,4 +518,25 @@ class ScoreboardRenderer {
 
     // Note: Period formatting now uses GameFormat.formatPeriodDisplay()
     // which handles overtime display (OT, 2OT, etc.)
+
+    /// Formats period text in long form for video overlay
+    /// Examples: "1st QUARTER", "2nd HALF", "OT", "2OT"
+    private static func formatLongPeriodText(gameFormat: GameFormat, currentPeriod: Int, totalRegularPeriods: Int) -> String {
+        if currentPeriod <= totalRegularPeriods {
+            // Regular periods - use long form
+            let ordinalSuffixes = ["", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"]
+            let suffix = currentPeriod <= 9 ? ordinalSuffixes[currentPeriod] : "th"
+
+            switch gameFormat {
+            case .quarters:
+                return "\(currentPeriod)\(suffix) QTR"
+            case .halves:
+                return "\(currentPeriod)\(suffix) HALF"
+            }
+        } else {
+            // Overtime periods - use short form (OT, 2OT, 3OT)
+            let otNumber = currentPeriod - totalRegularPeriods
+            return otNumber == 1 ? "OT" : "\(otNumber)OT"
+        }
+    }
 }

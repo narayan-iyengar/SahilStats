@@ -32,44 +32,72 @@ struct ScheduleView: View {
         calendarManager.upcomingGames.filter { !calendarManager.ignoredEventIds.contains($0.id) }
     }
 
+    // Categorize games by time period
+    private var todayGames: [GameCalendarManager.CalendarGame] {
+        let today = Calendar.current.startOfDay(for: Date())
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+        return upcomingGames.filter { game in
+            game.startTime >= today && game.startTime < tomorrow
+        }
+    }
+
+    private var thisWeekGames: [GameCalendarManager.CalendarGame] {
+        let today = Calendar.current.startOfDay(for: Date())
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+        let weekFromNow = Calendar.current.date(byAdding: .day, value: 7, to: today)!
+        return upcomingGames.filter { game in
+            game.startTime >= tomorrow && game.startTime < weekFromNow
+        }
+    }
+
+    private var laterGames: [GameCalendarManager.CalendarGame] {
+        let weekFromNow = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
+        return upcomingGames.filter { game in
+            game.startTime >= weekFromNow
+        }
+    }
+
+    private var hasGamesInNextWeek: Bool {
+        !todayGames.isEmpty || !thisWeekGames.isEmpty
+    }
+
     var body: some View {
         NavigationView {
             Group {
                 if upcomingGames.isEmpty {
                     emptyStateView
+                } else if !hasGamesInNextWeek {
+                    noNearbyGamesView
                 } else {
                     List {
-                        ForEach(upcomingGames) { game in
-                            CalendarGameCard(
-                                game: game,
-                                isIPad: isIPad,
-                                onSelect: {
-                                    selectCalendarGame(game)
+                        // Today's games
+                        if !todayGames.isEmpty {
+                            Section(header: Text("Today")) {
+                                ForEach(todayGames) { game in
+                                    gameRow(for: game)
                                 }
-                            )
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button("Ignore", role: .destructive) {
-                                    calendarManager.ignoreEvent(game.id)
-                                }
-
-                                Button("Start") {
-                                    selectCalendarGame(game)
-                                }
-                                .tint(.orange)
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Ignore", role: .destructive) {
-                                    calendarManager.ignoreEvent(game.id)
-                                }
+                        }
 
-                                Button("Start") {
-                                    selectCalendarGame(game)
+                        // This week's games
+                        if !thisWeekGames.isEmpty {
+                            Section(header: Text("This Week")) {
+                                ForEach(thisWeekGames) { game in
+                                    gameRow(for: game)
                                 }
-                                .tint(.orange)
+                            }
+                        }
+
+                        // Later games
+                        if !laterGames.isEmpty {
+                            Section(header: Text("Upcoming")) {
+                                ForEach(laterGames) { game in
+                                    gameRow(for: game)
+                                }
                             }
                         }
                     }
-                    .listStyle(PlainListStyle())
+                    .listStyle(InsetGroupedListStyle())
                 }
             }
             .navigationTitle("Schedule")
@@ -160,6 +188,38 @@ struct ScheduleView: View {
         }
     }
 
+    // Helper to create a game row with swipe actions
+    @ViewBuilder
+    private func gameRow(for game: GameCalendarManager.CalendarGame) -> some View {
+        CalendarGameCard(
+            game: game,
+            isIPad: isIPad,
+            onSelect: {
+                selectCalendarGame(game)
+            }
+        )
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button("Ignore", role: .destructive) {
+                calendarManager.ignoreEvent(game.id)
+            }
+
+            Button("Start") {
+                selectCalendarGame(game)
+            }
+            .tint(.orange)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Ignore", role: .destructive) {
+                calendarManager.ignoreEvent(game.id)
+            }
+
+            Button("Start") {
+                selectCalendarGame(game)
+            }
+            .tint(.orange)
+        }
+    }
+
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -185,6 +245,90 @@ struct ScheduleView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.orange)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var noNearbyGamesView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 60))
+                .foregroundColor(.orange)
+
+            Text("No Games This Week")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            if let nextGame = laterGames.first {
+                VStack(spacing: 8) {
+                    Text("Next game:")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+
+                    Text(nextGame.opponent)
+                        .font(.headline)
+
+                    Text("\(nextGame.dateString) at \(nextGame.timeString)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 8)
+            } else {
+                Text("Check back later for upcoming games")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+
+            Spacer()
+
+            // Show list of all games at bottom
+            if !laterGames.isEmpty {
+                VStack(spacing: 12) {
+                    Text("All Upcoming Games")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            ForEach(laterGames) { game in
+                                Button(action: {
+                                    selectCalendarGame(game)
+                                }) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(game.opponent)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.primary)
+
+                                            Text("\(game.dateString) at \(game.timeString)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    .frame(maxHeight: 200)
+                }
+            }
 
             Spacer()
         }

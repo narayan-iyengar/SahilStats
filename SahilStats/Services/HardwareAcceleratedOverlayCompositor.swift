@@ -2,8 +2,9 @@
 //  HardwareAcceleratedOverlayCompositor.swift
 //  SahilStats
 //
-//  GPU-accelerated video overlay using Core Animation
-//  This is the iOS-native way to add overlays to video
+//  GPU-accelerated video overlay using Metal + Core Animation
+//  Uses MetalScoreboardRenderer for professional effects (gradients, glows)
+//  Falls back to Core Graphics if Metal unavailable
 //
 
 import AVFoundation
@@ -382,13 +383,26 @@ class HardwareAcceleratedOverlayCompositor {
                 awayLogoURL: matchingSnapshot.awayLogoURL
             )
 
-            if let image = ScoreboardRenderer.renderScoreboard(
-                data: scoreboardData,
-                size: size,
-                isRecording: false,
-                forVideo: true  // Use enhanced layout with full team names and larger logos
-            )?.cgImage {
+            // Try Metal renderer first (GPU-accelerated with effects)
+            if let metalRenderer = MetalScoreboardRenderer(),
+               let image = metalRenderer.renderScoreboard(
+                   data: scoreboardData,
+                   size: size,
+                   scaleFactor: 1.0
+               )?.cgImage {
                 stateImages[state] = image
+                debugPrint("   ✨ Using Metal renderer with GPU effects")
+            } else {
+                // Fallback to Core Graphics renderer
+                if let image = ScoreboardRenderer.renderScoreboard(
+                    data: scoreboardData,
+                    size: size,
+                    isRecording: false,
+                    forVideo: true
+                )?.cgImage {
+                    stateImages[state] = image
+                    debugPrint("   ⚠️ Metal unavailable, using Core Graphics fallback")
+                }
             }
         }
 

@@ -413,21 +413,26 @@ struct CompactGameControlsCard: View {
         isGameRunning ? .orange : .green
     }
     
-    private var advanceQuarterText: String {
+    private var thirdButtonText: String {
         if currentQuarter < maxQuarter {
             return "End \(gameFormat.quarterName)" // "End Quarter" or "End Half"
-        } else if currentQuarter == maxQuarter {
-            return "Add OT" // Can add overtime after regulation ends (works for both quarters and halves)
         } else {
-            let otNumber = currentQuarter - maxQuarter + 1
-            return "Add \(otNumber)OT" // "Add 2OT", "Add 3OT", etc.
+            return "End Game" // After regulation ends, just show "End Game"
         }
     }
 
-    private var advanceQuarterColor: Color {
-        currentQuarter < maxQuarter ? .blue : .orange // Orange for overtime
+    private var thirdButtonColor: Color {
+        currentQuarter < maxQuarter ? .blue : .red // Blue for advancing periods, red for ending game
     }
-    
+
+    private var thirdButtonAction: () -> Void {
+        if currentQuarter < maxQuarter {
+            return onAdvanceQuarter // Advance to next period during regulation
+        } else {
+            return onFinishGame // End game after regulation
+        }
+    }
+
     var body: some View {
         VStack(spacing: isIPad ? 12 : 8) {
             Text("Game Controls")
@@ -441,37 +446,48 @@ struct CompactGameControlsCard: View {
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: startPauseColor, isIPad: isIPad))
 
+                // +1m button with long press for Add OT
                 Button("+1m") {
                     onAddMinute()
                 }
                 .buttonStyle(BiggerCompactControlButtonStyle(color: .purple, isIPad: isIPad))
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 1.0)
+                        .onEnded { _ in
+                            // Only allow adding OT after regulation ends
+                            if currentQuarter >= maxQuarter {
+                                debugPrint("🔍 [DEBUG] Long Press on +1m - Adding OT:")
+                                debugPrint("   currentQuarter: \(currentQuarter)")
+                                debugPrint("   maxQuarter: \(maxQuarter)")
 
-                Button(advanceQuarterText) {
-                    // ALWAYS advance quarter/add overtime - never auto-end game
-                    // Users must click separate "Finish Game" button to end
-                    debugPrint("🔍 [DEBUG] Advance Period Button Pressed:")
+                                #if !targetEnvironment(simulator)
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                                impactFeedback.impactOccurred()
+                                #endif
+
+                                onAdvanceQuarter() // Add OT period
+                            } else {
+                                debugPrint("⚠️ Cannot add OT during regulation - must finish regulation first")
+                            }
+                        }
+                )
+
+                Button(thirdButtonText) {
+                    debugPrint("🔍 [DEBUG] Third Button Pressed:")
                     debugPrint("   currentQuarter: \(currentQuarter)")
                     debugPrint("   maxQuarter: \(maxQuarter)")
                     debugPrint("   gameFormat: \(gameFormat)")
-                    debugPrint("   Button text: \(advanceQuarterText)")
+                    debugPrint("   Button text: \(thirdButtonText)")
 
                     if currentQuarter >= maxQuarter {
-                        debugPrint("   🏀 Adding overtime period")
+                        debugPrint("   🏁 Ending game")
                     } else {
                         debugPrint("   ⏭️ Advancing to next quarter")
                     }
 
-                    onAdvanceQuarter() // Always advance, including into overtime
+                    thirdButtonAction()
                 }
-                .buttonStyle(BiggerCompactControlButtonStyle(color: advanceQuarterColor, isIPad: isIPad))
-            }
-
-            // Show "End Game" button after regulation ends
-            if currentQuarter >= maxQuarter {
-                Button("End Game") {
-                    onFinishGame()
-                }
-                .buttonStyle(BiggerCompactControlButtonStyle(color: .red, isIPad: isIPad))
+                .buttonStyle(BiggerCompactControlButtonStyle(color: thirdButtonColor, isIPad: isIPad))
             }
         }
         .padding(.horizontal, isIPad ? 16 : 12)

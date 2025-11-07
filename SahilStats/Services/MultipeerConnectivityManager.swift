@@ -182,6 +182,7 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         case ping, pong // Keep-alive
         case gameEnded // Game finished
         case gameState, requestRecordingState, recordingStateResponse // Additional message types
+        case gameClockStarted // Sync marker: game clock started (for native Camera app workflow)
     }
     
     struct Message: Codable {
@@ -881,6 +882,16 @@ final class MultipeerConnectivityManager: NSObject, ObservableObject {
         ]
         sendMessage(Message(type: .clockControl, payload: payload))
         debugPrint("⚡ [Instant] Sent clock control: \(isRunning ? "START" : "PAUSE") at \(String(format: "%.0f", clockValue))s")
+    }
+
+    /// Send game clock started marker (for native Camera app sync)
+    func sendGameClockStarted(timestamp: Date = Date()) {
+        let payload = [
+            "timestamp": String(timestamp.timeIntervalSince1970),
+            "formattedTime": ISO8601DateFormatter().string(from: timestamp)
+        ]
+        sendMessage(Message(type: .gameClockStarted, payload: payload))
+        debugPrint("🎬 [Sync Marker] Sent gameClockStarted at \(timestamp)")
     }
 
     /// Send immediate period/quarter change

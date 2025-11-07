@@ -264,6 +264,8 @@ struct HistoryView: View {
                 }
             }
             .listStyle(.plain)
+            .frame(height: CGFloat(recentGames.count) * 90) // Estimate ~90pt per row
+            .animation(.easeInOut, value: recentGames.count)
 
             // "View All Games" / "Show Less" button if there are more than 20
             if filteredGames.count > 20 {
