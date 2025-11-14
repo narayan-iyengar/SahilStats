@@ -1567,6 +1567,16 @@ struct LiveGameControllerView: View {
                     debugPrint("Started with clock: \(localClockTime)")
                     debugPrint("Scores preserved: \(currentHomeScore)-\(currentAwayScore)")
 
+                    // AUTO-START TIMELINE TRACKING (for DaVinci workflow)
+                    if !ScoreTimelineTracker.shared.isRecording {
+                        debugPrint("📊 Auto-starting timeline tracking")
+                        ScoreTimelineTracker.shared.startRecording(
+                            initialGame: serverGameState,
+                            homeLogoURL: serverGameState.teamLogoURL,
+                            awayLogoURL: serverGameState.opponentLogoURL
+                        )
+                    }
+
                     // Send sync marker for native Camera app workflow (first time only)
                     if serverGameState.isMultiDeviceSetup ?? false, currentQuarter == 1, localClockTime >= (Double(serverGameState.quarterLength) * 60.0 - 5.0) {
                         debugPrint("🎬 First clock start - sending sync marker for video sync")
@@ -1919,6 +1929,14 @@ struct LiveGameControllerView: View {
                     try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds delay
                     multipeer.sendGameEnded(gameId: liveGameId)
                     debugPrint("📤 Sent gameEnded message with gameId: \(liveGameId)")
+                }
+
+                // STOP TIMELINE TRACKING AND SAVE (for DaVinci workflow)
+                if timelineTracker.isRecording {
+                    debugPrint("📊 Stopping timeline tracking and saving")
+                    let timeline = timelineTracker.stopRecording()
+                    timelineTracker.saveTimeline(timeline, forGameId: liveGameId)
+                    debugPrint("✅ Timeline saved with \(timeline.count) snapshots")
                 }
 
                 // Delete the live game

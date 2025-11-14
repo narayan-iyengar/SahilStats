@@ -97,6 +97,14 @@ struct ScheduleView: View {
                             }
                         }
                     }
+                    .refreshable {
+                        debugPrint("🔄 Pull-to-refresh triggered in ScheduleView")
+                        await Task {
+                            calendarManager.refreshGames()
+                            debugPrint("🔄 Schedule refresh completed")
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                        }.value
+                    }
                     .listStyle(InsetGroupedListStyle())
                 }
             }

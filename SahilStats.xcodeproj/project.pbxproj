@@ -8,9 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		8B74A6D22E8683C300B76776 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 8B74A6D12E8683C300B76776 /* Lottie */; };
-		8B7B15432E99E71A00BCD506 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B514E522E99CCC600C9BFB4 /* WidgetKit.framework */; };
-		8B7B15442E99E71A00BCD506 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B514E542E99CCC600C9BFB4 /* SwiftUI.framework */; };
-		8B7B154F2E99E71B00BCD506 /* SahilStatsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8B7B15422E99E71900BCD506 /* SahilStatsWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8BFE14522E7B60A800CED835 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE14512E7B60A800CED835 /* FirebaseCore */; };
 		8BFE145A2E7B622E00CED835 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE14592E7B622E00CED835 /* FirebaseAuth */; };
 		8BFE145C2E7B622E00CED835 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE145B2E7B622E00CED835 /* FirebaseFirestore */; };
@@ -19,16 +16,6 @@
 		8BFE14682E7B6E9200CED835 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8BFE14672E7B6E9200CED835 /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		8B7B154D2E99E71B00BCD506 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8BFE14252E7B5A8E00CED835 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 8B7B15412E99E71900BCD506;
-			remoteInfo = SahilStatsWidgetExtension;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXCopyFilesBuildPhase section */
 		8B514E6B2E99CCC700C9BFB4 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -36,7 +23,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				8B7B154F2E99E71B00BCD506 /* SahilStatsWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -46,27 +32,10 @@
 /* Begin PBXFileReference section */
 		8B514E522E99CCC600C9BFB4 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		8B514E542E99CCC600C9BFB4 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		8B7B15422E99E71900BCD506 /* SahilStatsWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SahilStatsWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BFE142D2E7B5A8E00CED835 /* SahilStats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SahilStats.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8B7B15532E99E71B00BCD506 /* Exceptions for "SahilStatsWidget" folder in "SahilStatsWidgetExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 8B7B15412E99E71900BCD506 /* SahilStatsWidgetExtension */;
-		};
-		8B7B15552E99E77E00BCD506 /* Exceptions for "SahilStats" folder in "SahilStatsWidgetExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Models/DeviceRole.swift,
-				Services/SahilStatsActivityAttributes.swift,
-				Services/SahilStatsLiveActivity.swift,
-			);
-			target = 8B7B15412E99E71900BCD506 /* SahilStatsWidgetExtension */;
-		};
 		8BFE14722E7B863000CED835 /* Exceptions for "SahilStats" folder in "SahilStats" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -79,9 +48,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8B7B15452E99E71A00BCD506 /* SahilStatsWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				8B7B15532E99E71B00BCD506 /* Exceptions for "SahilStatsWidget" folder in "SahilStatsWidgetExtension" target */,
-			);
 			path = SahilStatsWidget;
 			sourceTree = "<group>";
 		};
@@ -89,7 +55,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				8BFE14722E7B863000CED835 /* Exceptions for "SahilStats" folder in "SahilStats" target */,
-				8B7B15552E99E77E00BCD506 /* Exceptions for "SahilStats" folder in "SahilStatsWidgetExtension" target */,
 			);
 			path = SahilStats;
 			sourceTree = "<group>";
@@ -97,15 +62,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		8B7B153F2E99E71900BCD506 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				8B7B15442E99E71A00BCD506 /* SwiftUI.framework in Frameworks */,
-				8B7B15432E99E71A00BCD506 /* WidgetKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8BFE142A2E7B5A8E00CED835 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -146,7 +102,6 @@
 			isa = PBXGroup;
 			children = (
 				8BFE142D2E7B5A8E00CED835 /* SahilStats.app */,
-				8B7B15422E99E71900BCD506 /* SahilStatsWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -154,28 +109,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8B7B15412E99E71900BCD506 /* SahilStatsWidgetExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 8B7B15502E99E71B00BCD506 /* Build configuration list for PBXNativeTarget "SahilStatsWidgetExtension" */;
-			buildPhases = (
-				8B7B153E2E99E71900BCD506 /* Sources */,
-				8B7B153F2E99E71900BCD506 /* Frameworks */,
-				8B7B15402E99E71900BCD506 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				8B7B15452E99E71A00BCD506 /* SahilStatsWidget */,
-			);
-			name = SahilStatsWidgetExtension;
-			packageProductDependencies = (
-			);
-			productName = SahilStatsWidgetExtension;
-			productReference = 8B7B15422E99E71900BCD506 /* SahilStatsWidgetExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		8BFE142C2E7B5A8E00CED835 /* SahilStats */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8BFE143D2E7B5A9000CED835 /* Build configuration list for PBXNativeTarget "SahilStats" */;
@@ -188,7 +121,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				8B7B154E2E99E71B00BCD506 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8BFE142F2E7B5A8E00CED835 /* SahilStats */,
@@ -220,9 +152,6 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
-					8B7B15412E99E71900BCD506 = {
-						CreatedOnToolsVersion = 26.0.1;
-					};
 					8BFE142C2E7B5A8E00CED835 = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -248,19 +177,11 @@
 			projectRoot = "";
 			targets = (
 				8BFE142C2E7B5A8E00CED835 /* SahilStats */,
-				8B7B15412E99E71900BCD506 /* SahilStatsWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		8B7B15402E99E71900BCD506 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8BFE142B2E7B5A8E00CED835 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -271,13 +192,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		8B7B153E2E99E71900BCD506 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8BFE14292E7B5A8E00CED835 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -287,105 +201,7 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		8B7B154E2E99E71B00BCD506 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 8B7B15412E99E71900BCD506 /* SahilStatsWidgetExtension */;
-			targetProxy = 8B7B154D2E99E71B00BCD506 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
-		8B7B15512E99E71B00BCD506 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SahilStatsWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = SahilStatsWidget;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.narayan.SahilStats.SahilStatsWidget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				XROS_DEPLOYMENT_TARGET = 26.0;
-			};
-			name = Debug;
-		};
-		8B7B15522E99E71B00BCD506 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SahilStatsWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = SahilStatsWidget;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.narayan.SahilStats.SahilStatsWidget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				XROS_DEPLOYMENT_TARGET = 26.0;
-			};
-			name = Release;
-		};
 		8BFE143B2E7B5A9000CED835 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -602,15 +418,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8B7B15502E99E71B00BCD506 /* Build configuration list for PBXNativeTarget "SahilStatsWidgetExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8B7B15512E99E71B00BCD506 /* Debug */,
-				8B7B15522E99E71B00BCD506 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		8BFE14282E7B5A8E00CED835 /* Build configuration list for PBXProject "SahilStats" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

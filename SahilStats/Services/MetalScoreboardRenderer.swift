@@ -54,13 +54,12 @@ class MetalScoreboardRenderer {
             return nil
         }
 
-        // Step 2: Metal effects disabled for now (gradient already in Core Graphics)
-        // Can enable specific effects later if needed (glow, etc)
-        // guard let enhancedImage = applyMetalEffects(to: baseImage) else {
-        //     return baseImage // Fallback to base if effects fail
-        // }
+        // Step 2: Apply Metal effects (glow and subtle blur for polish)
+        guard let enhancedImage = applyMetalEffects(to: baseImage) else {
+            return baseImage // Fallback to base if effects fail
+        }
 
-        return baseImage
+        return enhancedImage
     }
 
     // MARK: - Base Scoreboard (Core Graphics)
@@ -225,13 +224,12 @@ class MetalScoreboardRenderer {
 
         var currentImage = inputCIImage
 
-        // 1. Add gradient background
-        currentImage = addGradientBackground(to: currentImage)
+        // Skip gradient - already drawn in Core Graphics
 
-        // 2. Add glow effect to text
+        // 1. Add glow effect to text for better readability
         currentImage = addGlowEffect(to: currentImage)
 
-        // 3. Add subtle blur to background (frosted glass)
+        // 2. Add subtle blur (frosted glass effect)
         currentImage = addFrostedGlass(to: currentImage)
 
         // Render final image
